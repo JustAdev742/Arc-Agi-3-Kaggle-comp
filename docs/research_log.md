@@ -500,9 +500,10 @@ Expected: fewer repeated no-op actions and fewer re-probes after a level change;
           (~10 lines). Risk: a wrong lesson persists; mitigated by evidence-only harness lessons and the "hint, not
           fact" framing of cross-game lines.
 Plan:     dev, 1200 s, 8 workers, same seed and settings as exp-011..015 (notebook scratchpad/nb/exp019, slug
-          arc3-eval-dev-m, run name kaggle-repl-dev-019); three runs a side per the noise rule (the base is the six-run
-          set exp-011/011b/011c/012b/013b/015: 1.229/1.372/0.775/0.692/0.608/1.041). Config knobs for the ablation:
-          memory (all off), memory_shared, skills.
+          arc3-eval-dev-m, run name kaggle-repl-dev-019, rebuilt at HEAD 0608566 with level_consolidation off so it
+          isolates the memory from the exp-020 level boundary); three runs a side per the noise rule (the base is the
+          six-run set exp-011/011b/011c/012b/013b/015: 1.229/1.372/0.775/0.692/0.608/1.041). Config knobs for the
+          ablation: memory (all off), memory_shared, skills, level_consolidation.
 Measured: not run. GPU quota for the week is exhausted (used 29 h 34 min of 30 h at 23:10 UTC).
 
 ## 2026-09-16 · exp-020 · Tycho port bundle: level-boundary consolidation + conversation clear, observed terminal frame, animation note, friction line · PLANNED (needs GPU quota)
