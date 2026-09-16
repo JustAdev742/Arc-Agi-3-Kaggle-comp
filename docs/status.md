@@ -159,6 +159,12 @@ research log exp-006a.
 - exp-010b finished 14:05: **dev 0.744, 5 levels, specialists still absent**: the FP8 Qwen3-VL-8B build died in
   DeepGEMM at load ('Unknown SF transformation'), the NVFP4 build in flashinfer's FP4 JIT (no SM120 kernels). Fix
   pushed as env vars on the rungs (VLLM_USE_DEEP_GEMM=0 for FP8, Marlin for NVFP4); exp-010c is the retry.
+- 14:09: exp-010c (`arc3-eval-dev-council-c` v1, harness 7de7f95) running; exp-004 v2 queued. Queue after them, in
+  order: exp-011b (the exp-011 notebook unchanged, per the noise rule), exp-012 (harness 7de7f95: events line in every
+  tool output, single results iterate, ascii(region) degrades to tiles, role always present), then a private Save &
+  Run All of `notebooks/submission.ipynb` (REPL agent) on the RTX as the Milestone 2 candidate check.
+- exp-011 transcripts: 587 code cells, 46% without an act() (exp-009: ~55%); 31 tool errors, the three harness-side
+  ones fixed in 7de7f95; describe_events() still called in 77 inspection-only cells, hence the events line.
 
 ## Session 2 outcome (2026-09-16, afternoon)
 
