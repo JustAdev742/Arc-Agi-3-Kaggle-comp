@@ -186,6 +186,8 @@ research log exp-006a.
 - exp-013b finished 19:19: **0.866, 11 levels** (cd82 and ka59 solved for the first time) but with many actions per
   level; medium-effort pair mean 1.06 vs the adaptive-low pair 1.30. Submission config stays adaptive low (exp-011).
   First validation-split run of the base config pushed 19:22 as `arc3-eval-val-a` (exp-011v).
+- exp-014 (medium effort, events line off) finished 19:23: **0.631, 7 levels**. Effort ablation closed: adaptive
+  low (exp-011 config) stays; medium's three runs average 0.92 vs 1.30. exp-015 (earlier raise to medium) pushed 19:27.
 - 14:09: exp-010c (`arc3-eval-dev-council-c` v1, harness 7de7f95) running; exp-004 v2 queued. Queue after them, in
   order: exp-011b (the exp-011 notebook unchanged, per the noise rule), exp-012 (harness 7de7f95: events line in every
   tool output, single results iterate, ascii(region) degrades to tiles, role always present), then a private Save &

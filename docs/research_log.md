@@ -298,6 +298,18 @@ Repeat:   exp-013b dev 0.866, **11 levels** (runs/kaggle-repl-dev-013b, arc3-eva
           with the raise triggered earlier, to get medium effort's levels without its action cost. exp-014 (medium,
           events line off) is still running and only separates the events-line effect.
 
+## 2026-09-16 · exp-014 · medium effort on every call with the events line off (harness 4647ba8) · CLOSES the effort ablation: adaptive low effort stays
+Measured: dev 0.631 (runs/kaggle-repl-dev-014, kernel arc3-eval-dev-j v1; ran 18:15-19:23). Levels 7/142: ar25 L1, lp85 L1, s5i5 L1, sb26 L1, su15 L1, tu93 L1, vc33 L1; actions 2613.
+          Medium effort, three runs: 1.251 (10 levels, line on), 0.866 (11, line on), 0.631 (7, line off): mean 0.92.
+          Adaptive low effort (exp-011 config), two runs: 1.229 and 1.372 (9 and 9): mean 1.30.
+          Medium effort spends 2.1-2.6k actions per run against 0.9-1.2k, and the extra actions land on levels it does
+          solve (low per-level RHAE) as well as on games it does not. The events line shows no effect at medium effort
+          (7 levels without it, 10 and 11 with it) and a negative one at low effort (6 and 6 against 9 and 9); the level
+          count of one config varies by up to 4 between runs, so only the score means are trusted here.
+Decision: submission config = exp-011's (low effort, raised to medium on stagnation), events line off. Next knob, if a
+          slot is spare: raise to medium earlier (stagnation_actions 3 instead of 6) to buy medium's extra levels
+          without paying its action cost everywhere (exp-015).
+
 ## 2026-09-16 · submission notebook check · private Save & Run All on the RTX PRO 6000 · PASSED
 Measured: kernel `arc-prize-2026-arc-agi-3-arc3-agent` v2 (private), harness 699825b, REPL agent, datasets FP8 27B + wheelhouse.
           vLLM ready on the first attempt (MTP + FP8 KV); offline smoke on ls20 + vc33 at 300 s/game, workers 1: vc33 L1
