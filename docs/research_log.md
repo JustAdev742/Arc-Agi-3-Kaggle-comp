@@ -276,7 +276,7 @@ Measured: dev 0.324 (runs/kaggle-repl-dev-004, kernel arc3-eval-dev-g v2, harnes
 Notes:    low-effort thinking stays; it is what keeps the model from spraying actions. The remaining knob worth a run is
           the other direction (medium effort on every call, fewer calls) once the noise repeat of exp-011 is in.
 
-## 2026-09-16 · exp-013 · medium reasoning effort on every call (fixed policy, max_output 4096) on harness 699825b · PROMISING (repeat pending)
+## 2026-09-16 · exp-013 · medium reasoning effort on every call (fixed policy, max_output 4096) on harness 699825b · NOT KEPT for the submission (more levels, lower RHAE)
 Why:      exp-004 showed that no thinking makes the model spray actions; the other direction, more thinking per call and
           fewer calls, had not been measured.
 Measured: dev 1.251 (runs/kaggle-repl-dev-013, kernel arc3-eval-dev-i v1, harness 699825b = the exp-012 code plus
@@ -289,6 +289,14 @@ Measured: dev 1.251 (runs/kaggle-repl-dev-013, kernel arc3-eval-dev-i v1, harnes
           which points at noise rather than harm for exp-012's 0.608.
 Decision: repeat (exp-013b, kernel arc3-eval-dev-i v2) before keeping, per the noise rule; if it holds at 10 levels the
           submission config moves to fixed medium effort.
+Repeat:   exp-013b dev 0.866, **11 levels** (runs/kaggle-repl-dev-013b, arc3-eval-dev-i v2, 18:19-19:19): ar25, cd82 (first
+          solve, 55 actions), ka59 (first solve, 146 actions), lp85, s5i5, sb26, su15, tn36, tu93, vc33 L2; actions 2359.
+          7 of the solved games shared with exp-013. Medium effort finds more levels but spends more actions on them
+          (vc33 L2 in 340 actions scores 0.32; tn36 208; s5i5 128), so the pair scores 1.251 / 0.866 (mean 1.06, 10 / 11
+          levels) against the low-effort adaptive pair 1.229 / 1.372 (mean 1.30, 9 / 9). RHAE is the metric: the
+          submission keeps exp-011's adaptive policy (low, raised to medium when stagnant). Worth a later run: adaptive
+          with the raise triggered earlier, to get medium effort's levels without its action cost. exp-014 (medium,
+          events line off) is still running and only separates the events-line effect.
 
 ## 2026-09-16 · submission notebook check · private Save & Run All on the RTX PRO 6000 · PASSED
 Measured: kernel `arc-prize-2026-arc-agi-3-arc3-agent` v2 (private), harness 699825b, REPL agent, datasets FP8 27B + wheelhouse.
