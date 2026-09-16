@@ -29,7 +29,7 @@ def main() -> None:
     out = ROOT / "runs" / "_kaggle_output" / kernel.split("/")[-1]
     out.mkdir(parents=True, exist_ok=True)
     kaggle = ROOT / ".venv" / "bin" / "kaggle"
-    r = subprocess.run([str(kaggle), "kernels", "output", kernel, "-p", str(out)], env=env, capture_output=True, text=True)
+    r = subprocess.run([str(kaggle), "kernels", "output", kernel, "-p", str(out)], env=env, capture_output=True, text=True, check=False)
     print(r.stdout[-2000:], r.stderr[-1000:])
     dest = ROOT / "runs" / run_name
     dest.mkdir(parents=True, exist_ok=True)

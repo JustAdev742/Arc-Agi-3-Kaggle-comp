@@ -15,7 +15,6 @@ import random
 from collections import deque
 from typing import Any, Callable, Optional
 
-import numpy as np
 
 from .. import dsl
 from ..entities import Tracker
