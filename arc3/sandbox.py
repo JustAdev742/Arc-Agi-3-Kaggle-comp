@@ -216,8 +216,10 @@ def rules_predictor(rules=None):
         if not rs:
             raise ValueError("no rules could be fitted from this level's transitions yet: probe more, then retry")
     t = TRK["t"]
-    return _dsl.predictor(rs, t.shapes, t.bg if t.bg is not None else 0, ref=lambda: t.compound_frames()[-1] if t.frames else None,
-                          under=lambda: t.under)
+    fn = _dsl.predictor(rs, t.shapes, t.bg if t.bg is not None else 0, ref=lambda: t.compound_frames()[-1] if t.frames else None,
+                        under=lambda: t.under)
+    fn._arc3_rules = rs  # noqa: SLF001  (set_model turns it into a live predictor that follows PLAN['optimistic'])
+    return fn
 
 def _goal_fn(goal):
     if callable(goal):
@@ -430,6 +432,24 @@ def set_model(predict):
     if predict is not None and not callable(predict):
         raise TypeError("set_model expects a callable predict(grid, action) or None")
     live = isinstance(getattr(predict, "__self__", None), _MoveModel)
+    rules_live = getattr(predict, "_arc3_rules", None) is not None
+    if rules_live:
+        # rules_predictor(): verify an optimistic plan against the optimistic rules, so a step the strict rules call
+        # "blocked" is a mismatch that stops the batch instead of a correct prediction of standing still (dc22,
+        # exp-009: 48 actions spent in place with "49/49 predictions correct").
+        strict_rules = list(predict._arc3_rules)  # noqa: SLF001
+        strict_fn = predict
+        t = TRK["t"]
+        relaxed_rules = _dsl.optimistic(strict_rules)
+        relaxed_fn = _dsl.predictor(relaxed_rules, t.shapes, t.bg if t.bg is not None else 0,
+                                    ref=lambda: t.compound_frames()[-1] if t.frames else None, under=lambda: t.under)
+
+        def predict(grid, action):  # noqa: F811
+            if PLAN["optimistic"]:
+                _dsl.set_terrain(relaxed_rules, t.under, t.bg)
+                return relaxed_fn(grid, action)
+            _dsl.set_terrain(strict_rules, t.under, t.bg)
+            return strict_fn(grid, action)
     if live:
         # move_model().predict is a snapshot of the evidence at fit time; the harness registers a predictor that
         # re-fits from the tracker before every prediction (ka59, exp-009: a stale fit mismatched 14 times) and
@@ -444,7 +464,11 @@ def set_model(predict):
     WM["mismatches"] = []
     if predict is None:
         return "world model cleared"
-    return "world model registered (live move model: re-fitted from the evidence before every prediction)" if live else "world model registered"
+    if live:
+        return "world model registered (live move model: re-fitted from the evidence before every prediction)"
+    if rules_live:
+        return "world model registered (rules predictor; an optimistic plan is verified against the optimistic rules)"
+    return "world model registered"
 
 def world_model_stats():
     out = {"checked": WM["checked"], "matched": WM["matched"], "errors": WM["errors"],
@@ -685,6 +709,9 @@ def act(*actions):
             results.append(r)
             if r.get("level_completed") or r.get("game_over") or r.get("won"):
                 break
+            if _idle_streak(results) >= IDLE_STOP and len(norm) > len(results):
+                r["batch_stopped"] = f"{IDLE_STOP} actions in a row changed nothing; stopped after {len(results)} of {len(norm)} (the rest would be wasted)"
+                break
         return results if len(norm) > 1 else results[0]
     # With a registered world model, actions go one at a time so each prediction is checked and a
     # mismatch stops the batch (the model must revise before spending more actions).
@@ -712,11 +739,25 @@ def act(*actions):
         if chk and not chk.get("pred_ok") and len(norm) > 1:
             r["batch_stopped"] = f"prediction mismatch after {len(results)} of {len(norm)} actions; revise the model"
             break
+        if _idle_streak(results) >= IDLE_STOP and len(norm) > len(results):
+            r["batch_stopped"] = f"{IDLE_STOP} actions in a row changed nothing; stopped after {len(results)} of {len(norm)} (the rest would be wasted)"
+            break
         if WM["predict"] is None and len(norm) > len(results):  # retired mid-batch: the rest runs unverified
             return results + act(*norm[len(results):]) if len(norm) - len(results) > 1 else results + [act(norm[len(results)])]
         if r.get("level_completed") or r.get("game_over") or r.get("won"):
             break
     return results if len(norm) > 1 else results[0]
+
+IDLE_STOP = 3  # consecutive no-change actions that end a batch (dc22, exp-009: 13- and 21-action batches spent standing still)
+
+def _idle_streak(results):
+    n = 0
+    for r in reversed(results):
+        if int(r.get("changed") or 0) == 0 and not r.get("level_completed"):
+            n += 1
+        else:
+            break
+    return n
 
 def click(x, y):
     return act(("CLICK", int(x), int(y)))

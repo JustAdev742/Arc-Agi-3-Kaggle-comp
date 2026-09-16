@@ -224,6 +224,15 @@ Change:   planner: cells whose static-layer colour the avatar has stood on are w
           Replay after the fix: strict plan ['RIGHT','RIGHT'] exists, prediction exact except one HUD cell (masked),
           avatar() hands over to #7 after its first key move. Tests: tests/test_planner.py (FloorWorld, hand-over),
           tests/test_sandbox.py (events, live model, retirement), tests/test_repl_agent.py (echo).
+          Third pass (dc22, tn36, tool errors): dc22 ran an optimistic plan_rules() plan under the strict rules predictor,
+          so 48 blocked moves were 'predicted correctly' as standing still (49/49 correct, no level). Now an optimistic
+          plan is verified against the optimistic rules (the first blocked step is a mismatch) and any batch stops after
+          three actions that changed nothing. Sandbox: helpers the model rebinds (`for act in plan`, `rules = ...`, 8
+          calls lost) are restored with a note; user functions that shadow state names (wa30 def state()) survive;
+          plan_rules()/rules_predictor() fit rules lazily (7 calls lost to 'call auto_rules() first').
+          Code-only rules agent on all 25 games after these changes (exp-006c, runs/exp006c-rules-all-s0, 120 s/game,
+          8 workers): 0.224, 2 levels (m0r0 L1 in 149 actions, r11l L1 in 54) vs exp-006b 0.199, 3 levels (tn36 L1
+          lost, m0r0 0.09 -> 0.85): no regression on the code-only path.
 Expected: fewer calls per action on navigation games (ka59, ls20, re86, dc22 style) and on click games (su15, sb26);
           no change on games without an avatar. Measured against exp-009/exp-009b with the same settings.
 Measured: not yet run (kernel queue: exp-010 council and exp-009b occupy both slots).

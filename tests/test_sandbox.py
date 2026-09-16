@@ -281,7 +281,7 @@ print(hint_ok, ps_ok)
     assert lines[0] == "1.0 0 1", lines
     assert lines[1].startswith("move[colour"), lines
     assert lines[2] == "True", lines
-    assert lines[3] == "world model registered"
+    assert lines[3].startswith("world model registered")
     assert lines[4] == "True True", lines
     assert "touch(colour 9, colour 12)" in lines[5], lines
     assert lines[6] == "2 0", lines  # new level: the symbolic log restarted
@@ -406,4 +406,38 @@ def test_rebound_helpers_are_restored_and_rules_fit_lazily():
     assert r["error"] == "" and r["stdout"].strip() == "True True", r
     r = sb.run("def state():\n    return 'mine'\nact('UP'); print(state(), STATE['state'])", state(w.grid(), [w.grid()]), timeout_s=30, action_handler=handler)
     assert r["error"] == "" and r["stdout"].strip().startswith("mine NOT_FINISHED"), r
+    sb.stop()
+
+
+def test_idle_batch_stops_and_optimistic_rules_plan_is_verified_optimistically():
+    """dc22 (exp-009): an optimistic plan_rules() plan ran under the strict rules predictor, so 48 blocked moves were
+    'predicted correctly' as standing still. Now (1) a batch stops after three no-change actions and (2) an optimistic
+    plan is checked against the optimistic rules, so the first blocked step is a mismatch."""
+    from tests.test_planner import GridWorld
+
+    sb = PersistentSandbox(sys_path=[ROOT] + sys.path)
+    w = GridWorld()
+
+    def handler(actions):
+        before = w.pos
+        g = w.act(actions[0]["action"])
+        return [{"changed": 0 if w.pos == before else 32, "level_completed": False, "state": "NOT_FINISHED"}], state(g, [g])
+
+    code = """
+rs = act('LEFT', 'LEFT', 'LEFT', 'LEFT', 'LEFT', 'LEFT')  # one step to the left wall, then nothing changes
+print(len(rs), rs[-1].get('batch_stopped', '')[:40])
+act('RIGHT', 'UP', 'DOWN')
+r = auto_rules(); print(r['coverage'] > 0)
+print(set_model(rules_predictor())[:60])
+PLAN['optimistic'] = True
+rs = act(['RIGHT'] * 6)  # the middle wall (colour 3, never touched) stands at x=28: strict says blocked, optimistic says move
+print([x.get('pred_ok') for x in rs], 'batch_stopped' in rs[-1])
+"""
+    r = sb.run(code, state(w.grid(), [w.grid()]), timeout_s=60, action_handler=handler)
+    assert r["error"] == "", r
+    lines = r["stdout"].strip().splitlines()
+    assert lines[0] == "4 3 actions in a row changed nothing; stop", lines[0]
+    assert lines[1] == "True"
+    assert lines[2].startswith("world model registered (rules predictor")
+    assert lines[3] == "[True, True, True, True, False] True", lines[3]
     sb.stop()
