@@ -75,3 +75,32 @@ conversation, keep a level summary, notes, model and plans); (4) guarded routes 
 transport option open: Tycho's `openai` backend plus `TYCHO_SANDBOX_RUNTIME=host` can drive our vLLM server,
 which makes a reduced-context Tycho run on one or two dev games a cheap calibration of how much of the gap is
 the harness (needs GPU quota).
+
+## Verified in the code (two read-throughs of the repository, 2026-09-16 night)
+
+- One board image per turn (current frame only), `image_cap` 4 hard ceiling "must be <= server --limit-mm-per-prompt";
+  the full 64x64 grid as spaced text every turn (`text_grid: full`) plus a compact lossless diff of the last action;
+  Qwen models get lossless 32 px cells (2048 px images), others 6 px lossy. Old images are evicted first (keep 3).
+- One conversation per level: on level completion a scribe pass of at most 3 calls writes `notes/level_L_insights.md`
+  ("Do not take an action"), then the history is cleared; the next turn says "Your conversation was cleared at the
+  boundary; carry-forward is on disk." Emergency compaction only above 850k prompt tokens.
+- Tools: ls/read/write/edit, run_python (fresh subprocess per call, 15 s default, `wmlib` preloaded), set_verbosity,
+  invoke_builder (orchestrator), take_action (one action per turn; the enum is narrowed to the frame's legal actions).
+  Tool steps per turn 25 (paper 40); calls per game 1100 (paper 3500); action budget 5x the human baseline per level.
+- GAME_OVER: the harness resets by itself, archives the attempt, and attaches the death evidence (fatal action,
+  pre/post diff, two PNGs) to the next turn with "avoid equivalent actions unless deliberately probing".
+- Animation frames: deterministic filter (bbox, max step, border fractions) decides whether keyframes are summarised
+  by a separate model call; the actor gets 1-3 sentences of text, never the frames.
+- World model contract enforced by code: forward simulation from the level's first frame (not teacher-forced), a
+  no-op that the model predicts as motion counts as a mismatch, coverage priced separately (`-1` abstain), outcome
+  graded separately with a render bridge on the observed terminal frame, planner target = own `outcome()`, validated
+  plan artifact with per-step frame hashes re-checked every turn.
+- Builder report format (8 fixed fields: confidence, model, dynamics, outcome, outcome_verified, plan,
+  recommended_action, note) and the instruction "Outcome is a first-class inference, not an afterthought... keep
+  competing outcome hypotheses and the probe that would separate them".
+- `TYCHO_SANDBOX_RUNTIME=host` runs agent code as a plain subprocess; `LLM_BACKEND=openai` + `LLM_BASE_URL` targets any
+  Chat Completions server (our vLLM). Its 164 tests pass here with our venv's pins (arc-agi 0.9.9, arcengine 0.9.3).
+
+Ported so far (exp-020 bundle, commit 0608566): the level boundary (consolidation pass + clear), the observed terminal
+frame in the level archive, the animation note, the friction line. Not ported: per-level action budget (no baselines
+on the hidden set), the tool-schema narrowing (our actions go through act() in code), the builder role.
