@@ -201,3 +201,112 @@ are the levers; the NVFP4 A/B trades accuracy for throughput and is decided by R
 - Stagnation recovery and long-runtime reasoning: 3.7, 3.9.
 - Procedural environment and human calibration: 4.3, deferred by the brief's own ordering.
 - Non-negotiable principle: the architecture is discovered by the gates in section 6, not assumed.
+
+---
+
+# Part II: build specification (written 2026-09-16 after exp-003, the first measured control arm)
+
+Part I says what 100% requires and which mechanisms address which failures. This part says what to build, in
+what order, with interfaces, gates and dates. It is the working plan; each item is still a hypothesis.
+
+## II.1 The four facts the design rests on
+
+1. **The engine is known.** Every game is an `ARCBaseGame` (we have `arcengine` and 25 public games): sprites with
+   pixel masks and colours, levels as sprite lists, a camera with integer upscale, discrete moves (`try_move`),
+   bounding-box or pixel-perfect blocking, and `next_level()` fired by a predicate in `step()`. The mechanics of a
+   hidden game are therefore drawn from a structured space, not an open one.
+2. **Entities are the right state.** Rules in these games are statements about sprites: "the avatar moves one tile
+   per key unless a wall blocks", "touching a key removes it and opens the door", "clicking a tile toggles it".
+   A model over tracked entities is small, verifiable and searchable; a model over pixels is none of those.
+3. **Compute is nearly free, actions are not.** In the competition every game runs for the full 9 hours in
+   parallel. Measured aggregate generation is ~350 tok/s at 8 concurrent (exp-003) and rises with batch size; that is
+   hundreds of model calls per game, 15-40x what the 20-minute dev runs allow. RHAE never sees compute. So: replay,
+   verify, search and simulate as much as needed; probe the environment only when surviving hypotheses disagree.
+4. **The model is weakest where code is strongest.** Pixel-precise geometry, bookkeeping across hundreds of steps,
+   exhaustive search. The harness must own those; the model proposes rules and goals and writes code for the rest.
+
+## II.2 Components, interfaces, and where they run
+
+All of this runs inside the sandbox as variables and functions the model can call, so the REPL stays the single
+interface and every piece is also usable by hand for debugging.
+
+### A. Entity perception and tracking (`arc3/entities.py`)  <- build first
+- `tile(grid) -> k`: the logical cell size (engine upscale x sprite grid), from component sizes and movement steps.
+- `entities(grid) -> [Entity]`: connected components merged into multi-colour sprites when they move together
+  (co-movement learned from the transition log); each has id, mask, colours, bbox, tile position.
+- `track(before, after) -> events`: persistent ids across frames (shape hash + proximity + motion consistency);
+  events: moved(id, dx, dy), appeared, disappeared, recoloured, reshaped. This is the symbolic transition.
+- `roles()`: static (never changes: walls, floor), dynamic, HUD (edge strip with monotone change), avatar (the
+  entity whose displacement correlates with key actions), candidate targets (unique colour/shape, referenced by a
+  panel).
+- Exposed in the REPL: `ents()`, `events()` (last transition), `event_log()` (level), `avatar()`, `hud()`.
+- Gate (exp-005): with only this added to the prompt, actions per solved level on dev fall vs exp-003c and the
+  model's first probe is a key when an avatar exists (measured from traces).
+
+### B. Rule language and verifier (`arc3/dsl.py`)
+- Rule types, parameterised (small finite parameter spaces so code can search them):
+  `Move(cls, keymap, step, blocked_by, wrap)`, `Push(mover, pushable, chain)`, `OnOverlap(a, b, effect)`,
+  `Toggle(cls, trigger)`, `Drift(cls, dx, dy)`, `ClickEffect(cls, effect)`, `Counter(hud, event)`,
+  `Win(predicate)` with predicates `on(a, b)`, `none_left(cls)`, `count(cls) == n`, `matches(reference)`,
+  `aligned(cls)`.
+- `simulate(state, action, rules) -> state'` and `render(state) -> grid` (entities pasted back on the static layer).
+- `verify(rules) -> counter-examples` over the level's symbolic transition log (entity-level diffs, then pixels).
+- `fit(rule_type, log) -> [consistent parameterisations]`: code enumerates parameters; the model only chooses types.
+- Hypothesis manager: alive rule-sets, survival on every real action (extends today's `set_models`).
+- Gate (exp-006): on the public games, the fraction of levels whose full transition log is explained by a rule-set
+  the model + fit() can produce within N calls. This number is the coverage estimate for the hidden set.
+
+### C. Experiment selection and planning (`arc3/planner.py`)
+- `probe_value(action)`: number of distinct predicted outcomes across alive rule-sets, minus cost and risk
+  (irreversible effects, game over, RESET); `best_probe()`.
+- `plan(goal_predicate) -> actions` by BFS/A* over simulated states under the surviving rule-set; execute with
+  per-step verification (already in `act()`); replan on mismatch.
+- `goal_candidates()`: enumerated predicates over the entity set ranked by priors; `confirm_goal()` from the
+  level-completion transition; carried to the next level.
+- Gate (exp-007): fewer probing actions per level and fewer RESETs than exp-005 on dev; val holds.
+
+### D. Controller and memory (`arc3/agents/repl_agent.py` extensions)
+- RHAE-aware budget: expected human count per level type (calibrated on the public games) sets an exploration
+  cap; stagnation reset after N no-information actions; no-op memory.
+- Cross-level carry: rules, entity classes, goal predicate, no-op memory survive level changes in the sandbox.
+- Council roles (proposer, goal analyst, falsifier, planner) as prompts; VL-8B specialists as the A/B.
+- Gate (exp-008/9): later-level efficiency approaches level-1 efficiency; council beats single-model or is dropped.
+
+### E. Data and learning (`tools/`, only after A-C exist)
+- Mechanic catalogue from the 25 public game sources: list every mechanic and check the DSL expresses it.
+- Human replays: probing patterns, actions before first goal-directed move, click targets -> priors for C.
+- Procedural generator (ARCEngine + DSL): unlimited (game, rules) pairs to stress A-C and, if the model's rule
+  proposals are the bottleneck, to fine-tune a rule-induction LoRA on the local RTX PRO 6000.
+
+### F. Scheduler (Kaggle adapter)
+- All games concurrent; model calls allocated by expected marginal score (level weight x completion probability x
+  time left); stuck games parked after a strategic reset and revisited.
+
+## II.3 Order of work and dates
+
+| When | Build | Measure |
+|---|---|---|
+| Sep 17-19 | A (entities, tracking, roles) in the REPL; exp-004 thinking ablation | exp-005 vs exp-003c |
+| Sep 20-23 | B (DSL, verify, fit, hypothesis manager) | exp-006 coverage on public games; dev/val |
+| Sep 24-27 | C (probe selection, planner, goal candidates, carry-over) | exp-007 |
+| Sep 28-30 | Milestone 2 candidate: best arm, Save & Run All on RTX, public copy (owner OK) | one clean 9 h-style run |
+| Oct 1-12 | D (controller, council A/B, NVFP4 A/B), E1-E2 (catalogue, replays) | exp-008..011 |
+| Oct 13-24 | E3 (generator, LoRA if warranted), F (scheduler); freeze by Oct 26 | full-length validation runs |
+| Oct 27-Nov 1 | final validation runs, submission | |
+
+## II.4 What would make me abandon parts of this
+
+- A gives no gain (exp-005 flat): the model already sees enough; the bottleneck is reasoning, go to B anyway.
+- B's coverage on public games < 60%: the DSL is too narrow; keep verify/fit but route more mechanics to bespoke
+  Python, and move the fine-tune (E3) earlier.
+- C does not cut probing actions: hypotheses are not converging; invest in priors from replays (E2) and the
+  falsifier role.
+- Later-level efficiency stays poor after carry-over: goals change more than mechanics; invest in goal inference.
+
+## II.5 Where the 100% could still fail even if everything above works
+
+- Hidden games with mechanics outside the DSL and beyond what the model can write from few examples.
+- Goals only discoverable by long exploration (humans would also score badly; the baseline reflects that, but our
+  cap is 1.15 so we cannot compensate elsewhere).
+- Concurrency-induced latency in the 9-hour run making calls per game too few for the search-heavy loop.
+- Any infrastructure failure on the one competition run.
