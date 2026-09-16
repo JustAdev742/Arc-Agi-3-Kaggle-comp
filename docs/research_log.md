@@ -217,7 +217,10 @@ Change:   planner: cells whose static-layer colour the avatar has stood on are w
           spent 282 actions and several RESETs), avatar() breaks ties by size (the body, not the strip riding on it),
           downscale() returns the tile-sampled board when the engine has no pixel upscale (ft09: the model rebuilt an
           11x11 tile map by hand over four calls), goal_candidates() explains itself on level 1 instead of returning [].
-          Code-only coverage after the bundle: mean 0.505 over 25 games (v13 log; 0.50 before).
+          Code-only coverage after the bundle: mean 0.505 over 25 games (v13 log; 0.50 before); after the turn-tracking
+          pass wa30 fell to 0.05 (its old 0.30 came from spurious vanish rules on the reborn sprite); merging markers
+          that ride on a sprite's edge into its compound (tracker _attached_parts) gives wa30 an exact 4-px move rule
+          and a touch-recolour rule: mean 0.547 over 25 games (v15 log; changed: bp35 0.191->0.217, cn04 0.872->0.897, dc22 0.7->0.718, r11l 0.062->0.054, re86 0.957->0.951, sc25 0.436->0.429, sk48 0.287->0.432, tu93 0.333->0.5, wa30 0.296->1.0).
           Replay after the fix: strict plan ['RIGHT','RIGHT'] exists, prediction exact except one HUD cell (masked),
           avatar() hands over to #7 after its first key move. Tests: tests/test_planner.py (FloorWorld, hand-over),
           tests/test_sandbox.py (events, live model, retirement), tests/test_repl_agent.py (echo).
