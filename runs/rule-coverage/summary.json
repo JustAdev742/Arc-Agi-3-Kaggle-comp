@@ -29,7 +29,7 @@
    "actions": 60,
    "levels_completed": 0,
    "play_s": 0.6,
-   "fit_s": 4.6,
+   "fit_s": 6.7,
    "levels": [
     {
      "transitions": 60,
@@ -80,7 +80,7 @@
       "vanish[colour 2 shape e5bed5] on DOWN",
       "vanish[colour 15 shape 998e0e] on DOWN",
       "onclick[colour 15] -> colour 0 shape 2cc333: recolour to 15",
-      "onclick[colour 4 shape 32524b] -> colour 15 shape 51cdbf: recolour to 0",
+      "onclick[colour 4 shape 32524b] -> colour 15 in region x35-35 y42-42: recolour to 0",
       "vanish[colour 2 shape c36ccb] on UP",
       "recolor[shape d7c47b] 0<->15 on ACT"
      ],
@@ -135,7 +135,7 @@
    "actions": 60,
    "levels_completed": 0,
    "play_s": 0.2,
-   "fit_s": 1.0,
+   "fit_s": 1.6,
    "levels": [
     {
      "transitions": 60,
@@ -169,7 +169,7 @@
    "actions": 60,
    "levels_completed": 0,
    "play_s": 0.2,
-   "fit_s": 0.2,
+   "fit_s": 0.3,
    "levels": [
     {
      "transitions": 60,
@@ -221,8 +221,8 @@
    "game": "ka59",
    "actions": 60,
    "levels_completed": 0,
-   "play_s": 0.1,
-   "fit_s": 0.4,
+   "play_s": 0.2,
+   "fit_s": 0.6,
    "levels": [
     {
      "transitions": 60,
@@ -262,7 +262,7 @@
    "actions": 60,
    "levels_completed": 0,
    "play_s": 0.3,
-   "fit_s": 2.9,
+   "fit_s": 4.2,
    "levels": [
     {
      "transitions": 60,
@@ -271,7 +271,7 @@
      "coverage": 0.047,
      "fully_explained": 55,
      "rules": [
-      "onclick[colour 5] -> colour 3: vanishes"
+      "overlap[colour 0 covers colour 3] -> target_vanishes"
      ],
      "unexplained_sample": [
       "#3 c0 resized on ('CLICK', 18, 19)",
@@ -300,25 +300,27 @@
     {
      "transitions": 60,
      "events": 12,
-     "explained": 2,
-     "coverage": 0.167,
+     "explained": 4,
+     "coverage": 0.333,
      "fully_explained": 58,
      "rules": [
       "onclick[colour 8] -> colour 1 shape c0f747: move (+0,+6)",
-      "onclick[colour 8] -> colour 2: move (-6,+0)"
+      "onclick[colour 8] -> colour 2: move (-6,+0)",
+      "onclick[colour 8] -> colour 15: move (+0,-6)",
+      "onclick[colour 8] -> colour 1 shape c19ff4: move (+12,+0)"
      ],
      "unexplained_sample": [
-      "#23 c15 moved on ('CLICK', 4, 32)",
-      "#30 c1 moved on ('CLICK', 4, 32)",
       "#34 c10 moved on ('CLICK', 4, 32)",
-      "#38 c5 appeared on ('CLICK', 4, 32)"
+      "#38 c5 appeared on ('CLICK', 4, 32)",
+      "#38 c5 resized on ('CLICK', 58, 32)",
+      "#14 c2 moved on ('CLICK', 58, 32)"
      ]
     }
    ],
    "events": 12,
-   "coverage": 0.167,
+   "coverage": 0.333,
    "unexplained_kinds": {
-    "moved": 8,
+    "moved": 6,
     "appeared": 1,
     "resized": 1
    }
@@ -355,7 +357,7 @@
    "actions": 60,
    "levels_completed": 0,
    "play_s": 0.2,
-   "fit_s": 0.1,
+   "fit_s": 0.2,
    "levels": [
     {
      "transitions": 60,
@@ -378,18 +380,19 @@
    "game": "r11l",
    "actions": 60,
    "levels_completed": 0,
-   "play_s": 0.2,
-   "fit_s": 4.8,
+   "play_s": 0.1,
+   "fit_s": 9.1,
    "levels": [
     {
      "transitions": 59,
      "events": 374,
-     "explained": 20,
-     "coverage": 0.053,
+     "explained": 23,
+     "coverage": 0.061,
      "fully_explained": 22,
      "rules": [
       "onclick[colour 15 shape c5c1bc] -> colour 0 shape 36fc3e: moves onto the clicked entity",
       "onclick[colour 15 shape c5c1bc] -> colour 0 shape ce2d61: moves onto the clicked entity",
+      "onclick[colour 15 shape cfd419] -> colour 1 shape dfcf6c: move (+0,-1)",
       "vanish[colour 1 shape ac7cd2 in region x7-9 y56-57] on CLICK",
       "overlap[colour 0 covers colour 15 shape 81fb83] -> target_vanishes",
       "overlap[colour 1 touches colour 0 shape c2340f] -> target recolours to 3",
@@ -412,7 +415,7 @@
     }
    ],
    "events": 374,
-   "coverage": 0.053,
+   "coverage": 0.061,
    "unexplained_kinds": {
     "gone": 4,
     "moved": 8
@@ -454,7 +457,7 @@
    "actions": 50,
    "levels_completed": 0,
    "play_s": 0.1,
-   "fit_s": 0.9,
+   "fit_s": 1.7,
    "levels": [
     {
      "transitions": 49,
@@ -483,7 +486,7 @@
    "actions": 60,
    "levels_completed": 0,
    "play_s": 0.2,
-   "fit_s": 0.2,
+   "fit_s": 0.3,
    "levels": [
     {
      "transitions": 60,
@@ -492,7 +495,7 @@
      "coverage": 0.357,
      "fully_explained": 55,
      "rules": [
-      "onclick[colour 15] -> colour 0 shape c2e514: move (+8,+0)",
+      "onclick[colour 15] -> colour 0 in region x17-41 y56-56: moves onto the clicked entity",
       "overlap[colour 0 covers colour 15] -> target_vanishes",
       "overlap[colour 0 covers colour 9] -> target_vanishes",
       "overlap[colour 0 covers colour 11] -> target_vanishes",
@@ -622,30 +625,32 @@
     {
      "transitions": 35,
      "events": 11,
-     "explained": 0,
-     "coverage": 0.0,
-     "fully_explained": 29,
-     "rules": [],
+     "explained": 1,
+     "coverage": 0.091,
+     "fully_explained": 30,
+     "rules": [
+      "onclick[colour 0 shape 0b05bb] -> colour 15 in region x3-15 y46-58: move (+6,-6)"
+     ],
      "unexplained_sample": [
-      "#26 c15 moved on ('CLICK', 10, 53)",
       "#20 c3 moved on ('CLICK', 16, 47)",
       "#26 c15 moved on ('CLICK', 16, 47)",
-      "#26 c15 moved on ('CLICK', 14, 49)"
+      "#26 c15 moved on ('CLICK', 14, 49)",
+      "#21 c3 moved on ('CLICK', 14, 49)"
      ]
     }
    ],
    "events": 11,
-   "coverage": 0.0,
+   "coverage": 0.091,
    "unexplained_kinds": {
-    "moved": 11
+    "moved": 10
    }
   },
   {
    "game": "tn36",
    "actions": 60,
    "levels_completed": 0,
-   "play_s": 0.2,
-   "fit_s": 1.4,
+   "play_s": 0.3,
+   "fit_s": 2.4,
    "levels": [
     {
      "transitions": 60,
@@ -668,7 +673,7 @@
    "actions": 60,
    "levels_completed": 0,
    "play_s": 0.3,
-   "fit_s": 0.4,
+   "fit_s": 0.5,
    "levels": [
     {
      "transitions": 60,
@@ -732,7 +737,7 @@
    "actions": 50,
    "levels_completed": 0,
    "play_s": 0.1,
-   "fit_s": 0.3,
+   "fit_s": 0.6,
    "levels": [
     {
      "transitions": 49,
@@ -793,7 +798,7 @@
    }
   }
  ],
- "mean_coverage": 0.417,
+ "mean_coverage": 0.427,
  "n_games": 25,
  "actions_per_game": 60
 }

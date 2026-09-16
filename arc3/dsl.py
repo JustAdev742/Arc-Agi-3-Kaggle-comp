@@ -742,7 +742,7 @@ class OnClick(Rule):
         return f"onclick[{self.button if self.button is not None else 'anywhere'}] -> {self.target}: {eff}"
 
 
-def fit_onclick(log: list[Transition], max_rules: int = 6) -> list[tuple[OnClick, Score]]:
+def fit_onclick(log: list[Transition], max_rules: int = 12) -> list[tuple[OnClick, Score]]:
     out: list[tuple[OnClick, Score]] = []
     clicks = [tr for tr in log if click_xy(tr.action) is not None]
     if not clicks:
@@ -751,6 +751,7 @@ def fit_onclick(log: list[Transition], max_rules: int = 6) -> list[tuple[OnClick
     buttons: list[Cls] = []
     seen: set[tuple] = set()
     effects: dict[tuple, set] = defaultdict(set)  # (target colour, target shape or None) -> effects observed
+    reacting: dict[tuple, list[Ent]] = defaultdict(list)
     for tr in clicks:
         x, y = click_xy(tr.action)  # type: ignore[misc]
         hit = [b for b in tr.before if b.contains(x, y)]
@@ -761,6 +762,7 @@ def fit_onclick(log: list[Transition], max_rules: int = 6) -> list[tuple[OnClick
                 continue
             changed = True
             for key in ((e.color, None), (e.color, e.shape), (None, e.shape)):  # (None, shape): every tile of that shape
+                reacting[key].append(e)
                 if o.gone:
                     effects[key].add("vanish")
                 elif o.moved != (0, 0):
@@ -787,10 +789,15 @@ def fit_onclick(log: list[Transition], max_rules: int = 6) -> list[tuple[OnClick
             for eff in effs:
                 if b is None and eff != "goto_origin":
                     continue
-                rule = OnClick(b, Cls(color=color, shape=shape), eff)
-                s = score_rule(rule, log)
-                if s.ok() and s.support > 0:
-                    out.append((rule, s))
+                base = Cls(color=color, shape=shape)
+                for tcls in (base, _with_region(base, reacting[(color, shape)])):
+                    if tcls is None:
+                        continue
+                    rule = OnClick(b, tcls, eff)
+                    s = score_rule(rule, log)
+                    if s.ok() and s.support > 0:
+                        out.append((rule, s))
+                        break
     out.sort(key=lambda rs: -rs[1].support)
     return out[:max_rules]
 

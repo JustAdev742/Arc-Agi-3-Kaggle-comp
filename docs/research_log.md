@@ -112,7 +112,7 @@ Measured: scripts/rule_coverage.py, fixed blind probe (60 actions on level 1: ke
             + HUD bars remembered after they run out:
                                     mean 0.375 over 25 (probe_all_v8.log, commit 570412f)
             + sliding moves, invisible walls from bumps, click-to-cell and swap effects:
-                                    mean 0.417 over 25 (runs/rule-coverage/summary.json, probe_all_v9.log)
+                                    mean 0.417 over 25 (probe_all_v9.log, commit c8bb157); + region-restricted click targets, 12 click rules: mean 0.427 (runs/rule-coverage/summary.json, probe_all_v10.log)
             per game >= 0.5: ar25 1.00, ft09 1.00, m0r0 1.00, sp80 1.00, tn36 1.00, ls20 0.98, re86 0.96, dc22 0.70, ka59 0.63
             0.0: s5i5, su15, vc33 (blind clicks that do nothing; a swap mechanic the fitter does not yet match)
           CPU only: play + fit under 4 s per game. No GPU run yet: exp-005 (tracker + planner) is still queued on Kaggle.
