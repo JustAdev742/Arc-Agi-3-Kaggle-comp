@@ -276,6 +276,17 @@ Measured: dev 0.324 (runs/kaggle-repl-dev-004, kernel arc3-eval-dev-g v2, harnes
 Notes:    low-effort thinking stays; it is what keeps the model from spraying actions. The remaining knob worth a run is
           the other direction (medium effort on every call, fewer calls) once the noise repeat of exp-011 is in.
 
+## 2026-09-16 · exp-011b · exp-011 repeated unchanged (noise repeat) · CONFIRMS exp-011
+Measured: dev 1.372 (runs/kaggle-repl-dev-011b, kernel arc3-eval-dev-f v3, same notebook and harness 756a87e as exp-011, same
+          seed and settings; ran 15:37-16:45). Levels 9/142: ar25 L2 (8.33 on its two levels), lp85 L1, m0r0 L1, s5i5 L1,
+          sb26 L1, su15 L1, tn36 L1, vc33 L1; actions 938 (exp-011: 1180); 0 errors.
+          Agreement with exp-011: 7 of the 8 solved games in common (only tu93 in exp-011, only tn36 here); the exp-009
+          pair had 3 of 9 in common. Score pair 1.229 / 1.372, both 9 levels.
+Notes:    the exp-011 harness is confirmed as the base: mean of the pair 1.30 with 9 levels, against 0.85 with 6 for the
+          exp-009 pair and 1.11 with 8 for exp-005 (single run). Per-game agreement doubled, which suggests the fixes
+          removed real failure modes rather than luck. exp-012 (harness 7de7f95: events line, iterable results, region
+          degrade, role key) is measured against this pair.
+
 ## 2026-09-16 · exp-011 · verified-navigation fixes from the exp-009 transcripts (walkable floor entities, sprite companions, avatar hand-over, live move model, model retirement, inline events, batched click probes) · KEPT
 Why:      exp-009 transcripts (`scripts/transcript_report.py runs/kaggle-repl-dev-009`): ka59 registered
           set_model(move_model().predict) and then took one action per call for 14 consecutive prediction mismatches;

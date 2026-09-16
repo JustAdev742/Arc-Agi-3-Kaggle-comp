@@ -164,6 +164,9 @@ research log exp-006a.
   the arm is parked (code kept), see research log. exp-011b (noise repeat) pushed 15:25 as `arc3-eval-dev-f` v3.
 - exp-004 (thinking off) finished 15:44: **dev 0.324, 6 levels, 3837 actions**: cheap calls made the model spray
   actions (lp85 819, wa30 786); REVERTED, low-effort thinking stays. exp-012 pushed 15:45 as `arc3-eval-dev-h` v1.
+- exp-011b (repeat) finished 16:45: **dev 1.372, 9 levels**, 7 of 8 solved games shared with exp-011 (1.229/9): the
+  exp-011 harness is the confirmed base (pair mean 1.30). Submission notebook (REPL agent, harness 699825b) pushed
+  16:46 as a private Save & Run All on the RTX: `arc-prize-2026-arc-agi-3-arc3-agent` v2 (Milestone 2 check).
 - 14:09: exp-010c (`arc3-eval-dev-council-c` v1, harness 7de7f95) running; exp-004 v2 queued. Queue after them, in
   order: exp-011b (the exp-011 notebook unchanged, per the noise rule), exp-012 (harness 7de7f95: events line in every
   tool output, single results iterate, ascii(region) degrades to tiles, role always present), then a private Save &
