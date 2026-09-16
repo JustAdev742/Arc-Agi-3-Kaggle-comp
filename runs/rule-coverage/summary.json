@@ -28,8 +28,8 @@
    "game": "bp35",
    "actions": 60,
    "levels_completed": 0,
-   "play_s": 0.6,
-   "fit_s": 6.7,
+   "play_s": 0.7,
+   "fit_s": 6.9,
    "levels": [
     {
      "transitions": 60,
@@ -64,7 +64,7 @@
    "game": "cd82",
    "actions": 60,
    "levels_completed": 0,
-   "play_s": 0.1,
+   "play_s": 0.2,
    "fit_s": 0.3,
    "levels": [
     {
@@ -110,31 +110,34 @@
     {
      "transitions": 60,
      "events": 86,
-     "explained": 2,
-     "coverage": 0.023,
-     "fully_explained": 30,
+     "explained": 74,
+     "coverage": 0.86,
+     "fully_explained": 54,
      "rules": [
+      "move[colour 8] keys {UP:(+0,-3), DOWN:(+0,+3), LEFT:(-3,+0), RIGHT:(+3,+0)} only onto colours [0, 10] + 12 invisible wall positions",
+      "move[colour 0] keys {UP:(+0,-3), DOWN:(+0,+3), LEFT:(-3,+0), RIGHT:(+3,+0)} only onto colours [0, 10] + 2 invisible wall positions",
       "onclick[colour 8] -> colour 0 shape ca7367: recolour to 12"
      ],
      "unexplained_sample": [
-      "#2 c0 moved on UP",
-      "#3 c8 moved on UP",
-      "#4 c8 moved on UP",
-      "#2 c0 moved on UP"
+      "#2 c0 moved on ACT",
+      "#3 c8 moved on ACT",
+      "#4 c8 moved on ACT",
+      "#2 c0 moved on ACT"
      ]
     }
    ],
    "events": 86,
-   "coverage": 0.023,
+   "coverage": 0.86,
    "unexplained_kinds": {
-    "moved": 12
+    "moved": 9,
+    "recolor": 3
    }
   },
   {
    "game": "dc22",
    "actions": 60,
    "levels_completed": 0,
-   "play_s": 0.2,
+   "play_s": 0.3,
    "fit_s": 1.6,
    "levels": [
     {
@@ -168,7 +171,7 @@
    "game": "ft09",
    "actions": 60,
    "levels_completed": 0,
-   "play_s": 0.2,
+   "play_s": 0.3,
    "fit_s": 0.3,
    "levels": [
     {
@@ -197,32 +200,35 @@
     {
      "transitions": 60,
      "events": 43,
-     "explained": 2,
-     "coverage": 0.047,
-     "fully_explained": 28,
+     "explained": 31,
+     "coverage": 0.721,
+     "fully_explained": 53,
      "rules": [
+      "move[colour 9] keys {DOWN:(+0,+6), RIGHT:(+6,+0), LEFT:(-6,+0), UP:(+0,-6)} only onto colours [5] + 1 invisible wall positions",
       "overlap[colour 9 covers colour 1] -> target_vanishes"
      ],
      "unexplained_sample": [
-      "#5 c9 moved on DOWN",
-      "#5 c9 moved on DOWN",
-      "#5 c9 moved on RIGHT",
-      "#5 c9 moved on RIGHT"
+      "#1 c9 moved on ACT",
+      "#5 c9 moved on ACT",
+      "#1 c9 moved on ACT",
+      "#5 c9 moved on ACT"
      ]
     }
    ],
    "events": 43,
-   "coverage": 0.047,
+   "coverage": 0.721,
    "unexplained_kinds": {
-    "moved": 12
+    "moved": 9,
+    "appeared": 2,
+    "resized": 1
    }
   },
   {
    "game": "ka59",
    "actions": 60,
    "levels_completed": 0,
-   "play_s": 0.2,
-   "fit_s": 0.6,
+   "play_s": 0.1,
+   "fit_s": 0.5,
    "levels": [
     {
      "transitions": 60,
@@ -262,7 +268,7 @@
    "actions": 60,
    "levels_completed": 0,
    "play_s": 0.3,
-   "fit_s": 4.2,
+   "fit_s": 4.1,
    "levels": [
     {
      "transitions": 60,
@@ -357,7 +363,7 @@
    "actions": 60,
    "levels_completed": 0,
    "play_s": 0.2,
-   "fit_s": 0.2,
+   "fit_s": 0.1,
    "levels": [
     {
      "transitions": 60,
@@ -380,8 +386,8 @@
    "game": "r11l",
    "actions": 60,
    "levels_completed": 0,
-   "play_s": 0.1,
-   "fit_s": 9.1,
+   "play_s": 0.2,
+   "fit_s": 9.3,
    "levels": [
     {
      "transitions": 59,
@@ -425,7 +431,7 @@
    "game": "re86",
    "actions": 60,
    "levels_completed": 0,
-   "play_s": 0.1,
+   "play_s": 0.2,
    "fit_s": 0.2,
    "levels": [
     {
@@ -457,7 +463,7 @@
    "actions": 50,
    "levels_completed": 0,
    "play_s": 0.1,
-   "fit_s": 1.7,
+   "fit_s": 1.8,
    "levels": [
     {
      "transitions": 49,
@@ -495,7 +501,7 @@
      "coverage": 0.357,
      "fully_explained": 55,
      "rules": [
-      "onclick[colour 15] -> colour 0 in region x17-41 y56-56: moves onto the clicked entity",
+      "onclick[colour 15] -> colour 0 in region x17-41 y56-56: move (+8,+0)",
       "overlap[colour 0 covers colour 15] -> target_vanishes",
       "overlap[colour 0 covers colour 9] -> target_vanishes",
       "overlap[colour 0 covers colour 11] -> target_vanishes",
@@ -522,7 +528,7 @@
    "actions": 60,
    "levels_completed": 0,
    "play_s": 0.2,
-   "fit_s": 1.0,
+   "fit_s": 0.9,
    "levels": [
     {
      "transitions": 60,
@@ -563,7 +569,7 @@
    "actions": 60,
    "levels_completed": 0,
    "play_s": 0.2,
-   "fit_s": 0.8,
+   "fit_s": 0.5,
    "levels": [
     {
      "transitions": 60,
@@ -649,7 +655,7 @@
    "game": "tn36",
    "actions": 60,
    "levels_completed": 0,
-   "play_s": 0.3,
+   "play_s": 0.4,
    "fit_s": 2.4,
    "levels": [
     {
@@ -798,7 +804,7 @@
    }
   }
  ],
- "mean_coverage": 0.427,
+ "mean_coverage": 0.488,
  "n_games": 25,
  "actions_per_game": 60
 }

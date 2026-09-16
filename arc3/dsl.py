@@ -393,9 +393,7 @@ class Move(Rule):
         k = action_kind(action)
         if k in self.keymap:
             return self.keymap[k]
-        if k in KEYS:
-            return None  # unknown key: no opinion
-        return (0, 0)  # non-key actions do not move this class
+        return None  # unknown key, ACT or click: no opinion (Return / OnClick rules may speak)
 
     def claims(self, tr: Transition) -> dict[int, Claim]:
         d = self.delta(tr.action)
@@ -798,6 +796,63 @@ def fit_onclick(log: list[Transition], max_rules: int = 12) -> list[tuple[OnClic
                     if s.ok() and s.support > 0:
                         out.append((rule, s))
                         break
+    out.sort(key=lambda rs: -rs[1].support)
+    return out[:max_rules]
+
+
+class Return(Rule):
+    """On the trigger action, entities of ``cls`` jump back to their level-start positions (a reset / undo key)."""
+    kind = "return"
+
+    def __init__(self, cls: Cls, trigger: str, origins: dict[int, tuple[int, int]]):
+        self.cls, self.trigger = cls, trigger
+        self.origins = {int(k): (int(v[0]), int(v[1])) for k, v in origins.items()}
+
+    def _fires(self, action: Any) -> bool:
+        return action_kind(action) == self.trigger
+
+    def claims(self, tr: Transition) -> dict[int, Claim]:
+        on = self._fires(tr.action)
+        out = {}
+        for e in self.cls.select(tr.before):
+            o = self.origins.get(e.id)
+            if o is None:
+                continue
+            out[e.id] = Claim(moved=(o[0] - e.x0, o[1] - e.y0) if on else (0, 0))
+        return out
+
+    def apply(self, before: Frame, action: Any, frame: Frame) -> Frame:
+        if not self._fires(action):
+            return frame
+        return tuple(e.moved(self.origins[e.id][0] - e.x0, self.origins[e.id][1] - e.y0) if self.cls.matches(e) and e.id in self.origins else e
+                     for e in frame)
+
+    def describe(self) -> str:
+        return f"return[{self.cls}] to start positions on {self.trigger}"
+
+
+def fit_return(log: list[Transition], max_rules: int = 3) -> list[tuple[Return, Score]]:
+    if not log:
+        return []
+    origins = {e.id: (e.x0, e.y0) for e in log[0].before}
+    out: list[tuple[Return, Score]] = []
+    kinds = sorted({action_kind(tr.action) for tr in log if action_kind(tr.action) not in KEYS and click_xy(tr.action) is None})
+    # classes of entities that ever jumped back to their origin on a non-key action
+    cands: list[Ent] = []
+    for tr in log:
+        if action_kind(tr.action) in KEYS or click_xy(tr.action) is not None:
+            continue
+        for e in tr.before:
+            o = tr.obs(e.id)
+            if o and not o.gone and o.moved != (0, 0) and e.id in origins and (e.x0 + o.moved[0], e.y0 + o.moved[1]) == origins[e.id]:
+                cands.append(e)
+    for cls in _classes_of(cands):
+        for k in kinds:
+            rule = Return(cls, k, origins)
+            sc = score_rule(rule, log)
+            if sc.ok() and sc.support > 0:
+                out.append((rule, sc))
+                break
     out.sort(key=lambda rs: -rs[1].support)
     return out[:max_rules]
 
@@ -1303,7 +1358,7 @@ def fit_counter(log: list[Transition], max_rules: int = 3) -> list[tuple[Counter
 
 FITTERS: dict[str, Callable[..., list[tuple[Rule, Score]]]] = {
     "move": fit_move, "drift": fit_drift, "vanish": fit_vanish, "overlap": fit_overlap,
-    "recolor": fit_recolor, "counter": fit_counter, "onclick": fit_onclick,
+    "recolor": fit_recolor, "counter": fit_counter, "onclick": fit_onclick, "return": fit_return,
 }
 
 
@@ -1330,7 +1385,7 @@ def auto_rules(log: list[Transition], ignore_ids: Iterable[int] = ()) -> tuple[l
     cands: list[tuple[Rule, Score]] = []
     for lst in fitted.values():
         cands.extend(lst)
-    prio = {"push": 0, "move": 1, "onclick": 2, "overlap": 3, "vanish": 4, "recolor": 5, "counter": 6, "drift": 7}  # drift last: it explains key moves only by coincidence
+    prio = {"push": 0, "move": 1, "onclick": 2, "return": 3, "overlap": 4, "vanish": 5, "recolor": 6, "counter": 7, "drift": 8}  # drift last: it explains key moves only by coincidence
     cands.sort(key=lambda rs: (-rs[1].support, prio.get(rs[0].kind, 9)))
     chosen: list[Rule] = []
     best = explain(chosen, log, ignore_ids=ignore_ids)
@@ -1347,7 +1402,7 @@ def auto_rules(log: list[Transition], ignore_ids: Iterable[int] = ()) -> tuple[l
 
 
 # ---------------------------------------------------------------------------------------------- simulation
-ORDER = ("push", "move", "onclick", "drift", "overlap", "vanish", "recolor", "counter")
+ORDER = ("push", "move", "onclick", "return", "drift", "overlap", "vanish", "recolor", "counter")
 
 
 def simulate(frame: Frame, action: Any, rules: list[Rule]) -> Frame:
@@ -1526,6 +1581,9 @@ def planning_actions(rules: list[Rule], frame: Frame) -> list[Any]:
             for b in r.button.select(frame):
                 acts.append(("CLICK", (b.x0 + b.x1) // 2, (b.y0 + b.y1) // 2))
         trig = getattr(r, "trigger", None)
+        if isinstance(r, Return) and trig not in acts:
+            acts.append(trig)
+            continue
         if trig == "CLICK@self":
             for e in r.cls.select(frame):
                 acts.append(("CLICK", (e.x0 + e.x1) // 2, (e.y0 + e.y1) // 2))
