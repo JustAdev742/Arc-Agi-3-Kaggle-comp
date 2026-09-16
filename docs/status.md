@@ -180,6 +180,9 @@ research log exp-006a.
   written, 17 min of RTX. This is the Milestone 2 candidate; publishing needs your OK (open items). exp-012b pushed 17:04.
 - exp-013 (medium effort every call) finished 18:08: **dev 1.251, 10 levels** (su15 L2, vc33 L2), the most levels of
   any run; score inside the exp-011 band. Repeat exp-013b pushed 18:10. exp-012b still running.
+- exp-012b finished 18:13: **0.692, 6 levels** (exp-012: 0.608/6) vs the exp-011 pair (9/9): the events line in every
+  tool output is off by default now (`tool_events_line`); the error fixes stay. exp-014 (medium effort, line off)
+  pushed 18:20 as `arc3-eval-dev-j` to separate the two effects; exp-013b running.
 - 14:09: exp-010c (`arc3-eval-dev-council-c` v1, harness 7de7f95) running; exp-004 v2 queued. Queue after them, in
   order: exp-011b (the exp-011 notebook unchanged, per the noise rule), exp-012 (harness 7de7f95: events line in every
   tool output, single results iterate, ascii(region) degrades to tiles, role always present), then a private Save &

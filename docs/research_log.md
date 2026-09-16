@@ -298,7 +298,7 @@ Measured: kernel `arc-prize-2026-arc-agi-3-arc3-agent` v2 (private), harness 699
           exercised only by a real submission.
 Notes:    Milestone 2 candidate is ready technically; license and publication are the owner's call (status open items).
 
-## 2026-09-16 · exp-012 · events line in every tool output, iterable single results, ascii(region) degrades to tiles, role key always present, DeepGEMM off for FP8 specialists · PENDING (one run below the exp-011 pair; repeat before deciding)
+## 2026-09-16 · exp-012 · events line in every tool output, iterable single results, ascii(region) degrades to tiles, role key always present, DeepGEMM off for FP8 specialists · events line REVERTED (off by default), error fixes KEPT
 Why:      exp-011 transcripts: 77 inspection-only calls spent on describe_events() after an act, nine refused
           ascii(region) calls, KeyError 'role' nine times, `for r in act('ACT')` iterating dict keys.
 Measured: dev 0.608 (runs/kaggle-repl-dev-012, kernel arc3-eval-dev-h v1, harness 7de7f95, same settings; ran 15:51-16:59).
@@ -311,6 +311,11 @@ Measured: dev 0.608 (runs/kaggle-repl-dev-012, kernel arc3-eval-dev-h v1, harnes
 Decision: not kept yet. The base for the submission stays the exp-011 harness (756a87e) until exp-012b, a repeat of this
           notebook, lands: two runs below the pair mean revert the events line (keep the three error fixes, which
           cannot lower a score); one run inside the pair's band means noise and the bundle is kept.
+Repeat:   exp-012b dev 0.692, 6 levels (runs/kaggle-repl-dev-012b, arc3-eval-dev-h v2, 17:12-18:13; ar25, lp85, ls20, sb26,
+          su15, vc33; 900 actions; p50 latency 16-67 s). Two runs at 6 levels against two at 9: the events line is now
+          off by default (`tool_events_line` config, commit below); the error fixes stay. Confound: exp-013 (medium
+          effort, same code with the line on) reached 10 levels, so exp-014 = medium effort with the line off separates
+          the two; exp-013b (running) repeats medium effort with the line on.
 
 ## 2026-09-16 · exp-011b · exp-011 repeated unchanged (noise repeat) · CONFIRMS exp-011
 Measured: dev 1.372 (runs/kaggle-repl-dev-011b, kernel arc3-eval-dev-f v3, same notebook and harness 756a87e as exp-011, same

@@ -308,7 +308,8 @@ def test_tool_text_appends_cell_events_unless_printed():
     from arc3.agents.repl_agent import ReplAgent
 
     ev = ["UP: #3 (c9 4x4) moved (+0,-4)", "RIGHT: no entity changed"]
-    out = ReplAgent._tool_text({"stdout": "ok\n", "events": ev, "actions": 2})
+    out = ReplAgent._tool_text({"stdout": "ok\n", "events": ev, "actions": 2}, events_line=True)
     assert "events: UP: #3 (c9 4x4) moved (+0,-4) | RIGHT: no entity changed" in out
-    printed = ReplAgent._tool_text({"stdout": "['UP: #3 (c9 4x4) moved (+0,-4)', 'RIGHT: no entity changed']\n", "events": ev, "actions": 2})
+    printed = ReplAgent._tool_text({"stdout": "['UP: #3 (c9 4x4) moved (+0,-4)', 'RIGHT: no entity changed']\n", "events": ev, "actions": 2}, events_line=True)
     assert "events:" not in printed
+    assert "events:" not in ReplAgent._tool_text({"stdout": "ok\n", "events": ev, "actions": 2})  # off by default (exp-012/012b)

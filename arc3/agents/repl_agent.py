@@ -112,6 +112,9 @@ class ReplAgent(Agent):
         # Thinking policy: 'fixed' uses reasoning_effort every call; 'adaptive' (default) raises it to effort_raised for a
         # turn when the game is stagnant (the last stagnation_actions actions changed nothing, or two turns without an
         # action) and drops back afterwards, so extra thinking is bought only where it can change the next action.
+        # exp-012/012b (2026-09-16): appending each cell's entity events to every tool output cut describe_events() calls
+        # but both runs scored below the exp-011 pair at low effort; off by default, on for the ablation.
+        self.tool_events_line = bool(c.get("tool_events_line", False))
         self.effort_policy = str(c.get("effort_policy", "adaptive"))
         self.effort_raised = str(c.get("effort_raised", "medium"))
         self.stagnation_actions = int(c.get("stagnation_actions", 6))
@@ -673,8 +676,8 @@ class ReplAgent(Agent):
                         acted = True
                     else:
                         inspect_only += 1
-                    self.messages.append({"role": "tool", "tool_call_id": tc.id, "content": self._tool_text(r)})
-                    self._record("tool", turn=self.st.turns, output=self._tool_text(r)[:2000], actions=r.get("actions", 0),
+                    self.messages.append({"role": "tool", "tool_call_id": tc.id, "content": self._tool_text(r, events_line=self.tool_events_line)})
+                    self._record("tool", turn=self.st.turns, output=self._tool_text(r, events_line=self.tool_events_line)[:2000], actions=r.get("actions", 0),
                                  error=bool(r.get("error")), step=self.frame.step if self.frame else None,
                                  level=self.frame.level if self.frame else None)
                     lr = self.last_result or {}
@@ -748,7 +751,7 @@ class ReplAgent(Agent):
         return False
 
     @staticmethod
-    def _tool_text(r: dict[str, Any]) -> str:
+    def _tool_text(r: dict[str, Any], events_line: bool = False) -> str:
         parts = []
         if r.get("stdout"):
             parts.append(r["stdout"].rstrip())
@@ -760,7 +763,7 @@ class ReplAgent(Agent):
             parts.append("result: " + json.dumps(r["result"], ensure_ascii=False)[:1500])
         if r.get("error"):
             parts.append(r["error"])
-        events = [e for e in (r.get("events") or []) if e]
+        events = [e for e in (r.get("events") or []) if e] if events_line else []
         if events:
             stdout = r.get("stdout") or ""
             shown = all(e.split(": ", 1)[-1][:40] in stdout for e in events)
