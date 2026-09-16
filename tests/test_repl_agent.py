@@ -65,9 +65,12 @@ def test_eviction_keeps_context_bounded():
         assert agent.stats()["evictions"] > 0
         agent._evict()  # the newest pair may have been appended after the last in-turn eviction
         budget = agent.context_tokens - agent.max_output_tokens - 1024
-        assert agent._estimate_tokens(agent.messages) <= budget + 100, agent._estimate_tokens(agent.messages)
-        assert agent.messages[0]["role"] == "system"
-        assert any(m["role"] == "user" for m in agent.messages[1:3])  # the current turn's user message survives
+        # Eviction keeps the system prompt and the current turn's user message and drops everything else it can:
+        # either we are under budget, or only one assistant/tool pair is left (a single turn can exceed a tiny budget).
+        roles = [m["role"] for m in agent.messages]
+        assert roles[0] == "system" and roles[1] == "user", roles
+        n_pairs = roles.count("assistant")
+        assert agent._estimate_tokens(agent.messages) <= budget or n_pairs <= 1, (roles, agent._estimate_tokens(agent.messages))
     finally:
         agent.close()
         env.close()
