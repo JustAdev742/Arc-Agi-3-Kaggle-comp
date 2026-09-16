@@ -69,6 +69,8 @@ def test_specialist_ladder_flags():
     assert tuned[tuned.index("--tool-call-parser") + 1] == "hermes"
     assert cons[cons.index("--max-model-len") + 1] == "8192" and "--kv-cache-dtype" not in cons
     assert serve.specialist_attempts([None, ""]) == []
+    # NVFP4 rungs carry the Marlin GEMM backend (flashinfer's cutlass FP4 JIT has no SM120 kernels, exp-010); FP8 rungs do not
+    assert ladder[2]["env_extra"]["VLLM_NVFP4_GEMM_BACKEND"] == "marlin" and "env_extra" not in ladder[0]
 
 
 def test_ladder_walks_attempts_and_fits_gpu_memory(monkeypatch, tmp_path):
@@ -80,7 +82,7 @@ def test_ladder_walks_attempts_and_fits_gpu_memory(monkeypatch, tmp_path):
             return 1
 
     procs = iter([DeadProc(), FakeProc(), FakeProc()])
-    monkeypatch.setattr(serve, "start_vllm", lambda model_dir, log_path="", **kw: (started.append((model_dir, kw)), next(procs))[1])
+    monkeypatch.setattr(serve, "start_vllm", lambda model_dir, log_path="", env_extra=None, **kw: (started.append((model_dir, kw)), next(procs))[1])
     monkeypatch.setattr(serve, "wait_for_server", lambda url, timeout_s, proc=None: proc.poll() is None)
     monkeypatch.setattr(serve, "probe_completion", lambda *a, **k: next(probes))
     monkeypatch.setattr(serve, "gpu_fraction_available", lambda reserve_mib=1536: 0.20)
@@ -90,7 +92,7 @@ def test_ladder_walks_attempts_and_fits_gpu_memory(monkeypatch, tmp_path):
     # attempt 1 died at start, attempt 2 came up but failed its probe, attempt 3 (nvfp4 tuned) won
     assert [m for m, _ in started] == ["/in/fp8", "/in/fp8", "/in/nvfp4"]
     assert all(kw["gpu_mem"] == 0.18 for _, kw in started)  # clamped to the 0.20 the coordinator left, minus 0.02
-    assert not any(k in kw for _, kw in started for k in ("label", "model_dir", "fit_gpu_mem", "probe_image"))
+    assert not any(k in kw for _, kw in started for k in ("label", "model_dir", "fit_gpu_mem", "probe_image", "env_extra"))
     assert serve.LAST_START["ready"] and serve.LAST_START["attempt"] == 3 and serve.LAST_START["label"] == "nvfp4 tuned"
     log = (tmp_path / "s.log").read_text()
     assert "attempt 1 (fp8 tuned) failed" in log and "probe completion attempt 2 (fp8 conservative): FAILED" in log

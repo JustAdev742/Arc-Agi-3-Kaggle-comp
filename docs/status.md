@@ -140,7 +140,10 @@ research log exp-006a.
   tile size, goal_candidates() on level 1. Code-only coverage 0.50 -> 0.547 (wa30 0.30 -> 1.0, tu93 0.33 -> 0.5,
   sk48 0.29 -> 0.43); code-only rules agent 0.199 -> 0.224 (exp-006c). Notebook `arc3-eval-dev-f` (run
   `kaggle-repl-dev-011`) is built at HEAD for the next free slot.
-- Running on Kaggle: exp-010 (shared-model council, since 10:44) and exp-009b (noise repeat, since 11:06).
+- exp-010 finished 11:57: **dev 0.278, 4 levels** with all six roles on the coordinator (specialist server never
+  started: flashinfer's cutlass FP4 JIT has no SM120 kernels, `vllm-specialist.log`); the shared-model council costs
+  more GPU time than it gives (coordinator p50 latency up ~40%, 743 actions vs 987). exp-010b (specialist ladder,
+  FP8 first, NVFP4 with Marlin last) pushed 11:58 as `arc3-eval-dev-council-b`; exp-009b still running.
 
 ## Session 2 outcome (2026-09-16, afternoon)
 

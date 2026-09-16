@@ -195,6 +195,23 @@ Notes:    every harness arm beats the control; among them the order is inside si
           notebook pushed again as kernel arc3-eval-dev-e, 11:06) measures that noise. The per-call cost has not moved
           (about 35 calls per game); the ascii() tile-map change and the stagnation/level notices came after this build.
 
+## 2026-09-16 · exp-010 · council arm, six roles on the coordinator model (specialist server failed) · REVERTED as run; council decided by exp-010b
+Why:      the user's six-specialist + coordinator design as an ablation arm; council v2 (event-driven rounds, rich
+          observation, async injection) on Qwen3.8-27B-FP8 with Qwen3-VL-8B-NVFP4 as the specialists.
+Measured: dev 0.278 (runs/kaggle-council-dev-010, kernel arc3-eval-dev-council v1, harness 9c22b80 + council v2, same
+          settings as exp-009; ran 10:44-11:57). Levels 4/142: sb26 L1, su15 L1, tn36 L1, vc33 L1; actions 743; 0 model
+          errors. **The specialist server never started**: vLLM chose FlashInferCutlassNvFp4LinearKernel for the NVFP4
+          checkpoint and flashinfer's JIT raised "No supported CUDA architectures found for major versions [12]"
+          (SM120) on both attempts (`runs/_kaggle_output/arc3-eval-dev-council/vllm-specialist.log`), so all six roles ran
+          on the 27B coordinator: 2-7 rounds per game, 12-42 extra 27B calls per game on the same GPU. Coordinator
+          latency p50 rose to 23-60 s (exp-009: 14-57 s), calls per game fell to 21-35, actions 987 -> 743.
+          vs exp-009 0.836 (6 levels): the shared-model council costs more than it gives.
+Notes:    the 14 'gave_up' failures are a label artefact (exp-009 had 16): the agent stops when less than one turn of
+          time is left; eval.py now calls that 'timeout'. Fix for the specialist server in `arc3/serve.py` (attempt
+          ladder: official FP8 Qwen3-VL-8B build first, NVFP4 with VLLM_NVFP4_GEMM_BACKEND=marlin last, gpu_mem from free
+          memory, image probe). exp-010b (`arc3-eval-dev-council-b`, run kaggle-council-dev-010b, harness 33f758e) is the
+          real council measurement; it also carries the exp-011 harness, so its control is exp-011, not exp-009.
+
 ## 2026-09-16 · exp-011 · verified-navigation fixes from the exp-009 transcripts (walkable floor entities, sprite companions, avatar hand-over, live move model, model retirement, inline events, batched click probes) · PENDING (built, not yet run)
 Why:      exp-009 transcripts (`scripts/transcript_report.py runs/kaggle-repl-dev-009`): ka59 registered
           set_model(move_model().predict) and then took one action per call for 14 consecutive prediction mismatches;

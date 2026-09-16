@@ -118,7 +118,8 @@ def play_game(
         frame = env.frame
         while True:
             if agent.is_done(frame):
-                res.failure = "solved" if frame.done else "gave_up"
+                # an agent that stops because its remaining time is below one turn ran out of time, it did not give up
+                res.failure = "solved" if frame.done else ("timeout" if time.time() >= deadline - 90 else "gave_up")
                 break
             if env.step_count >= max_actions:
                 res.failure = "action_cap"

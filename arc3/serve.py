@@ -126,12 +126,17 @@ def kaggle_env() -> dict[str, str]:
     return env
 
 
-def start_vllm(model_dir: str, *, log_path: str = "vllm.log", **kw) -> subprocess.Popen:
+def start_vllm(model_dir: str, *, log_path: str = "vllm.log", env_extra: Optional[dict] = None, **kw) -> subprocess.Popen:
     cmd = build_vllm_command(model_dir, **kw)
+    env = kaggle_env()
+    if env_extra:
+        env.update({k: str(v) for k, v in env_extra.items()})
     logf = open(log_path, "a")
+    if env_extra:
+        logf.write("# env " + " ".join(f"{k}={v}" for k, v in env_extra.items()) + "\n")
     logf.write("$ " + " ".join(shlex.quote(c) for c in cmd) + "\n")
     logf.flush()
-    return subprocess.Popen(cmd, stdout=logf, stderr=subprocess.STDOUT, env=kaggle_env())
+    return subprocess.Popen(cmd, stdout=logf, stderr=subprocess.STDOUT, env=env)
 
 
 def wait_for_server(base_url: str = "http://127.0.0.1:8000/v1", *, timeout_s: float = 1800, proc: Optional[subprocess.Popen] = None) -> bool:
@@ -194,6 +199,12 @@ SPECIALIST_TUNED: dict = {"max_model_len": 16384, "mtp_tokens": 0, "max_num_seqs
 SPECIALIST_CONSERVATIVE: dict = {**SPECIALIST_TUNED, "kv_cache_dtype": "auto", "enforce_eager": True,
                                  "max_num_seqs": 16, "max_model_len": 8192}
 
+# exp-010 (2026-09-16, runs/_kaggle_output/arc3-eval-dev-council/vllm-specialist.log): vLLM picked
+# FlashInferCutlassNvFp4LinearKernel for the NVFP4 checkpoint and flashinfer's JIT raised "No supported CUDA
+# architectures found for major versions [12]" (the RTX PRO 6000 is SM120). vLLM's NVFP4 GEMM backend is selectable;
+# Marlin runs on every SM80+ part. UNVERIFIED on this wheelhouse: the FP8 rungs come first, this only helps the NVFP4 ones.
+NVFP4_ENV: dict = {"VLLM_NVFP4_GEMM_BACKEND": "marlin", "VLLM_USE_FLASHINFER_MOE_FP4": "0"}
+
 # What the last start_vllm_with_fallback call ended with: {"ready", "attempt", "label", "model_dir", "gpu_mem", "elapsed_s"}.
 LAST_START: dict = {}
 
@@ -212,6 +223,8 @@ def specialist_attempts(model_dirs: list, *, gpu_mem: float = 0.30, port: int = 
             continue
         name = os.path.basename(os.path.normpath(str(d)))
         base = {"model_dir": str(d), "port": port, "served_name": served_name, "gpu_mem": gpu_mem}
+        if "nvfp4" in name.lower() or "fp4" in name.lower():
+            base["env_extra"] = dict(NVFP4_ENV)
         attempts.append({**base, **SPECIALIST_TUNED, "label": f"{name} tuned"})
         attempts.append({**base, **SPECIALIST_CONSERVATIVE, "gpu_mem": round(gpu_mem * 0.85, 3), "label": f"{name} conservative"})
     return attempts
@@ -253,6 +266,7 @@ def start_vllm_with_fallback(model_dir: str, *, log_path: str = "vllm.log", time
         mdir = str(attempt.pop("model_dir", model_dir))
         fit = bool(attempt.pop("fit_gpu_mem", False))
         probe_image = bool(attempt.pop("probe_image", False))
+        env_extra = attempt.pop("env_extra", None)
         a_port = int(attempt.get("port", port))
         a_served = str(attempt.get("served_name", served))
         url = base_url or f"http://127.0.0.1:{a_port}/v1"
@@ -273,7 +287,7 @@ def start_vllm_with_fallback(model_dir: str, *, log_path: str = "vllm.log", time
                 attempt["gpu_mem"] = got
         with open(log_path, "a") as f:
             f.write(f"\n# attempt {i + 1}/{n} ({label}) model_dir={mdir} gpu_mem={attempt.get('gpu_mem')}\n")
-        proc = start_vllm(mdir, log_path=log_path, **attempt)
+        proc = start_vllm(mdir, log_path=log_path, env_extra=env_extra, **attempt)
         # Earlier attempts get a share of the budget so the later ones still have a chance; a process that
         # dies early returns at once from wait_for_server, so fast failures do not spend it.
         left = n - i
