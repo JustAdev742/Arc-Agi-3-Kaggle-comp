@@ -53,3 +53,43 @@ def test_actions_round_trip():
     assert seen[1] == {"action": "CLICK", "x": 3, "y": 4}
     assert r["actions"] == 4
     sb.stop()
+
+
+def test_world_model_predictions_are_checked_and_batches_stop_on_mismatch():
+    sb = PersistentSandbox(sys_path=[ROOT] + sys.path)
+    grids = []
+
+    def handler(actions):
+        # Environment: UP paints cell (0,0) with 5; anything else does nothing.
+        g = np.array(grids[-1]) if grids else np.zeros((64, 64), dtype=int)
+        g = g.copy()
+        if actions[0]["action"] == "UP":
+            g[0, 0] = 5
+        grids.append(g)
+        return [{"changed": 1, "level_completed": False, "state": "NOT_FINISHED"}], state(g, [g])
+
+    code = """
+def predict(grid, action):
+    g = grid.copy()
+    if action == 'UP':
+        g[0, 0] = 5   # correct
+    elif action == 'DOWN':
+        g[1, 1] = 7   # wrong: DOWN does nothing in this game
+    return g
+print(set_model(predict))
+r = act('UP')
+print('up', r['pred_ok'], r['pred_wrong_cells'])
+rs = act('DOWN', 'UP', 'UP')
+print('batch', len(rs), rs[0]['pred_ok'], rs[0]['pred_wrong_cells'], 'mismatch' in rs[0].get('batch_stopped', ''))
+print(world_model_stats()['checked'], world_model_stats()['matched'])
+"""
+    r = sb.run(code, state(), timeout_s=20, action_handler=handler)
+    assert r["error"] == "", r
+    lines = r["stdout"].strip().splitlines()
+    assert lines[0] == "world model registered"
+    assert lines[1] == "up True 0"
+    assert lines[2] == "batch 1 False 1 True"
+    assert lines[3] == "2 1"
+    assert r["world_model"]["checked"] == 2 and r["world_model"]["matched"] == 1
+    assert r["actions"] == 2  # the batch stopped after the first mismatching action
+    sb.stop()

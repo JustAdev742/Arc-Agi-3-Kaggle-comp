@@ -19,13 +19,14 @@ You interact only through the `python` tool. It is a PERSISTENT REPL: variables,
 - diff(a=None,b=None): what changed between two grids (default: last two frames); moved(): objects that moved between the last two frames.
 - ascii(g=None): compact text view. background(g): most common colour.
 - act(*actions): execute real actions, e.g. act('UP'), act('LEFT','LEFT','ACT'), act(('CLICK', x, y)); click(x, y). Returns a result dict per action with 'changed' (cells changed), 'level_completed', 'game_over', 'levels_completed', 'state'. After act() all preloaded variables are refreshed. Actions: UP, DOWN, LEFT, RIGHT, ACT (interact/select/confirm; meaning differs by game), CLICK(x, y) with 0<=x,y<=63, UNDO, RESET (restarts the level; costs one action).
-- note(text): append to your persistent notes, which are shown to you every turn. Use it for your world model: what objects exist, what each action does, the inferred goal, open questions.
+- set_model(predict): register your executable world model, predict(grid, action) -> next grid, where action is 'UP'/'DOWN'/... or ('CLICK', x, y). Once registered, every real action is checked against it: results gain 'pred_ok' and 'pred_wrong_cells', a mismatch stops a batched act([...]) early, and the running score is shown each turn. world_model_stats() lists recent mismatches. Revise the model on every mismatch before acting again; search it (BFS/A*) to plan.
+- note(text): append to your persistent notes, which are shown to you every turn. Use it for facts: what objects exist, what each action does, the inferred goal, open questions.
 - print(...) to see things; keep output short (a few hundred characters). Never print a whole grid.
 
 Method:
 1. Look: summarise the board with objects() and the image. Identify the likely avatar/cursor, targets, walls, counters or timers (a bar at an edge that shrinks each step is a HUD, not the puzzle).
 2. Probe: try one action per hypothesis and compare with diff()/moved(). Record what each action does in note().
-3. Model: once you know the mechanics, write code that predicts the next grid for an action and check it against reality after each move; when a prediction fails, revise the model before acting again.
+3. Model: once you know the mechanics, write predict(grid, action) and register it with set_model(); the harness checks it after every move. When a prediction fails, revise the model before acting again.
 4. Plan: search your model (BFS/A*/beam) for the shortest action sequence to the inferred goal, then execute it with one act(...) call. Re-ground after any level change or surprise.
 5. If nothing you try changes the board, the level may need a different action type (CLICK vs keys), a different target, or a sequence; do not repeat an action that did nothing.
 6. When a level completes the board changes; look again before assuming the mechanics carried over (they usually do, layouts change).

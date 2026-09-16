@@ -63,6 +63,9 @@ class Stats:
     actions_fallback: int = 0
     model_time_s: float = 0.0
     tool_time_s: float = 0.0
+    wm_checked: int = 0
+    wm_matched: int = 0
+    wm_errors: int = 0
     latencies: list[float] = field(default_factory=list)
 
 
@@ -307,6 +310,8 @@ class ReplAgent(Agent):
             objs = objects_summary(f.grid, limit=self.objects_in_prompt)
             parts.append("Objects (largest first; colour, x, y, w, h, size): " + "; ".join(
                 f"#{o['id']} c{o['color']} @({o['x']},{o['y']}) {o['w']}x{o['h']} n={o['size']}" for o in objs))
+        if getattr(self, "wm_summary", ""):
+            parts.append(self.wm_summary)
         if self.notes:
             parts.append("Your notes:\n- " + "\n- ".join(self.notes[-20:]))
         if self.use_ascii:
@@ -415,6 +420,11 @@ class ReplAgent(Agent):
                         self.st.tool_errors += 1
                     if r.get("notes"):
                         self.notes = list(r["notes"])[-40:]
+                    wm = r.get("world_model")
+                    if wm:
+                        self.st.wm_checked, self.st.wm_matched, self.st.wm_errors = int(wm["checked"]), int(wm["matched"]), int(wm["errors"])
+                        self.wm_summary = f"world model: {wm['matched']}/{wm['checked']} predictions correct" + (
+                            f"; last mismatch {wm['recent_mismatches'][-1]}" if wm["recent_mismatches"] else "")
                     if r.get("actions"):
                         acted = True
                     else:
@@ -441,6 +451,10 @@ class ReplAgent(Agent):
         parts = []
         if r.get("stdout"):
             parts.append(r["stdout"].rstrip())
+        wm = r.get("world_model")
+        if wm and wm.get("checked"):
+            parts.append(f"[world model: {wm['matched']}/{wm['checked']} predictions correct" + (
+                f"; mismatches: {wm['recent_mismatches'][-2:]}]" if wm["recent_mismatches"] else "]"))
         if r.get("result") is not None:
             parts.append("result: " + json.dumps(r["result"], ensure_ascii=False)[:1500])
         if r.get("error"):

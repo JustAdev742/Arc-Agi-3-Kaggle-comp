@@ -14,7 +14,7 @@ Protocol (JSON lines over stdin/stdout of the child):
 Preloaded names in the child (all from ``arc3.perception``, exact numpy code):
   grid, frames, level, levels_completed, win_levels, step, level_step, state, available,
   scale, objects(), components(), diff(), ascii(), downscale(), act(), note(), notes,
-  history, last, np
+  history, last, np, set_model(predict), world_model_stats()
 """
 from __future__ import annotations
 
@@ -55,6 +55,50 @@ def _recv():
     return json.loads(line)
 
 G = {"__name__": "__repl__", "np": np, "notes": []}
+WM = {"predict": None, "checked": 0, "matched": 0, "mismatches": [], "errors": 0}
+
+def set_model(predict):
+    """Register predict(grid, action) -> predicted next grid (64x64 array or list). The harness checks every
+    real action against it and reports mismatches; see world_model_stats()."""
+    if predict is not None and not callable(predict):
+        raise TypeError("set_model expects a callable predict(grid, action) or None")
+    WM["predict"] = predict
+    WM["checked"] = WM["matched"] = WM["errors"] = 0
+    WM["mismatches"] = []
+    return "world model registered" if predict else "world model cleared"
+
+def world_model_stats():
+    return {"checked": WM["checked"], "matched": WM["matched"], "errors": WM["errors"],
+            "recent_mismatches": WM["mismatches"][-5:]}
+
+def _action_label(a):
+    if a.get("action") == "CLICK":
+        return ("CLICK", a.get("x"), a.get("y"))
+    return a.get("action")
+
+def _check_prediction(before, action, after):
+    fn = WM["predict"]
+    if fn is None:
+        return None
+    try:
+        pred = fn(before.copy(), _action_label(action))
+        pred = _to_grid(pred)
+        if pred.shape != after.shape:
+            raise ValueError(f"predicted shape {pred.shape} != {after.shape}")
+        wrong = int((pred != after).sum())
+    except Exception as e:  # noqa: BLE001
+        WM["errors"] += 1
+        return {"pred_ok": False, "pred_error": f"{type(e).__name__}: {e}"[:200]}
+    WM["checked"] += 1
+    if wrong == 0:
+        WM["matched"] += 1
+        return {"pred_ok": True, "pred_wrong_cells": 0}
+    ys, xs = np.nonzero(pred != after)
+    d = {"pred_ok": False, "pred_wrong_cells": wrong,
+         "pred_bbox": [int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())],
+         "pred_sample": [[int(x), int(y), int(pred[y, x]), int(after[y, x])] for y, x in list(zip(ys, xs))[:5]]}
+    WM["mismatches"].append({"action": _action_label(action), "wrong_cells": wrong, "bbox": d["pred_bbox"]})
+    return d
 
 def _to_grid(x):
     return np.asarray(x, dtype=np.int16)
@@ -143,18 +187,41 @@ def act(*actions):
             raise TypeError(f"bad action {a!r}: use 'UP'/'DOWN'/'LEFT'/'RIGHT'/'ACT'/'UNDO'/'RESET' or ('CLICK', x, y)")
     if not norm:
         raise ValueError("act() needs at least one action")
-    _send({"type": "action", "actions": norm})
-    reply = _recv()
-    if reply.get("type") != "action_result":
-        raise RuntimeError(reply.get("error", "action failed"))
-    _refresh(reply["state"])
-    res = reply["result"]
-    return res if len(norm) > 1 else res[0]
+    if WM["predict"] is None:
+        _send({"type": "action", "actions": norm})
+        reply = _recv()
+        if reply.get("type") != "action_result":
+            raise RuntimeError(reply.get("error", "action failed"))
+        _refresh(reply["state"])
+        res = reply["result"]
+        return res if len(norm) > 1 else res[0]
+    # With a registered world model, actions go one at a time so each prediction is checked and a
+    # mismatch stops the batch (the model must revise before spending more actions).
+    results = []
+    for a in norm:
+        before = G["grid"].copy()
+        _send({"type": "action", "actions": [a]})
+        reply = _recv()
+        if reply.get("type") != "action_result":
+            raise RuntimeError(reply.get("error", "action failed"))
+        _refresh(reply["state"])
+        r = reply["result"][0]
+        chk = _check_prediction(before, a, G["grid"])
+        if chk:
+            r.update(chk)
+        results.append(r)
+        if chk and not chk.get("pred_ok") and len(norm) > 1:
+            r["batch_stopped"] = f"prediction mismatch after {len(results)} of {len(norm)} actions; revise the model"
+            break
+        if r.get("level_completed") or r.get("game_over") or r.get("won"):
+            break
+    return results if len(norm) > 1 else results[0]
 
 def click(x, y):
     return act(("CLICK", int(x), int(y)))
 
-for _n in ("objects", "components", "diff", "ascii", "downscale", "background", "moved", "note", "act", "click"):
+for _n in ("objects", "components", "diff", "ascii", "downscale", "background", "moved", "note", "act", "click",
+           "set_model", "world_model_stats"):
     G[_n] = globals()[_n]
 
 while True:
@@ -177,7 +244,8 @@ while True:
         lines = [f'  line {f.lineno}, in {f.name}' for f in (user or tb[-1:])]
         err = "Traceback:\n" + "\n".join(lines) + f"\n{type(e).__name__}: {e}"
     out = buf.getvalue()
-    _send({"type": "final", "stdout": out, "error": err, "result": result, "notes": G.get("notes", [])})
+    _send({"type": "final", "stdout": out, "error": err, "result": result, "notes": G.get("notes", []),
+           "world_model": world_model_stats() if WM["predict"] is not None else None})
 '''
 
 
@@ -319,7 +387,7 @@ class PersistentSandbox:
                         out = out[: self.max_output_chars] + f"\n...[truncated {len(out) - self.max_output_chars} chars]"
                     return {"stdout": out, "error": str(msg.get("error") or ""), "result": msg.get("result"),
                             "notes": list(msg.get("notes") or []), "actions": n_actions, "timed_out": False,
-                            "restarted": restarted}
+                            "restarted": restarted, "world_model": msg.get("world_model")}
 
     def __del__(self):  # pragma: no cover
         try:
