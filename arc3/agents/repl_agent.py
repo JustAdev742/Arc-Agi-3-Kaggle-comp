@@ -31,7 +31,7 @@ from ..env import Action, Frame
 from ..llm import ChatClient, ChatResponse
 from ..entities import Tracker
 from ..perception import ascii as grid_ascii
-from ..perception import detect_scale, diff, render_png
+from ..perception import detect_scale, diff, render_png, tile_map
 from ..prompts import ACTION_NAMES, NAME_TO_ID, SYSTEM_PROMPT, TOOLS
 from ..sandbox import PersistentSandbox
 from . import register
@@ -105,6 +105,7 @@ class ReplAgent(Agent):
         self.use_ascii = (not self.use_image) if ascii_cfg == "auto" else bool(ascii_cfg)
         self.objects_in_prompt = int(c.get("objects_in_prompt", 16))
         self.auto_rules_in_prompt = bool(c.get("auto_rules_in_prompt", True))
+        self.tile_map_max_cells = int(c.get("tile_map_max_cells", 1024))  # 32x32 at most in the observation
         self.history_frames = int(c.get("history_frames", 6))
         self.idle_limit = int(c.get("idle_turns_before_fallback", 3))
         self.fallback_burst = int(c.get("fallback_burst", 2))
@@ -385,7 +386,12 @@ class ReplAgent(Agent):
             small = f.grid[::s, ::s]
             parts.append(f"Board (ascii, {small.shape[0]}x{small.shape[1]}, scale {s}, hex colours):\n" + grid_ascii(f.grid))
         else:
-            parts.append(f"Board: see the attached image (64x64, logical scale {detect_scale(f.grid)}); grid/objects()/ascii() are in the REPL.")
+            tile = max(1, int(self.tracker.tile or 1))
+            n = -(-f.grid.shape[0] // tile)
+            if tile > 1 and n * n <= self.tile_map_max_cells:
+                parts.append(f"Board as a tile map ({n}x{n}, one hex colour per {tile}x{tile} tile; row = y // {tile}, column = x // {tile}; "
+                             f"pixel (x, y) = (column*{tile}, row*{tile})):\n" + tile_map(f.grid, tile))
+            parts.append(f"Board image attached (64x64, logical tile {tile}); grid/objects()/ascii()/tilemap() are in the REPL.")
         content: Any = "\n\n".join(parts)
         if self.use_image:
             png = render_png(f.grid, scale=self.image_scale)

@@ -236,6 +236,22 @@ def ascii(grid: np.ndarray, *, scale: int | None = None) -> str:
     return "\n".join("".join(COLOR_CHARS[int(v) % NUM_COLORS] for v in row) for row in g)
 
 
+def tile_map(grid: np.ndarray, tile: int) -> str:
+    """Compact text view at the game's logical tile size: one character per tile (the most common colour in the
+    block, hex 0-f), so a 64x64 board with 4-cell tiles reads as 16 lines of 16 characters."""
+    g = np.asarray(grid)
+    t = max(1, int(tile))
+    h, w = g.shape
+    rows = []
+    for y in range(0, h, t):
+        row = []
+        for x in range(0, w, t):
+            block = g[y:y + t, x:x + t].reshape(-1)
+            row.append(COLOR_CHARS[int(np.bincount(block, minlength=NUM_COLORS).argmax()) % NUM_COLORS])
+        rows.append("".join(row))
+    return "\n".join(rows)
+
+
 def render_png(grid: np.ndarray, *, scale: int = 8, gridlines: bool = False) -> bytes:
     """Render a grid to PNG bytes with the official palette (needs Pillow)."""
     from PIL import Image

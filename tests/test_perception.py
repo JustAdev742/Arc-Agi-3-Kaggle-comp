@@ -53,3 +53,15 @@ def test_render_png():
     g = np.zeros((4, 4), dtype=np.int16)
     png = P.render_png(g, scale=2)
     assert png[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_tile_map_is_one_char_per_tile():
+    from arc3.perception import tile_map
+
+    g = np.zeros((64, 64), dtype=np.int16)
+    g[0:4, 0:4] = 9
+    g[4:8, 4:8] = 3
+    t = tile_map(g, 4)
+    rows = t.split("\n")
+    assert len(rows) == 16 and all(len(r) == 16 for r in rows)
+    assert rows[0][0] == "9" and rows[1][1] == "3" and rows[0][1] == "0"

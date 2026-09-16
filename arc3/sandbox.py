@@ -366,6 +366,11 @@ def _archive_level(final_action):
     ARCH["levels"].append({"level": LOG["level"], "frames": list(frames), "actions": list(t.actions), "unders": list(t.unders),
                            "bg": t.bg, "final_action": final_action, "final_frame": final})
 
+def tilemap(g=None, tile=None):
+    """Text view with one hex colour per logical tile (default: the tracker's tile size); rows are y // tile."""
+    t = int(tile) if tile else int(G.get("tile") or 1)
+    return _P.tile_map(G["grid"] if g is None else _to_grid(g), t)
+
 def transitions(last_n=None):
     """The level's recorded (before, action, after) triples, oldest first (lost if the REPL restarts)."""
     t = LOG["transitions"]
@@ -645,7 +650,7 @@ def act(*actions):
 def click(x, y):
     return act(("CLICK", int(x), int(y)))
 
-for _n in ("objects", "components", "diff", "ascii", "downscale", "background", "moved", "note", "act", "click",
+for _n in ("objects", "components", "diff", "ascii", "tilemap", "downscale", "background", "moved", "note", "act", "click",
            "set_model", "world_model_stats", "verify_model", "transitions", "set_models", "alive_models",
            "ents", "events", "event_log", "describe_events", "avatar", "roles", "entity",
            "move_model", "plan_to", "plan_to_entity",
