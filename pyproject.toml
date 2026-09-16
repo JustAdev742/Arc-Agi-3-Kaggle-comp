@@ -1,0 +1,28 @@
+[project]
+name = "arc3"
+version = "0.1.0"
+description = "ARC Prize 2026 - ARC-AGI-3 Kaggle agent"
+requires-python = ">=3.12"
+dependencies = [
+    "arc-agi>=0.9.6",
+    "numpy",
+    "pillow",
+    "python-dotenv",
+    "pandas",
+    "pyarrow",
+    "requests",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff", "pypdf"]
+
+[tool.setuptools.packages.find]
+include = ["arc3", "arc3.*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"

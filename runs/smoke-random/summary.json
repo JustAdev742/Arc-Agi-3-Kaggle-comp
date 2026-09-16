@@ -1,0 +1,126 @@
+{
+ "run_name": "smoke-random",
+ "agent": "random",
+ "split": "smoke",
+ "games": [
+  "ls20",
+  "vc33"
+ ],
+ "seed": 0,
+ "time_budget_s": 30.0,
+ "max_actions": 100,
+ "config": {},
+ "note": "",
+ "harness_commit": "unknown",
+ "arc3_version": "0.1.0",
+ "python": "3.12.3",
+ "platform": "Linux-6.18.44-fc-v33-x86_64-with-glibc2.39",
+ "started": "20260916T000342",
+ "wall_s": 0.2,
+ "score": 0.0,
+ "score_dev": 0.0,
+ "score_val": null,
+ "levels_completed": 0,
+ "levels_total": 14,
+ "games_solved": 0,
+ "actions": 200,
+ "failures": {
+  "action_cap": 2
+ },
+ "results": [
+  {
+   "game_id": "ls20",
+   "version": "ls20-9607627b",
+   "seed": 0,
+   "score": 0.0,
+   "levels_completed": 0,
+   "win_levels": 7,
+   "actions": 100,
+   "resets": 0,
+   "level_actions": [
+    100,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "level_scores": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "baselines": [
+    22,
+    123,
+    73,
+    84,
+    96,
+    192,
+    186
+   ],
+   "wall_s": 0.079,
+   "time_budget_s": 30.0,
+   "state": "NOT_FINISHED",
+   "failure": "action_cap",
+   "error": null,
+   "agent_stats": {},
+   "seconds_per_action": 0.0008,
+   "tags": [
+    "keyboard"
+   ]
+  },
+  {
+   "game_id": "vc33",
+   "version": "vc33-5430563c",
+   "seed": 0,
+   "score": 0.0,
+   "levels_completed": 0,
+   "win_levels": 7,
+   "actions": 100,
+   "resets": 1,
+   "level_actions": [
+    100,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "level_scores": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "baselines": [
+    7,
+    18,
+    44,
+    61,
+    131,
+    34,
+    152
+   ],
+   "wall_s": 0.043,
+   "time_budget_s": 30.0,
+   "state": "GAME_OVER",
+   "failure": "action_cap",
+   "error": null,
+   "agent_stats": {},
+   "seconds_per_action": 0.0004,
+   "tags": [
+    "click"
+   ]
+  }
+ ]
+}

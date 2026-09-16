@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environments
+.venv/
+.env
+.kaggle/
+
+# Downloaded game sources (re-fetched by `make games`; ~4 MB, versioned by ARC Prize)
+environment_files/
+
+# Run artifacts: per-action logs are large and ignored; summary.json files are committed so the
+# research log can point at them.
+runs/*/*
+!runs/*/summary.json
+recordings/
+logs.log
+server_recording/
+
+# Vendored frameworks (cloned by `make setup`)
+vendor/
+
+# Generated notebook
+notebooks/submission.ipynb
+
+# Model weights / wheels
+weights/
+wheels/
+*.safetensors
+*.gguf
+*.whl
