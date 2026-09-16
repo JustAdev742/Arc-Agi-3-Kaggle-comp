@@ -249,6 +249,11 @@ research log exp-006a.
   step, verified on vc33/ls20/ar25 replays) now feeds the tracker and the goal predicates; animation frames are noted;
   FRICTION lines go to the transcript. Two notebooks are ready for the quota reset: exp-019 (memory only) and exp-020
   (memory + level boundary), both against the six-run base. 102 tests pass.
+- **23:45-00:10: goal inference (exp-021, code-only, KEPT).** `scripts/goal_probe.py` replays each recorded solved level
+  through the real agent and asks whether a win condition consistent with the level exists: 5 of 17 before, 9 of 17
+  after adding entity-pair relations (same_box, same_columns, same_rows, inside) to the goal predicates; the REPL's
+  goal_candidates() now uses the observed terminal frame and plan_rules() takes the new relations as dict goals.
+  Both evaluation notebooks (exp-019, exp-020) rebuilt at 9548b57. 103 tests pass. Quota-blocked until Saturday.
 
 ## Session 2 outcome (2026-09-16, afternoon)
 
