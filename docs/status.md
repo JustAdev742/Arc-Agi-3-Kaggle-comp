@@ -159,6 +159,9 @@ research log exp-006a.
 - exp-010b finished 14:05: **dev 0.744, 5 levels, specialists still absent**: the FP8 Qwen3-VL-8B build died in
   DeepGEMM at load ('Unknown SF transformation'), the NVFP4 build in flashinfer's FP4 JIT (no SM120 kernels). Fix
   pushed as env vars on the rungs (VLLM_USE_DEEP_GEMM=0 for FP8, Marlin for NVFP4); exp-010c is the retry.
+- exp-010c finished 15:23: **specialist server started (FP8, DeepGEMM off; the council bug is fixed) and the council
+  scored dev 0.498, 5 levels** vs exp-011's 1.229/9 on the same harness. Third loss in three council runs:
+  the arm is parked (code kept), see research log. exp-011b (noise repeat) pushed 15:25 as `arc3-eval-dev-f` v3.
 - 14:09: exp-010c (`arc3-eval-dev-council-c` v1, harness 7de7f95) running; exp-004 v2 queued. Queue after them, in
   order: exp-011b (the exp-011 notebook unchanged, per the noise rule), exp-012 (harness 7de7f95: events line in every
   tool output, single results iterate, ascii(region) degrades to tiles, role always present), then a private Save &

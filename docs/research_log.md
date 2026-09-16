@@ -247,6 +247,24 @@ Notes:    fix for the FP8 rungs: VLLM_USE_DEEP_GEMM=0 (FP8 linear layers take th
           (first round after the first action, reports written once). If the specialist server still does not start,
           the council arm is parked: two runs show it only costs when the roles share the coordinator.
 
+## 2026-09-16 · exp-010c · council WITH its own specialist server (Qwen3-VL-8B-Instruct-FP8, DeepGEMM off) on the exp-011 harness · REVERTED as an arm (code kept)
+Measured: dev 0.498 (runs/kaggle-council-dev-010c, kernel arc3-eval-dev-council-c v1, harness 7de7f95 + council fixes d7916b7;
+          ran 14:09-15:23 on the RTX). Levels 5/142: ar25 L1, bp35 L1, sb26 L1, su15 L1, tu93 L1; actions 925; 0 model errors.
+          **The specialist server started on the first rung** (FP8 tuned, VLLM_USE_DEEP_GEMM=0: ready in 120 s, image
+          probe OK, gpu_mem 0.30 next to the 0.60 coordinator), so this is the first measurement of the user's design
+          with a real second model: 67 specialist rounds, 402 specialist calls, 0 timeouts, 491 s of round time,
+          67 late injections; the coordinator's own cells referred to a report 19 times in 8 games.
+          Same harness, same day: exp-011 (plain REPL) 1.229 with 9 levels; exp-010b (roles on the coordinator) 0.744 with 5.
+          Coordinator p50 latency 12.45-63.91 s per game (exp-011: 12-51 s): the 8B server shares the GPU's compute
+          with the 27B, and the report block adds prompt tokens on every turn.
+Notes:    three council runs, three losses (0.28 shared model on the exp-009 harness, 0.74 shared model and 0.50 with real
+          specialists on the exp-011 harness) against the single-model REPL agent measured the same day. The design's
+          premise, that six advisory passes over the same observation help the coordinator, does not hold with this
+          model: the reports restate what the observation already says and their cost is paid in GPU time and prompt
+          tokens. The code stays (arc3/agents/council.py, the specialist ladder in arc3/serve.py); the arm is parked.
+          A specialist that could still pay: one that does something the coordinator cannot, e.g. a search over the
+          fitted rules or an executed probe on a copy of the game, measured as a helper call, not a prose report.
+
 ## 2026-09-16 · exp-011 · verified-navigation fixes from the exp-009 transcripts (walkable floor entities, sprite companions, avatar hand-over, live move model, model retirement, inline events, batched click probes) · KEPT
 Why:      exp-009 transcripts (`scripts/transcript_report.py runs/kaggle-repl-dev-009`): ka59 registered
           set_model(move_model().predict) and then took one action per call for 14 consecutive prediction mismatches;
