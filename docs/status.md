@@ -121,6 +121,19 @@ research log exp-006a.
 - The starter's `build_notebook.py` writes the agent to `/tmp/my_agent.py`; ours bundles a
   package instead (see `scripts/build_notebook.py`).
 
+## Session 2 outcome (2026-09-16, afternoon)
+
+- **exp-007 dev 0.839** vs control 0.56 (Kaggle, same settings; provisional: two levels of difference, half the actions).
+- Rule library built and measured code-only: coverage 0.10 -> 0.50 mean over the 25 public games in one day of
+  perception and fitter fixes (occlusion, compound sprites, cell-level walkability, required colour, invisible walls,
+  slides, click effects, return-to-start, colour-aware matching). 11 games >= 0.63 explained; 2 at 0.
+- Code-only rules agent (exp-006b): 0.20 on all 25 games at 120 s/game; now the REPL fallback (explorer was 0.06).
+- Transcripts + report tool; post-mortem: ~35 model calls per game is the binding constraint (lesson 0009). Harness
+  changes for the next arms: per-turn rules summary, goal hints, probe suggestions, optimistic planners, tile map,
+  first-step nudge.
+- Queued on Kaggle: exp-005 (running), exp-008 (fitter v5 + summary + hints, commit 840bd4b). Ready to push when a
+  slot frees: exp-009 (HEAD, efficiency bundle) and exp-010 (council).
+
 ## Session 1 outcome (2026-09-16)
 
 Built and tested (all in `tests/`, green on this container via `make test`):
