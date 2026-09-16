@@ -122,3 +122,26 @@ Notes:    this is a lower bound (blind probe, one level) and not a score. It is 
           scrolling worlds (sk48: everything but the avatar moves; needs a class exclusion), and 'appeared' (spawns).
           Lessons: docs/lessons/0008-terrain-vs-sprites.md. Next: exp-005 result; then the same probe driven by the model
           (does auto_rules() + plan_rules() reduce actions per solved level on ls20/re86/ar25/dc22?).
+
+## 2026-09-16 · exp-007 · tracker + planner + rule library (v3) + prescriptive Method, model-driven · KEPT (provisional)
+Why:      the control model never built a verified world model on its own; exp-005/007 give it entity tracking, a
+          navigation planner, the rule fitter (auto_rules/plan_rules/rules_predictor/goal_candidates) and a Method.
+Expected: fewer probing actions per level, more levels via planned paths.
+Measured: dev 0.56 -> 0.839 (runs/kaggle-repl-dev-007, Kaggle kernel arc3-eval-dev-b v1, harness commit 4b28d5b,
+          same settings as exp-003c: Qwen3.8-27B-FP8, low reasoning, 32k context, 1200 s/game, 8 workers).
+          Levels 5/142 (same count as the control: ar25 L1 19 actions, ls20 L1 32, sb26 L1 12, vc33 L1+L2 16+17);
+          actions 755 (control 1415); prompt tokens 9.7M (10.7M); 0 model errors; wall 3587 s; server setup 430 s.
+          Transcripts (scripts/transcript_report.py): auto_rules called in 17/19 games, a planner in 2, set_model in 2;
+          reported coverage mostly 0.16-0.69, so the model followed Method step 4 (probe) instead of planning.
+          Per-call p50 17-57 s; 5-10 turns per game; most calls are manual grid inspection (printing rows) that
+          ents()/describe_events already answer.
+Notes:    the gain is two levels (vc33 L2, ls20 L1) at the noise level of a single run; the halved action count is the
+          more robust signal. exp-005 (no rules) is still queued on Kaggle after 2 h. Next: exp-008 = fitter v5 (coverage
+          0.10 -> 0.43 code-only) + automatic per-turn rules summary + goal_hints + probe_suggestions, same settings.
+
+## 2026-09-16 · exp-006b · code-only rules agent (probe -> auto_rules -> goal -> BFS plan -> verified execution) · BASELINE
+Why:      an end-to-end test of components A-C on real games without a model, and a fallback when the server dies.
+Measured: six games, 150 s each (runs/smoke-rules3, commit 8ce2e7e): m0r0 L1 solved by a plan in 43 actions (human 30),
+          nothing else; 25-game run pending (runs/exp006b-rules-all-s0). Explorer baseline (exp-002): 0.06 on all 25.
+Notes:    goal inference without a model is the limit (unique-colour / avatar-sized / collectible heuristics); ls20 loops
+          on an optimistic plan against an invisible wall (fixed: bumps stay in optimistic plans, failed goals are banned).
