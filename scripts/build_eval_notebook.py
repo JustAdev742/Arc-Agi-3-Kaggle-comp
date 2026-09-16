@@ -58,7 +58,7 @@ def build(a: argparse.Namespace) -> dict:
             s = run_eval('{a.agent}', '{a.split}', seed={a.seed}, time_budget_s={a.time_per_game}, max_actions={a.max_actions},
                          workers={a.workers}, runs_dir='/kaggle/working/runs',
                          environments_dir='{COMP_DIR}/environment_files', run_name='{a.run_name}', config=cfg,
-                         note='{a.note}')
+                         note={a.note!r})
             result.update({{k: s[k] for k in ('run_name', 'score', 'score_dev', 'score_val', 'levels_completed', 'levels_total',
                                             'games_solved', 'actions', 'wall_s', 'failures')}})
             result['per_game'] = [{{'game': r['game_id'], 'score': r['score'], 'levels': r['levels_completed'], 'win_levels': r['win_levels'],

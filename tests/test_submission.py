@@ -131,3 +131,20 @@ def test_notebook_specialist_ladder_source():
     assert "SPECIALIST_DIRS = [d for d in [] if d]" in src_single
     compile(src, "<cell>", "exec")
     compile(src_single, "<cell>", "exec")
+
+
+def test_eval_notebook_cells_compile_with_apostrophe_in_note():
+    """exp-018 (2026-09-16) died at cell 4 with SyntaxError: the run note contained an apostrophe inside a single-quoted
+    string. Every generated code cell must compile whatever the note says."""
+    import argparse
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    from build_eval_notebook import build
+    a = argparse.Namespace(agent="repl", split="dev", seed=0, time_per_game=1200, max_actions=2000, workers=8, budget_min=150,
+                           config='{"reasoning_effort": "low"}', run_name="t", note="the submission's operating point (3 h) \"quoted\"",
+                           model_dataset="o/m", wheels_dataset="o/w", specialist_dataset="", username="u", slug="s")
+    nb = build(a)
+    for i, cell in enumerate(nb["cells"]):
+        if cell["cell_type"] == "code":
+            compile(cell["source"], f"<cell {i}>", "exec")
