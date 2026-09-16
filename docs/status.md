@@ -78,10 +78,18 @@ architectural step therefore has to be measured on dev and val, not assumed.
    0 levels; model took 3 and 7 actions in 20 and 16 calls (p50 11 s/call, ~15k prompt tokens/call); the explorer
    fallback then spent the remaining ~145 actions in seconds. Files: `runs/kaggle-diag-v5-repl-smoke/`. 18 min RTX.
 
+7. `scottmahony/arc3-eval-smoke` v1, RTX, 2026-09-16: exp-003b smoke, **first model-driven level solved** (ls20 L1 in 19
+   actions vs human 22). 18 min RTX. See research log.
+8. `scottmahony/arc3-eval-dev` v1, RTX, 2026-09-16: exp-003 control arm on the 19 dev games, 1200 s/game, 8 concurrent.
+   Running (~70 min).
+
 ## Open items (need you)
 
 1. Daily submission limit: paste the "Submission limits" lines from the Kaggle **Rules** page (still
    UNCONFIRMED; 5 per day from two secondary sources).
+0. **Milestone 2 (2026-09-30)** needs the notebook public under an open-source license by then. Say which license
+   (MIT/Apache-2.0 for the code) and I will prepare the public copy once the control arm and one Save & Run All of the
+   submission notebook on the RTX are green; publishing itself waits for your explicit OK.
 2. For future sessions put the Kaggle token in the Claude Code environment as `KAGGLE_API_TOKEN` (this
    session keeps it in git-ignored `.kaggle/access_token`). Consider regenerating the token after this
    project since it passed through a chat upload.

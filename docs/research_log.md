@@ -51,3 +51,17 @@ Diagnosis: (1) prompt bloat: ASCII board every turn plus the model printing asci
 Next:     exp-003b: observation diet (no ASCII when the image is attached, objects summary in the user text, 2k-char
           tool output cap), turn policy (act within 3 inspection steps, max 8 steps), fallback only on errors with a
           per-game cap; re-run the smoke, then dev.
+
+## 2026-09-16 · exp-003b · observation diet + turn policy + capped fallback (smoke, Kaggle RTX) · KEPT
+Why:      exp-003a showed 15k-token prompts, turns without actions, and a fallback that spent 146 actions in seconds.
+Change:   no ASCII board when the image is attached; 16-object summary in the user text; 2.5k-char tool output cap;
+          image scale 4; act-within-3-inspection-steps nudge; max 8 tool steps; fallback only after 3 idle turns, bursts
+          of 2, capped at 30 per game; clean stop when <45 s remain; 60 s floor on the model call timeout.
+Settings: ls20 + vc33, 600 s/game, 300-action cap, reasoning_effort=low; kernel `scottmahony/arc3-eval-smoke` v1,
+          commit ff5a723; files `runs/kaggle-repl-smoke-003b/`.
+Measured: **first model-driven level: ls20 level 1 in 19 actions (human 22) -> level score 115 (cap), game 3.57**;
+          vc33 0 levels, 54 actions of which 16 RESETs. Total 1.79 over the two games. 0 fallback actions of 92,
+          0 model errors, 0 idle turns. ls20: 34 calls / 37 actions, p50 8.8 s; vc33: 27 calls / 54 actions, p50 18.4 s.
+          Prompt tokens still ~13k per call (accumulated history within the 32k budget; prefix-cached), ~930 completion
+          tokens per call: decode dominates latency.
+Notes:    Next: exp-003 on the 19 dev games (control arm), 1200 s/game, 8 concurrent. Then ablate thinking budget.

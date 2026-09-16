@@ -1,0 +1,187 @@
+{
+ "run_name": "kaggle-repl-smoke-003b",
+ "agent": "repl",
+ "split": "smoke",
+ "games": [
+  "ls20",
+  "vc33"
+ ],
+ "seed": 0,
+ "time_budget_s": 600,
+ "max_actions": 300,
+ "config": {
+  "context_tokens": 32768,
+  "reasoning_effort": "low",
+  "max_output_tokens": 3072,
+  "base_url": "http://127.0.0.1:8000/v1",
+  "model": "arc3-model"
+ },
+ "note": "exp-003b REPL smoke after observation diet + turn policy",
+ "harness_commit": "unknown",
+ "arc3_version": "0.1.0",
+ "python": "3.12.13",
+ "platform": "Linux-6.12.90+-x86_64-with-glibc2.35",
+ "started": "20260916T023053",
+ "wall_s": 615.6,
+ "score": 1.7857142857142856,
+ "score_dev": 1.7857142857142856,
+ "score_val": null,
+ "levels_completed": 1,
+ "levels_total": 14,
+ "games_solved": 0,
+ "actions": 92,
+ "failures": {
+  "gave_up": 1,
+  "timeout": 1
+ },
+ "results": [
+  {
+   "game_id": "ls20",
+   "version": "ls20-9607627b",
+   "seed": 0,
+   "score": 3.571428571428571,
+   "levels_completed": 1,
+   "win_levels": 7,
+   "actions": 38,
+   "resets": 0,
+   "level_actions": [
+    19,
+    19,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "level_scores": [
+    115.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "baselines": [
+    22,
+    123,
+    73,
+    84,
+    96,
+    192,
+    186
+   ],
+   "wall_s": 585.701,
+   "time_budget_s": 600,
+   "state": "NOT_FINISHED",
+   "failure": "gave_up",
+   "error": null,
+   "agent_stats": {
+    "model_calls": 34,
+    "model_errors": 0,
+    "prompt_tokens": 460736,
+    "completion_tokens": 31556,
+    "tool_calls": 33,
+    "tool_errors": 2,
+    "sandbox_timeouts": 0,
+    "turns": 6,
+    "idle_turns": 0,
+    "evictions": 0,
+    "actions_model": 37,
+    "actions_fallback": 1,
+    "model_time_s": 585.340039730072,
+    "tool_time_s": 0.32912349700927734,
+    "model_latency_p50_s": 8.78,
+    "sandbox_restarts": 0,
+    "fallback": {
+     "nodes_last_level": 2,
+     "replans": 0,
+     "fallbacks": 0,
+     "change_rate": {
+      "1": 1.0,
+      "2": 0.778,
+      "3": 1.0,
+      "4": 1.0
+     }
+    }
+   },
+   "seconds_per_action": 15.4132,
+   "tags": [
+    "keyboard"
+   ]
+  },
+  {
+   "game_id": "vc33",
+   "version": "vc33-5430563c",
+   "seed": 0,
+   "score": 0.0,
+   "levels_completed": 0,
+   "win_levels": 7,
+   "actions": 54,
+   "resets": 16,
+   "level_actions": [
+    54,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "level_scores": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "baselines": [
+    7,
+    18,
+    44,
+    61,
+    131,
+    34,
+    152
+   ],
+   "wall_s": 615.195,
+   "time_budget_s": 600,
+   "state": "NOT_FINISHED",
+   "failure": "timeout",
+   "error": null,
+   "agent_stats": {
+    "model_calls": 27,
+    "model_errors": 0,
+    "prompt_tokens": 350272,
+    "completion_tokens": 31604,
+    "tool_calls": 27,
+    "tool_errors": 1,
+    "sandbox_timeouts": 0,
+    "turns": 4,
+    "idle_turns": 0,
+    "evictions": 0,
+    "actions_model": 54,
+    "actions_fallback": 0,
+    "model_time_s": 614.656495809555,
+    "tool_time_s": 0.5025942325592041,
+    "model_latency_p50_s": 18.4,
+    "sandbox_restarts": 0,
+    "fallback": {
+     "nodes_last_level": 0,
+     "replans": 0,
+     "fallbacks": 0,
+     "change_rate": {
+      "0": 0.875,
+      "6": 1.0
+     }
+    }
+   },
+   "seconds_per_action": 11.3925,
+   "tags": [
+    "click"
+   ]
+  }
+ ]
+}
