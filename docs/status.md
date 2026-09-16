@@ -95,6 +95,11 @@ research log exp-006a.
 
 ## Open items (need you)
 
+- **Kaggle allows 2 concurrent batch GPU sessions and the queued exp-005 kernel (`arc3-eval-dev` v3, queued since
+  04:53 UTC while later kernels ran) holds one of them.** The CLI cannot cancel a queued kernel. If it is still
+  "Queued" when you look, cancel it from the Kaggle UI (Your Work -> arc3-eval-dev -> Cancel run) so two runs can
+  proceed in parallel.
+
 1. Daily submission limit: paste the "Submission limits" lines from the Kaggle **Rules** page (still
    UNCONFIRMED; 5 per day from two secondary sources).
 0. **Milestone 2 (2026-09-30)** needs the notebook public under an open-source license by then. Say which license
