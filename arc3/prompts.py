@@ -16,6 +16,7 @@ You interact only through the `python` tool. It is a PERSISTENT REPL: variables,
 - level, levels_completed, win_levels, step, level_step (actions spent on this level), state, available (legal action names).
 - scale: the integer upscale of the game's logical grid; downscale(g) gives the logical grid.
 - ents(): tracked entities with PERSISTENT ids across frames and roles (static = never changed, hud = edge bar that shrinks/grows, avatar = moves with the keys, dynamic). events(n): the last n actions as entity events (moved dx,dy / appeared / disappeared / recolored / reshaped); describe_events(n) as text; avatar() gives the avatar id and its observed key map; roles(); entity(id) with its mask; tile = logical cell size. Reason about entities and events, not pixels.
+- Navigation: once each arrow key has been pressed at least once, move_model() fits the avatar's key map and obstacles from the evidence; plan_to_entity(id) / plan_to(x, y) return the shortest key sequence (BFS) to touch an entity or reach a cell; execute it with act(plan). set_model(move_model().predict) makes every move verified. If a plan step fails (pred mismatch), an obstacle or rule was misjudged: inspect events() and re-fit.
 - objects(g=None): raw connected same-colour objects (no ids) {color,x,y,w,h,size,rect,shape}; components(g) with .mask and .center (x, y).
 - diff(a=None,b=None): what changed between two grids (default: last two frames); moved(): objects that moved between the last two frames.
 - ascii(g=None): compact text view. background(g): most common colour.

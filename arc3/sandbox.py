@@ -15,7 +15,8 @@ Preloaded names in the child (all from ``arc3.perception``, exact numpy code):
   grid, frames, level, levels_completed, win_levels, step, level_step, state, available,
   scale, objects(), components(), diff(), ascii(), downscale(), act(), note(), notes,
   history, last, np, set_model(predict), world_model_stats(), verify_model(predict), transitions(),
-  ents(), events(n), event_log(), describe_events(n), avatar(), roles(), entity(id), tile
+  ents(), events(n), event_log(), describe_events(n), avatar(), roles(), entity(id), tile,
+  move_model(), plan_to(x, y), plan_to_entity(id)
 """
 from __future__ import annotations
 
@@ -35,6 +36,7 @@ sys.stdout = io.StringIO()  # everything the model prints is captured per run
 import numpy as np
 from arc3 import perception as _P
 from arc3.entities import Tracker as _Tracker
+from arc3.planner import MoveModel as _MoveModel
 
 def _send(obj):
     HOST_OUT.write(json.dumps(obj, ensure_ascii=False, default=_default) + "\n"); HOST_OUT.flush()
@@ -86,6 +88,22 @@ def roles():
 def entity(eid):
     e = TRK["t"].get(eid)
     return None if e is None else {**e.summary(TRK["t"].tile), "mask": e.mask}
+
+def move_model():
+    """Fitted avatar movement model (key map + obstacles from evidence). Needs a few observed key moves.
+    Use move_model().predict with set_model(...) to have every move verified."""
+    return _MoveModel(TRK["t"])
+
+def plan_to(x, y):
+    """Shortest key sequence (list of 'UP'/'DOWN'/...) until the avatar covers cell (x, y), or None."""
+    return move_model().plan_to_point(int(x), int(y))
+
+def plan_to_entity(eid, touch=True):
+    """Shortest key sequence until the avatar touches (touch=True) or overlaps entity `eid`, or None."""
+    e = TRK["t"].get(int(eid))
+    if e is None:
+        raise ValueError(f"no entity #{eid} in the current frame; see ents()")
+    return move_model().plan_to_entity(e, touch=touch)
 
 def transitions(last_n=None):
     """The level's recorded (before, action, after) triples, oldest first (lost if the REPL restarts)."""
@@ -353,7 +371,8 @@ def click(x, y):
 
 for _n in ("objects", "components", "diff", "ascii", "downscale", "background", "moved", "note", "act", "click",
            "set_model", "world_model_stats", "verify_model", "transitions", "set_models", "alive_models",
-           "ents", "events", "event_log", "describe_events", "avatar", "roles", "entity"):
+           "ents", "events", "event_log", "describe_events", "avatar", "roles", "entity",
+           "move_model", "plan_to", "plan_to_entity"):
     G[_n] = globals()[_n]
 
 while True:

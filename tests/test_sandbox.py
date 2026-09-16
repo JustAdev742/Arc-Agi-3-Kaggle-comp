@@ -210,3 +210,30 @@ print(roles()[a['id']], tile)
     assert lines[3].endswith("(4, 0)")
     assert lines[4].startswith("avatar")
     sb.stop()
+
+
+def test_plan_to_entity_in_sandbox():
+    from tests.test_planner import GridWorld
+
+    sb = PersistentSandbox(sys_path=[ROOT] + sys.path)
+    w = GridWorld()
+
+    def handler(actions):
+        g = w.act(actions[0]["action"])
+        return [{"changed": 32, "level_completed": False, "state": "NOT_FINISHED"}], state(g, [g])
+
+    code = """
+act('RIGHT', 'UP', 'DOWN', 'LEFT')
+tid = [e['id'] for e in ents() if e['color'] == 12][0]
+plan = plan_to_entity(tid); print(len(plan) >= 10, plan[0])
+print(set_model(move_model().predict))
+rs = act(plan); print(all(r['pred_ok'] for r in rs), len(rs) == len(plan))
+"""
+    r = sb.run(code, state(w.grid(), [w.grid()]), timeout_s=30, action_handler=handler)
+    assert r["error"] == "", r
+    lines = r["stdout"].strip().splitlines()
+    assert lines[0].startswith("True")
+    assert lines[1] == "world model registered"
+    assert lines[2] == "True True"
+    assert abs(w.pos[0] - w.target[0]) <= 4 and abs(w.pos[1] - w.target[1]) <= 4
+    sb.stop()

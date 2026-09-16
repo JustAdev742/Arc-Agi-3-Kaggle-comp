@@ -93,6 +93,8 @@ class Tracker:
         self.log: list[dict[str, Any]] = []
         self.moves: dict[int, list[tuple[Any, int, int]]] = defaultdict(list)  # id -> [(action, dx, dy)]
         self.changed_ids: Counter = Counter()  # id -> number of transitions in which it changed at all
+        self.pos_hist: dict[int, list[tuple[int, int]]] = defaultdict(list)  # id -> [(x0, y0) per frame]
+        self.blocked: list[tuple[int, Any, int, int]] = []  # (avatar-candidate id, action, x0, y0) key presses that moved nothing
         self.max_log = max_log
         self.n_transitions = 0
 
@@ -102,6 +104,8 @@ class Tracker:
         self.bg = background_color(grid)
         self.tile = tile_size(grid)
         self.current = [_obj_to_entity(o, self._new_id()) for o in components(grid, ignore=(self.bg,))]
+        for e in self.current:
+            self.pos_hist[e.id].append((e.x0, e.y0))
         return self.current
 
     def _new_id(self) -> int:
@@ -170,7 +174,13 @@ class Tracker:
             self.changed_ids[eid] += 1
         for eid in appeared + disappeared:
             self.changed_ids[eid] += 1
+        if action in ("UP", "DOWN", "LEFT", "RIGHT", 1, 2, 3, 4) and not moved:
+            for p in prev:
+                if self.moves.get(p.id):  # a key press that moved nothing: evidence of blocking for known movers
+                    self.blocked.append((p.id, action, p.x0, p.y0))
         self.current = new
+        for e in new:
+            self.pos_hist[e.id].append((e.x0, e.y0))
         self.n_transitions += 1
         rec = {"action": action, "moved": moved, "appeared": appeared, "disappeared": disappeared,
                "recolored": recolored, "reshaped": reshaped, "same": len(new) - len(moved) - len(appeared) - len(recolored) - len(reshaped)}
