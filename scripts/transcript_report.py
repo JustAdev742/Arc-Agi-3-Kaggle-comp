@@ -42,12 +42,22 @@ def report_game(path: Path, full: bool = False) -> dict:
     errors = 0
     levels = set()
     pred_fail = 0
+    stagnation = 0
+    council_rounds = 0
+    summary_effort = None
     for r in recs:
         if r["kind"] == "assistant":
             for code in r.get("code", []):
                 for h in HELPERS:
                     if re.search(rf"\b{h}\(", code):
                         used[h] += 1
+        elif r["kind"] == "observation":
+            if r.get("effort") not in (None, "low"):
+                summary_effort = r.get("effort")
+            if "STAGNATION" in (r.get("text") or ""):
+                stagnation += 1
+        elif r["kind"] == "council":
+            council_rounds += 1
         elif r["kind"] == "tool":
             out = r.get("output", "") or ""
             if r.get("error"):
@@ -62,6 +72,7 @@ def report_game(path: Path, full: bool = False) -> dict:
         "game": game, "turns": stats.get("turns"), "calls": stats.get("model_calls"), "actions": stats.get("actions_model"),
         "fallback": stats.get("actions_fallback"), "tool_errors": errors, "levels_seen": sorted(levels)[-1] if levels else None,
         "p50_s": stats.get("model_latency_p50_s"), "used": dict(used), "coverage_reports": coverages[:6], "pred_fail": pred_fail,
+        "stagnation_notices": stagnation, "council_rounds": council_rounds, "raised_effort_seen": summary_effort,
         "notes": (meta.get("notes") or [])[-4:],
     }
     if full:
@@ -88,7 +99,8 @@ def main() -> None:
         rows.append(s)
         used = " ".join(f"{k}:{v}" for k, v in sorted(s["used"].items(), key=lambda kv: -kv[1]) if k not in ("act", "click", "ents", "events"))
         print(f"{s['game']}: turns {s['turns']} calls {s['calls']} actions {s['actions']} (+{s['fallback']} fallback) errors {s['tool_errors']} "
-              f"level {s['levels_seen']} p50 {s['p50_s']}s pred_fail {s['pred_fail']}")
+              f"level {s['levels_seen']} p50 {s['p50_s']}s pred_fail {s['pred_fail']} stagnation {s['stagnation_notices']}"
+              + (f" council_rounds {s['council_rounds']}" if s['council_rounds'] else ""))
         print(f"    helpers: {used or '-'}")
         if s["coverage_reports"]:
             print(f"    coverage: {', '.join(s['coverage_reports'])}")
@@ -96,7 +108,11 @@ def main() -> None:
             print(f"    note: {str(n)[:160]}")
         if a.full:
             for r in s["records"]:
-                if r["kind"] == "assistant":
+                if r["kind"] == "observation":
+                    print("  === turn " + str(r.get("turn")) + " observation (effort " + str(r.get("effort")) + "): " + (r.get("text") or "")[:700].replace("\n", "\n      "))
+                elif r["kind"] == "council":
+                    print("  === council round (" + str(r.get("reason")) + ", " + str(r.get("round_s")) + " s): " + str(r.get("reports"))[:600])
+                elif r["kind"] == "assistant":
                     for code in r.get("code", []):
                         print("  >>> " + code.strip().replace("\n", "\n      ")[:1200])
                     if r.get("content") and not r.get("code"):

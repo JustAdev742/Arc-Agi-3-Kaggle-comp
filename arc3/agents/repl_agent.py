@@ -545,7 +545,10 @@ class ReplAgent(Agent):
         inspect_only = 0
         effort = self._effort_for_turn()
         try:
-            self.messages.append(self._user_message())
+            um = self._user_message()
+            self.messages.append(um)
+            head = um["content"][0]["text"] if isinstance(um["content"], list) else str(um["content"])
+            self._record("observation", turn=self.st.turns, effort=effort, text=head[:1500])
             for _ in range(self.max_tool_steps):
                 if self.closed or self.ctx.time_left() < self.min_time_for_turn_s / 2:
                     break

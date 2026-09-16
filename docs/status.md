@@ -164,7 +164,12 @@ Built and tested (all in `tests/`, green on this container via `make test`):
   Unmeasured on a real model.
 - The council agent (`arc3/agents/council.py`): the user's six-specialist + coordinator design as an ablation arm,
   specialists run concurrently on a second vLLM server (Qwen3-VL-8B-NVFP4) or on the coordinator model; mock-tested,
-  **not yet run against real models**. `scripts/build_eval_notebook.py` runs any agent on a split on Kaggle's RTX.
+  **not yet run against real models**. Reworked 09-16 afternoon for exp-010: specialists read the coordinator's
+  full observation (entities, key map, auto-fitted rules, notes, tile map); rounds are event-driven (level start,
+  mismatch, idle turn, stagnation, periodic floor) and run concurrently with the coordinator's call, their reports
+  injected before its next call; prompts rewritten around the helpers. Coordinator: adaptive reasoning effort
+  (raised only on stagnation), level-completion and stagnation notices, per-call "# goal | learned | now" header,
+  optional preserve_thinking. `scripts/build_eval_notebook.py` runs any agent on a split on Kaggle's RTX.
 - Kaggle path: framework adapter with shared deadline and crash recovery, notebook builder that
   embeds the package and optionally starts vLLM, tests for both.
 - Rule library (`arc3/dsl.py`, plan-100 II.2.B): rule types Move (walkable/blocking colours per cell, required colour),
