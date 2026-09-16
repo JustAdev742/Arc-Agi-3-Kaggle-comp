@@ -111,9 +111,10 @@ Built and tested (all in `tests/`, green on this container via `make test`):
 - The REPL agent (Duck-style, persistent sandbox, image + ASCII + helpers, eviction, governor,
   explorer fallback). **First real-model run 2026-09-16 (diag v5 smoke)**: plumbing works end to end on Kaggle;
   the model acts too rarely per turn and prompts are too large (see research log exp-003a).
-- Executable world-model hook (`set_model(predict)` in the sandbox): every real action is checked against the model's
-  own predictor, mismatches stop batched actions and are reported back each turn (plan-100 §3.2, the checking half;
-  the counter-example synthesis loop is not built yet). Unmeasured on a real model.
+- Executable world-model hooks in the sandbox: `set_model(predict)` checks every real action against the model's own
+  predictor (mismatches stop batched actions and are reported each turn); `transitions()` logs the level's
+  (before, action, after) triples; `verify_model(predict)` replays them and returns counter-examples (plan-100 §3.2).
+  Unmeasured on a real model.
 - The council agent (`arc3/agents/council.py`): the user's six-specialist + coordinator design as an ablation arm,
   specialists run concurrently on a second vLLM server (Qwen3-VL-8B-NVFP4) or on the coordinator model; mock-tested,
   **not yet run against real models**. `scripts/build_eval_notebook.py` runs any agent on a split on Kaggle's RTX.

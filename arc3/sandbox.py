@@ -14,7 +14,7 @@ Protocol (JSON lines over stdin/stdout of the child):
 Preloaded names in the child (all from ``arc3.perception``, exact numpy code):
   grid, frames, level, levels_completed, win_levels, step, level_step, state, available,
   scale, objects(), components(), diff(), ascii(), downscale(), act(), note(), notes,
-  history, last, np, set_model(predict), world_model_stats()
+  history, last, np, set_model(predict), world_model_stats(), verify_model(predict), transitions()
 """
 from __future__ import annotations
 
@@ -56,6 +56,41 @@ def _recv():
 
 G = {"__name__": "__repl__", "np": np, "notes": []}
 WM = {"predict": None, "checked": 0, "matched": 0, "mismatches": [], "errors": 0}
+LOG = {"level": None, "transitions": []}  # (before_grid, action_label, after_grid) for the current level
+
+def transitions(last_n=None):
+    """The level's recorded (before, action, after) triples, oldest first (lost if the REPL restarts)."""
+    t = LOG["transitions"]
+    return t[-last_n:] if last_n else list(t)
+
+def verify_model(predict=None, last_n=None):
+    """Replay the level's transitions through predict(grid, action) and return
+    {'checked', 'correct', 'counter_examples': [{'index','action','wrong_cells','bbox','sample'}, ...]}.
+    Use it before trusting a model and after every revision; a model with counter-examples is wrong."""
+    fn = predict if predict is not None else WM["predict"]
+    if fn is None:
+        raise ValueError("no predictor: pass predict or call set_model(predict) first")
+    items = transitions(last_n)
+    out = {"checked": 0, "correct": 0, "counter_examples": []}
+    for i, (before, action, after) in enumerate(items):
+        try:
+            pred = _to_grid(fn(before.copy(), action))
+            if pred.shape != after.shape:
+                raise ValueError(f"predicted shape {pred.shape} != {after.shape}")
+        except Exception as e:  # noqa: BLE001
+            out["counter_examples"].append({"index": i, "action": action, "error": f"{type(e).__name__}: {e}"[:160]})
+            continue
+        out["checked"] += 1
+        wrong = pred != after
+        n = int(wrong.sum())
+        if n == 0:
+            out["correct"] += 1
+        elif len(out["counter_examples"]) < 8:
+            ys, xs = np.nonzero(wrong)
+            out["counter_examples"].append({"index": i, "action": action, "wrong_cells": n,
+                                            "bbox": [int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())],
+                                            "sample": [[int(x), int(y), int(pred[y, x]), int(after[y, x])] for y, x in list(zip(ys, xs))[:4]]})
+    return out
 
 def set_model(predict):
     """Register predict(grid, action) -> predicted next grid (64x64 array or list). The harness checks every
@@ -104,6 +139,10 @@ def _to_grid(x):
     return np.asarray(x, dtype=np.int16)
 
 def _refresh(state):
+    lvl = state.get("level")
+    if LOG["level"] is not None and lvl != LOG["level"]:
+        LOG["transitions"] = []  # new level: the old transitions no longer describe this layout
+    LOG["level"] = lvl
     G["grid"] = _to_grid(state["grid"])
     G["frames"] = [_to_grid(f) for f in state.get("frames", [])]
     for k in ("level", "levels_completed", "win_levels", "step", "level_step", "state", "available", "history", "last"):
@@ -188,13 +227,21 @@ def act(*actions):
     if not norm:
         raise ValueError("act() needs at least one action")
     if WM["predict"] is None:
-        _send({"type": "action", "actions": norm})
-        reply = _recv()
-        if reply.get("type") != "action_result":
-            raise RuntimeError(reply.get("error", "action failed"))
-        _refresh(reply["state"])
-        res = reply["result"]
-        return res if len(norm) > 1 else res[0]
+        results = []
+        for a in norm:  # one at a time so every transition is logged with its exact before/after grids
+            before = G["grid"].copy()
+            _send({"type": "action", "actions": [a]})
+            reply = _recv()
+            if reply.get("type") != "action_result":
+                raise RuntimeError(reply.get("error", "action failed"))
+            _refresh(reply["state"])
+            r = reply["result"][0]
+            if not r.get("level_completed"):
+                LOG["transitions"].append((before, _action_label(a), G["grid"].copy()))
+            results.append(r)
+            if r.get("level_completed") or r.get("game_over") or r.get("won"):
+                break
+        return results if len(norm) > 1 else results[0]
     # With a registered world model, actions go one at a time so each prediction is checked and a
     # mismatch stops the batch (the model must revise before spending more actions).
     results = []
@@ -209,6 +256,8 @@ def act(*actions):
         chk = _check_prediction(before, a, G["grid"])
         if chk:
             r.update(chk)
+        if not r.get("level_completed"):
+            LOG["transitions"].append((before, _action_label(a), G["grid"].copy()))
         results.append(r)
         if chk and not chk.get("pred_ok") and len(norm) > 1:
             r["batch_stopped"] = f"prediction mismatch after {len(results)} of {len(norm)} actions; revise the model"
@@ -221,7 +270,7 @@ def click(x, y):
     return act(("CLICK", int(x), int(y)))
 
 for _n in ("objects", "components", "diff", "ascii", "downscale", "background", "moved", "note", "act", "click",
-           "set_model", "world_model_stats"):
+           "set_model", "world_model_stats", "verify_model", "transitions"):
     G[_n] = globals()[_n]
 
 while True:

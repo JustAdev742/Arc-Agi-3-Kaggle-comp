@@ -93,3 +93,44 @@ print(world_model_stats()['checked'], world_model_stats()['matched'])
     assert r["world_model"]["checked"] == 2 and r["world_model"]["matched"] == 1
     assert r["actions"] == 2  # the batch stopped after the first mismatching action
     sb.stop()
+
+
+def test_transition_log_and_verify_model_counter_examples():
+    sb = PersistentSandbox(sys_path=[ROOT] + sys.path)
+    grids = [np.zeros((64, 64), dtype=int)]
+
+    def handler(actions):
+        g = grids[-1].copy()
+        a = actions[0]
+        if a["action"] == "UP":
+            g[0, 0] += 1
+        elif a["action"] == "CLICK":
+            g[a["y"], a["x"]] = 9
+        grids.append(g)
+        return [{"changed": 1, "level_completed": False, "state": "NOT_FINISHED"}], state(g, [g])
+
+    code = """
+act('UP', 'UP', ('CLICK', 3, 4))
+print(len(transitions()), transitions()[2][1])
+def good(grid, action):
+    g = grid.copy()
+    if action == 'UP': g[0, 0] += 1
+    elif isinstance(action, tuple) and action[0] == 'CLICK': g[action[2], action[1]] = 9
+    return g
+def bad(grid, action):
+    return grid
+v = verify_model(good); print('good', v['checked'], v['correct'], len(v['counter_examples']))
+v = verify_model(bad); print('bad', v['checked'], v['correct'], v['counter_examples'][0]['index'], v['counter_examples'][0]['wrong_cells'])
+print(set_model(good)); r = act('UP'); print(r['pred_ok'], len(transitions()))
+"""
+    r = sb.run(code, state(grids[0], [grids[0]]), timeout_s=20, action_handler=handler)
+    assert r["error"] == "", r
+    lines = r["stdout"].strip().splitlines()
+    assert lines[0] == "3 ('CLICK', 3, 4)"
+    assert lines[1] == "good 3 3 0"
+    assert lines[2] == "bad 3 0 0 1"
+    assert lines[3] == "world model registered" and lines[4] == "True 4"
+    # a level change clears the log
+    r = sb.run("print(len(transitions()))", {**state(grids[-1], [grids[-1]]), "level": 2}, timeout_s=20, action_handler=handler)
+    assert r["stdout"].strip() == "0"
+    sb.stop()
