@@ -358,8 +358,11 @@ class Move(Rule):
     kind = "move"
 
     def __init__(self, cls: Cls, keymap: dict[str, tuple[int, int]], blocked_by: Any = "any",
-                 walkable: Optional[Iterable[int]] = None, requires: Optional[int] = None):
+                 walkable: Optional[Iterable[int]] = None, requires: Optional[int] = None, slide: bool = False,
+                 blocked_origins: Iterable[tuple[int, int]] = ()):
         self.cls = cls
+        self.slide = slide  # keep stepping in the key direction until blocked (ice / sliding puzzles)
+        self.blocked_origins = frozenset((int(x), int(y)) for x, y in blocked_origins)  # invisible walls seen by bumping
         self.keymap = {k: (int(v[0]), int(v[1])) for k, v in keymap.items()}
         self.blocked_by = blocked_by if blocked_by in (None, "any") else frozenset(int(c) for c in blocked_by)
         self.walkable = None if walkable is None else frozenset(int(c) for c in walkable)
@@ -371,7 +374,20 @@ class Move(Rule):
         return self.requires is None or any(e.color == self.requires for e in frame)
 
     def blocked(self, e: Ent, frame: Frame, dx: int, dy: int, under: Optional[np.ndarray], bg: Optional[int]) -> bool:
+        if (e.x0 + dx, e.y0 + dy) in self.blocked_origins:
+            return True
         return _blocked(e, frame, self.blocked_by, dx, dy, under, self.walkable, bg)
+
+    def displacement(self, e: Ent, frame: Frame, d: tuple[int, int], under: Optional[np.ndarray], bg: Optional[int]) -> tuple[int, int]:
+        """Where the entity ends up: one step, or (slide) as many steps as are free."""
+        if self.blocked(e, frame, d[0], d[1], under, bg):
+            return (0, 0)
+        if not self.slide:
+            return d
+        k = 1
+        while k < 64 and not self.blocked(e, frame, d[0] * (k + 1), d[1] * (k + 1), under, bg):
+            k += 1
+        return (d[0] * k, d[1] * k)
 
     def delta(self, action: Any) -> Optional[tuple[int, int]]:
         k = action_kind(action)
@@ -388,20 +404,20 @@ class Move(Rule):
         out = {}
         on = self.enabled(tr.before)
         for e in self.cls.select(tr.before):
-            if d == (0, 0) or not on or self.blocked(e, tr.before, d[0], d[1], tr.under, tr.bg):
+            if d == (0, 0) or not on:
                 out[e.id] = Claim(moved=(0, 0))
             else:
-                out[e.id] = Claim(moved=d)
+                out[e.id] = Claim(moved=self.displacement(e, tr.before, d, tr.under, tr.bg))
         return out
 
     def apply(self, before: Frame, action: Any, frame: Frame) -> Frame:
         d = self.delta(action)
-        if not d or not self.enabled(frame):
+        if not d or d == (0, 0) or not self.enabled(frame):
             return frame
         out = []
         for e in frame:
-            if self.cls.matches(e) and not self.blocked(e, frame, d[0], d[1], self.under, self.bg):
-                out.append(e.moved(*d))
+            if self.cls.matches(e):
+                out.append(e.moved(*self.displacement(e, frame, d, self.under, self.bg)))
             else:
                 out.append(e)
         return tuple(out)
@@ -413,7 +429,9 @@ class Move(Rule):
         else:
             b = "blocked by " + ("nothing" if self.blocked_by is None else ("any non-background colour" if self.blocked_by == "any" else f"colours {sorted(self.blocked_by)}"))
         req = f" while colour {self.requires} exists" if self.requires is not None else ""
-        return f"move[{self.cls}] keys {{{km}}} {b}{req}"
+        walls = f" + {len(self.blocked_origins)} invisible wall positions" if self.blocked_origins else ""
+        kind = "slide" if self.slide else "move"
+        return f"{kind}[{self.cls}] keys {{{km}}} {b}{req}{walls}"
 
     def to_dict(self) -> dict[str, Any]:
         return {**super().to_dict(), "cls": str(self.cls), "keymap": self.keymap, "requires": self.requires,
@@ -650,6 +668,8 @@ class OnClick(Rule):
         xy = click_xy(action)
         if xy is None:
             return None
+        if self.button is None:  # any click, anywhere: the clicked cell acts as a 1x1 button
+            return Ent(-999, -1, xy[0], xy[1], 1, 1, 1, "cell")
         for b in self.button.select(frame):
             if b.contains(*xy):
                 return b
@@ -663,19 +683,34 @@ class OnClick(Rule):
         """Displacement that centres target ``t`` on button ``b``."""
         return ((b.x0 + b.x1) // 2 - (t.x0 + t.x1) // 2, (b.y0 + b.y1) // 2 - (t.y0 + t.y1) // 2)
 
+    @staticmethod
+    def _goto_origin(t: Ent, b: Ent) -> tuple[int, int]:
+        """Displacement that puts the target's top-left corner on the clicked cell / button origin."""
+        return (b.x0 - t.x0, b.y0 - t.y0)
+
+    def _move_for(self, t: Ent, b: Ent) -> tuple[int, int]:
+        if self.effect in ("goto", "swap"):
+            return self._goto(t, b)
+        if self.effect == "goto_origin":
+            return self._goto_origin(t, b)
+        return (int(self.effect[1]), int(self.effect[2]))
+
     def claims(self, tr: Transition) -> dict[int, Claim]:
         b = self._hit(tr.before, tr.action)
         on = b is not None
         if not on and click_xy(tr.action) is not None:
             return {}  # a click elsewhere may trigger another button's rule: no opinion
         out = {}
-        for e in self.target.select(tr.before):
+        targets = self.target.select(tr.before)
+        if self.effect == "swap" and on and b is not None and b.id >= 0:
+            # the clicked entity takes the target's place (centre to centre); one target only
+            if len(targets) == 1:
+                out[b.id] = Claim(moved=self._goto(b, targets[0]))
+        for e in targets:
             if self.effect == "vanish":
                 out[e.id] = Claim(gone=on)
-            elif self.effect == "goto":
-                out[e.id] = Claim(moved=self._goto(e, b) if on else (0, 0))
-            elif self.effect[0] == "move":
-                out[e.id] = Claim(moved=(self.effect[1], self.effect[2]) if on else (0, 0))
+            elif self.effect in ("goto", "goto_origin", "swap") or self.effect[0] == "move":
+                out[e.id] = Claim(moved=self._move_for(e, b) if on else (0, 0))
             elif self.effect[0] == "recolor":
                 c = int(self.effect[1])
                 out[e.id] = Claim(recolor=(e.color, c) if (on and e.color != c) else None)
@@ -687,19 +722,24 @@ class OnClick(Rule):
             return frame
         if self.effect == "vanish":
             return tuple(e for e in frame if not self.target.matches(e))
-        if self.effect == "goto":
-            return tuple(e.moved(*self._goto(e, b)) if self.target.matches(e) else e for e in frame)
-        if self.effect[0] == "move":
-            return tuple(e.moved(self.effect[1], self.effect[2]) if self.target.matches(e) else e for e in frame)
+        if self.effect == "swap":
+            targets = self.target.select(frame)
+            if len(targets) != 1:
+                return frame
+            t = targets[0]
+            return tuple(e.moved(*self._goto(e, b)) if e.id == t.id else (e.moved(*self._goto(e, t)) if e.id == b.id else e) for e in frame)
+        if self.effect in ("goto", "goto_origin") or self.effect[0] == "move":
+            return tuple(e.moved(*self._move_for(e, b)) if self.target.matches(e) else e for e in frame)
         c = int(self.effect[1])
         return tuple(e.recolored(c) if self.target.matches(e) else e for e in frame)
 
     def describe(self) -> str:
         if isinstance(self.effect, str):
-            eff = "vanishes" if self.effect == "vanish" else "moves onto the clicked entity"
+            eff = {"vanish": "vanishes", "goto": "moves onto the clicked entity", "goto_origin": "moves its corner to the clicked cell",
+                   "swap": "swaps places with the clicked entity"}[self.effect]
         else:
             eff = f"move ({self.effect[1]:+d},{self.effect[2]:+d})" if self.effect[0] == "move" else f"recolour to {self.effect[1]}"
-        return f"onclick[{self.button}] -> {self.target}: {eff}"
+        return f"onclick[{self.button if self.button is not None else 'anywhere'}] -> {self.target}: {eff}"
 
 
 def fit_onclick(log: list[Transition], max_rules: int = 6) -> list[tuple[OnClick, Score]]:
@@ -727,6 +767,12 @@ def fit_onclick(log: list[Transition], max_rules: int = 6) -> list[tuple[OnClick
                     effects[key].add(("move", o.moved[0], o.moved[1]))
                     if any(OnClick._goto(e, b) == o.moved for b in hit):
                         effects[key].add("goto")
+                        for b in hit:
+                            ob = tr.obs(b.id)
+                            if ob and ob.moved == OnClick._goto(b, e):
+                                effects[key].add("swap")
+                    if (x - e.x0, y - e.y0) == o.moved:
+                        effects[key].add("goto_origin")
                 elif o.recolor:
                     effects[key].add(("recolor", o.recolor[1]))
         if changed:
@@ -736,9 +782,11 @@ def fit_onclick(log: list[Transition], max_rules: int = 6) -> list[tuple[OnClick
                     if k not in seen:
                         seen.add(k)
                         buttons.append(c)
-    for b in buttons:
+    for b in [*buttons, None]:
         for (color, shape), effs in effects.items():
             for eff in effs:
+                if b is None and eff != "goto_origin":
+                    continue
                 rule = OnClick(b, Cls(color=color, shape=shape), eff)
                 s = score_rule(rule, log)
                 if s.ok() and s.support > 0:
@@ -937,6 +985,19 @@ def _required_color(rule: "Move", log: list[Transition]) -> Optional[int]:
     return cands[0] if len(cands) == 1 else None
 
 
+def _bumped_origins(rule: "Move", log: list[Transition]) -> list[tuple[int, int]]:
+    """Target origins of moves the rule predicted but that did not happen (invisible walls, bounds)."""
+    out = []
+    for tr in log:
+        for eid, cl in rule.claims(tr).items():
+            o = tr.obs(eid)
+            if o is None or o.gone or cl.moved in (None, (0, 0)) or o.moved != (0, 0):
+                continue
+            e = tr._b[eid]
+            out.append((e.x0 + cl.moved[0], e.y0 + cl.moved[1]))
+    return out
+
+
 def fit_move(log: list[Transition], max_rules: int = 6, allow_contradictions: bool = False) -> list[tuple[Move, Score]]:
     """Best Move rule per moving class. With allow_contradictions, the least-contradicted rule is kept even when
     no parameterisation fits (a mover that also pushes needs a Push rule to become consistent)."""
@@ -961,6 +1022,22 @@ def fit_move(log: list[Transition], max_rules: int = 6, allow_contradictions: bo
         if not deltas:
             continue
         base: dict[str, tuple[int, int]] = {k: c.most_common(1)[0][0] for k, c in deltas.items()}
+        slide_base: Optional[dict[str, tuple[int, int]]] = None
+        if any(len(c) > 1 for c in deltas.values()):  # several magnitudes per key: maybe a slide
+            sb: dict[str, tuple[int, int]] = {}
+            ok = True
+            for k, c in deltas.items():
+                ds = list(c)
+                if len({(np.sign(dx), np.sign(dy)) for dx, dy in ds}) != 1:
+                    ok = False
+                    break
+                g = 0
+                for dx, dy in ds:
+                    g = int(np.gcd(g, int(np.gcd(abs(dx), abs(dy)))))
+                sx, sy = np.sign(ds[0][0]), np.sign(ds[0][1])
+                sb[k] = (int(sx * g), int(sy * g))
+            if ok:
+                slide_base = sb
         # unobserved keys: try the mirror of the opposite key, accepted only if consistent
         variants: list[dict[str, tuple[int, int]]] = [dict(base)]
         guess = dict(base)
@@ -989,18 +1066,29 @@ def fit_move(log: list[Transition], max_rules: int = 6, allow_contradictions: bo
                 options += [(frozenset(sub), None, r) for sub in combinations(cols, r)]
             options.append((None, None, 100))
         best: Optional[tuple[Move, Score]] = None
-        for km in variants:
+        trials = [(km, False) for km in variants]
+        if slide_base is not None:
+            trials.insert(0, (slide_base, True))
+        for km, slide in trials:
             for b, wk, rank in options:
-                rule = Move(cls, km, b, wk)
+                rule = Move(cls, km, b, wk, slide=slide)
                 s = score_rule(rule, log)
                 if s.contradictions:
                     # the move failed although the way was free: maybe it needs something present (energy bar, key)
                     req = _required_color(rule, log)
                     if req is not None:
-                        rule2 = Move(cls, km, b, wk, req)
+                        rule2 = Move(cls, km, b, wk, req, slide=slide)
                         s2 = score_rule(rule2, log)
                         if s2.contradictions < s.contradictions:
                             rule, s = rule2, s2
+                if s.contradictions and not slide:
+                    # remaining failed moves: invisible walls at those target positions (exact, level-local)
+                    walls = _bumped_origins(rule, log)
+                    if walls:
+                        rule3 = Move(cls, km, b, wk, rule.requires, blocked_origins=walls)
+                        s3 = score_rule(rule3, log)
+                        if s3.contradictions < s.contradictions:
+                            rule, s = rule3, s3
                 if not s.ok() and not allow_contradictions:
                     continue
                 key = (-s.contradictions, s.support, -rank, len(km))
@@ -1397,7 +1485,7 @@ def planning_actions(rules: list[Rule], frame: Frame) -> list[Any]:
             acts += [k for k in r.keymap if k not in acts]
         if isinstance(r, Push):
             acts += [k for k in r.move.keymap if k not in acts]
-        if isinstance(r, OnClick):
+        if isinstance(r, OnClick) and r.button is not None:
             for b in r.button.select(frame):
                 acts.append(("CLICK", (b.x0 + b.x1) // 2, (b.y0 + b.y1) // 2))
         trig = getattr(r, "trigger", None)

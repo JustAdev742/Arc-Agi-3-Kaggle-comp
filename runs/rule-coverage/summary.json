@@ -14,7 +14,7 @@
      "coverage": 1.0,
      "fully_explained": 60,
      "rules": [
-      "move[colour 5 shape c73626] keys {UP:(+0,-3), DOWN:(+0,+3), LEFT:(-3,+0), RIGHT:(+3,+0)} only onto colours [0, 5, 9]",
+      "move[colour 5] keys {UP:(+0,-3), DOWN:(+0,+3), LEFT:(-3,+0), RIGHT:(+3,+0)} only onto colours [0, 5, 9] + 1 invisible wall positions",
       "move[colour 4] keys {UP:(+0,-3), DOWN:(+0,+3), LEFT:(+3,+0), RIGHT:(-3,+0)} only onto colours [4, 9]"
      ],
      "unexplained_sample": []
@@ -29,7 +29,7 @@
    "actions": 60,
    "levels_completed": 0,
    "play_s": 0.6,
-   "fit_s": 4.4,
+   "fit_s": 4.6,
    "levels": [
     {
      "transitions": 60,
@@ -105,7 +105,7 @@
    "actions": 60,
    "levels_completed": 0,
    "play_s": 0.1,
-   "fit_s": 0.3,
+   "fit_s": 0.4,
    "levels": [
     {
      "transitions": 60,
@@ -192,7 +192,7 @@
    "actions": 60,
    "levels_completed": 0,
    "play_s": 0.2,
-   "fit_s": 0.2,
+   "fit_s": 0.3,
    "levels": [
     {
      "transitions": 60,
@@ -262,7 +262,7 @@
    "actions": 60,
    "levels_completed": 0,
    "play_s": 0.3,
-   "fit_s": 2.8,
+   "fit_s": 2.9,
    "levels": [
     {
      "transitions": 60,
@@ -378,8 +378,8 @@
    "game": "r11l",
    "actions": 60,
    "levels_completed": 0,
-   "play_s": 0.1,
-   "fit_s": 4.7,
+   "play_s": 0.2,
+   "fit_s": 4.8,
    "levels": [
     {
      "transitions": 59,
@@ -519,15 +519,16 @@
    "actions": 60,
    "levels_completed": 0,
    "play_s": 0.2,
-   "fit_s": 0.8,
+   "fit_s": 1.0,
    "levels": [
     {
      "transitions": 60,
      "events": 117,
-     "explained": 45,
-     "coverage": 0.385,
-     "fully_explained": 28,
+     "explained": 51,
+     "coverage": 0.436,
+     "fully_explained": 33,
      "rules": [
+      "move[colour 10 shape 53451c] keys {DOWN:(+0,-2), RIGHT:(+2,-2), UP:(+0,+2), LEFT:(-2,+2)} only onto colours [2, 5, 9] + 3 invisible wall positions",
       "move[colour 2] keys {LEFT:(-4,+0), RIGHT:(+4,+0)} only onto colours [5, 9, 10]",
       "move[colour 9 shape 253240] keys {DOWN:(+0,+2), UP:(+0,-2)} only onto colours [2, 10]",
       "overlap[colour 10 covers colour 2 shape 175b69] -> target_vanishes",
@@ -540,14 +541,14 @@
      ],
      "unexplained_sample": [
       "#6 c10 moved on UP",
-      "#6 c10 moved on DOWN",
       "#4 c2 resized on LEFT",
-      "#6 c10 resized on LEFT"
+      "#6 c10 resized on LEFT",
+      "#24 c9 appeared on LEFT"
      ]
     }
    ],
    "events": 117,
-   "coverage": 0.385,
+   "coverage": 0.436,
    "unexplained_kinds": {
     "moved": 6,
     "resized": 4,
@@ -559,20 +560,19 @@
    "actions": 60,
    "levels_completed": 0,
    "play_s": 0.2,
-   "fit_s": 0.6,
+   "fit_s": 0.8,
    "levels": [
     {
      "transitions": 60,
      "events": 107,
-     "explained": 29,
-     "coverage": 0.271,
+     "explained": 28,
+     "coverage": 0.262,
      "fully_explained": 38,
      "rules": [
-      "move[colour 6 shape c1206e] keys {UP:(+0,-6), DOWN:(+0,+6)} only onto colours [0, 2, 3, 5, 6]",
+      "move[colour 6] keys {UP:(+0,-6), DOWN:(+0,+6)} only onto colours [0, 2, 3, 5, 6] + 1 invisible wall positions",
       "move[colour 1] keys {UP:(+0,-6), DOWN:(+0,+6)} only onto colours [4]",
       "vanish[colour 1 shape c6ad17] on LEFT",
-      "move[colour 3 shape 748a33] keys {RIGHT:(-1,+0), LEFT:(+1,+0)} only onto colours [2]",
-      "move[colour 3 shape fee620] keys {LEFT:(-1,+0), RIGHT:(+1,+0)} only onto colours [2, 3]"
+      "move[colour 3 shape 748a33] keys {RIGHT:(-1,+0), LEFT:(+1,+0)} only onto colours [2]"
      ],
      "unexplained_sample": [
       "#11 c2 moved on UP",
@@ -583,7 +583,7 @@
     }
    ],
    "events": 107,
-   "coverage": 0.271,
+   "coverage": 0.262,
    "unexplained_kinds": {
     "moved": 10,
     "resized": 2
@@ -594,28 +594,23 @@
    "actions": 30,
    "levels_completed": 0,
    "play_s": 0.1,
-   "fit_s": 0.0,
+   "fit_s": 0.1,
    "levels": [
     {
      "transitions": 29,
      "events": 23,
-     "explained": 0,
-     "coverage": 0.0,
-     "fully_explained": 6,
-     "rules": [],
-     "unexplained_sample": [
-      "#4 c9 moved on UP",
-      "#4 c9 moved on DOWN",
-      "#4 c9 moved on DOWN",
-      "#4 c9 moved on LEFT"
-     ]
+     "explained": 23,
+     "coverage": 1.0,
+     "fully_explained": 29,
+     "rules": [
+      "move[colour 9] keys {UP:(+0,-4), DOWN:(+0,+4), LEFT:(-4,+0), RIGHT:(+4,+0)} only onto colours [12] + 1 invisible wall positions"
+     ],
+     "unexplained_sample": []
     }
    ],
    "events": 23,
-   "coverage": 0.0,
-   "unexplained_kinds": {
-    "moved": 12
-   }
+   "coverage": 1.0,
+   "unexplained_kinds": {}
   },
   {
    "game": "su15",
@@ -706,27 +701,28 @@
    "actions": 50,
    "levels_completed": 0,
    "play_s": 0.2,
-   "fit_s": 0.8,
+   "fit_s": 1.2,
    "levels": [
     {
      "transitions": 49,
      "events": 72,
-     "explained": 1,
-     "coverage": 0.014,
+     "explained": 2,
+     "coverage": 0.028,
      "fully_explained": 14,
      "rules": [
+      "move[colour 9] keys {RIGHT:(+6,+0), LEFT:(-6,+0)} only onto colours [0] + 1 invisible wall positions",
       "vanish[colour 9 in region x21-21 y15-15] on DOWN"
      ],
      "unexplained_sample": [
-      "#1 c9 moved on RIGHT",
       "#3 c0 moved on RIGHT",
       "#9 c4 moved on RIGHT",
-      "#9 c4 moved on DOWN"
+      "#9 c4 moved on DOWN",
+      "#13 c0 moved on DOWN"
      ]
     }
    ],
    "events": 72,
-   "coverage": 0.014,
+   "coverage": 0.028,
    "unexplained_kinds": {
     "moved": 12
    }
@@ -765,7 +761,7 @@
    "actions": 60,
    "levels_completed": 0,
    "play_s": 0.1,
-   "fit_s": 0.2,
+   "fit_s": 0.3,
    "levels": [
     {
      "transitions": 60,
@@ -797,7 +793,7 @@
    }
   }
  ],
- "mean_coverage": 0.375,
+ "mean_coverage": 0.417,
  "n_games": 25,
  "actions_per_game": 60
 }
