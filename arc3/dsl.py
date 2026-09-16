@@ -1426,6 +1426,19 @@ def render(grid: np.ndarray, before: Frame, after: Frame, shapes: dict[str, np.n
     return g
 
 
+def fallback_move_rules(avatar: Optional[dict], frame: Frame) -> list[Rule]:
+    """When no rule set exists yet, the avatar's observed key map as an unblocked Move rule (enough to simulate the
+    winning step of a level for goal inference)."""
+    if not avatar or not avatar.get("keymap"):
+        return []
+    aid = int(avatar["id"])
+    ids = {aid}
+    for e in frame:  # the compound may carry the avatar under its head id
+        if e.id == aid:
+            break
+    return [Move(Cls(ids=frozenset(ids)), {k: tuple(v) for k, v in avatar["keymap"].items()}, None)]
+
+
 def optimistic(rules: list[Rule]) -> list[Rule]:
     """Copies of the movement rules with the least restrictive blocking still compatible with the evidence: a
     'walkable' set becomes 'blocked by nothing' and bump positions are dropped. Plans under these rules are

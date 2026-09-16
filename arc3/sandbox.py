@@ -358,9 +358,10 @@ def _archive_level(final_action):
         return
     final = None
     frames = t.compound_frames()
+    rules_ = RULES["rules"] or _dsl.fallback_move_rules(t.avatar(), frames[-1])
     try:
-        _dsl.set_terrain(RULES["rules"], t.under, t.bg)
-        final = _dsl.simulate(frames[-1], final_action, RULES["rules"]) if RULES["rules"] else None
+        _dsl.set_terrain(rules_, t.under, t.bg)
+        final = _dsl.simulate(frames[-1], final_action, rules_) if rules_ else None
     except Exception:  # noqa: BLE001
         final = None
     ARCH["levels"].append({"level": LOG["level"], "frames": list(frames), "actions": list(t.actions), "unders": list(t.unders),

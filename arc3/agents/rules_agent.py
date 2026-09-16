@@ -242,9 +242,10 @@ class RulesAgent(Agent):
             # level completed: archive with the simulated winning frame for goal inference
             frames = self.tracker.compound_frames()
             final = None
+            rules_ = self.rules or dsl.fallback_move_rules(self.tracker.avatar(), frames[-1])
             try:
-                dsl.set_terrain(self.rules, self.tracker.under, self.tracker.bg)
-                final = dsl.simulate(frames[-1], label, self.rules) if self.rules else None
+                dsl.set_terrain(rules_, self.tracker.under, self.tracker.bg)
+                final = dsl.simulate(frames[-1], label, rules_) if rules_ else None
             except Exception:  # noqa: BLE001
                 final = None
             if final is not None:
