@@ -1,6 +1,6 @@
 {
-  "id": "scottmahony/arc3-eval",
-  "title": "arc3-eval",
+  "id": "scottmahony/arc3-eval-smoke",
+  "title": "arc3-eval-smoke",
   "code_file": "eval.ipynb",
   "language": "python",
   "kernel_type": "notebook",

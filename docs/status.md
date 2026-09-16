@@ -65,8 +65,10 @@ architectural step therefore has to be measured on dev and val, not assumed.
    vLLM 0.27.1 installed in 166 s; the FP8 model loaded in 120 s (28.95 GiB), MTP draft detected, 53.2 GiB KV cache
    (1.0 M tokens, 31x concurrency at 32k), server ready **345 s** after launch on the first attempt with MTP + FP8 KV.
    The first request then failed inside FlashInfer (auto-selected attention backend; needs SM120 cubins from NVIDIA's
-   artifactory, unreachable offline). v3 (env var `VLLM_ATTENTION_BACKEND`) changed nothing: vLLM 0.27 ignores that
-   variable. v4 passes `--attention-backend TRITON_ATTN` on the command line. No throughput or REPL numbers yet.
+   artifactory, unreachable offline).
+4. `scottmahony/arc3-gpu-diag` v3, RTX, 2026-09-16: env var `VLLM_ATTENTION_BACKEND=TRITON_ATTN` changed nothing; vLLM 0.27
+   logs "Unknown vLLM environment variable" and still picked FlashInfer. 9 min of RTX quota, same failure.
+5. `scottmahony/arc3-gpu-diag` v4, RTX, 2026-09-16: `--attention-backend TRITON_ATTN` on the command line. Result pending.
 
 ## Open items (need you)
 
