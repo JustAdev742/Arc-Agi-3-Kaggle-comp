@@ -69,8 +69,8 @@ class Stats:
 @register("repl")
 class ReplAgent(Agent):
     """Config keys (ctx.config): base_url, model, api_key, context_tokens, max_output_tokens, temperature,
-    top_p, thinking, model_timeout_s, tool_timeout_s, max_tool_steps, image, image_scale, image_tokens,
-    ascii, history_frames, idle_turns_before_fallback, max_model_errors, client (object, tests only)."""
+    top_p, thinking, reasoning_effort, model_timeout_s, tool_timeout_s, max_tool_steps, image, image_scale,
+    image_tokens, ascii, history_frames, idle_turns_before_fallback, max_model_errors, client (tests only)."""
 
     def __init__(self, ctx: AgentContext):
         super().__init__(ctx)
@@ -83,6 +83,7 @@ class ReplAgent(Agent):
         self.temperature = float(c.get("temperature", 0.6))
         self.top_p = float(c.get("top_p", 0.95))
         self.thinking = c.get("thinking", None)
+        self.reasoning_effort = c.get("reasoning_effort", None)  # Qwen3.8: low|medium|high|xhigh
         self.model_timeout_s = float(c.get("model_timeout_s", 180))
         self.tool_timeout_s = float(c.get("tool_timeout_s", 30))
         self.max_tool_steps = int(c.get("max_tool_steps", 12))
@@ -332,7 +333,7 @@ class ReplAgent(Agent):
                 try:
                     resp: ChatResponse = self.client.chat(
                         self.messages, tools=TOOLS, max_tokens=self.max_output_tokens, temperature=self.temperature,
-                        top_p=self.top_p, thinking=self.thinking,
+                        top_p=self.top_p, thinking=self.thinking, reasoning_effort=self.reasoning_effort,
                         timeout_s=max(10.0, min(self.model_timeout_s, self.ctx.time_left() - 5)))
                 except Exception as e:  # noqa: BLE001
                     self.st.model_errors += 1

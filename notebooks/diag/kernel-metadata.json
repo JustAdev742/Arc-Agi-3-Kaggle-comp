@@ -1,7 +1,7 @@
 {
-  "id": "scottmahony/arc-prize-2026-arc-agi-3-arc3-agent",
-  "title": "ARC Prize 2026 - ARC-AGI-3 arc3 agent",
-  "code_file": "submission.ipynb",
+  "id": "scottmahony/arc3-gpu-diag",
+  "title": "arc3-gpu-diag",
+  "code_file": "diag.ipynb",
   "language": "python",
   "kernel_type": "notebook",
   "is_private": true,
@@ -9,7 +9,10 @@
   "enable_tpu": false,
   "enable_internet": false,
   "keywords": [],
-  "dataset_sources": [],
+  "dataset_sources": [
+    "saltb0x/arc3-vllm-wheelhouse-v0271-cu129",
+    "saltb0x/qwen3-8-27b-fp8"
+  ],
   "kernel_sources": [],
   "competition_sources": [
     "arc-prize-2026-arc-agi-3"
