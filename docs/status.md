@@ -121,11 +121,10 @@ research log exp-006a.
   and the Flash-Next serving check all wait. If the workstation (RTX PRO 6000, CLAUDE.md) is reachable, the same
   evaluation runs there: `arc3.eval.run_eval('repl', 'dev', time_budget_s=1200, workers=8, config=...)` against a local
   vLLM started with `arc3.serve.build_vllm_command`; tell me and I will write the exact commands.
-- **Flash-Next dataset:** the streaming upload of all 25 files (132.7 GB) finished 23:22 UTC and Kaggle accepted the
-  create call (status Ok, https://www.kaggle.com/datasets/scottmahony/qwen3-8-flash-next-nvfp4), but 8 minutes later
-  the dataset is not in `datasets list --mine` and its status endpoint returns 403 (still processing, or the create
-  failed after acceptance). I keep re-checking; if it never appears the upload has to be repeated (the streamer
-  resumes from its state file).
+- **Flash-Next dataset is up:** `scottmahony/qwen3-8-flash-next-nvfp4` (all 25 files, 132.7 GB, streamed HF -> Kaggle
+  without touching local disk, `scripts/stream_hf_to_kaggle.py`; created 23:22 UTC, "ready" about 30 minutes later).
+  With the vLLM 0.29.0 wheelhouse (`scottmahony/arc3-vllm-wheelhouse-v0290-cu130`, ready) the single-GPU serving check
+  (`scratchpad/nb/flashnext-diag`, PLE table offloaded to host RAM) is the first thing to push when the quota resets.
 1. Daily submission limit: paste the "Submission limits" lines from the Kaggle **Rules** page (still
    UNCONFIRMED; 5 per day from two secondary sources).
 4. **Qwen3.8-Flash-Next-NVFP4 (requested 2026-09-16 evening):** cannot be staged from this container (132.7 GB, one
