@@ -191,6 +191,9 @@ research log exp-006a.
 - **Validation split, first run (exp-011v, 19:49): val 0.794, 1/41 levels** (sp80 L1). Dev 1.30 vs val 0.79: dev has
   been tuned on, val has not; g50t had a perfect world model and no level (goal inference, like dc22 on dev).
   exp-016 (base config on all 25 games) pushed 19:52 as `arc3-eval-all-a`.
+- exp-015 (raise to medium after 3 stagnant actions) finished 20:32: **0.421, 4 levels**, REVERTED. Low-effort runs on
+  the post-exp-011 harness now read 6, 6, 4 levels against 9, 9 on 756a87e: the harness commits are suspect; exp-016's
+  dev subset decides whether to bisect.
 - 14:09: exp-010c (`arc3-eval-dev-council-c` v1, harness 7de7f95) running; exp-004 v2 queued. Queue after them, in
   order: exp-011b (the exp-011 notebook unchanged, per the noise rule), exp-012 (harness 7de7f95: events line in every
   tool output, single results iterate, ascii(region) degrades to tiles, role always present), then a private Save &

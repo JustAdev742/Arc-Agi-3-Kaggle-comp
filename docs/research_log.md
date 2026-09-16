@@ -310,6 +310,17 @@ Decision: submission config = exp-011's (low effort, raised to medium on stagnat
           slot is spare: raise to medium earlier (stagnation_actions 3 instead of 6) to buy medium's extra levels
           without paying its action cost everywhere (exp-015).
 
+## 2026-09-16 · exp-015 · adaptive effort with the raise to medium after 3 stagnant actions (instead of 6), harness ec12191 · REVERTED
+Measured: dev 0.421 (runs/kaggle-repl-dev-015, kernel arc3-eval-dev-k v1; ran 19:24-20:32). Levels 4/142: lp85 L1, s5i5 L1, sb26 L1, su15 L1;
+          actions 933; 0 model errors. Lowest of the day for the REPL agent: ar25 L1 and vc33 L1, solved in every
+          other low-effort run, were missed.
+Notes:    an earlier raise to medium buys nothing here. But the run adds to a pattern on the post-exp-011 harness: at low
+          effort, exp-012 6, exp-012b 6 and exp-015 4 levels against 9 and 9 for exp-011/011b on harness 756a87e. The
+          config differences are small (events line, then off; stagnation_actions), so the harness commits between
+          756a87e and ec12191 are suspect (candidates: 'role': 'unknown' now printed for every entity in the
+          observation; single-result iteration; region degrade). exp-016 (base config, harness ec12191, all 25 games)
+          is the clean test on dev; a bisect follows if its dev subset lands at 6 levels or fewer.
+
 ## 2026-09-16 · exp-011v · base config (adaptive low effort, events line off, harness 4647ba8) on the VALIDATION split · first held-out number
 Measured: val 0.794 (runs/kaggle-repl-val-011, kernel arc3-eval-val-a v1; 6 games, 1200 s each, 6 workers; ran 19:21-19:49).
           Levels 1/41: sp80 L1 in 39 actions (at the cap); actions 643; 0 model errors. g50t: 30/30 world-model
