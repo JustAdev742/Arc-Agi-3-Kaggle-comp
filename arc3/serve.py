@@ -6,6 +6,7 @@ versions; ``VLLM_EXTRA_ARGS`` overrides everything after the model path.
 """
 from __future__ import annotations
 
+import json
 import os
 import shlex
 import subprocess
@@ -74,7 +75,13 @@ def build_vllm_command(model_dir: str, *, port: int = 8000, served_name: str = "
     if kv_cache_dtype and kv_cache_dtype != "auto":
         cmd += ["--kv-cache-dtype", kv_cache_dtype]
     if mtp_tokens > 0:
-        cmd += ["--speculative-config", '{"method": "mtp", "num_speculative_tokens": %d}' % mtp_tokens]
+        # The MTP draft model does NOT inherit the main attention backend (vLLM resets it and auto-selects
+        # FlashInfer, which fails offline on SM120; diag v4 2026-09-16). SpeculativeConfig has its own
+        # `attention_backend` field, so pin it there as well.
+        spec = {"method": "mtp", "num_speculative_tokens": int(mtp_tokens)}
+        if attention_backend and attention_backend.lower() != "auto":
+            spec["attention_backend"] = attention_backend
+        cmd += ["--speculative-config", json.dumps(spec)]
     extra = os.environ.get("VLLM_EXTRA_ARGS", "") if extra is None else extra
     if extra:
         cmd += shlex.split(extra)
@@ -120,11 +127,28 @@ def wait_for_server(base_url: str = "http://127.0.0.1:8000/v1", *, timeout_s: fl
     return False
 
 
+def probe_completion(base_url: str, model: str, *, timeout_s: float = 300.0) -> tuple[bool, str]:
+    """One tiny chat completion. Readiness is not enough: on Kaggle the server can come up and then
+    fail on the first request (FlashInfer inside the MTP draft model, diag v4 2026-09-16)."""
+    import requests
+
+    try:
+        r = requests.post(f"{base_url}/chat/completions", json={
+            "model": model, "messages": [{"role": "user", "content": "Reply with the single word: ready"}],
+            "max_tokens": 8, "chat_template_kwargs": {"enable_thinking": False}}, timeout=timeout_s)
+        if r.status_code != 200:
+            return False, f"{r.status_code}: {r.text[:300]}"
+        return True, (r.json().get("choices") or [{}])[0].get("message", {}).get("content", "")
+    except Exception as e:  # noqa: BLE001
+        return False, str(e)[:300]
+
+
 def start_vllm_with_fallback(model_dir: str, *, log_path: str = "vllm.log", timeout_s: float = 1500.0,
                              base_url: Optional[str] = None, **kw) -> tuple[Optional[subprocess.Popen], bool]:
-    """Start vLLM with the tuned flags; if the engine dies or is not ready in time, retry once with the
-    conservative set (no speculative decoding, auto KV cache). Returns (process, ready)."""
+    """Start vLLM with the tuned flags and prove it with one real completion; on failure retry once
+    with the conservative set (no speculative decoding, auto KV cache). Returns (process, ready)."""
     port = int(kw.get("port", 8000))
+    served = str(kw.get("served_name", "arc3-model"))
     base_url = base_url or f"http://127.0.0.1:{port}/v1"
     attempts = [dict(kw), {**kw, "mtp_tokens": 0, "kv_cache_dtype": "auto"}]
     t_end = time.time() + timeout_s
@@ -135,7 +159,12 @@ def start_vllm_with_fallback(model_dir: str, *, log_path: str = "vllm.log", time
         proc = start_vllm(model_dir, log_path=log_path, **attempt)
         # First attempt gets at most ~60% of the budget so the fallback still has a chance.
         budget = remaining * (0.6 if i == 0 and len(attempts) > 1 else 1.0)
-        if wait_for_server(base_url, timeout_s=budget, proc=proc):
+        ok = wait_for_server(base_url, timeout_s=budget, proc=proc)
+        if ok:
+            ok, detail = probe_completion(base_url, served, timeout_s=min(300.0, max(30.0, t_end - time.time())))
+            with open(log_path, "a") as f:
+                f.write(f"\n# probe completion attempt {i + 1}: {'OK' if ok else 'FAILED'} {detail[:200]}\n")
+        if ok:
             return proc, True
         try:
             proc.terminate()
@@ -146,5 +175,5 @@ def start_vllm_with_fallback(model_dir: str, *, log_path: str = "vllm.log", time
             except Exception:
                 pass
         with open(log_path, "a") as f:
-            f.write(f"\n# attempt {i + 1} failed or timed out; {'retrying with conservative flags' if i + 1 < len(attempts) else 'giving up'}\n")
+            f.write(f"\n# attempt {i + 1} failed; {'retrying with conservative flags' if i + 1 < len(attempts) else 'giving up'}\n")
     return None, False

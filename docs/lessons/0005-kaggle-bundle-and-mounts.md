@@ -20,3 +20,8 @@ What the competition dataset ships and how Kaggle mounts things (verified from t
   offline). vLLM 0.27 ignores the `VLLM_ATTENTION_BACKEND` env var ("Unknown vLLM environment variable"): pass
   `--attention-backend TRITON_ATTN` on the command line (`arc3.serve.build_vllm_command`). Model load itself was fine:
   28.95 GiB FP8 weights in 120 s, MTP draft detected, 53 GiB KV cache, server up in ~5.5 min.
+- `--attention-backend` fixes the main model only. The MTP draft model gets `SpeculativeConfig.attention_backend`
+  (vLLM deliberately never inherits the target's backend), so pin it inside `--speculative-config` too:
+  `{"method": "mtp", "num_speculative_tokens": 2, "attention_backend": "TRITON_ATTN"}` (diag v4 -> v5).
+- Readiness is not health: the server came up and failed on the first request. `arc3.serve.start_vllm_with_fallback`
+  now proves start-up with one real completion before handing the server to the agent, else retries without MTP.
