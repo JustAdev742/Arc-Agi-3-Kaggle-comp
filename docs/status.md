@@ -126,6 +126,22 @@ research log exp-006a.
 - The starter's `build_notebook.py` writes the agent to `/tmp/my_agent.py`; ours bundles a
   package instead (see `scripts/build_notebook.py`).
 
+## Session 3 outcome (2026-09-16, midday; in progress)
+
+- **Council fix (user's request):** exp-010 ran without its specialists (NVFP4 vLLM server failed engine-core init twice,
+  silent fallback). Fixed in `arc3/serve.py` (attempt ladder over checkpoints and flag sets, gpu_mem sized from the
+  memory the coordinator left, image probe, `LAST_START` record) and both notebook builders; the official
+  Qwen3-VL-8B-Instruct-FP8 build is uploaded as `scottmahony/qwen3-vl-8b-instruct-fp8` and is the first rung. exp-010b
+  (`arc3-eval-dev-council-b`, run `kaggle-council-dev-010b`) is built at HEAD and pushes when a Kaggle slot frees.
+- **exp-011 bundle (from the exp-009 transcripts, all in the harness, measured code-only, not yet on Kaggle):** walkable
+  terrain by colour, sprite companions, avatar hand-over, turn-tracking ids, edge-riding markers as compound parts, live
+  move/rules predictors that follow `PLAN['optimistic']`, model retirement after three misses, idle-batch stop, inline
+  events on act() results, no duplicate result echo, helper restore after rebinding, lazy rule fitting, downscale() at
+  tile size, goal_candidates() on level 1. Code-only coverage 0.50 -> 0.547 (wa30 0.30 -> 1.0, tu93 0.33 -> 0.5,
+  sk48 0.29 -> 0.43); code-only rules agent 0.199 -> 0.224 (exp-006c). Notebook `arc3-eval-dev-f` (run
+  `kaggle-repl-dev-011`) is built at HEAD for the next free slot.
+- Running on Kaggle: exp-010 (shared-model council, since 10:44) and exp-009b (noise repeat, since 11:06).
+
 ## Session 2 outcome (2026-09-16, afternoon)
 
 - **exp-007 dev 0.839** vs control 0.56 (Kaggle, same settings; provisional: two levels of difference, half the actions).
