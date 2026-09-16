@@ -182,17 +182,24 @@ def make_log(frames: list[Frame], actions: list[Any], unders: Optional[list[Opti
 # ---------------------------------------------------------------------------------------------- classes
 @dataclass(frozen=True)
 class Cls:
-    """An entity class: by colour, optionally by shape, or an explicit id set."""
+    """An entity class: by colour, optionally by shape, an explicit id set, and/or a region (box the entity's
+    origin must lie in: x0, y0, x1, y1 inclusive)."""
     color: Optional[int] = None
     shape: Optional[str] = None
     ids: Optional[frozenset[int]] = None
+    region: Optional[tuple[int, int, int, int]] = None
 
     def matches(self, e: Ent) -> bool:
         if self.ids is not None and e.id not in self.ids:
             return False
         if self.color is not None and e.color != self.color:
             return False
-        return not (self.shape is not None and e.shape != self.shape)
+        if self.shape is not None and e.shape != self.shape:
+            return False
+        if self.region is not None:
+            x0, y0, x1, y1 = self.region
+            return x0 <= e.x0 <= x1 and y0 <= e.y0 <= y1
+        return True
 
     def select(self, frame: Iterable[Ent]) -> list[Ent]:
         return [e for e in frame if self.matches(e)]
@@ -205,6 +212,8 @@ class Cls:
             parts.append(f"shape {self.shape[:6]}")
         if self.ids is not None:
             parts.append("ids " + ",".join(f"#{i}" for i in sorted(self.ids)))
+        if self.region is not None:
+            parts.append(f"in region x{self.region[0]}-{self.region[2]} y{self.region[1]}-{self.region[3]}")
         return " ".join(parts) or "anything"
 
 
@@ -218,6 +227,16 @@ def _classes_of(ents: Iterable[Ent], *, with_shape: bool = True) -> list[Cls]:
                 seen.add(k)
                 out.append(c)
     return out
+
+
+def _with_region(cls: Cls, reacting: Iterable[Ent]) -> Optional[Cls]:
+    """The class restricted to the box spanned by the origins of the entities that reacted (a board area)."""
+    pts = [(e.x0, e.y0) for e in reacting if cls.matches(e)]
+    if not pts:
+        return None
+    x0, y0 = min(p[0] for p in pts), min(p[1] for p in pts)
+    x1, y1 = max(p[0] for p in pts), max(p[1] for p in pts)
+    return Cls(cls.color, cls.shape, cls.ids, (x0, y0, x1, y1))
 
 
 # ---------------------------------------------------------------------------------------------- claims
@@ -627,16 +646,34 @@ class OnClick(Rule):
         self.button, self.target, self.effect = button, target, effect
         self.cls = target
 
-    def _fires(self, frame: Frame, action: Any) -> bool:
+    def _hit(self, frame: Frame, action: Any) -> Optional[Ent]:
         xy = click_xy(action)
-        return xy is not None and any(b.contains(*xy) for b in self.button.select(frame))
+        if xy is None:
+            return None
+        for b in self.button.select(frame):
+            if b.contains(*xy):
+                return b
+        return None
+
+    def _fires(self, frame: Frame, action: Any) -> bool:
+        return self._hit(frame, action) is not None
+
+    @staticmethod
+    def _goto(t: Ent, b: Ent) -> tuple[int, int]:
+        """Displacement that centres target ``t`` on button ``b``."""
+        return ((b.x0 + b.x1) // 2 - (t.x0 + t.x1) // 2, (b.y0 + b.y1) // 2 - (t.y0 + t.y1) // 2)
 
     def claims(self, tr: Transition) -> dict[int, Claim]:
-        on = self._fires(tr.before, tr.action)
+        b = self._hit(tr.before, tr.action)
+        on = b is not None
+        if not on and click_xy(tr.action) is not None:
+            return {}  # a click elsewhere may trigger another button's rule: no opinion
         out = {}
         for e in self.target.select(tr.before):
             if self.effect == "vanish":
                 out[e.id] = Claim(gone=on)
+            elif self.effect == "goto":
+                out[e.id] = Claim(moved=self._goto(e, b) if on else (0, 0))
             elif self.effect[0] == "move":
                 out[e.id] = Claim(moved=(self.effect[1], self.effect[2]) if on else (0, 0))
             elif self.effect[0] == "recolor":
@@ -645,17 +682,23 @@ class OnClick(Rule):
         return out
 
     def apply(self, before: Frame, action: Any, frame: Frame) -> Frame:
-        if not self._fires(frame, action):
+        b = self._hit(frame, action)
+        if b is None:
             return frame
         if self.effect == "vanish":
             return tuple(e for e in frame if not self.target.matches(e))
+        if self.effect == "goto":
+            return tuple(e.moved(*self._goto(e, b)) if self.target.matches(e) else e for e in frame)
         if self.effect[0] == "move":
             return tuple(e.moved(self.effect[1], self.effect[2]) if self.target.matches(e) else e for e in frame)
         c = int(self.effect[1])
         return tuple(e.recolored(c) if self.target.matches(e) else e for e in frame)
 
     def describe(self) -> str:
-        eff = self.effect if isinstance(self.effect, str) else (f"move ({self.effect[1]:+d},{self.effect[2]:+d})" if self.effect[0] == "move" else f"recolour to {self.effect[1]}")
+        if isinstance(self.effect, str):
+            eff = "vanishes" if self.effect == "vanish" else "moves onto the clicked entity"
+        else:
+            eff = f"move ({self.effect[1]:+d},{self.effect[2]:+d})" if self.effect[0] == "move" else f"recolour to {self.effect[1]}"
         return f"onclick[{self.button}] -> {self.target}: {eff}"
 
 
@@ -677,16 +720,18 @@ def fit_onclick(log: list[Transition], max_rules: int = 6) -> list[tuple[OnClick
             if o is None or o.trivial() or any(e.id == b.id for b in hit):
                 continue
             changed = True
-            for key in ((e.color, None), (e.color, e.shape)):
+            for key in ((e.color, None), (e.color, e.shape), (None, e.shape)):  # (None, shape): every tile of that shape
                 if o.gone:
                     effects[key].add("vanish")
                 elif o.moved != (0, 0):
                     effects[key].add(("move", o.moved[0], o.moved[1]))
+                    if any(OnClick._goto(e, b) == o.moved for b in hit):
+                        effects[key].add("goto")
                 elif o.recolor:
                     effects[key].add(("recolor", o.recolor[1]))
         if changed:
             for b in hit:
-                for c in (Cls(color=b.color), Cls(color=b.color, shape=b.shape)):
+                for c in (Cls(color=b.color), Cls(color=b.color, shape=b.shape), Cls(shape=b.shape)):
                     k = (c.color, c.shape)
                     if k not in seen:
                         seen.add(k)
@@ -1037,13 +1082,18 @@ def fit_vanish(log: list[Transition], max_rules: int = 6) -> list[tuple[Vanish, 
     out: list[tuple[Vanish, Score]] = []
     gone_ents = [e for tr in log for e in tr.before if (o := tr.obs(e.id)) and o.gone]
     triggers = _triggers(log)
-    for cls in _classes_of(gone_ents):
+    for base in _classes_of(gone_ents):
         best: Optional[tuple[Vanish, Score]] = None
-        for t in triggers:
-            rule = Vanish(cls, t)
-            s = score_rule(rule, log)
-            if s.ok() and s.support > 0 and (best is None or s.support > best[1].support):
-                best = (rule, s)
+        for cls in (base, _with_region(base, gone_ents)):
+            if cls is None:
+                continue
+            for t in triggers:
+                rule = Vanish(cls, t)
+                s = score_rule(rule, log)
+                if s.ok() and s.support > 0 and (best is None or s.support > best[1].support):
+                    best = (rule, s)
+            if best:
+                break
         if best:
             out.append(best)
     out.sort(key=lambda rs: -rs[1].support)
@@ -1098,15 +1148,21 @@ def fit_recolor(log: list[Transition], max_rules: int = 6) -> list[tuple[Recolor
                 ents_by_pair[o.recolor].append(e)
     triggers = _triggers(log)
     for (c0, c1), _ in pairs.most_common(6):
-        for cls in _classes_of(ents_by_pair[(c0, c1)]):
-            cls = Cls(color=None, shape=cls.shape)  # colour is the thing that changes; class by shape (or any)
+        reacting = ents_by_pair[(c0, c1)]
+        for base in _classes_of(reacting):
+            base = Cls(color=None, shape=base.shape)  # colour is the thing that changes; class by shape (or any)
             best: Optional[tuple[Recolor, Score]] = None
-            for t in triggers:
-                for toggle in (True, False):
-                    rule = Recolor(cls, t, c0, c1, toggle)
-                    s = score_rule(rule, log)
-                    if s.ok() and s.support > 0 and (best is None or s.support > best[1].support):
-                        best = (rule, s)
+            for cls in (base, _with_region(base, reacting)):
+                if cls is None:
+                    continue
+                for t in triggers:
+                    for toggle in (True, False):
+                        rule = Recolor(cls, t, c0, c1, toggle)
+                        s = score_rule(rule, log)
+                        if s.ok() and s.support > 0 and (best is None or s.support > best[1].support):
+                            best = (rule, s)
+                if best:
+                    break
             if best:
                 out.append(best)
     # de-duplicate by description

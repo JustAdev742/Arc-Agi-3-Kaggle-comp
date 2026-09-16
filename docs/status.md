@@ -89,8 +89,8 @@ architectural step therefore has to be measured on dev and val, not assumed.
 ## Rule library coverage (exp-006a, code-only, 2026-09-16)
 
 `scripts/rule_coverage.py` plays each public game blind for 60 actions and measures the fraction of entity events the
-fitted rule set explains: mean 0.28 over 25 games; ar25 1.00, m0r0 1.00, re86 0.89, ls20 0.71, dc22 0.70, sb26 0.50,
-ka59 0.48; five games at 0. Lower bound, not a score. Details: `runs/rule-coverage/summary.json`,
+fitted rule set explains: mean 0.33 over 25 games; ar25 1.00, ft09 1.00, m0r0 1.00, re86 0.96, ls20 0.71, dc22 0.70,
+ka59 0.63; three games at 0. Lower bound, not a score. Details: `runs/rule-coverage/summary.json`,
 research log exp-006a.
 
 ## Open items (need you)
