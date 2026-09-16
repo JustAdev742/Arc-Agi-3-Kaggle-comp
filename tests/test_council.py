@@ -27,7 +27,9 @@ def test_council_injects_specialist_reports_into_coordinator_turn():
         assert isinstance(messages[1]["content"], list)  # image attached for the VL specialist
         return ChatResponse(content=f"{role} report: object #0 is the avatar", prompt_tokens=50, completion_tokens=10)
 
-    coord = MockClient([MockClient.tool("act('UP')"), MockClient.tool("act('DOWN')"), MockClient.tool("act('LEFT')")])
+    # One action per coordinator turn: a tool call, then a plain reply that ends the turn.
+    coord = MockClient([MockClient.tool("act('UP')"), MockClient.say("ok"), MockClient.tool("act('DOWN')"), MockClient.say("ok"),
+                        MockClient.tool("act('LEFT')"), MockClient.say("ok")])
     arc = make_arcade("environment_files")
     env = LocalEnv(arc, "ls20")
     ctx = AgentContext(game_id="ls20", deadline=time.time() + 300,
