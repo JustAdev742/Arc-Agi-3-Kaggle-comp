@@ -302,3 +302,13 @@ def test_tool_text_does_not_echo_a_printed_act_result():
     hidden = ReplAgent._tool_text({"stdout": "probing\n", "result": [res], "actions": 1})
     assert "result: [{\"action\": \"ACTION6(48,15)\"" in hidden
     assert "result:" in ReplAgent._tool_text({"stdout": "", "result": 42})
+
+
+def test_tool_text_appends_cell_events_unless_printed():
+    from arc3.agents.repl_agent import ReplAgent
+
+    ev = ["UP: #3 (c9 4x4) moved (+0,-4)", "RIGHT: no entity changed"]
+    out = ReplAgent._tool_text({"stdout": "ok\n", "events": ev, "actions": 2})
+    assert "events: UP: #3 (c9 4x4) moved (+0,-4) | RIGHT: no entity changed" in out
+    printed = ReplAgent._tool_text({"stdout": "['UP: #3 (c9 4x4) moved (+0,-4)', 'RIGHT: no entity changed']\n", "events": ev, "actions": 2})
+    assert "events:" not in printed

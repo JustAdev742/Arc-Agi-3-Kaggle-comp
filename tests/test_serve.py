@@ -61,7 +61,7 @@ def test_specialist_ladder_flags():
     assert [a["model_dir"] for a in ladder][:2] == ["/in/qwen3-vl-8b-instruct-fp8"] * 2
     assert all(a["port"] == 8001 and a["served_name"] == "arc3-specialist" and a["mtp_tokens"] == 0 for a in ladder)
     assert ladder[1]["gpu_mem"] < ladder[0]["gpu_mem"] == 0.30
-    ladder_keys = {"model_dir", "label", "fit_gpu_mem", "probe_image"}
+    ladder_keys = {"model_dir", "label", "fit_gpu_mem", "probe_image", "env_extra"}
     tuned = serve.build_vllm_command(ladder[0]["model_dir"], **{k: v for k, v in ladder[0].items() if k not in ladder_keys})
     cons = serve.build_vllm_command(ladder[1]["model_dir"], **{k: v for k, v in ladder[1].items() if k not in ladder_keys})
     assert "--enforce-eager" not in tuned and "--enforce-eager" in cons
@@ -70,7 +70,9 @@ def test_specialist_ladder_flags():
     assert cons[cons.index("--max-model-len") + 1] == "8192" and "--kv-cache-dtype" not in cons
     assert serve.specialist_attempts([None, ""]) == []
     # NVFP4 rungs carry the Marlin GEMM backend (flashinfer's cutlass FP4 JIT has no SM120 kernels, exp-010); FP8 rungs do not
-    assert ladder[2]["env_extra"]["VLLM_NVFP4_GEMM_BACKEND"] == "marlin" and "env_extra" not in ladder[0]
+    assert ladder[2]["env_extra"]["VLLM_NVFP4_GEMM_BACKEND"] == "marlin"
+    # FP8 rungs disable DeepGEMM (exp-010b v2: "Unknown SF transformation" at load on SM120)
+    assert ladder[0]["env_extra"] == {"VLLM_USE_DEEP_GEMM": "0"} and ladder[1]["env_extra"] == {"VLLM_USE_DEEP_GEMM": "0"}
 
 
 def test_ladder_walks_attempts_and_fits_gpu_memory(monkeypatch, tmp_path):

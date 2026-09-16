@@ -616,9 +616,15 @@ def ascii(g=None, scale=None, region=None):
         x0, y0, x1, y1 = (int(v) for v in region)
         x0, y0 = max(0, x0), max(0, y0)
         x1, y1 = min(g.shape[1] - 1, max(x0, x1)), min(g.shape[0] - 1, max(y0, y1))
-        if (x1 - x0 + 1) * (y1 - y0 + 1) > 1024:
-            raise ValueError("region too large: at most 32x32 cells; use the tile map for the whole board")
-        return _P.ascii(g[y0:y1 + 1, x0:x1 + 1], scale=1)
+        sub = g[y0:y1 + 1, x0:x1 + 1]
+        if sub.size > 1024:
+            # too big for pixels: show the region at tile resolution instead of refusing (exp-011: nine refused calls)
+            t = int(G.get("tile") or 1)
+            if t <= 1:
+                t = int(np.ceil(np.sqrt(sub.size / 1024)))
+            return (f"(region {x0},{y0}-{x1},{y1} is {sub.shape[1]}x{sub.shape[0]} pixels, more than 32x32: shown at one char per "
+                    f"{t}x{t} block; ask for a smaller region for pixels)\n" + _P.tile_map(sub, t))
+        return _P.ascii(sub, scale=1)
     t = int(G.get("tile") or 1)
     if t <= 1:
         return _P.ascii(g, scale=scale)
@@ -712,7 +718,7 @@ def act(*actions):
             if _idle_streak(results) >= IDLE_STOP and len(norm) > len(results):
                 r["batch_stopped"] = f"{IDLE_STOP} actions in a row changed nothing; stopped after {len(results)} of {len(norm)} (the rest would be wasted)"
                 break
-        return results if len(norm) > 1 else results[0]
+        return results if len(norm) > 1 else _Result(results[0])
     # With a registered world model, actions go one at a time so each prediction is checked and a
     # mismatch stops the batch (the model must revise before spending more actions).
     results = []
@@ -746,7 +752,15 @@ def act(*actions):
             return results + act(*norm[len(results):]) if len(norm) - len(results) > 1 else results + [act(norm[len(results)])]
         if r.get("level_completed") or r.get("game_over") or r.get("won"):
             break
-    return results if len(norm) > 1 else results[0]
+    return results if len(norm) > 1 else _Result(results[0])
+
+class _Result(dict):
+    """A single action's result: a dict that also iterates as a one-item list, because `for r in act('ACT')` is
+    what models write (exp-011 wa30: iterating the keys gave "'str' object has no attribute 'get'")."""
+
+    def __iter__(self):
+        yield self
+
 
 IDLE_STOP = 3  # consecutive no-change actions that end a batch (dc22, exp-009: 13- and 21-action batches spent standing still)
 
@@ -789,6 +803,7 @@ while True:
         _refresh(msg["state"], str(_last.get("action", "external")))  # actions taken outside this REPL (e.g. fallback)
     else:
         _refresh(msg["state"])
+    _n_log = len(TRK["t"].log)
     sys.stdout = buf = io.StringIO()
     err = ""
     result = None
@@ -811,7 +826,8 @@ while True:
     if shadowed and not G.get("_state_note_done"):
         G["_state_note_done"] = True
         out += f"\n[your function(s) {', '.join(shadowed)} shadow harness variables; their current values are in STATE[...]]"
-    _send({"type": "final", "stdout": out, "error": err, "result": result, "notes": G.get("notes", []),
+    cell_events = [_Tracker.describe(rec, TRK["t"])[:220] for rec in TRK["t"].log[_n_log:]][:10]
+    _send({"type": "final", "stdout": out, "error": err, "result": result, "notes": G.get("notes", []), "events": cell_events,
            "world_model": world_model_stats() if (WM["predict"] is not None or HYP["models"]) else None})
 '''
 
@@ -952,7 +968,7 @@ class PersistentSandbox:
                     out = str(msg.get("stdout") or "")
                     if len(out) > self.max_output_chars:
                         out = out[: self.max_output_chars] + f"\n...[truncated {len(out) - self.max_output_chars} chars]"
-                    return {"stdout": out, "error": str(msg.get("error") or ""), "result": msg.get("result"),
+                    return {"stdout": out, "error": str(msg.get("error") or ""), "result": msg.get("result"), "events": msg.get("events") or [],
                             "notes": list(msg.get("notes") or []), "actions": n_actions, "timed_out": False,
                             "restarted": restarted, "world_model": msg.get("world_model")}
 

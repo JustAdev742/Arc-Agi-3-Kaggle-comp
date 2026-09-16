@@ -564,9 +564,7 @@ class Tracker:
             d = {"id": e.id, "color": e.color, "x": e.x0, "y": e.y0, "w": e.w, "h": e.h, "size": e.size}
             if self.tile > 1:
                 d["tile"] = (e.x0 // self.tile, e.y0 // self.tile)
-            r = roles.get(e.id)
-            if r:
-                d["role"] = r
+            d["role"] = roles.get(e.id) or "unknown"  # always present: e['role'] raised KeyError nine times in exp-011
             if e.id in raw and raw[e.id].size != e.size:
                 d["parts"] = True  # merged multi-part sprite
             out.append(d)

@@ -204,6 +204,10 @@ SPECIALIST_CONSERVATIVE: dict = {**SPECIALIST_TUNED, "kv_cache_dtype": "auto", "
 # architectures found for major versions [12]" (the RTX PRO 6000 is SM120). vLLM's NVFP4 GEMM backend is selectable;
 # Marlin runs on every SM80+ part. UNVERIFIED on this wheelhouse: the FP8 rungs come first, this only helps the NVFP4 ones.
 NVFP4_ENV: dict = {"VLLM_NVFP4_GEMM_BACKEND": "marlin", "VLLM_USE_FLASHINFER_MOE_FP4": "0"}
+# exp-010b v2 (2026-09-16, runs/_kaggle_output/arc3-eval-dev-council-b/vllm-specialist.log): the official FP8 Qwen3-VL-8B
+# build went through DeepGEMM and died at load with "Assertion error (deepgemm .../layout.hpp:60): Unknown SF
+# transformation" on SM120, twice. Disabling DeepGEMM sends FP8 linear layers to the CUTLASS/Triton path.
+FP8_ENV: dict = {"VLLM_USE_DEEP_GEMM": "0"}
 
 # What the last start_vllm_with_fallback call ended with: {"ready", "attempt", "label", "model_dir", "gpu_mem", "elapsed_s"}.
 LAST_START: dict = {}
@@ -225,6 +229,8 @@ def specialist_attempts(model_dirs: list, *, gpu_mem: float = 0.30, port: int = 
         base = {"model_dir": str(d), "port": port, "served_name": served_name, "gpu_mem": gpu_mem}
         if "nvfp4" in name.lower() or "fp4" in name.lower():
             base["env_extra"] = dict(NVFP4_ENV)
+        elif "fp8" in name.lower():
+            base["env_extra"] = dict(FP8_ENV)
         attempts.append({**base, **SPECIALIST_TUNED, "label": f"{name} tuned"})
         attempts.append({**base, **SPECIALIST_CONSERVATIVE, "gpu_mem": round(gpu_mem * 0.85, 3), "label": f"{name} conservative"})
     return attempts

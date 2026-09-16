@@ -760,6 +760,12 @@ class ReplAgent(Agent):
             parts.append("result: " + json.dumps(r["result"], ensure_ascii=False)[:1500])
         if r.get("error"):
             parts.append(r["error"])
+        events = [e for e in (r.get("events") or []) if e]
+        if events:
+            stdout = r.get("stdout") or ""
+            shown = all(e.split(": ", 1)[-1][:40] in stdout for e in events)
+            if not shown:  # exp-011: 77 inspection-only calls were spent on describe_events() after an act
+                parts.append("events: " + " | ".join(e[:160] for e in events))
         if r.get("actions"):
             parts.append(f"[{r['actions']} action(s) executed; variables refreshed]")
         return "\n".join(parts) or "(no output)"

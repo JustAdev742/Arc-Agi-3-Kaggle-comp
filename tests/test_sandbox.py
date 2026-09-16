@@ -441,3 +441,33 @@ print([x.get('pred_ok') for x in rs], 'batch_stopped' in rs[-1])
     assert lines[2].startswith("world model registered (rules predictor")
     assert lines[3] == "[True, True, True, True, False] True", lines[3]
     sb.stop()
+
+
+def test_single_result_iterates_region_degrades_and_cell_events_are_reported():
+    """exp-011 tool errors: `for r in act('UP')` iterated dict keys; ascii(region=big) refused nine times; ents() entries
+    lacked 'role'; and 77 inspection-only calls re-read events that the harness can attach to the cell's output."""
+    from tests.test_planner import GridWorld
+
+    sb = PersistentSandbox(sys_path=[ROOT] + sys.path)
+    w = GridWorld()
+
+    def handler(actions):
+        g = w.act(actions[0]["action"])
+        return [{"changed": 32, "level_completed": False, "state": "NOT_FINISHED"}], state(g, [g])
+
+    code = """
+r = act('UP')
+print([x.get('changed') for x in r], isinstance(r, dict), r['changed'])
+big = ascii(region=(0, 0, 63, 63)); print(big.splitlines()[0][:40], len(big.splitlines()) > 5)
+print(all('role' in e for e in ents()))
+"""
+    r = sb.run(code, state(w.grid(), [w.grid()]), timeout_s=30, action_handler=handler)
+    assert r["error"] == "", r
+    lines = r["stdout"].strip().splitlines()
+    assert lines[0] == "[32] True 32", lines[0]
+    assert lines[1].startswith("(region 0,0-63,63 is 64x64 pixels") and lines[1].endswith("True")
+    assert lines[2] == "True"
+    assert r["events"] and "moved" in r["events"][0], r["events"]
+    r2 = sb.run("x = 1", state(w.grid(), [w.grid()]), timeout_s=30, action_handler=handler)
+    assert r2["events"] == []
+    sb.stop()
