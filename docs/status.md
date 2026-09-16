@@ -90,8 +90,10 @@ architectural step therefore has to be measured on dev and val, not assumed.
     0.73, 5), `arc3-eval-dev-d` v1 (exp-009, 0.84, 6), `arc3-eval-dev-e` v2 (exp-009b repeat, 0.87, 6),
     `arc3-eval-dev-council` v1 (exp-010, 0.28, 4; specialists never started): about 60-70 min RTX each, all
     2026-09-16; details and per-game tables in `docs/research_log.md` and `runs/kaggle-*/summary.json`.
-11. Running: `arc3-eval-dev-council-b` v1 (exp-010b, council with the specialist ladder, pushed 11:58) and
-    `arc3-eval-dev-f` v1 (exp-011 harness bundle, pushed 12:15). Built and waiting: `arc3-eval-dev-g` (exp-004, thinking off).
+11. `arc3-eval-dev-council-b` v1, `arc3-eval-dev-f` v1, `arc3-eval-dev-g` v1 (12:00-12:30): **wasted, landed on Tesla T4s**
+    because the pushes omitted `--accelerator NvidiaRtxPro6000` (the 27B model cannot load in 15 GB; both attempts OOM,
+    fallback to the rules agent, ~10 min each). `scripts/push_eval.py` now always passes the flag and refuses a notebook
+    whose metadata does not name the RTX. Re-pushed 12:30 as v2 (exp-010b council-b, exp-011 f); exp-004 (g) follows.
 
 ## Rule library coverage (exp-006a, code-only, 2026-09-16)
 
