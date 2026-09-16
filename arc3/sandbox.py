@@ -17,6 +17,7 @@ Preloaded names in the child (all from ``arc3.perception``, exact numpy code):
   history, last, np, set_model(predict), world_model_stats(), verify_model(predict), transitions(),
   ents(), events(n), event_log(), describe_events(n), avatar(), roles(), entity(id), tile,
   move_model(), plan_to(x, y), plan_to_entity(id)
+  symlog(), fit_rules(kind), auto_rules(), rules(), explain_rules(), rules_predictor(), plan_rules(goal), goal_candidates()
 """
 from __future__ import annotations
 
@@ -37,6 +38,7 @@ import numpy as np
 from arc3 import perception as _P
 from arc3.entities import Tracker as _Tracker
 from arc3.planner import MoveModel as _MoveModel
+from arc3 import dsl as _dsl
 
 def _send(obj):
     HOST_OUT.write(json.dumps(obj, ensure_ascii=False, default=_default) + "\n"); HOST_OUT.flush()
@@ -104,6 +106,151 @@ def plan_to_entity(eid, touch=True):
     if e is None:
         raise ValueError(f"no entity #{eid} in the current frame; see ents()")
     return move_model().plan_to_entity(e, touch=touch)
+
+ARCH = {"levels": []}  # completed levels of this game: {"frames", "actions", "final_action"} (symbolic)
+RULES = {"rules": [], "report": None, "level": None}
+GOALS = {}
+
+def symlog(all_levels=False):
+    """This level's transitions as entity-level records (before entities, action, after entities)."""
+    t = TRK["t"]
+    log = _dsl.make_log(t.frames, t.actions)
+    if all_levels:
+        for lv in ARCH["levels"]:
+            log = _dsl.make_log(lv["frames"], lv["actions"]) + log
+    return log
+
+def _rule_view(rule, score=None):
+    d = rule.to_dict()
+    if score is not None:
+        d["support"] = score.support
+        d["contradictions"] = score.contradictions
+    d["rule"] = rule
+    return d
+
+def fit_rules(kind=None, all_levels=False):
+    """Fit rule types to the transition log by enumeration: kind in move, push, drift, vanish, overlap, recolor,
+    counter (None = all). Returns {kind: [{'text', 'support', 'contradictions', 'rule'}, ...]}; only rules with
+    zero contradictions are returned."""
+    log = symlog(all_levels)
+    return {k: [_rule_view(r, sc) for r, sc in lst] for k, lst in _dsl.fit(kind, log).items()}
+
+def auto_rules(all_levels=False):
+    """Fit and select a consistent rule set for this level's log (movement with blocking, pushing, vanish on
+    overlap/click/ACT, recolouring, counters). Returns {'rules': [text], 'coverage', 'fully_explained', 'transitions',
+    'unexplained': [...], 'contradictions'}. coverage 1.0 = every observed event is explained: then
+    set_model(rules_predictor()) and plan with plan_rules(). Otherwise the unexplained items say what to probe."""
+    log = symlog(all_levels)
+    rules, rep = _dsl.auto_rules(log)
+    RULES["rules"] = rules
+    RULES["report"] = rep
+    RULES["level"] = LOG["level"]
+    out = {"rules": [r.describe() for r in rules], "coverage": round(rep["coverage"], 3), "fully_explained": rep["fully_explained"],
+           "transitions": rep["transitions"], "contradictions": rep["contradictions"],
+           "unexplained": [{k: v for k, v in u.items() if k != "observed"} | {"observed": _obs_text(u.get("observed"))} for u in rep["unexplained"][:6]]}
+    return out
+
+def _obs_text(o):
+    if o is None:
+        return None
+    if o.gone:
+        return "disappeared"
+    parts = []
+    if o.moved and o.moved != (0, 0):
+        parts.append(f"moved ({o.moved[0]:+d},{o.moved[1]:+d})")
+    if o.recolor:
+        parts.append(f"colour {o.recolor[0]}->{o.recolor[1]}")
+    if o.resized:
+        parts.append(f"size {o.resized[0]}->{o.resized[1]}")
+    return "; ".join(parts) or "unchanged"
+
+def rules(rules=None):
+    """The current rule objects (from auto_rules or set_rules); pass a list to replace them."""
+    if rules is not None:
+        RULES["rules"] = list(rules)
+    return list(RULES["rules"])
+
+def explain_rules(rules=None, all_levels=False):
+    """Coverage report of a rule set against the log (default: the current rules)."""
+    rep = _dsl.explain(list(rules) if rules is not None else RULES["rules"], symlog(all_levels))
+    rep["unexplained"] = [{k: v for k, v in u.items() if k != "observed"} | {"observed": _obs_text(u.get("observed"))} for u in rep["unexplained"]]
+    return rep
+
+def rules_predictor(rules=None):
+    """predict(grid, action) built from the rule set, for set_model(...) so every real action verifies it."""
+    rs = list(rules) if rules is not None else RULES["rules"]
+    if not rs:
+        raise ValueError("no rules: call auto_rules() first")
+    t = TRK["t"]
+    return _dsl.predictor(rs, t.shapes, t.bg if t.bg is not None else 0, ref=lambda: t.frames[-1] if t.frames else None)
+
+def _goal_fn(goal):
+    if callable(goal):
+        return goal
+    if isinstance(goal, str):
+        if goal in GOALS:
+            return GOALS[goal]
+        raise ValueError(f"unknown goal name {goal!r}; see goal_candidates() or pass a dict/callable")
+    if isinstance(goal, dict) and len(goal) == 1:
+        (k, v), = goal.items()
+        if k == "none_left":
+            return lambda f: not any(e.color == int(v) for e in f)
+        if k == "count":
+            c, n = v
+            return lambda f: sum(1 for e in f if e.color == int(c)) == int(n)
+        if k in ("overlap", "touch"):
+            a, b = v
+            pad = 1 if k == "touch" else 0
+            return lambda f: any(x.overlaps(y, pad) for x in f if x.color == int(a) for y in f if y.color == int(b))
+        if k == "reach":
+            av = TRK["t"].avatar()
+            if not av:
+                raise ValueError("reach needs a known avatar")
+            aid, (x, y) = int(av["id"]), v
+            return lambda f: any(e.id == aid and e.contains(int(x), int(y)) for e in f)
+        if k == "reach_entity":
+            av = TRK["t"].avatar()
+            tgt = TRK["t"].get(int(v))
+            if not av or tgt is None:
+                raise ValueError("reach_entity needs a known avatar and an existing target id")
+            aid = int(av["id"])
+            box = _dsl.Ent(-1, tgt.color, tgt.x0, tgt.y0, tgt.w, tgt.h, tgt.size, tgt.shape_hash)
+            return lambda f: any(e.id == aid and e.overlaps(box, 1) for e in f)
+    raise ValueError("goal must be a callable(frame)->bool, a goal_candidates() name, or one of "
+                     "{'none_left': colour}, {'count': (colour, n)}, {'overlap': (a, b)}, {'touch': (a, b)}, {'reach': (x, y)}, {'reach_entity': id}")
+
+def plan_rules(goal, rules=None, max_depth=200, max_nodes=40000):
+    """Shortest action list reaching `goal` in the rule-set simulation from the current frame (BFS), or None.
+    goal: {'none_left': colour} | {'count': (colour, n)} | {'overlap': (a, b)} | {'touch': (a, b)} | {'reach': (x, y)} |
+    {'reach_entity': id} | a goal_candidates() name | callable(frame)->bool. Execute with act(plan)."""
+    rs = list(rules) if rules is not None else RULES["rules"]
+    if not rs:
+        raise ValueError("no rules: call auto_rules() first")
+    frame = TRK["t"].frames[-1]
+    acts = _dsl.planning_actions(rs, frame)
+    return _dsl.plan(rs, frame, _goal_fn(goal), acts, max_nodes=max_nodes, max_depth=max_depth)
+
+def goal_candidates():
+    """Win-condition candidates consistent with every completed level so far: true at the winning frame, false
+    before. Names can be passed to plan_rules(). Empty until a level has been completed."""
+    levels = [(list(lv["frames"]) + [lv["final_frame"]], True) for lv in ARCH["levels"] if lv.get("final_frame") is not None]
+    out = _dsl.goal_predicates(levels)
+    GOALS.clear()
+    for g in out:
+        GOALS[g["goal"]] = g["predicate"]
+    return [g["goal"] for g in out]
+
+def _archive_level(final_action):
+    t = TRK["t"]
+    if not t.frames:
+        return
+    final = None
+    try:
+        final = _dsl.simulate(t.frames[-1], final_action, RULES["rules"]) if RULES["rules"] else None
+    except Exception:  # noqa: BLE001
+        final = None
+    ARCH["levels"].append({"level": LOG["level"], "frames": list(t.frames), "actions": list(t.actions),
+                           "final_action": final_action, "final_frame": final})
 
 def transitions(last_n=None):
     """The level's recorded (before, action, after) triples, oldest first (lost if the REPL restarts)."""
@@ -328,8 +475,10 @@ def act(*actions):
             reply = _recv()
             if reply.get("type") != "action_result":
                 raise RuntimeError(reply.get("error", "action failed"))
-            _refresh(reply["state"], _action_label(a))
             r = reply["result"][0]
+            if r.get("level_completed"):
+                _archive_level(_action_label(a))
+            _refresh(reply["state"], _action_label(a))
             if not r.get("level_completed"):
                 LOG["transitions"].append((before, _action_label(a), G["grid"].copy()))
                 hyp = _check_hypotheses(before, _action_label(a), G["grid"])
@@ -348,9 +497,11 @@ def act(*actions):
         reply = _recv()
         if reply.get("type") != "action_result":
             raise RuntimeError(reply.get("error", "action failed"))
-        _refresh(reply["state"], _action_label(a))
         r = reply["result"][0]
-        chk = _check_prediction(before, a, G["grid"])
+        if r.get("level_completed"):
+            _archive_level(_action_label(a))
+        _refresh(reply["state"], _action_label(a))
+        chk = None if r.get("level_completed") else _check_prediction(before, a, G["grid"])  # a new level's first frame is not a prediction target
         if chk:
             r.update(chk)
         if not r.get("level_completed"):
@@ -372,7 +523,8 @@ def click(x, y):
 for _n in ("objects", "components", "diff", "ascii", "downscale", "background", "moved", "note", "act", "click",
            "set_model", "world_model_stats", "verify_model", "transitions", "set_models", "alive_models",
            "ents", "events", "event_log", "describe_events", "avatar", "roles", "entity",
-           "move_model", "plan_to", "plan_to_entity"):
+           "move_model", "plan_to", "plan_to_entity",
+           "symlog", "fit_rules", "auto_rules", "rules", "explain_rules", "rules_predictor", "plan_rules", "goal_candidates"):
     G[_n] = globals()[_n]
 
 while True:

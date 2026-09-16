@@ -12,6 +12,7 @@ from typing import Any, Optional
 
 import numpy as np
 
+from .dsl import Ent, ent_from_tracker, register_shapes
 from .perception import Obj, background_color, components, detect_scale
 
 KEY_ACTIONS = {1: "UP", 2: "DOWN", 3: "LEFT", 4: "RIGHT", 5: "ACT", 6: "CLICK", 7: "UNDO", 0: "RESET"}
@@ -97,6 +98,9 @@ class Tracker:
         self.blocked: list[tuple[int, Any, int, int]] = []  # (avatar-candidate id, action, x0, y0) key presses that moved nothing
         self.max_log = max_log
         self.n_transitions = 0
+        self.frames: list[tuple[Ent, ...]] = []  # symbolic frame per observed grid (for arc3.dsl)
+        self.actions: list[Any] = []  # actions[i] took frames[i] to frames[i+1]
+        self.shapes: dict[str, np.ndarray] = {}  # shape hash -> mask, for rendering predicted frames
 
     # ---------------------------------------------------------------- core
     def reset(self, grid: np.ndarray) -> list[Entity]:
@@ -106,7 +110,18 @@ class Tracker:
         self.current = [_obj_to_entity(o, self._new_id()) for o in components(grid, ignore=(self.bg,))]
         for e in self.current:
             self.pos_hist[e.id].append((e.x0, e.y0))
+        self._snapshot()
         return self.current
+
+    def _snapshot(self) -> None:
+        self.frames.append(tuple(ent_from_tracker(e) for e in self.current))
+        for e in self.current:
+            if e.shape_hash not in self.shapes:
+                self.shapes[e.shape_hash] = e.mask
+                register_shapes({e.shape_hash: e.mask})
+        if len(self.frames) > self.max_log:
+            del self.frames[0]
+            del self.actions[0]
 
     def _new_id(self) -> int:
         i = self.next_id
@@ -182,6 +197,8 @@ class Tracker:
         for e in new:
             self.pos_hist[e.id].append((e.x0, e.y0))
         self.n_transitions += 1
+        self.actions.append(action)
+        self._snapshot()
         rec = {"action": action, "moved": moved, "appeared": appeared, "disappeared": disappeared,
                "recolored": recolored, "reshaped": reshaped, "same": len(new) - len(moved) - len(appeared) - len(recolored) - len(reshaped)}
         self.log.append(rec)

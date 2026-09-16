@@ -237,3 +237,49 @@ rs = act(plan); print(all(r['pred_ok'] for r in rs), len(rs) == len(plan))
     assert lines[2] == "True True"
     assert abs(w.pos[0] - w.target[0]) <= 4 and abs(w.pos[1] - w.target[1]) <= 4
     sb.stop()
+
+
+def test_rules_fit_plan_and_goal_candidates_in_sandbox():
+    from tests.test_planner import GridWorld
+
+    sb = PersistentSandbox(sys_path=[ROOT] + sys.path)
+    w = GridWorld()
+    lvl = {"n": 1}
+
+    def handler(actions):
+        g = w.act(actions[0]["action"])
+        x, y = w.pos
+        tx, ty = w.target
+        done = abs(x - tx) <= 4 and abs(y - ty) <= 4  # touching the target completes the level
+        if done:
+            lvl["n"] += 1
+            w.pos = (8, 32)  # next level: same layout, avatar back at the start
+            g = w.grid()
+        st = state(g, [g])
+        st["level"] = lvl["n"]
+        return [{"changed": 32, "level_completed": done, "state": "NOT_FINISHED"}], st
+
+    st0 = state(w.grid(), [w.grid()])
+    st0["level"] = 1
+    code = """
+act('RIGHT', 'UP', 'DOWN', 'LEFT')
+rep = auto_rules(); print(rep['coverage'], rep['contradictions'], len(rep['rules']))
+print(rep['rules'][0][:12])
+tid = [e['id'] for e in ents() if e['color'] == 12][0]
+plan = plan_rules({'reach_entity': tid}); print(plan is not None and len(plan) >= 10)
+print(set_model(rules_predictor()))
+rs = act(plan); print(all(r.get('pred_ok', True) for r in rs), rs[-1]['level_completed'])
+print(goal_candidates())
+print(level, len(symlog()))
+"""
+    r = sb.run(code, st0, timeout_s=60, action_handler=handler)
+    assert r["error"] == "", r
+    lines = r["stdout"].strip().splitlines()
+    assert lines[0] == "1.0 0 1", lines
+    assert lines[1].startswith("move[colour"), lines
+    assert lines[2] == "True", lines
+    assert lines[3] == "world model registered"
+    assert lines[4] == "True True", lines
+    assert "touch(colour 9, colour 12)" in lines[5], lines
+    assert lines[6] == "2 0", lines  # new level: the symbolic log restarted
+    sb.stop()
