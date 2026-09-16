@@ -17,7 +17,7 @@ Preloaded names in the child (all from ``arc3.perception``, exact numpy code):
   history, last, np, set_model(predict), world_model_stats(), verify_model(predict), transitions(),
   ents(), events(n), event_log(), describe_events(n), avatar(), roles(), entity(id), tile,
   move_model(), plan_to(x, y), plan_to_entity(id)
-  symlog(), fit_rules(kind), auto_rules(), rules(), explain_rules(), rules_predictor(), plan_rules(goal), goal_candidates(), goal_hints()
+  symlog(), fit_rules(kind), auto_rules(), rules(), explain_rules(), rules_predictor(), plan_rules(goal), goal_candidates(), goal_hints(), probe_suggestions()
 """
 from __future__ import annotations
 
@@ -281,6 +281,46 @@ def goal_hints(limit=8):
         if not any(e.id in h["ids"] for h in hints):
             hints.append({"hint": f"non-static entity #{e.id} colour {e.color} ({e.w}x{e.h})", "ids": [e.id], "goal": {"reach_entity": e.id} if aid else None})
     return hints[:limit]
+
+def probe_suggestions(limit=8):
+    """Cheapest untested actions on this level: legal keys no fitted rule responds to, ACT if never pressed, and
+    one click per entity class (colour, shape) never clicked. Each item is {'action', 'why'}; act(item['action'])."""
+    t = TRK["t"]
+    avail = list(G.get("available") or [])
+    tried = set()
+    clicked_classes = set()
+    for a in t.actions:
+        if isinstance(a, (tuple, list)) and a and str(a[0]).upper() == "CLICK":
+            tried.add("CLICK")
+            x, y = int(a[1]), int(a[2])
+            for e in t.compound_frames()[0]:
+                if e.contains(x, y):
+                    clicked_classes.add((e.color, e.shape))
+        else:
+            tried.add(str(a).upper())
+    keymaps = set()
+    for r in RULES["rules"]:
+        mv = r.move if r.kind == "push" else r
+        if getattr(mv, "keymap", None):
+            keymaps |= set(mv.keymap)
+    out = []
+    for k in ("UP", "DOWN", "LEFT", "RIGHT"):
+        if k in avail and k not in tried:
+            out.append({"action": k, "why": "never pressed"})
+        elif k in avail and k not in keymaps and RULES["rules"]:
+            out.append({"action": k, "why": "pressed but no rule responds to it; press it next to something"})
+    if "ACT" in avail and "ACT" not in tried:
+        out.append({"action": "ACT", "why": "never pressed"})
+    if "CLICK" in avail and t.frames:
+        roles = t.roles()
+        seen_cls = set()
+        for e in sorted(t.compound_frames()[-1], key=lambda e: -e.size):
+            key = (e.color, e.shape)
+            if key in clicked_classes or key in seen_cls or roles.get(e.id) == "hud":
+                continue
+            seen_cls.add(key)
+            out.append({"action": ("CLICK", (e.x0 + e.x1) // 2, (e.y0 + e.y1) // 2), "why": f"entity #{e.id} colour {e.color} {e.w}x{e.h}: class never clicked"})
+    return out[:limit]
 
 def _archive_level(final_action):
     t = TRK["t"]
@@ -579,7 +619,7 @@ for _n in ("objects", "components", "diff", "ascii", "downscale", "background", 
            "set_model", "world_model_stats", "verify_model", "transitions", "set_models", "alive_models",
            "ents", "events", "event_log", "describe_events", "avatar", "roles", "entity",
            "move_model", "plan_to", "plan_to_entity",
-           "symlog", "fit_rules", "auto_rules", "rules", "explain_rules", "rules_predictor", "plan_rules", "goal_candidates", "goal_hints"):
+           "symlog", "fit_rules", "auto_rules", "rules", "explain_rules", "rules_predictor", "plan_rules", "goal_candidates", "goal_hints", "probe_suggestions"):
     G[_n] = globals()[_n]
 
 while True:

@@ -267,12 +267,13 @@ rep = auto_rules(); print(rep['coverage'], rep['contradictions'], len(rep['rules
 print(rep['rules'][0][:12])
 tid = [e['id'] for e in ents() if e['color'] == 12][0]
 hint_ok = goal_hints()[0]['goal'] == {'reach_entity': tid}
+ps = probe_suggestions(); ps_ok = all(p['action'] not in ('UP', 'DOWN', 'LEFT', 'RIGHT') for p in ps)  # all keys were pressed
 plan = plan_rules({'reach_entity': tid}); print(plan is not None and len(plan) >= 10)
 print(set_model(rules_predictor()))
 rs = act(plan); print(all(r.get('pred_ok', True) for r in rs), rs[-1]['level_completed'])
 print(goal_candidates())
 print(level, len(symlog()))
-print(hint_ok)
+print(hint_ok, ps_ok)
 """
     r = sb.run(code, st0, timeout_s=60, action_handler=handler)
     assert r["error"] == "", r
@@ -284,5 +285,5 @@ print(hint_ok)
     assert lines[4] == "True True", lines
     assert "touch(colour 9, colour 12)" in lines[5], lines
     assert lines[6] == "2 0", lines  # new level: the symbolic log restarted
-    assert lines[7] == "True", lines  # the unique-colour target is the first goal hint
+    assert lines[7] == "True True", lines  # the unique-colour target is the first goal hint; no key left to probe
     sb.stop()
