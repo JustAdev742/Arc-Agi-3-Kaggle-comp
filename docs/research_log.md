@@ -276,6 +276,14 @@ Measured: dev 0.324 (runs/kaggle-repl-dev-004, kernel arc3-eval-dev-g v2, harnes
 Notes:    low-effort thinking stays; it is what keeps the model from spraying actions. The remaining knob worth a run is
           the other direction (medium effort on every call, fewer calls) once the noise repeat of exp-011 is in.
 
+## 2026-09-16 · submission notebook check · private Save & Run All on the RTX PRO 6000 · PASSED
+Measured: kernel `arc-prize-2026-arc-agi-3-arc3-agent` v2 (private), harness 699825b, REPL agent, datasets FP8 27B + wheelhouse.
+          vLLM ready on the first attempt (MTP + FP8 KV); offline smoke on ls20 + vc33 at 300 s/game, workers 1: vc33 L1
+          in 8 actions, ls20 0 levels in 6 actions (runs/kaggle-submission-check-v2, smoke score 1.786); submission.parquet
+          written; about 17 min of RTX in total. The competition rerun branch (framework against the gateway) is
+          exercised only by a real submission.
+Notes:    Milestone 2 candidate is ready technically; license and publication are the owner's call (status open items).
+
 ## 2026-09-16 · exp-012 · events line in every tool output, iterable single results, ascii(region) degrades to tiles, role key always present, DeepGEMM off for FP8 specialists · PENDING (one run below the exp-011 pair; repeat before deciding)
 Why:      exp-011 transcripts: 77 inspection-only calls spent on describe_events() after an act, nine refused
           ascii(region) calls, KeyError 'role' nine times, `for r in act('ACT')` iterating dict keys.

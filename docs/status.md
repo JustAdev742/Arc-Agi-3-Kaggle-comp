@@ -111,6 +111,11 @@ research log exp-006a.
 
 1. Daily submission limit: paste the "Submission limits" lines from the Kaggle **Rules** page (still
    UNCONFIRMED; 5 per day from two secondary sources).
+3. **Milestone 2 (closes 2026-09-30):** the submission notebook (single 27B REPL agent, exp-011 harness) passed its
+   private Save & Run All on the RTX on 2026-09-16. Two decisions are yours: (a) the open-source license for the public
+   copy (MIT or Apache-2.0 for the code; the model weights are Apache-2.0 already); (b) the go-ahead to make the
+   notebook public and to press Submit to Competition (each real submission is one of the daily allowance and about 9 h
+   of the hidden-set run). I will not publish or submit without that OK.
 0. **Milestone 2 (2026-09-30)** needs the notebook public under an open-source license by then. Say which license
    (MIT/Apache-2.0 for the code) and I will prepare the public copy once the control arm and one Save & Run All of the
    submission notebook on the RTX are green; publishing itself waits for your explicit OK.
@@ -170,6 +175,9 @@ research log exp-006a.
 - exp-012 finished 16:59: **dev 0.608, 6 levels**, below the exp-011 pair (1.23/1.37, 9); no mechanism visible in the
   transcripts (describe_events calls fell 126 -> 40 as intended). Repeat (exp-012b) decides; until then the
   submission base is the exp-011 harness 756a87e. exp-013 (medium effort) running since 17:00.
+- **Submission notebook Save & Run All PASSED on the RTX** (17:03, `arc-prize-2026-arc-agi-3-arc3-agent` v2, private,
+  harness 699825b): vLLM up on the first attempt, offline smoke on ls20 + vc33 (vc33 L1 in 8 actions), `submission.parquet`
+  written, 17 min of RTX. This is the Milestone 2 candidate; publishing needs your OK (open items). exp-012b pushed 17:04.
 - 14:09: exp-010c (`arc3-eval-dev-council-c` v1, harness 7de7f95) running; exp-004 v2 queued. Queue after them, in
   order: exp-011b (the exp-011 notebook unchanged, per the noise rule), exp-012 (harness 7de7f95: events line in every
   tool output, single results iterate, ascii(region) degrades to tiles, role always present), then a private Save &
