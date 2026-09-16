@@ -65,8 +65,8 @@ architectural step therefore has to be measured on dev and val, not assumed.
    vLLM 0.27.1 installed in 166 s; the FP8 model loaded in 120 s (28.95 GiB), MTP draft detected, 53.2 GiB KV cache
    (1.0 M tokens, 31x concurrency at 32k), server ready **345 s** after launch on the first attempt with MTP + FP8 KV.
    The first request then failed inside FlashInfer (auto-selected attention backend; needs SM120 cubins from NVIDIA's
-   artifactory, unreachable offline). Fix committed: `VLLM_ATTENTION_BACKEND=TRITON_ATTN`. No throughput or REPL
-   numbers yet. This was the last run of the allowance; **the re-run needs your OK** (about 15 min of RTX quota).
+   artifactory, unreachable offline). v3 (env var `VLLM_ATTENTION_BACKEND`) changed nothing: vLLM 0.27 ignores that
+   variable. v4 passes `--attention-backend TRITON_ATTN` on the command line. No throughput or REPL numbers yet.
 
 ## Open items (need you)
 

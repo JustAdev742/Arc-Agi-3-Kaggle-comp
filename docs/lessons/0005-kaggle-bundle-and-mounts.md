@@ -17,5 +17,6 @@ What the competition dataset ships and how Kaggle mounts things (verified from t
   in the log before trusting a GPU run.
 - On the RTX PRO 6000, vLLM 0.27.1 auto-selects the FlashInfer attention backend and the first request dies
   ("FlashInfer requires GPUs with sm75 or higher": its SM120 cubins come from NVIDIA's artifactory, unreachable
-  offline). Force `VLLM_ATTENTION_BACKEND=TRITON_ATTN` (`arc3.serve.kaggle_env`). Model load itself was fine:
+  offline). vLLM 0.27 ignores the `VLLM_ATTENTION_BACKEND` env var ("Unknown vLLM environment variable"): pass
+  `--attention-backend TRITON_ATTN` on the command line (`arc3.serve.build_vllm_command`). Model load itself was fine:
   28.95 GiB FP8 weights in 120 s, MTP draft detected, 53 GiB KV cache, server up in ~5.5 min.

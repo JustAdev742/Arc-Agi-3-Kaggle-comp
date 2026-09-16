@@ -50,6 +50,10 @@ def build_vllm_command(model_dir: str, *, port: int = 8000, served_name: str = "
     VLLM_MAX_MODEL_LEN, VLLM_EXTRA_ARGS. ``images_per_prompt`` matters: the REPL agent attaches one
     image per user turn and vLLM's default limit is one image per prompt."""
     tool_parser = tool_parser or os.environ.get("VLLM_TOOL_PARSER", "qwen3_coder")  # Qwen3.8 chat template uses <function=...><parameter=...> XML
+    # vLLM >= 0.27 ignores VLLM_ATTENTION_BACKEND; the backend is a CLI arg. On the RTX PRO 6000 (SM120)
+    # the auto choice is FlashInfer, which needs cubins from NVIDIA's artifactory (no internet on Kaggle)
+    # and dies on the first request (diag runs v2/v3, 2026-09-16). Triton attention was the other candidate.
+    attention_backend = os.environ.get("ARC3_ATTENTION_BACKEND", "TRITON_ATTN")
     reasoning_parser = reasoning_parser or os.environ.get("VLLM_REASONING_PARSER", "qwen3")
     mtp_tokens = int(os.environ.get("VLLM_MTP_TOKENS", mtp_tokens))
     kv_cache_dtype = os.environ.get("VLLM_KV_CACHE_DTYPE") or kv_cache_dtype or default_kv_cache_dtype()
@@ -61,6 +65,8 @@ def build_vllm_command(model_dir: str, *, port: int = 8000, served_name: str = "
            "--max-num-seqs", str(max_num_seqs), "--limit-mm-per-prompt", '{"image": %d}' % images_per_prompt,
            "--enable-prefix-caching", "--trust-remote-code", "--enable-auto-tool-choice",
            "--tool-call-parser", tool_parser]
+    if attention_backend and attention_backend.lower() != "auto":
+        cmd += ["--attention-backend", attention_backend]
     if tensor_parallel > 1:
         cmd += ["--tensor-parallel-size", str(tensor_parallel)]
     if reasoning_parser and reasoning_parser != "none":
@@ -85,10 +91,6 @@ def kaggle_env() -> dict[str, str]:
         for key in ("LIBRARY_PATH", "LD_LIBRARY_PATH"):
             env[key] = os.pathsep.join(p for p in [cuda, env.get(key, "")] if p)
     env.setdefault("VLLM_USE_FLASHINFER_SAMPLER", "0")
-    # On the RTX PRO 6000 (SM120) vLLM 0.27.1 auto-picks FlashInfer, which then needs cubins from
-    # NVIDIA's artifactory (no internet on Kaggle) or a JIT it refuses ("requires sm75 or higher",
-    # diag run 2026-09-16). Triton attention was the other listed candidate and supports FP8 KV.
-    env.setdefault("VLLM_ATTENTION_BACKEND", "TRITON_ATTN")
     env.setdefault("VLLM_STARTUP_TIMEOUT", "1800")
     return env
 
