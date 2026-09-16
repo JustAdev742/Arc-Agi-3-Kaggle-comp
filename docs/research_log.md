@@ -473,6 +473,8 @@ Measured: first batch of 8 games, all used the full hour: lp85 L1 (300 actions),
           ka59 0 (93), ft09 0 (52), cd82 0 (235), bp35 0 (321), ls20 0 (126): 2 levels. In the 1200 s runs the same
           eight games gave 1-2 levels (exp-011: ar25 L1, lp85 L1; exp-011b: ar25 L2, lp85 L1). Second batch (live log
           until the quota kill): s5i5 L1 at action 19 (541 s), tn36 L1 at action 69 (583 s), the rest unknown.
+          Second batch (live log until the quota kill): sb26 L1 at action 17 (237 s), s5i5 L1 at 19 (541 s), tn36 L1 at 69
+          (583 s), m0r0 L1 at 55 (1601 s); the same games and levels the 1200 s runs solve, none beyond level 1.
           Score is not computable (no summary.json). Run files: none pulled (the kernel is killed by the quota).
 Notes:    the extra 40 minutes per game bought nothing on the first eight games: they stagnate rather than run out of
           time. Time is not the bottleneck at the current harness; what the agent does with more turns is. This is the
