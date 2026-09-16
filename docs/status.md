@@ -111,6 +111,12 @@ research log exp-006a.
 
 1. Daily submission limit: paste the "Submission limits" lines from the Kaggle **Rules** page (still
    UNCONFIRMED; 5 per day from two secondary sources).
+4. **Qwen3.8-Flash-Next-NVFP4 (requested 2026-09-16 evening):** cannot be staged from this container (132.7 GB, one
+   53.7 GB file, 18 GB of writable disk here; Kaggle has no server-side Hugging Face import in the CLI). Recipe and
+   metadata for an upload from the workstation: `docs/models/qwen3-8-flash-next-nvfp4/UPLOAD.md`. Before it can
+   serve on one RTX PRO 6000: NVFP4 language weights ~79 GB on the GPU, the 51 GB n-gram/PLE table offloaded to host
+   RAM, a vLLM newer than the 0.27.1 wheelhouse (needs commit d4d703c, "Fix FP8 PLE loading in mixed ModelOpt
+   checkpoints"), and NVFP4 kernels on SM120 (unverified). The vLLM recipe page lists only 4-GPU configurations.
 3. **Milestone 2 (closes 2026-09-30):** the submission notebook (single 27B REPL agent, exp-011 harness) passed its
    private Save & Run All on the RTX on 2026-09-16. Two decisions are yours: (a) the open-source license for the public
    copy (MIT or Apache-2.0 for the code; the model weights are Apache-2.0 already); (b) the go-ahead to make the

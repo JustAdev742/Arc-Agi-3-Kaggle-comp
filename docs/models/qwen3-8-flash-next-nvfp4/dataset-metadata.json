@@ -1,0 +1,14 @@
+{
+  "title": "Qwen3.8-Flash-Next-NVFP4 (nvidia, HF snapshot)",
+  "id": "scottmahony/qwen3-8-flash-next-nvfp4",
+  "subtitle": "Mirror of HF nvidia/Qwen3.8-Flash-Next-NVFP4 for offline vLLM on Kaggle",
+  "licenses": [
+    {
+      "name": "other"
+    }
+  ],
+  "keywords": [
+    "nlp",
+    "computer vision"
+  ]
+}
