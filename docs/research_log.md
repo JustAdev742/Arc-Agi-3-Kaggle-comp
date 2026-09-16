@@ -211,6 +211,10 @@ Notes:    the 14 'gave_up' failures are a label artefact (exp-009 had 16): the a
           ladder: official FP8 Qwen3-VL-8B build first, NVFP4 with VLLM_NVFP4_GEMM_BACKEND=marlin last, gpu_mem from free
           memory, image probe). exp-010b (`arc3-eval-dev-council-b`, run kaggle-council-dev-010b, harness 33f758e) is the
           real council measurement; it also carries the exp-011 harness, so its control is exp-011, not exp-009.
+          Council prompt fixes after reading the transcripts (commit d7916b7, not in exp-010b): a level's first round
+          waits for the first action (the specialists had written 'no actions taken; no transitions to analyze' in
+          every game) and each report is written out once, later turns only say it is unchanged (the full text was
+          repeated on every turn). These go into exp-010c if exp-010b shows the specialists helping at all.
 
 ## 2026-09-16 · exp-011 · verified-navigation fixes from the exp-009 transcripts (walkable floor entities, sprite companions, avatar hand-over, live move model, model retirement, inline events, batched click probes) · PENDING (built, not yet run)
 Why:      exp-009 transcripts (`scripts/transcript_report.py runs/kaggle-repl-dev-009`): ka59 registered
