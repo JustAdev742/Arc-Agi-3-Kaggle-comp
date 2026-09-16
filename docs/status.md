@@ -1,23 +1,23 @@
 # Status
 
-Last updated: 2026-09-16 (session 1, remote CPU container: 4 vCPU, 15 GB RAM, no GPU, no Kaggle credentials).
+Last updated: 2026-09-16 (session 1, remote CPU container: 4 vCPU, 15 GB RAM, no GPU; Kaggle token pending).
 
 ## Competition facts: verified vs. unconfirmed
 
 | Item | Value used | Status | Source |
 |---|---|---|---|
-| Metric | RHAE: per level `min((baseline/actions)^2, 1.15)`; per game level-index-weighted mean, capped at the weighted fraction of levels completed; total = mean over games; unsolved levels = 0 | **VERIFIED** | `arc_agi/scorecard.py` (arc-agi 0.9.9) and ARC-AGI-3 Technical Report §4.1, eq. 1–3. `tests/test_scoring.py` checks parity with the toolkit |
+| Metric | RHAE: per level `min((baseline/actions)^2, 1.15)`; per game level-index-weighted mean, capped at the weighted fraction of levels completed (so never above 100%, as the Kaggle page says); total = mean over games; unsolved levels = 0 | **VERIFIED** | `arc_agi/scorecard.py` (arc-agi 0.9.9) and ARC-AGI-3 Technical Report §4.1, eq. 1–3. `tests/test_scoring.py` checks parity with the toolkit |
 | Human baseline | upper-median best human action count per level; per-level `baseline_actions` ship in each game's `metadata.json` | VERIFIED | docs.arcprize.org/methodology, downloaded metadata |
 | Action counting | every non-RESET action costs 1; RESET also costs 1 (`Card.inc_reset_count`); per-level count = actions between successive level completions | VERIFIED (toolkit) | `arc_agi/scorecard.py` |
 | RESET in competition | competition mode forces *level* resets; game resets become level resets; a RESET at a level start is a billed no-op; one `make()` per environment; one scorecard | VERIFIED | docs.arcprize.org/toolkit/competition_mode and `arc_agi/api.py`; `arc3/env.py` mirrors it, `tests/test_env.py` checks it |
 | Games / levels | 25 public games, 6–10 levels each (188 levels); ids and per-level baselines in `environment_files/*/metadata.json` | VERIFIED | download on 2026-09-15 |
-| Runtime limit | **12 h** per docs.arcprize.org / arcprize.org policy ("run in <12 hours"); a third-party summary says 9 h. Governor default = **9 h** (conservative) until read from the Kaggle Code Requirements page | **UNCONFIRMED** | search snippets only; Kaggle pages are JS-rendered and unreadable from this container |
+| Runtime limit | **9 h** for CPU and GPU notebooks ("CPU Notebook <= 9 hours run-time, GPU Notebook <= 9 hours run-time"). Governor default 9 h minus a 15 min reserve | **VERIFIED** | Kaggle Code Requirements, pasted by the user on 2026-09-16 |
 | Daily submissions | 5 | UNCONFIRMED (two secondary sources agree) | starter README, third-party summary |
-| Milestone 2 | closes 2026-09-30 | consistent with arcprize.org competition page | arcprize.org/competitions/2026/arc-agi-3 |
-| Entry / team merge | 2026-10-26 | UNCONFIRMED (matches the ARC-AGI-2 track's date) | search snippet |
-| Final submission | 2026-11-02 | consistent with a third-party timeline ("November 2, 2026 Submissions due") | secondary source |
-| License for prizes | "open source", specific license not found | UNCONFIRMED | arcprize.org |
-| Hardware | `rtx6000` = g4-standard-48, 1× RTX PRO 6000 (96 GB); driver/CUDA in the Kaggle image | UNCONFIRMED | starter README lists the accelerator; driver unknown |
+| Milestone 2 | closes 2026-09-30, 23:59 UTC; prizes $25,000 / $7,500 / $5,000; notebook must be public under an open-source license by then | VERIFIED | Kaggle overview (pasted 2026-09-16) |
+| Entry / team merge | 2026-10-26, 23:59 UTC | VERIFIED | Kaggle overview (pasted 2026-09-16) |
+| Final submission | 2026-11-02, 23:59 UTC; winners announced 2026-12-04 | VERIFIED | Kaggle overview (pasted 2026-09-16) |
+| License for prizes | "open source license" (no specific license named); prize-eligible entries that do not open-source are removed | VERIFIED (wording) | Kaggle overview (pasted 2026-09-16) |
+| Hardware | `rtx6000` = GCP `g4-standard-48` (RTX PRO 6000, 96 GB), ARC-AGI-3 notebooks only, internet must be off; driver/CUDA in the Kaggle image still unknown | VERIFIED (machine type) | Kaggle overview (pasted 2026-09-16) |
 | Hidden set size | unknown; the Duck's Kaggle validation ran 16 games at 16 concurrent, 75 min each in a 90-min kernel | UNKNOWN | Tufa Labs README |
 | Kaggle concurrency | the framework's `Swarm` plays **all games in parallel threads** against the gateway | VERIFIED | `ARC-AGI-3-Agents/agents/swarm.py` |
 
@@ -33,11 +33,14 @@ competition pages (JS-only), confirm the runtime limit or license.
 
 ## Open items (need you)
 
-1. Read the Kaggle **Code Requirements** and **Rules** pages once and fill in: runtime hours,
-   daily submissions, license. One line each in this table.
-2. Put a Kaggle token in `.kaggle/access_token` on the GPU box (never in git).
+1. Daily submission limit: paste the "Submission limits" lines from the Kaggle **Rules** page (still
+   UNCONFIRMED; 5 per day from two secondary sources).
+2. Kaggle API token (`KGAT_...`): either paste it in chat (stored in git-ignored `.kaggle/access_token`,
+   never echoed) or set `KAGGLE_API_TOKEN` in the Claude Code environment settings and start a new
+   session. `make kaggle-check` then verifies access and lists the competition files.
 3. Decide the model to attach as a Kaggle dataset: Qwen3.8-27B FP8 (default) vs. the
-   Milestone-1 winner's Qwen3.6-27B FP8 snapshot.
+   Milestone-1 winner's Qwen3.6-27B FP8 snapshot. With the token I will first check Kaggle Models
+   for an existing Qwen3.8-27B upload (saves a 28 GB dataset upload).
 
 ## Follow-ups noticed (not fixed on purpose)
 

@@ -10,7 +10,7 @@ STEPS       ?= 5000
 WORKERS     ?= 4
 CONFIG      ?= {}
 
-.PHONY: help setup games test verify eval notebook lint clean
+.PHONY: help setup games test verify eval notebook lint clean kaggle-check pull-winners submit status
 
 help:
 	@echo "make setup      one-time: uv venv + deps"
@@ -19,6 +19,10 @@ help:
 	@echo "make verify     30s smoke test: random agent on ls20+vc33"
 	@echo "make eval       AGENT=$(AGENT) SPLIT=$(SPLIT) TIME=$(TIME)s/game STEPS=$(STEPS) WORKERS=$(WORKERS)"
 	@echo "make notebook   build notebooks/submission.ipynb from arc3/ + agent/my_agent.py"
+	@echo "make kaggle-check   verify the Kaggle token and list competition files"
+	@echo "make pull-winners   download the Milestone-1 winner notebooks + official sample into reference/"
+	@echo "make submit     push notebooks/ to Kaggle as a private kernel (Save & Run All)"
+	@echo "make status     status of the last pushed kernel"
 
 FRAMEWORK_REPO := https://github.com/arcprize/ARC-AGI-3-Agents.git
 FRAMEWORK_DIR  := vendor/ARC-AGI-3-Agents
@@ -52,3 +56,33 @@ notebook:
 
 clean:
 	rm -rf $(VENV) environment_files recordings notebooks/submission.ipynb __pycache__ .pytest_cache
+
+# ---- Kaggle (token: .kaggle/access_token, or KAGGLE_API_TOKEN in the environment) ----
+KAGGLE_TOKEN := $(shell if [ -s .kaggle/access_token ]; then cat .kaggle/access_token; else echo "$$KAGGLE_API_TOKEN"; fi)
+KAGGLE       := KAGGLE_API_TOKEN=$(KAGGLE_TOKEN) $(VENV)/bin/kaggle
+COMP_SLUG    := arc-prize-2026-arc-agi-3
+
+_check-kaggle:
+	@if [ -z "$(KAGGLE_TOKEN)" ]; then \
+	    echo "ERROR: no Kaggle token. Save it to .kaggle/access_token (git-ignored) or export KAGGLE_API_TOKEN."; exit 1; fi
+
+kaggle-check: _check-kaggle
+	$(KAGGLE) competitions files $(COMP_SLUG)
+	$(KAGGLE) kernels list --competition $(COMP_SLUG) --sort-by scoreDescending --page-size 10
+
+pull-winners: _check-kaggle
+	mkdir -p reference
+	$(KAGGLE) kernels pull jeroencottaar/tufa-labs-duck-harness-june-30-milestone-winner -p reference/duck -m
+	$(KAGGLE) kernels pull ruichardliu/milestone1-2nd-solution -p reference/reki -m
+	$(KAGGLE) kernels pull mbmmurad/arc-agi-3-lb-0-86-3rd-place-candidate-milestone -p reference/forge -m
+	$(KAGGLE) kernels pull inversion/arc3-sample-submission-stochastic-goose -p reference/stochastic-goose -m
+
+submit: notebook _check-kaggle
+	@grep -q REPLACE_WITH_YOUR_USERNAME notebooks/kernel-metadata.json && { \
+	    echo "ERROR: set your Kaggle username in notebooks/kernel-metadata.json"; exit 1; } || true
+	$(KAGGLE) kernels push -p notebooks/
+	@echo "Pushed. Track it with: make status"
+
+status: _check-kaggle
+	@KERNEL_ID=$$(python3 -c "import json; print(json.load(open('notebooks/kernel-metadata.json'))['id'])"); \
+	$(KAGGLE) kernels status $$KERNEL_ID
