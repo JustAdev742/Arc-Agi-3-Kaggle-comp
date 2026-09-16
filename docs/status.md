@@ -38,6 +38,7 @@ competition pages (JS-only), confirm the runtime limit or license.
 | Primary | **Qwen3.8-27B-FP8** (official). Kaggle dataset `saltb0x/qwen3-8-27b-fp8`: 81 files, 30.89 GB, byte-for-byte equal to HF `Qwen/Qwen3.8-27B-FP8` @ `017b9c7a` (includes `mtp.safetensors`) | VERIFIED |
 | A/B arm | **NVFP4**: HF `nvidia/Qwen3.8-27B-NVFP4` @ `dbb8f445` (19 files, 21.95 GB, Apache-2.0), size-verified against HF, private Kaggle dataset **`scottmahony/qwen3-8-27b-nvfp4-nvidia`** (21 files incl. provenance, 21.95 GB) | UPLOADED 2026-09-16 |
 | Specialist arm | **Qwen3-VL-8B-Instruct-NVFP4** (`JEILDLWLRMA/Qwen3-VL-8B-Instruct-NVFP4` @ `243f10e2`, 16 files, 7.57 GB, Apache-2.0), size-verified against HF, private Kaggle dataset **`scottmahony/qwen3-vl-8b-instruct-nvfp4`** (18 files incl. provenance) | UPLOADED 2026-09-16 |
+| Specialist arm, primary since exp-010 | **Qwen3-VL-8B-Instruct-FP8** (official `Qwen/Qwen3-VL-8B-Instruct-FP8` @ `9cdc6310`, 13 files, 10.6 GB, Apache-2.0, `quant_method: fp8` = the same vLLM path the working 27B coordinator uses), size-verified against HF, private Kaggle dataset **`scottmahony/qwen3-vl-8b-instruct-fp8`** (14 files incl. provenance). The NVFP4 build (compressed-tensors `nvfp4-pack-quantized`) failed vLLM engine-core init twice in exp-010 (`runs/_kaggle_output/arc3-eval-dev-council/vllm-specialist.log` once pulled); the council notebook now tries FP8 tuned -> FP8 conservative -> NVFP4 tuned -> NVFP4 conservative (`arc3.serve.specialist_attempts`) and only then shares the coordinator | UPLOADED 2026-09-16 11:15 UTC |
 | Baseline reproduction | Qwen3.6-27B-FP8 as used by the Duck: `driessmit1/vrfai-qwen3-6-27b-fp8-hf-snapshot` | available |
 | vLLM wheelhouse | `saltb0x/arc3-vllm-wheelhouse-v0271-cu129` (vLLM 0.27.1, CUDA 12.9, flashinfer 0.6.16, built for the ARC3 duck harness). Alternative: `nick2187/qwen38-vllm0272-cu130-wheelhouse-v1` (vLLM 0.27.2, CUDA 13, needs a newer driver) | diag run pending |
 | Tool-call parser | Qwen3.8's chat template emits `<tool_call><function=...><parameter=...>` XML: vLLM `--tool-call-parser qwen3_coder`, `--reasoning-parser qwen3`; template knobs `enable_thinking`, `reasoning_effort` in {xhigh (default), medium, low}, `preserve_thinking` | VERIFIED (template) |
@@ -137,6 +138,14 @@ research log exp-006a.
   first-step nudge.
 - Queued on Kaggle: exp-005 (running), exp-008 (fitter v5 + summary + hints, commit 840bd4b). Ready to push when a
   slot frees: exp-009 (HEAD, efficiency bundle) and exp-010 (council).
+- Later the same day: exp-008 0.734, exp-009 0.836 (6 levels), exp-009b (noise repeat) and exp-010 (council) running.
+  **exp-010 ran without its specialists**: the Qwen3-VL-8B-NVFP4 vLLM server failed engine-core initialisation on both
+  attempts (~150 s) and the notebook silently fell back to the coordinator model for the six roles, so exp-010 measures
+  the *shared-model* council only. Fix in `arc3/serve.py` (attempt ladder over checkpoints and flag sets, gpu_mem sized
+  from the memory the coordinator actually left, image probe before declaring the server ready, `LAST_START` record) and
+  both notebook builders (coordinator 0.60 / specialist 0.30 split, `--specialist-dataset` preference list). The
+  official FP8 Qwen3-VL-8B build is uploaded as the first rung. exp-010b (`arc3-eval-dev-council-b`, run name
+  `kaggle-council-dev-010b`) is built and pushes when a Kaggle slot frees.
 
 ## Session 1 outcome (2026-09-16)
 

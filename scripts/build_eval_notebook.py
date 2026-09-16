@@ -17,7 +17,7 @@ from pathlib import Path
 from textwrap import dedent
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from build_notebook import COMP_DIR, code_cell, md_cell, package_tarball, vllm_setup_source  # noqa: E402
+from build_notebook import COMP_DIR, code_cell, md_cell, package_tarball, specialist_refs, vllm_setup_source  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR = ROOT / "notebooks" / "eval"
@@ -98,14 +98,15 @@ def main() -> None:
     p.add_argument("--note", default="")
     p.add_argument("--model-dataset", default="saltb0x/qwen3-8-27b-fp8")
     p.add_argument("--wheels-dataset", default="saltb0x/arc3-vllm-wheelhouse-v0271-cu129")
-    p.add_argument("--specialist-dataset", default="scottmahony/qwen3-vl-8b-instruct-nvfp4")
+    p.add_argument("--specialist-dataset", default="scottmahony/qwen3-vl-8b-instruct-fp8,scottmahony/qwen3-vl-8b-instruct-nvfp4",
+                   help="comma-separated preference list of specialist checkpoints (council arm only)")
     p.add_argument("--username", default="scottmahony")
     p.add_argument("--slug", default="arc3-eval")
     a = p.parse_args()
     a.run_name = a.run_name or f"kaggle-{a.agent}-{a.split}-s{a.seed}"
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     (OUT_DIR / "eval.ipynb").write_text(json.dumps(build(a), indent=1))
-    ds = [d for d in (a.wheels_dataset, a.model_dataset, a.specialist_dataset if a.agent == "council" else "") if d]
+    ds = [d for d in (a.wheels_dataset, a.model_dataset, *(specialist_refs(a.specialist_dataset) if a.agent == "council" else [])) if d]
     meta = {"id": f"{a.username}/{a.slug}", "title": a.slug, "code_file": "eval.ipynb", "language": "python",
             "kernel_type": "notebook", "is_private": True, "enable_gpu": True, "enable_tpu": False, "enable_internet": False,
             "keywords": [], "dataset_sources": ds, "kernel_sources": [], "competition_sources": ["arc-prize-2026-arc-agi-3"],

@@ -114,3 +114,20 @@ def test_click_coordinates_do_not_go_through_the_shared_enum(monkeypatch):
     a.do_action_request(GameAction.ACTION6)
     assert sent == {"x": 7, "y": 9}
     arc.close_scorecard(card)
+
+
+def test_notebook_specialist_ladder_source():
+    """The council notebook tries every attached specialist checkpoint through the ladder before sharing the coordinator."""
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    from build_notebook import specialist_refs, vllm_setup_source
+    src = vllm_setup_source("o/model", "o/wheels", "o/spec-fp8,o/spec-nvfp4")
+    assert specialist_refs("o/spec-fp8, o/spec-nvfp4,") == ["o/spec-fp8", "o/spec-nvfp4"]
+    assert "/kaggle/input/spec-fp8" in src and "/kaggle/input/spec-nvfp4" in src
+    assert "serve.specialist_attempts(SPECIALIST_DIRS, gpu_mem=0.30)" in src and "attempts=ladder" in src
+    assert "gpu_mem=0.60 if two else 0.90" in src and "SPECIALIST SERVER FAILED" in src
+    src_single = vllm_setup_source("o/model", "o/wheels", "")
+    assert "SPECIALIST_DIRS = [d for d in [] if d]" in src_single
+    compile(src, "<cell>", "exec")
+    compile(src_single, "<cell>", "exec")

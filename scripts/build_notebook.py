@@ -61,14 +61,22 @@ def _mount_expr(ref: str) -> str:
     return (f"next((p for p in ['/kaggle/input/{slug}', '/kaggle/input/datasets/{owner}/{slug}'] if os.path.isdir(p)), None)")
 
 
+def specialist_refs(specialist_dataset: str) -> list[str]:
+    """``--specialist-dataset`` takes a comma-separated preference list; the notebook tries them in order."""
+    return [d.strip() for d in (specialist_dataset or "").split(",") if d.strip()]
+
+
 def vllm_setup_source(model_dataset: str, wheels_dataset: str, specialist_dataset: str = "") -> str:
-    """Notebook cell source: install vLLM from the wheelhouse, start the coordinator server (and the
-    specialist server for the council arm) with fallback flags, and publish ARC3_AGENT_CONFIG."""
+    """Notebook cell source: install vLLM from the wheelhouse, start the coordinator server (and, for the
+    council arm, the specialist server through ``arc3.serve.specialist_attempts``: each attached specialist
+    checkpoint with tuned then conservative flags, sized from the GPU memory the coordinator left), and
+    publish ARC3_AGENT_CONFIG. The council only shares the coordinator model when every attempt failed."""
+    spec_exprs = ", ".join(_mount_expr(r) for r in specialist_refs(specialist_dataset)) or ""
     return dedent(f"""\
         # Local model server(s). Datasets are attached in kernel-metadata.json.
         MODEL_DIR = {_mount_expr(model_dataset)}
         WHEELS = {_mount_expr(wheels_dataset)}
-        SPECIALIST_DIR = {_mount_expr(specialist_dataset)}
+        SPECIALIST_DIRS = [d for d in [{spec_exprs}] if d]
         vllm_procs = []
         cfg = json.loads(os.environ.get('ARC3_AGENT_CONFIG', '{{}}'))
         if os.environ['ARC3_AGENT'] in ('repl', 'council'):
@@ -79,25 +87,31 @@ def vllm_setup_source(model_dataset: str, wheels_dataset: str, specialist_datase
                     t0 = time.time()
                     subprocess.check_call([sys.executable, '-m', 'pip', 'install', '-q', '--no-index', '--no-warn-conflicts', '--find-links', WHEELS, 'vllm'])
                     print('vllm installed in %.0fs' % (time.time() - t0))
-                from arc3.serve import start_vllm_with_fallback
-                two = os.environ['ARC3_AGENT'] == 'council' and SPECIALIST_DIR is not None and not cfg.get('specialist')
-                proc, ok = start_vllm_with_fallback(MODEL_DIR, log_path='/kaggle/working/vllm.log', port=8000, served_name='arc3-model',
-                                                    gpu_mem=0.62 if two else 0.90, timeout_s=1500)
-                print('vllm ready:', ok, 'after %.0fs' % (time.time() - START))
+                from arc3 import serve
+                two = os.environ['ARC3_AGENT'] == 'council' and bool(SPECIALIST_DIRS) and not cfg.get('specialist')
+                proc, ok = serve.start_vllm_with_fallback(MODEL_DIR, log_path='/kaggle/working/vllm.log', port=8000, served_name='arc3-model',
+                                                          gpu_mem=0.60 if two else 0.90, timeout_s=1500)
+                print('vllm ready:', ok, dict(serve.LAST_START), 'after %.0fs' % (time.time() - START))
                 if not ok:
                     print(open('/kaggle/working/vllm.log').read()[-3000:]); os.environ['ARC3_AGENT'] = 'rules'
                 else:
                     vllm_procs.append(proc)
                     cfg.update({{'base_url': 'http://127.0.0.1:8000/v1', 'model': 'arc3-model'}})
                     if two:
-                        proc2, ok2 = start_vllm_with_fallback(SPECIALIST_DIR, log_path='/kaggle/working/vllm-specialist.log', port=8001,
-                                                              served_name='arc3-specialist', gpu_mem=0.30, max_model_len=16384, mtp_tokens=0, timeout_s=900)
-                        print('specialist vllm ready:', ok2, 'after %.0fs' % (time.time() - START))
+                        print('specialist checkpoints:', SPECIALIST_DIRS, 'GPU fraction free:', serve.gpu_fraction_available())
+                        ladder = serve.specialist_attempts(SPECIALIST_DIRS, gpu_mem=0.30)
+                        proc2, ok2 = serve.start_vllm_with_fallback(SPECIALIST_DIRS[0], log_path='/kaggle/working/vllm-specialist.log',
+                                                                    attempts=ladder, timeout_s=1200)
+                        print('specialist vllm ready:', ok2, dict(serve.LAST_START), 'after %.0fs' % (time.time() - START))
                         if ok2:
                             vllm_procs.append(proc2)
                             cfg['specialist'] = {{'base_url': 'http://127.0.0.1:8001/v1', 'model': 'arc3-specialist'}}
+                            cfg['specialist_start'] = dict(serve.LAST_START)
                         else:
-                            print(open('/kaggle/working/vllm-specialist.log').read()[-2000:]); print('council will use the coordinator model for specialist roles')
+                            log2 = open('/kaggle/working/vllm-specialist.log').read()
+                            print('\\n'.join(l for l in log2.splitlines() if l.startswith('#') or 'Error' in l or 'error' in l)[-3000:])
+                            print('SPECIALIST SERVER FAILED on every attempt; council will use the coordinator model for specialist roles')
+                            cfg['specialist_start'] = dict(serve.LAST_START)
                     os.environ['ARC3_AGENT_CONFIG'] = json.dumps(cfg)
         print('agent:', os.environ['ARC3_AGENT'], 'config keys:', sorted(cfg))
         """)
@@ -196,8 +210,8 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--accelerator", default="rtx6000", choices=sorted(_ACCELERATORS))
     p.add_argument("--agent", default="repl", choices=["repl", "council", "explorer", "random"])
-    p.add_argument("--specialist-dataset", default="scottmahony/qwen3-vl-8b-instruct-nvfp4",
-                   help="owner/slug of the specialist model dataset (council arm only)")
+    p.add_argument("--specialist-dataset", default="scottmahony/qwen3-vl-8b-instruct-fp8,scottmahony/qwen3-vl-8b-instruct-nvfp4",
+                   help="comma-separated owner/slug list of specialist model datasets, tried in order (council arm only)")
     p.add_argument("--model-dataset", default="saltb0x/qwen3-8-27b-fp8",
                    help="owner/slug of the model weights dataset (default: official Qwen3.8-27B-FP8 snapshot, "
                         "verified byte-for-byte against HF sha 017b9c7a on 2026-09-16)")
@@ -215,7 +229,7 @@ def main() -> None:
     if METADATA_PATH.exists():
         meta = json.loads(METADATA_PATH.read_text())
         meta["enable_gpu"] = _ACCELERATORS[a.accelerator]["gpu"]
-        ds = [d for d in (a.model_dataset, a.wheels_dataset, spec) if d]
+        ds = [d for d in (a.model_dataset, a.wheels_dataset, *specialist_refs(spec)) if d]
         if ds:
             meta["dataset_sources"] = ds
         METADATA_PATH.write_text(json.dumps(meta, indent=2) + "\n")
