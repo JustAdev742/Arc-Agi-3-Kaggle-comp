@@ -179,13 +179,14 @@ class Tracker:
         matched_prev: set[int] = set()
         matched_new: set[int] = set()
         moved, recolored, reshaped = [], [], []
-        # Pass 1: same shape hash, nearest position (greedy by distance).
+        # Pass 1: same shape and colour, nearest position (greedy by distance). Colour matters: in tile-swap
+        # puzzles a same-shaped tile of another colour sits exactly where the mover was.
         pairs = []
-        by_hash: dict[str, list[int]] = defaultdict(list)
+        by_hash: dict[tuple, list[int]] = defaultdict(list)
         for j, e in enumerate(new):
-            by_hash[e.shape_hash].append(j)
+            by_hash[(e.shape_hash, e.color)].append(j)
         for i, p in enumerate(prev):
-            for j in by_hash.get(p.shape_hash, []):
+            for j in by_hash.get((p.shape_hash, p.color), []):
                 d = abs(new[j].x0 - p.x0) + abs(new[j].y0 - p.y0)
                 pairs.append((d, i, j))
         for d, i, j in sorted(pairs):
@@ -198,6 +199,32 @@ class Tracker:
                 dx, dy = new[j].x0 - prev[i].x0, new[j].y0 - prev[i].y0
                 moved.append((prev[i].id, dx, dy))
                 self.moves[prev[i].id].append((action, dx, dy))
+        # Pass 1b: same colour and box size, nearest position: a sprite whose mask changes as it moves (facing,
+        # animation, a marking that shifts inside it) keeps its id.
+        pairs = []
+        by_box: dict[tuple, list[int]] = defaultdict(list)
+        for j, e in enumerate(new):
+            if j not in matched_new:
+                by_box[(e.color, e.w, e.h)].append(j)
+        for i, p in enumerate(prev):
+            if i in matched_prev:
+                continue
+            for j in by_box.get((p.color, p.w, p.h), []):
+                d = abs(new[j].x0 - p.x0) + abs(new[j].y0 - p.y0)
+                if d <= 4 * max(p.w, p.h):
+                    pairs.append((d, i, j))
+        for d, i, j in sorted(pairs):
+            if i in matched_prev or j in matched_new:
+                continue
+            matched_prev.add(i)
+            matched_new.add(j)
+            new[j].id = prev[i].id
+            if d:
+                dx, dy = new[j].x0 - prev[i].x0, new[j].y0 - prev[i].y0
+                moved.append((prev[i].id, dx, dy))
+                self.moves[prev[i].id].append((action, dx, dy))
+            if new[j].size != prev[i].size:
+                reshaped.append((prev[i].id, prev[i].size, new[j].size))
         # Pass 2: overlapping bbox, different appearance (recoloured or reshaped in place).
         pairs = []
         for i, p in enumerate(prev):
