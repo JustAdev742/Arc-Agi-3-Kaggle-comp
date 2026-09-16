@@ -286,9 +286,9 @@ interface and every piece is also usable by hand for debugging.
 
 | When | Build | Measure |
 |---|---|---|
-| Sep 17-19 | A (entities, tracking, roles) in the REPL; exp-004 thinking ablation | exp-005 vs exp-003c |
-| Sep 20-23 | B (DSL, verify, fit, hypothesis manager) | exp-006 coverage on public games; dev/val |
-| Sep 24-27 | C (probe selection, planner, goal candidates, carry-over) | exp-007 |
+| Sep 17-19 | A (entities, tracking, roles) in the REPL; exp-004 thinking ablation | exp-005 vs exp-003c (queued on Kaggle 09-16) |
+| Sep 20-23 | B (DSL, verify, fit, hypothesis manager) — BUILT 09-16 (`arc3/dsl.py`) | exp-006a code-only coverage 0.43 mean over 25 games (research log); dev/val on the model: exp-007 |
+| Sep 24-27 | C (probe selection, planner, goal candidates, carry-over) — planner + goal candidates/hints built 09-16; probe selection and carry-over open | exp-007 (running 09-16) |
 | Sep 28-30 | Milestone 2 candidate: best arm, Save & Run All on RTX, public copy (owner OK) | one clean 9 h-style run |
 | Oct 1-12 | D (controller, council A/B, NVFP4 A/B), E1-E2 (catalogue, replays) | exp-008..011 |
 | Oct 13-24 | E3 (generator, LoRA if warranted), F (scheduler); freeze by Oct 26 | full-length validation runs |
