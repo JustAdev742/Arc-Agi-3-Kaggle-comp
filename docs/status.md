@@ -245,6 +245,11 @@ research log exp-006a.
   Measurement is exp-019 (notebook ready) once the quota resets. (4) Tycho (owner's reference, Apache-2.0; 100 RHAE on
   the public set with frontier models): read, installed, its tests pass here in host mode; transfer plan in lesson 0013.
   (5) Flash-Next NVFP4: all 132.7 GB streamed to Kaggle and the dataset create accepted; visibility pending (open items).
+- **23:30-23:45: Tycho port bundle (exp-020, commit 0608566).** Level-boundary consolidation pass (learn()/note() only,
+  actions refused) followed by a conversation clear; the observed terminal frame (first layer of the level-completing
+  step, verified on vc33/ls20/ar25 replays) now feeds the tracker and the goal predicates; animation frames are noted;
+  FRICTION lines go to the transcript. Two notebooks are ready for the quota reset: exp-019 (memory only) and exp-020
+  (memory + level boundary), both against the six-run base. 102 tests pass.
 
 ## Session 2 outcome (2026-09-16, afternoon)
 

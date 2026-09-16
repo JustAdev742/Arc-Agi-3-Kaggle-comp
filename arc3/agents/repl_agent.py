@@ -722,7 +722,8 @@ class ReplAgent(Agent):
             f"Win conditions consistent with every completed level so far: {goals}. Consolidation step before level "
             f"{info['level'] + 1}: do NOT act. In ONE python call record what this level taught with learn(...): the win "
             "condition as you now understand it (kind='goal'), the mechanics that mattered (kind='mechanic'), the recipe that "
-            "worked (kind='recipe'), and any mistake to avoid (kind='mistake'); keep facts with note(). Then reply 'done'. "
+            "worked (kind='recipe'), and any mistake to avoid (kind='mistake'); keep facts with note(). State the general rule "
+            "behind each local effect you saw (the next level varies the layout, not the rules), and say what carries over. Then reply 'done'. "
             "Optionally add one line 'FRICTION: <what in the tools or observations slowed you down>' (read after the run, "
             "never shown to you). Your conversation is cleared after this step; lessons, notes and the REPL state carry over.")})
         self.no_actions = True
