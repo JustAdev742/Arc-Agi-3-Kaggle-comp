@@ -146,7 +146,10 @@ Built and tested (all in `tests/`, green on this container via `make test`):
   (0.53) had the context-overflow bug. Single runs are noisy at the 1-2 level scale (research log).
 - **exp-005 dev 1.108** (tracker + navigation planner + Method, no rule library): 8 levels, 924 actions; best single run.
 - **exp-007 dev 0.839** (same + rule library v3 in the Method): 5 levels like the control but with half the actions
-  (755 vs 1415); single-run noise is about two levels, so the exp-005/007 order is not yet a conclusion. Transcripts show the binding constraint: ~35 model
+  (755 vs 1415); single-run noise is about two levels, so the exp-005/007 order is not yet a conclusion.
+- **exp-008 dev 0.734** (fitter v5 + per-turn rules line + goal hints + probe suggestions): 5 levels, 816 actions; the
+  automatic rules line did not change how the model plays. exp-009 (navigation-first Method + all helpers) is running;
+  a repeat run follows to measure noise; exp-010 (council v2) is queued. Transcripts show the binding constraint: ~35 model
   calls per game, 2.5 inspection-only calls per turn (`docs/postmortems/exp007-inspection-budget-2026-09-16.md`).
   exp-008 (fitter v5, per-turn rules summary, goal hints, probe suggestions) is queued on Kaggle.
 - The REPL agent (Duck-style, persistent sandbox, image + ASCII + helpers, eviction, governor,

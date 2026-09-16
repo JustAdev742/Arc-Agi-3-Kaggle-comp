@@ -168,3 +168,19 @@ Notes:    exp-005 (no rules) > exp-007 (rules v3, 0.839, 5 levels) in single run
           runs share 3 of their solved levels: ar25 L1, sb26 L1, vc33 L1-L2). Both arms halve the control's actions.
           exp-008 (rules v5 + automatic per-turn summary, queued) and exp-009 (HEAD) decide; if the rules summary does
           not beat 1.1, the Method reverts to exp-005's wording with the rules as optional helpers.
+
+## 2026-09-16 · exp-008 · fitter v5 + automatic per-turn rules summary + goal_hints + probe_suggestions · REVERTED as a Method change (helpers kept)
+Why:      exp-007 showed the model calling auto_rules but rarely planning; the harness now fits rules every turn and
+          shows coverage and unexplained items, plus structural goal hints and untested-action suggestions.
+Measured: dev 0.734 (runs/kaggle-repl-dev-008, kernel arc3-eval-dev-c v1, harness 840bd4b, same settings; queued 2 h,
+          ran 09:12-10:19). Levels 5/142: ar25 L1, lp85 L1, ls20 L1 (23 actions), sb26 L1, su15 L1; actions 816; 0 errors.
+          Four arms now: control 0.56 (5 levels), exp-007 0.84 (5), exp-005 1.11 (8), exp-008 0.73 (5). All four solve
+          ar25 L1, lp85 L1, sb26 L1; the rest is 1-3 levels of spread. Transcripts: auto_rules in 12 games, a planner in
+          3, set_model in 4, goal_candidates called in 16 games although it is empty on level 1 (wasted calls); 2.45
+          inspection-only calls per turn (unchanged), mean latency 34 s, 13.8k prompt tokens per call. vc33 took 98
+          actions without a level (exp-005: 2 levels in 31), tn36 128 actions (exp-005: L1 in 17).
+Notes:    the per-turn rules line did not change how the model plays; the rules-first Method wording (exp-007/008) has
+          twice come out below the navigation-first wording (exp-005). exp-009 (running) uses the navigation-first
+          Method with all helpers; its repeat (exp-009b) will measure run-to-run noise before any further keep/revert.
+          Follow-up: make goal_candidates() say "no level completed yet" instead of [] and steer the model away from it
+          on level 1 (done in the prompt for exp-011).
