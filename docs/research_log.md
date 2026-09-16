@@ -231,6 +231,22 @@ Notes:    the 14 'gave_up' failures are a label artefact (exp-009 had 16): the a
           Rules line, goal hints); their marginal information is low by construction. A specialist that adds value
           must see or do something the coordinator does not (the full transition log, a search, an executed probe).
 
+## 2026-09-16 · exp-010b · council with the specialist start ladder (FP8 then NVFP4 Qwen3-VL-8B) on the exp-011 harness · specialists still absent; council REVERTED as an arm until a specialist server runs
+Measured: dev 0.744 (runs/kaggle-council-dev-010b, kernel arc3-eval-dev-council-b v2, harness 33f758e; ran 12:49-14:05 on
+          the RTX; v1 landed on a T4 and was wasted). Levels 5/142: ar25 L1, lp85 L1, sb26 L1, su15 L1, tn36 L1; actions
+          732; 0 model errors. **All four specialist rungs failed in 240 s** (`vllm-specialist.log`): the official FP8
+          build died at load in DeepGEMM ("Assertion error (deepgemm layout.hpp:60): Unknown SF transformation", tuned
+          and conservative alike), the NVFP4 build in flashinfer's cutlass FP4 JIT ("No supported CUDA architectures
+          found for major versions [12]", the run predates the Marlin env). GPU fraction free before the ladder: 0.39, so
+          memory was not the problem. The six roles ran on the coordinator again.
+          Same harness, same day: exp-011 (plain REPL) 1.229 with 9 levels. The shared-model council costs 0.5 of score
+          for the extra 27B calls (coordinator p50 latency 15-69 s vs 12-51 s).
+Notes:    fix for the FP8 rungs: VLLM_USE_DEEP_GEMM=0 (FP8 linear layers take the CUTLASS/Triton path; the 27B
+          coordinator's FP8 checkpoint uses a different scale layout and loads fine). NVFP4 rungs carry
+          VLLM_NVFP4_GEMM_BACKEND=marlin. Both unverified until exp-010c. exp-010c also carries the council prompt fixes
+          (first round after the first action, reports written once). If the specialist server still does not start,
+          the council arm is parked: two runs show it only costs when the roles share the coordinator.
+
 ## 2026-09-16 · exp-011 · verified-navigation fixes from the exp-009 transcripts (walkable floor entities, sprite companions, avatar hand-over, live move model, model retirement, inline events, batched click probes) · KEPT
 Why:      exp-009 transcripts (`scripts/transcript_report.py runs/kaggle-repl-dev-009`): ka59 registered
           set_model(move_model().predict) and then took one action per call for 14 consecutive prediction mismatches;

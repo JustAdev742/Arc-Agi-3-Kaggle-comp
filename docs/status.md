@@ -156,6 +156,9 @@ research log exp-006a.
   stable to about +-0.05, per-game outcomes churn. Keep/revert threshold set (research log). exp-011 pushed 12:15.
 - **exp-011 finished 14:02: dev 1.229, 9 levels** (best so far; exp-005 1.11/8, exp-009 repeats 0.84-0.87/6): the
   transcript-driven harness fixes are KEPT. exp-004 (thinking off) pushed 14:03 as `arc3-eval-dev-g` v2.
+- exp-010b finished 14:05: **dev 0.744, 5 levels, specialists still absent**: the FP8 Qwen3-VL-8B build died in
+  DeepGEMM at load ('Unknown SF transformation'), the NVFP4 build in flashinfer's FP4 JIT (no SM120 kernels). Fix
+  pushed as env vars on the rungs (VLLM_USE_DEEP_GEMM=0 for FP8, Marlin for NVFP4); exp-010c is the retry.
 
 ## Session 2 outcome (2026-09-16, afternoon)
 
