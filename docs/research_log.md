@@ -195,6 +195,17 @@ Notes:    every harness arm beats the control; among them the order is inside si
           notebook pushed again as kernel arc3-eval-dev-e, 11:06) measures that noise. The per-call cost has not moved
           (about 35 calls per game); the ascii() tile-map change and the stagnation/level notices came after this build.
 
+## 2026-09-16 · exp-009b · exp-009 repeated unchanged (run-to-run noise) · MEASURED
+Measured: dev 0.870 (runs/kaggle-repl-dev-009b, kernel arc3-eval-dev-e v2, same notebook and harness 9c22b80 as exp-009,
+          same seed and settings; ran 11:06-12:14). Levels 6/142: ar25 L1, bp35 L1, m0r0 L1, sb26 L1, vc33 L2;
+          actions 794 (exp-009: 987); model calls 636 (exp-009: 684); 0 errors.
+          exp-009 was 0.836 with 6 levels. Levels solved in both runs: ar25, sb26, vc33; only in exp-009: lp85, ls20, su15;
+          only in exp-009b: bp35, m0r0.
+Notes:    the total score moved by 0.03 while the set of solved levels changed on 6 of 9 games: the score is stable
+          to about +-0.05 but per-game outcomes churn. Keep/revert rule from here: a change is a gain only when it
+          beats the best of the two repeats by more than 0.1 AND solves at least as many levels; anything smaller
+          is repeated once before deciding. Per-game claims need the level to be solved in both runs.
+
 ## 2026-09-16 · exp-010 · council arm, six roles on the coordinator model (specialist server failed) · REVERTED as run; council decided by exp-010b
 Why:      the user's six-specialist + coordinator design as an ablation arm; council v2 (event-driven rounds, rich
           observation, async injection) on Qwen3.8-27B-FP8 with Qwen3-VL-8B-NVFP4 as the specialists.
