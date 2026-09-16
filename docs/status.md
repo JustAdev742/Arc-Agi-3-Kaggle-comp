@@ -94,6 +94,13 @@ architectural step therefore has to be measured on dev and val, not assumed.
     because the pushes omitted `--accelerator NvidiaRtxPro6000` (the 27B model cannot load in 15 GB; both attempts OOM,
     fallback to the rules agent, ~10 min each). `scripts/push_eval.py` now always passes the flag and refuses a notebook
     whose metadata does not name the RTX. Re-pushed 12:30 as v2 (exp-010b council-b, exp-011 f); exp-004 (g) follows.
+12. exp-011..016 (`arc3-eval-dev-f` v2-v4, `-g` v2, `-h` v1-v2, `-i` v1-v2, `-j` v1, `-k` v1, `arc3-eval-val-a` v1,
+    `arc3-eval-all-a` v1): about 60-70 min RTX each, 2026-09-16 afternoon and evening; numbers in the research log.
+13. `arc3-eval-all-long-a` v2 (exp-018: all 25 games concurrently, 3 h each) and `arc3-eval-dev-long-a` v1 (exp-017:
+    dev, 1 h per game), pushed 21:28 and 21:46. Both were cut off by the **weekly GPU quota (30 h; used 29 h 34 min at
+    23:10 UTC; resets 2026-09-19 00:00 UTC)**: exp-018 cancelled at 23:13 after 1 h 45 min, exp-017 killed when the
+    quota ran out. No output files; the live logs (Kaggle `GetKernelSessionLogsStream`) gave the partial results in the
+    research log and exposed the image-limit bug (lesson 0012). About 3.5 h RTX between them.
 
 ## Rule library coverage (exp-006a, code-only, 2026-09-16)
 
@@ -109,6 +116,16 @@ research log exp-006a.
   "Queued" when you look, cancel it from the Kaggle UI (Your Work -> arc3-eval-dev -> Cancel run) so two runs can
   proceed in parallel.
 
+- **GPU quota is exhausted for the week** (30 h; resets 2026-09-19 00:00 UTC). Nothing can run on Kaggle until then:
+  exp-019 (memory arm, notebook ready in the scratchpad as `arc3-eval-dev-m`), the exp-018 repeat with the image fix,
+  and the Flash-Next serving check all wait. If the workstation (RTX PRO 6000, CLAUDE.md) is reachable, the same
+  evaluation runs there: `arc3.eval.run_eval('repl', 'dev', time_budget_s=1200, workers=8, config=...)` against a local
+  vLLM started with `arc3.serve.build_vllm_command`; tell me and I will write the exact commands.
+- **Flash-Next dataset:** the streaming upload of all 25 files (132.7 GB) finished 23:22 UTC and Kaggle accepted the
+  create call (status Ok, https://www.kaggle.com/datasets/scottmahony/qwen3-8-flash-next-nvfp4), but 8 minutes later
+  the dataset is not in `datasets list --mine` and its status endpoint returns 403 (still processing, or the create
+  failed after acceptance). I keep re-checking; if it never appears the upload has to be repeated (the streamer
+  resumes from its state file).
 1. Daily submission limit: paste the "Submission limits" lines from the Kaggle **Rules** page (still
    UNCONFIRMED; 5 per day from two secondary sources).
 4. **Qwen3.8-Flash-Next-NVFP4 (requested 2026-09-16 evening):** cannot be staged from this container (132.7 GB, one
@@ -214,6 +231,20 @@ research log exp-006a.
   Run All of `notebooks/submission.ipynb` (REPL agent) on the RTX as the Milestone 2 candidate check.
 - exp-011 transcripts: 587 code cells, 46% without an act() (exp-009: ~55%); 31 tool errors, the three harness-side
   ones fixed in 7de7f95; describe_events() still called in 77 inspection-only cells, hence the events line.
+
+- **Night (22:45-23:30): quota ran out; two findings and one build.** (1) The live log of exp-018 (all 25 games at
+  3 h) showed every call for ft09 and s5i5 failing from 22:51 with vLLM's 400 "At most 16 image(s)" and being retried
+  unchanged (554 and 340 times): a submission-path bug that only the 9-hour operating point reaches. Fixed (max_images
+  cap with image-only eviction, immediate retry on the 400; commit d8e3ce4, lesson 0012). (2) exp-017 (dev, 1 h per
+  game) solved the same levels as the 1200 s runs and nothing beyond level 1 on 12 games seen: time is not the
+  bottleneck, stagnation is. (3) Built the learning memory the owner asked for: `arc3/memory.py` Lessons store
+  (harness-written recipe/hazard/mistake lessons plus `learn()` for the model, shown every turn, carried across
+  levels, shared across the run's games through a locked JSONL), a "What did we learn?" question after each decisive
+  event, and an offline skill library (`scripts/mine_skills.py` -> `arc3/data/skills.json`, 18 cards from 79 winning
+  transcripts, retrieved by level signature, never for the same game) shipped in the notebook tarball. 100 tests pass.
+  Measurement is exp-019 (notebook ready) once the quota resets. (4) Tycho (owner's reference, Apache-2.0; 100 RHAE on
+  the public set with frontier models): read, installed, its tests pass here in host mode; transfer plan in lesson 0013.
+  (5) Flash-Next NVFP4: all 132.7 GB streamed to Kaggle and the dataset create accepted; visibility pending (open items).
 
 ## Session 2 outcome (2026-09-16, afternoon)
 
