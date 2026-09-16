@@ -277,7 +277,8 @@ def test_level_and_stagnation_notices_and_adaptive_effort():
         agent.observe(Action.simple(1), f1, f2)
         agent.frame = f2
         text = agent._observation_text()
-        assert "LEVEL 1 COMPLETED after 2 actions" in text and "goal_candidates()" in text, text[:400]
+        assert "LEVEL 1 COMPLETED after 2 actions" in text and "win condition" in text.lower(), text[:400]
+        assert len(agent.level_archive) == 1
         assert agent.stats()["levels_completed"] == 1
         # three actions that change nothing -> stagnation notice with untested actions, and a raised effort for the turn
         for i in range(3):

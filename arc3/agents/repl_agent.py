@@ -118,6 +118,7 @@ class ReplAgent(Agent):
         self.recent_changes: list[int] = []  # cells changed by each of the last actions
         self.recent_actions: list[str] = []
         self.level_notice = ""  # shown once, at the first turn after a level is completed
+        self.level_archive: list[tuple[list, bool]] = []  # completed levels' symbolic frames (+ simulated final frame)
         self.idle_turns_in_row = 0
         self.tile_map_max_cells = int(c.get("tile_map_max_cells", 1024))  # 32x32 at most in the observation
         self.history_frames = int(c.get("history_frames", 6))
@@ -245,9 +246,12 @@ class ReplAgent(Agent):
             self.st.levels_completed += 1
             n_level = int(before.level_step) + 1
             last = ", ".join(self.recent_actions[-8:])
-            self.level_notice = (f"LEVEL {before.level} COMPLETED after {n_level} actions on it (the last actions were: {last}). "
-                                 f"You are now on level {after.level}: the layout changed, so re-read ents(); goal_candidates() lists "
-                                 "win conditions consistent with the completed levels; keep the key map and rules that worked.")
+            goals = self._archive_level(action)
+            goal_txt = (" Win conditions consistent with every completed level so far: " + "; ".join(goals[:5]) + "."
+                        if goals else " No win condition is consistent with all completed levels yet.")
+            self.level_notice = (f"LEVEL {before.level} COMPLETED after {n_level} actions on it (the last actions were: {last})."
+                                 f"{goal_txt} You are now on level {after.level}: the layout changed, so re-read ents(); "
+                                 "keep the key map and rules that worked.")
             self.recent_changes.clear()
         if res["level_completed"] or self.tracker_level != after.levels_completed:
             self.tracker.reset(after.grid)
@@ -382,6 +386,29 @@ class ReplAgent(Agent):
                 raise ValueError(f"CLICK out of range: ({x},{y}); 0..63")
             return Action.click(x, y)
         return Action(GameAction.from_id(aid))
+
+    def _archive_level(self, final_action: Action) -> list[str]:
+        """Archive the completed level's symbolic frames with a simulated winning frame and return the goal
+        predicates consistent with every completed level (the harness-side twin of the REPL's goal_candidates())."""
+        try:
+            from .. import dsl
+            t = self.tracker
+            frames = t.compound_frames()
+            if not frames:
+                return []
+            aid = int(final_action.action.value)
+            label: Any = ("CLICK", int(final_action.x or 0), int(final_action.y or 0)) if aid == 6 else ACTION_NAMES.get(aid, str(final_action))
+            log = dsl.make_log(frames, t.actions, t.unders, t.bg)
+            rules, _ = dsl.auto_rules(log, ignore_ids=t.hud_ids()) if len(log) >= 2 else ([], None)
+            rules = rules or dsl.fallback_move_rules(t.avatar(), frames[-1])
+            dsl.set_terrain(rules, t.under, t.bg)
+            # with no rule to simulate the winning step, the last observed frame stands in for the final one
+            final = dsl.simulate(frames[-1], label, rules) if rules else frames[-1]
+            self.level_archive.append((list(frames) + [final], True))
+            return [g["goal"] for g in dsl.goal_predicates(self.level_archive)]
+        except Exception as e:  # noqa: BLE001
+            self.log.warning("level archive failed: %s", e)
+            return []
 
     def _stagnant(self) -> bool:
         k = self.stagnation_actions

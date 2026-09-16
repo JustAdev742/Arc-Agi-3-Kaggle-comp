@@ -14,7 +14,8 @@ import re
 from collections import Counter
 from pathlib import Path
 
-HELPERS = ("auto_rules", "plan_rules", "rules_predictor", "goal_candidates", "set_model", "set_models", "verify_model",
+HELPERS = ("auto_rules", "plan_rules", "rules_predictor", "goal_candidates", "goal_hints", "probe_suggestions", "tilemap",
+           "set_model", "set_models", "verify_model",
            "move_model", "plan_to_entity", "plan_to", "ents", "events", "describe_events", "avatar", "act", "click", "note")
 
 
