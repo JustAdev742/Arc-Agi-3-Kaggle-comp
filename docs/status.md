@@ -196,6 +196,9 @@ research log exp-006a.
   dev subset decides whether to bisect. The observation text is unchanged between the two (same length, no 'unknown'
   roles printed), so no mechanism is identified yet. exp-011c (the 756a87e notebook, third sample) pushed 20:36 as
   `arc3-eval-dev-f` v4 to run alongside exp-016 as the paired control.
+- exp-016 (all 25 games, current harness) finished 21:18: **dev 1.041 (6 levels), val 0.0**, all-25 0.791; ft09 L1
+  solved for the first time. exp-018 (the submission's operating point: 25 games concurrently, 3 h each) pushed
+  21:19 as `arc3-eval-all-long-a`; exp-011c still running.
 - 14:09: exp-010c (`arc3-eval-dev-council-c` v1, harness 7de7f95) running; exp-004 v2 queued. Queue after them, in
   order: exp-011b (the exp-011 notebook unchanged, per the noise rule), exp-012 (harness 7de7f95: events line in every
   tool output, single results iterate, ascii(region) degrades to tiles, role always present), then a private Save &

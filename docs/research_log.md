@@ -310,6 +310,18 @@ Decision: submission config = exp-011's (low effort, raised to medium on stagnat
           slot is spare: raise to medium earlier (stagnation_actions 3 instead of 6) to buy medium's extra levels
           without paying its action cost everywhere (exp-015).
 
+## 2026-09-16 · exp-016 · base config (adaptive low effort, events line off, harness ec12191) on ALL 25 public games · dev third sample, val second sample
+Measured: all-25 0.791; **dev 1.041, val 0.000** (runs/kaggle-repl-all-016, kernel arc3-eval-all-a v1; 8 workers, 1200 s each;
+          ran 19:50-21:18). Levels 7/183: ar25 L1, ft09 L1, lp85 L1, sb26 L2, su15 L1, tn36 L1; actions 1277; 0 model errors. ft09 L1 solved for the
+          first time (54 actions); sp80 L1 (solved in exp-011v) missed, so val is 0 of 41 this time.
+          Dev samples on the post-exp-011 harness at low effort now read 6 (exp-012), 6 (012b), 4 (015, different config)
+          and 6 levels here with 1.04, against 9 and 9 (1.23, 1.37) on 756a87e. exp-011c (756a87e, running) is the
+          third sample of the pair; if it lands at 8-9 levels the harness commits after 756a87e get bisected
+          (candidates: single-result iteration, region degrade, role key, cell events in the sandbox message).
+Notes:    val across two runs: 0.79 and 0.0 (one level or none): the held-out games are hard for this agent and the
+          number is noise-dominated at n=6; the dev/val gap stands. exp-018 (all 25 games concurrently, 3 h each,
+          the submission's operating point) pushed 21:19 as arc3-eval-all-long-a.
+
 ## 2026-09-16 · exp-015 · adaptive effort with the raise to medium after 3 stagnant actions (instead of 6), harness ec12191 · REVERTED
 Measured: dev 0.421 (runs/kaggle-repl-dev-015, kernel arc3-eval-dev-k v1; ran 19:24-20:32). Levels 4/142: lp85 L1, s5i5 L1, sb26 L1, su15 L1;
           actions 933; 0 model errors. Lowest of the day for the REPL agent: ar25 L1 and vc33 L1, solved in every
