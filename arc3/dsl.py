@@ -147,6 +147,7 @@ class Transition:
     after: Frame
     under: Optional[np.ndarray] = field(default=None, repr=False)  # static layer at 'before' (terrain colour per cell)
     bg: Optional[int] = None
+    t: int = 0  # index in the level's log (periodic counters need it)
     _b: dict[int, Ent] = field(default_factory=dict, repr=False)
     _a: dict[int, Ent] = field(default_factory=dict, repr=False)
 
@@ -174,7 +175,7 @@ def make_log(frames: list[Frame], actions: list[Any], unders: Optional[list[Opti
     """Transitions from aligned frames/actions (frames[i] --actions[i]--> frames[i+1]); ``unders[i]`` is the
     static layer at frame i (cell-level terrain, used for walkable/blocking colours)."""
     n = min(len(actions), len(frames) - 1)
-    return [Transition(frames[i], actions[i], frames[i + 1], unders[i] if unders and i < len(unders) else None, bg)
+    return [Transition(frames[i], actions[i], frames[i + 1], unders[i] if unders and i < len(unders) else None, bg, i)
             for i in range(n)]
 
 
@@ -702,32 +703,36 @@ def fit_onclick(log: list[Transition], max_rules: int = 6) -> list[tuple[OnClick
 
 
 class CounterRule(Rule):
-    """A HUD-like entity of ``cls`` shrinks by ``per`` cells on every action (or every key action)."""
+    """A HUD-like entity of ``cls`` changes size by ``per`` cells (positive = shrinks) on every action, or every
+    ``period``-th action (phase = which one); ``keys_only`` restricts it to key actions."""
     kind = "counter"
 
-    def __init__(self, cls: Cls, per: int, keys_only: bool = False):
-        self.cls, self.per, self.keys_only = cls, int(per), keys_only
+    def __init__(self, cls: Cls, per: int, keys_only: bool = False, period: int = 1, phase: int = 0):
+        self.cls, self.per, self.keys_only, self.period, self.phase = cls, int(per), keys_only, int(period), int(phase)
 
-    def _active(self, action: Any) -> bool:
-        return not self.keys_only or action_kind(action) in KEYS
+    def _active(self, action: Any, t: Optional[int] = None) -> bool:
+        if self.keys_only and action_kind(action) not in KEYS:
+            return False
+        return t is None or self.period <= 1 or (t % self.period) == self.phase
 
     def claims(self, tr: Transition) -> dict[int, Claim]:
         out = {}
         for e in self.cls.select(tr.before):
-            if self._active(tr.action) and e.size > self.per:
+            if self._active(tr.action, tr.t) and e.size > self.per:
                 out[e.id] = Claim(resized=(e.size, e.size - self.per))
             else:
                 out[e.id] = Claim(resized=None)
         return out
 
     def apply(self, before: Frame, action: Any, frame: Frame) -> Frame:
-        if not self._active(action):
-            return frame
+        if not self._active(action) or self.period > 1:
+            return frame  # a periodic counter cannot be simulated without the step index; HUD cells are ignored anyway
         return tuple(Ent(e.id, e.color, e.x0, e.y0, e.w, e.h, e.size - self.per, e.shape) if self.cls.matches(e) and e.size > self.per else e
                      for e in frame)
 
     def describe(self) -> str:
-        return f"counter[{self.cls}] {-self.per:+d} cells per {'key' if self.keys_only else 'action'}"
+        every = f"every {self.period} actions" if self.period > 1 else ("key" if self.keys_only else "action")
+        return f"counter[{self.cls}] {-self.per:+d} cells per {every}"
 
 
 # ---------------------------------------------------------------------------------------------- verification
@@ -895,7 +900,18 @@ def fit_move(log: list[Transition], max_rules: int = 6, allow_contradictions: bo
     out: list[tuple[Move, Score]] = []
     moved_ents = [e for tr in log if action_kind(tr.action) in KEYS for e in tr.before
                   if (o := tr.obs(e.id)) and not o.gone and o.moved != (0, 0)]
-    for cls in _classes_of(moved_ents):
+    classes = _classes_of(moved_ents)
+    # entities whose colour/shape class does not get a consistent rule (e.g. a mirrored twin of the same colour)
+    # fall back to per-id classes: exact within the level, not transferable
+    ids = []
+    for e in moved_ents:
+        if e.id not in ids:
+            ids.append(e.id)
+    classes += [Cls(ids=frozenset({i})) for i in ids[:8]]
+    covered: set[int] = set()
+    for cls in classes:
+        if cls.ids is not None and (allow_contradictions or next(iter(cls.ids)) in covered):
+            continue
         deltas = _key_deltas(log, cls)
         if not deltas:
             continue
@@ -947,6 +963,10 @@ def fit_move(log: list[Transition], max_rules: int = 6, allow_contradictions: bo
                     best = (rule, s, key)  # type: ignore[assignment]
         if best is not None:
             out.append((best[0], best[1]))
+            if best[1].ok():
+                for e in moved_ents:
+                    if cls.matches(e):
+                        covered.add(e.id)
     out.sort(key=lambda rs: -rs[1].support)
     return out[:max_rules]
 
@@ -1113,11 +1133,19 @@ def fit_counter(log: list[Transition], max_rules: int = 3) -> list[tuple[Counter
         per, n = c.most_common(1)[0]
         if n < 2:
             continue
+        found = False
         for keys_only in (False, True):
-            rule = CounterRule(Cls(color=key[0]), per, keys_only)
-            s = score_rule(rule, log)
-            if s.ok() and s.support > 0:
-                out.append((rule, s))
+            for period in (1, 2, 3, 4):
+                for phase in range(period):
+                    rule = CounterRule(Cls(color=key[0]), per, keys_only, period, phase)
+                    s = score_rule(rule, log)
+                    if s.ok() and s.support > 0:
+                        out.append((rule, s))
+                        found = True
+                        break
+                if found:
+                    break
+            if found:
                 break
     return out[:max_rules]
 

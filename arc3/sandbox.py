@@ -283,7 +283,7 @@ def verify_model(predict=None, last_n=None):
             out["counter_examples"].append({"index": i, "action": action, "error": f"{type(e).__name__}: {e}"[:160]})
             continue
         out["checked"] += 1
-        wrong = pred != after
+        wrong = (pred != after) & ~_hud_mask(after.shape)
         n = int(wrong.sum())
         if n == 0:
             out["correct"] += 1
@@ -354,6 +354,16 @@ def _action_label(a):
         return ("CLICK", a.get("x"), a.get("y"))
     return a.get("action")
 
+def _hud_mask(shape):
+    """Cells of HUD strips (edge bars that count actions): left out of prediction checks."""
+    m = np.zeros(shape, dtype=bool)
+    t = TRK["t"]
+    for eid in t.hud_ids():
+        e = t.get(eid)
+        if e is not None:
+            m[e.y0:e.y1 + 1, e.x0:e.x1 + 1] = True
+    return m
+
 def _check_prediction(before, action, after):
     fn = WM["predict"]
     if fn is None:
@@ -363,7 +373,8 @@ def _check_prediction(before, action, after):
         pred = _to_grid(pred)
         if pred.shape != after.shape:
             raise ValueError(f"predicted shape {pred.shape} != {after.shape}")
-        wrong = int((pred != after).sum())
+        diff = (pred != after) & ~_hud_mask(after.shape)  # HUD bars are not part of the mechanics being modelled
+        wrong = int(diff.sum())
     except Exception as e:  # noqa: BLE001
         WM["errors"] += 1
         return {"pred_ok": False, "pred_error": f"{type(e).__name__}: {e}"[:200]}
@@ -371,7 +382,7 @@ def _check_prediction(before, action, after):
     if wrong == 0:
         WM["matched"] += 1
         return {"pred_ok": True, "pred_wrong_cells": 0}
-    ys, xs = np.nonzero(pred != after)
+    ys, xs = np.nonzero(diff)
     d = {"pred_ok": False, "pred_wrong_cells": wrong,
          "pred_bbox": [int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())],
          "pred_sample": [[int(x), int(y), int(pred[y, x]), int(after[y, x])] for y, x in list(zip(ys, xs))[:5]]}

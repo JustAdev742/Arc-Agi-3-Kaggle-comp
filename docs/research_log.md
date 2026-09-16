@@ -104,9 +104,11 @@ Measured: scripts/rule_coverage.py, fixed blind probe (60 actions on level 1: ke
           centres), fraction of observed entity events explained by the fitted rule set (HUD excluded):
             first version           mean 0.103 over 25 (runs/rule-coverage/probe_all.log, commit 032cf88)
             + occlusion, cells, requires, compound sprites, onclick:
-                                    mean 0.230 over 25; dev 0.279, val 0.074 (runs/rule-coverage/summary.json, probe_all_v2.log)
-            per game >= 0.5: ar25 1.00, re86 0.89, dc22 0.70, ka59 0.51, ls20 0.50, sb26 0.50
-            0.0: lp85, m0r0, s5i5, sp80, tr87, vc33 (click games the blind probe barely moves, and 'resized' counters)
+                                    mean 0.230 over 25; dev 0.279, val 0.074 (probe_all_v2.log, commit 38f0da8)
+            + periodic counters, per-id move classes, HUD-masked prediction checks, split/merge artefacts:
+                                    mean 0.283 over 25 (runs/rule-coverage/summary.json, probe_all_v5.log)
+            per game >= 0.5: ar25 1.00, m0r0 1.00, re86 0.89, ls20 0.71, dc22 0.70, sb26 0.50, ka59 0.48
+            0.0: lp85, s5i5, tr87, vc33, ft09 (click games the blind probe barely moves, and 'resized' counters)
           CPU only: play + fit under 4 s per game. No GPU run yet: exp-005 (tracker + planner) is still queued on Kaggle.
 Notes:    this is a lower bound (blind probe, one level) and not a score. It is the exp-006 gate metric: the fraction of
           observed mechanics the library can express. Remaining unexplained kinds: 'resized' (bars/counters that change by

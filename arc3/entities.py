@@ -43,8 +43,8 @@ class Entity:
     def center(self) -> tuple[int, int]:
         return (self.x0 + self.x1) // 2, (self.y0 + self.y1) // 2
 
-    def touches_edge(self, n: int = 64) -> bool:
-        return self.x0 == 0 or self.y0 == 0 or self.x1 == n - 1 or self.y1 == n - 1
+    def touches_edge(self, n: int = 64, margin: int = 0) -> bool:
+        return self.x0 <= margin or self.y0 <= margin or self.x1 >= n - 1 - margin or self.y1 >= n - 1 - margin
 
     def summary(self, tile: int = 1, role: Optional[str] = None) -> dict[str, Any]:
         d = {"id": self.id, "color": self.color, "x": self.x0, "y": self.y0, "w": self.w, "h": self.h, "size": self.size}
@@ -103,6 +103,7 @@ class Tracker:
         self.actions: list[Any] = []  # actions[i] took frames[i] to frames[i+1]
         self.shapes: dict[str, np.ndarray] = {}  # shape hash -> mask, for rendering predicted frames
         self.under: Optional[np.ndarray] = None  # static layer: last seen colour of each cell when no mover covered it
+        self.prev_grid: Optional[np.ndarray] = None
         self.unders: list[np.ndarray] = []  # static layer snapshot per frame (aligned with frames)
         self.occluded_events = 0  # changes attributed to occlusion by movers and therefore not reported
 
@@ -115,6 +116,7 @@ class Tracker:
         for e in self.current:
             self.pos_hist[e.id].append((e.x0, e.y0))
         self.under = np.asarray(grid).copy()
+        self.prev_grid = np.asarray(grid).copy()
         self._snapshot()
         return self.current
 
@@ -210,15 +212,18 @@ class Tracker:
         shape = tuple(int(v) for v in np.asarray(grid).shape)
         moved_ids = {eid for eid, _, _ in moved}
         cover = self._mover_cells(prev, shape, moved_ids) | self._mover_cells(new, shape, moved_ids)
+        g_now = np.asarray(grid)
+        changed = (self.prev_grid != g_now) if self.prev_grid is not None and self.prev_grid.shape == g_now.shape else np.ones(shape, dtype=bool)
+        real = changed & ~cover  # cells whose colour changed for a reason other than a mover covering/uncovering them
         if cover.any():
             keep_reshaped = []
             for eid, s0, s1 in reshaped:
                 a = next(p for p in prev if p.id == eid)
                 b = next(n for n in new if n.id == eid)
                 d = self._cells(a, shape) ^ self._cells(b, shape)
-                if (d & ~cover).any():
+                if (d & real).any():
                     keep_reshaped.append((eid, s0, s1))
-                else:
+                else:  # covered/uncovered, or split/merged by a mover without any real colour change
                     self.occluded_events += 1
             reshaped = keep_reshaped
             keep_moved = []
@@ -226,7 +231,7 @@ class Tracker:
                 a = next(p for p in prev if p.id == eid)
                 b = next(n for n in new if n.id == eid)
                 d = self._cells(a, shape) ^ self._cells(b, shape)
-                if self.moves.get(eid) or (d & ~cover).any() or not d.any():
+                if self.moves.get(eid) or (d & real).any() or not d.any():  # a mover's own move is never an artefact
                     keep_moved.append((eid, dx, dy))
                 else:  # a terrain piece whose bbox shifted because a mover uncovered or covered its edge
                     self.occluded_events += 1
@@ -237,19 +242,20 @@ class Tracker:
             keep_appeared = []
             for eid in appeared:
                 b = next(n for n in new if n.id == eid)
-                if (self._cells(b, shape) & ~cover).any() and not (self._cells(b, shape) & self._mover_cells(prev, shape, moved_ids)).all():
+                if (self._cells(b, shape) & real).any():
                     keep_appeared.append(eid)
                 else:
-                    self.occluded_events += 1  # uncovered terrain
+                    self.occluded_events += 1  # uncovered terrain or a piece split off by a mover
             appeared = keep_appeared
             keep_gone = []
             for eid in disappeared:
                 a = next(p for p in prev if p.id == eid)
-                if (self._cells(a, shape) & ~cover).any():
+                if (self._cells(a, shape) & real).any():
                     keep_gone.append(eid)
                 else:
-                    self.occluded_events += 1  # covered terrain
+                    self.occluded_events += 1  # covered terrain or a piece merged by a mover leaving
             disappeared = keep_gone
+        self.prev_grid = g_now.copy()
         for eid, *_ in moved + recolored + reshaped:
             self.changed_ids[eid] += 1
         for eid in appeared + disappeared:
@@ -294,7 +300,7 @@ class Tracker:
         """Edge-hugging strips that were reshaped or recoloured in at least two transitions."""
         out = []
         for e in self.current:
-            if not (e.touches_edge() and (e.w >= 20 or e.h >= 20) and self.changed_ids[e.id] >= 2):
+            if not (e.touches_edge(margin=2) and (e.w >= 16 or e.h >= 16) and self.changed_ids[e.id] >= 2):
                 continue
             hist = self.pos_hist.get(e.id, [])
             # a bar may shift along its own axis as it shrinks from one end; it never moves across it
@@ -411,9 +417,23 @@ class Tracker:
         return Ent(head.id, big.color, x0, y0, x1 - x0 + 1, y1 - y0 + 1, int(union.sum()), shape)
 
     def entities_summary(self, limit: int = 40) -> list[dict[str, Any]]:
+        """Compound view (multi-part sprites merged) with roles; static entities last, largest first."""
         roles = self.roles()
-        ents = sorted(self.current, key=lambda e: (roles.get(e.id) == "static", -e.size))
-        return [e.summary(self.tile, roles.get(e.id)) for e in ents[:limit]]
+        frame = self.compound_frames()[-1] if self.frames else tuple(ent_from_tracker(e) for e in self.current)
+        raw = {e.id: e for e in self.current}
+        ents = sorted(frame, key=lambda e: (roles.get(e.id) == "static", -e.size))
+        out = []
+        for e in ents[:limit]:
+            d = {"id": e.id, "color": e.color, "x": e.x0, "y": e.y0, "w": e.w, "h": e.h, "size": e.size}
+            if self.tile > 1:
+                d["tile"] = (e.x0 // self.tile, e.y0 // self.tile)
+            r = roles.get(e.id)
+            if r:
+                d["role"] = r
+            if e.id in raw and raw[e.id].size != e.size:
+                d["parts"] = True  # merged multi-part sprite
+            out.append(d)
+        return out
 
     @staticmethod
     def describe(rec: dict[str, Any], tracker: Optional["Tracker"] = None, max_items: int = 6) -> str:
