@@ -1433,8 +1433,9 @@ def optimistic(rules: list[Rule]) -> list[Rule]:
     out: list[Rule] = []
     for r in rules:
         mv = r.move if isinstance(r, Push) else r
-        if isinstance(mv, Move) and (mv.walkable is not None or mv.blocked_origins or mv.blocked_by == "any"):
-            relaxed = Move(mv.cls, mv.keymap, None, None, mv.requires, mv.slide)
+        if isinstance(mv, Move) and (mv.walkable is not None or mv.blocked_by == "any"):
+            # colours are relaxed; bump positions stay (a failed move is hard evidence)
+            relaxed = Move(mv.cls, mv.keymap, None, None, mv.requires, mv.slide, mv.blocked_origins)
             relaxed.under, relaxed.bg = mv.under, mv.bg
             out.append(Push(relaxed, r.pushable, r.blocked_by) if isinstance(r, Push) else relaxed)
         else:

@@ -62,6 +62,7 @@ class RulesAgent(Agent):
         self.plan_rules: list[dsl.Rule] = []  # the rules the current plan was made with (exact or optimistic)
         self.archive: list[tuple[list[dsl.Frame], bool]] = []  # (frames incl. simulated final, won)
         self.tried_goals: set[str] = set()
+        self.failed_steps: dict[tuple, int] = {}
         self.clicked_classes: set[tuple] = set()
         self.pending: Optional[Any] = None
         self.stats_ = {"plans": 0, "plan_actions": 0, "mismatches": 0, "probes": 0, "random": 0, "levels_won": 0, "goals_tried": 0}
@@ -75,6 +76,7 @@ class RulesAgent(Agent):
         self.plan.clear()
         self.plan_goal = None
         self.tried_goals.clear()
+        self.failed_steps.clear()
         self.clicked_classes.clear()
         self.probes = deque(self._initial_probes(frame))
 
@@ -271,7 +273,10 @@ class RulesAgent(Agent):
                 if p_by != g_by:
                     self.stats_["mismatches"] += 1
                     self.plan.clear()  # refit and replan on the next act(): the mismatch is new evidence
-                    self.tried_goals.clear()
+                    sig = (self.plan_goal, label, dsl.frame_key(before_frame))
+                    self.failed_steps[sig] = self.failed_steps.get(sig, 0) + 1
+                    banned = {g for (g, _, _), n in self.failed_steps.items() if n >= 2 and g}
+                    self.tried_goals = set(banned)  # a goal whose plan failed twice at the same step stays banned
             except Exception:  # noqa: BLE001
                 self.plan.clear()
 
