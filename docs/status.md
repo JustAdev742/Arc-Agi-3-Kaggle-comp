@@ -162,6 +162,8 @@ research log exp-006a.
 - exp-010c finished 15:23: **specialist server started (FP8, DeepGEMM off; the council bug is fixed) and the council
   scored dev 0.498, 5 levels** vs exp-011's 1.229/9 on the same harness. Third loss in three council runs:
   the arm is parked (code kept), see research log. exp-011b (noise repeat) pushed 15:25 as `arc3-eval-dev-f` v3.
+- exp-004 (thinking off) finished 15:44: **dev 0.324, 6 levels, 3837 actions**: cheap calls made the model spray
+  actions (lp85 819, wa30 786); REVERTED, low-effort thinking stays. exp-012 pushed 15:45 as `arc3-eval-dev-h` v1.
 - 14:09: exp-010c (`arc3-eval-dev-council-c` v1, harness 7de7f95) running; exp-004 v2 queued. Queue after them, in
   order: exp-011b (the exp-011 notebook unchanged, per the noise rule), exp-012 (harness 7de7f95: events line in every
   tool output, single results iterate, ascii(region) degrades to tiles, role always present), then a private Save &

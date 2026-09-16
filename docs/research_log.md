@@ -265,6 +265,17 @@ Notes:    three council runs, three losses (0.28 shared model on the exp-009 har
           A specialist that could still pay: one that does something the coordinator cannot, e.g. a search over the
           fitted rules or an executed probe on a copy of the game, measured as a helper call, not a prose report.
 
+## 2026-09-16 · exp-004 · thinking off (enable_thinking false, max_output 2048, fixed effort policy) on the exp-011 harness · REVERTED
+Why:      the per-call cost is the binding constraint (lesson 0009); a call without thinking is 3-5x faster, so the
+          question was whether more, cheaper calls beat fewer, considered ones.
+Measured: dev 0.324 (runs/kaggle-repl-dev-004, kernel arc3-eval-dev-g v2, harness 756a87e = exp-011's; ran 14:36-15:44).
+          Levels 6/142: ar25 L1, bp35 L1, lp85 L1, m0r0 L1, s5i5 L1, sb26 L1; actions 3837; model calls 2475 (exp-011: 1180 actions, 9 levels);
+          p50 latency 3.6-16 s per call (exp-011: 12-51 s). The model acted far more and far worse: lp85 took 819 actions for
+          its level (exp-011: 45), wa30 786 without one; the levels it did solve scored 0.04-1.66 each because RHAE is
+          the square of the action ratio. Same harness: exp-011 1.229 with 9 levels.
+Notes:    low-effort thinking stays; it is what keeps the model from spraying actions. The remaining knob worth a run is
+          the other direction (medium effort on every call, fewer calls) once the noise repeat of exp-011 is in.
+
 ## 2026-09-16 · exp-011 · verified-navigation fixes from the exp-009 transcripts (walkable floor entities, sprite companions, avatar hand-over, live move model, model retirement, inline events, batched click probes) · KEPT
 Why:      exp-009 transcripts (`scripts/transcript_report.py runs/kaggle-repl-dev-009`): ka59 registered
           set_model(move_model().predict) and then took one action per call for 14 consecutive prediction mismatches;
