@@ -104,6 +104,10 @@ class Tracker:
         self.shapes: dict[str, np.ndarray] = {}  # shape hash -> mask, for rendering predicted frames
         self.under: Optional[np.ndarray] = None  # static layer: last seen colour of each cell when no mover covered it
         self.prev_grid: Optional[np.ndarray] = None
+        self._canon: dict[int, Ent] = {}  # last symbolic state of each entity that was not an occlusion artefact
+        self._art_gone: set[int] = set()  # entities currently hidden under a mover (kept in the symbolic frame)
+        self._art_appeared: set[int] = set()  # pieces split off by a mover (left out of the symbolic frame)
+        self._art_changed: set[int] = set()  # entities whose current raw box/size is an occlusion artefact
         self.unders: list[np.ndarray] = []  # static layer snapshot per frame (aligned with frames)
         self.occluded_events = 0  # changes attributed to occlusion by movers and therefore not reported
 
@@ -121,7 +125,20 @@ class Tracker:
         return self.current
 
     def _snapshot(self) -> None:
-        self.frames.append(tuple(ent_from_tracker(e) for e in self.current))
+        frame = []
+        for e in self.current:
+            if e.id in self._art_appeared:
+                continue
+            if e.id in self._art_changed and e.id in self._canon:
+                frame.append(self._canon[e.id])
+                continue
+            se = ent_from_tracker(e)
+            self._canon[e.id] = se
+            frame.append(se)
+        for eid in self._art_gone:
+            if eid in self._canon:
+                frame.append(self._canon[eid])
+        self.frames.append(tuple(frame))
         self.unders.append(self.under.copy() if self.under is not None else None)
         for e in self.current:
             if e.shape_hash not in self.shapes:
@@ -215,16 +232,20 @@ class Tracker:
         g_now = np.asarray(grid)
         changed = (self.prev_grid != g_now) if self.prev_grid is not None and self.prev_grid.shape == g_now.shape else np.ones(shape, dtype=bool)
         real = changed & ~cover  # cells whose colour changed for a reason other than a mover covering/uncovering them
+        self._art_changed = set()
+        art_gone_now: set[int] = set()
+        art_appeared_now: set[int] = set()
         if cover.any():
             keep_reshaped = []
             for eid, s0, s1 in reshaped:
                 a = next(p for p in prev if p.id == eid)
                 b = next(n for n in new if n.id == eid)
                 d = self._cells(a, shape) ^ self._cells(b, shape)
-                if (d & real).any():
+                if self.moves.get(eid) or (d & real).any():  # a mover merging with a neighbour is not terrain occlusion
                     keep_reshaped.append((eid, s0, s1))
                 else:  # covered/uncovered, or split/merged by a mover without any real colour change
                     self.occluded_events += 1
+                    self._art_changed.add(eid)
             reshaped = keep_reshaped
             keep_moved = []
             for eid, dx, dy in moved:
@@ -235,6 +256,7 @@ class Tracker:
                     keep_moved.append((eid, dx, dy))
                 else:  # a terrain piece whose bbox shifted because a mover uncovered or covered its edge
                     self.occluded_events += 1
+                    self._art_changed.add(eid)
                     self.moves[eid].pop()
                     if not self.moves[eid]:
                         del self.moves[eid]
@@ -246,16 +268,21 @@ class Tracker:
                     keep_appeared.append(eid)
                 else:
                     self.occluded_events += 1  # uncovered terrain or a piece split off by a mover
+                    art_appeared_now.add(eid)
             appeared = keep_appeared
             keep_gone = []
             for eid in disappeared:
                 a = next(p for p in prev if p.id == eid)
-                if (self._cells(a, shape) & real).any():
+                if self.moves.get(eid) or (self._cells(a, shape) & real).any():
                     keep_gone.append(eid)
                 else:
                     self.occluded_events += 1  # covered terrain or a piece merged by a mover leaving
+                    art_gone_now.add(eid)
             disappeared = keep_gone
         self.prev_grid = g_now.copy()
+        # hidden entities stay hidden until they are matched again; split pieces stay out while they exist
+        self._art_gone = {eid for eid in (self._art_gone | art_gone_now) if eid not in {n.id for n in new}}
+        self._art_appeared = {eid for eid in (self._art_appeared | art_appeared_now) if eid in {n.id for n in new}}
         for eid, *_ in moved + recolored + reshaped:
             self.changed_ids[eid] += 1
         for eid in appeared + disappeared:
