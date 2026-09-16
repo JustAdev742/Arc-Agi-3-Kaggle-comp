@@ -68,3 +68,40 @@ def test_skill_matching_prefers_signature_agreement(tmp_path):
     p.write_text(json.dumps({"skills": skills}))
     assert len(load_skills(str(p))) == 3
     assert load_skills(str(tmp_path / "missing.json")) == []
+
+
+def test_mine_skills_extracts_a_card_per_completed_level(tmp_path):
+    import sys
+    sys.path.insert(0, "scripts")
+    from mine_skills import build_library, mine_transcript
+
+    run = tmp_path / "runs" / "r1"
+    run.mkdir(parents=True)
+    obs1 = ("Level 1/3 | step 0 | this level: 0 actions | time left 19m | legal: UP, DOWN, LEFT, RIGHT | state NOT_FINISHED\n\n"
+            "Entities (persistent ids; tile 4; roles from evidence): #1 c3 @(0,0) 64x1 [hud]; #2 c5 @(8,8) 4x4; #3 c9 @(40,40) 4x4\n\n"
+            "Avatar: #2 moves with keys {'UP': (0, -4), 'RIGHT': (4, 0)}")
+    obs2 = ("Level 2/3 | step 9 | this level: 0 actions | time left 15m | legal: UP, DOWN, LEFT, RIGHT | state NOT_FINISHED\n\n"
+            "LEVEL 1 COMPLETED after 9 actions on it (the last actions were: RIGHT, RIGHT, UP). Win conditions consistent: touch #2 #3.")
+    recs = [
+        {"kind": "meta", "game": "zz99", "stats": {"levels_completed": 1}, "notes": []},
+        {"kind": "observation", "turn": 1, "text": obs1},
+        {"kind": "assistant", "turn": 1, "code": ["# goal: unknown | learned: nothing yet | now: probe keys\nact('UP','DOWN','LEFT','RIGHT')"]},
+        {"kind": "tool", "turn": 1, "level": 1, "actions": 4, "output": "..."},
+        {"kind": "assistant", "turn": 1, "code": ["# goal: walk #2 onto #3 | learned: RIGHT moves 4px | now: plan\nact(plan_to_entity(3))"]},
+        {"kind": "tool", "turn": 1, "level": 2, "actions": 5, "output": "..."},
+        {"kind": "observation", "turn": 2, "text": obs2},
+    ]
+    (run / "zz99.transcript.jsonl").write_text("\n".join(json.dumps(r) for r in recs) + "\n")
+    acts = [{"step": i + 1, "action": a, "x": None, "y": None, "levels": 0} for i, a in
+            enumerate(["ACTION1", "ACTION2", "ACTION3", "ACTION4", "ACTION4", "ACTION4", "ACTION4", "ACTION4", "ACTION1"])]
+    (run / "zz99.jsonl").write_text("\n".join(json.dumps(a) for a in acts) + "\n")
+    cards = mine_transcript(run / "zz99.transcript.jsonl")
+    assert len(cards) == 1
+    c = cards[0]
+    assert c["game"] == "zz99" and c["level"] == 1 and c["actions"] == 9
+    assert c["goal"] == "walk #2 onto #3" and c["learned"] == "RIGHT moves 4px"
+    assert c["sequence"] == "UP, DOWN, LEFT, RIGHTx5, UP"
+    assert c["signature"] == {"avatar": True, "click_only": False, "keys": ["RIGHT", "UP"], "many_entities": False, "tile": 4, "hud": True}
+    lib = build_library(tmp_path / "runs")
+    assert len(lib["skills"]) == 1 and lib["skills"][0]["wins"] == 1
+    assert lib["skills"][0]["strategy"].startswith("avatar with keys RIGHT/UP: goal 'walk #2 onto #3'; solved in 9 actions (UP, DOWN, LEFT, RIGHTx5, UP)")

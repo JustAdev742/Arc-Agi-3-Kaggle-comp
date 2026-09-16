@@ -447,3 +447,58 @@ Measured: **dev 1.229** (runs/kaggle-repl-dev-011, kernel arc3-eval-dev-f v2, ha
           ~ exp-009b 0.87 (6) < exp-005 1.11 (8) < exp-011 1.23 (9). Median latency per call fell on most games (12-27 s
           against 18-63 s in exp-009b) and calls per game rose to 27-56.
 Kept:     yes. Follow-up: a repeat (exp-011b) when a slot is free, per the noise rule.
+
+## 2026-09-16 · exp-018 · all 25 games concurrently, 3 h per game (submission operating point, lesson 0011) · KILLED (quota); found and fixed the image-limit bug
+Why:      the submission plays every hidden game in parallel for ~9 h, about 6x the calls of a 1200 s dev run (lesson 0011);
+          no run had been watched at that horizon.
+Setup:    kernel arc3-eval-all-long-a v2 (v1 died on a SyntaxError from an apostrophe in the run note; fixed with
+          note={a.note!r} + a compile test), 25 workers, time_budget_s 10800, watchdog 215 min, harness af19f73,
+          same model/serving as exp-011; started 21:28, vLLM ready after 449 s.
+Measured: cancelled at 23:13 (1 h 45 min in; the weekly GPU quota was down to 26 min with two sessions running) before
+          any game finished, so no score. Live log (Kaggle GetKernelSessionLogsStream, saved in the scratchpad):
+          from 22:51 every model call for ft09 and then s5i5 failed with vLLM 400 "At most 16 image(s) may be provided
+          in one prompt" and was retried unchanged (554 and 340 failures). Cause and fix in docs/lessons/0012: the
+          eviction only counted tokens, terse turns let 17+ board images accumulate, and a 400 is not a dead server.
+          Fix (commit d8e3ce4): max_images=12 with image-only eviction of old observations, and an image-limit 400
+          halves the cap and retries at once. Tests: test_image_cap_keeps_prompt_under_the_server_limit,
+          test_image_limit_error_strips_images_and_retries_without_counting_an_error.
+Kept:     the fix, yes (submission-path bug: at 9 h per game every game would have died this way). The measurement
+          itself must be repeated after the quota resets (2026-09-19 00:00 UTC), with the fix in.
+
+## 2026-09-16 · exp-017 · dev split at 3600 s per game, 8 workers (long-horizon check) · PARTIAL (killed by quota)
+Why:      does triple the per-game time buy levels, or does the agent stagnate? (Decides how much the 9 h operating point
+          is worth versus a better harness.)
+Setup:    kernel arc3-eval-dev-long-a v1, harness af19f73, exp-011 settings except time_budget_s 3600; started 21:44.
+Measured: first batch of 8 games, all used the full hour: lp85 L1 (300 actions), ar25 L1 (116), dc22 0 (206 actions),
+          ka59 0 (93), ft09 0 (52), cd82 0 (235), bp35 0 (321), ls20 0 (126): 2 levels. In the 1200 s runs the same
+          eight games gave 1-2 levels (exp-011: ar25 L1, lp85 L1; exp-011b: ar25 L2, lp85 L1). Second batch (live log
+          until the quota kill): s5i5 L1 at action 19 (541 s), tn36 L1 at action 69 (583 s), the rest unknown.
+          Score is not computable (no summary.json). Run files: none pulled (the kernel is killed by the quota).
+Notes:    the extra 40 minutes per game bought nothing on the first eight games: they stagnate rather than run out of
+          time. Time is not the bottleneck at the current harness; what the agent does with more turns is. This is the
+          case for the memory arm (exp-019) and against spending effort on throughput first.
+
+## 2026-09-16 · exp-019 · learning memory: harness-written and model-written lessons shown every turn, shared across the run's games, offline skill library · PLANNED (needs GPU quota, resets 2026-09-19 00:00 UTC)
+Why:      exp-017 shows the agent stagnating with time to spare; exp-009/011 transcripts show the same mistakes repeated
+          within a game (ka59: 14 mismatches of one stale model; dc22: 48 blocked moves) and across levels (re-probing a
+          key map already known). Reflexion/ExpeL-style verbal memory is the cheapest known remedy; the Milestone 1
+          winner refreshed a reflection memory every ~10 steps.
+Change:   arc3/memory.py Lessons store (kinds recipe/hazard/mistake/mechanic/goal/strategy; dedupe by text; cap 40;
+          rendered every turn as "Lessons (this game)"; shareable kinds appended under a file lock to
+          <run>/shared_lessons.jsonl and rendered for the other games as "From other games in this run"). Harness-written
+          lessons: level completed (recipe: actions and the last moves, the consistent win condition), game over
+          (hazard), world model retired and batch stopped after three no-ops (mistake), each followed once by a
+          "What did we learn?" question; STAGNATION notices ask for learn(). Sandbox: learn(text, kind) helper; the
+          final message carries lessons and the cell's decisive flags. Prompt: the learn() line and Method step 7.
+          Offline: scripts/mine_skills.py -> arc3/data/skills.json (18 cards from 79 winning transcripts: signature,
+          the model's goal statement when it won, actions, compressed sequence), retrieved by code-computed level
+          signature and never for the same game (no leakage on dev); shipped in the notebook tarball.
+          Commits 1e6d44f, 44f0c90; tests tests/test_memory.py and the lessons test in tests/test_repl_agent.py.
+Expected: fewer repeated no-op actions and fewer re-probes after a level change; a small cost in prompt tokens
+          (~10 lines). Risk: a wrong lesson persists; mitigated by evidence-only harness lessons and the "hint, not
+          fact" framing of cross-game lines.
+Plan:     dev, 1200 s, 8 workers, same seed and settings as exp-011..015 (notebook scratchpad/nb/exp019, slug
+          arc3-eval-dev-m, run name kaggle-repl-dev-019); three runs a side per the noise rule (the base is the six-run
+          set exp-011/011b/011c/012b/013b/015: 1.229/1.372/0.775/0.692/0.608/1.041). Config knobs for the ablation:
+          memory (all off), memory_shared, skills.
+Measured: not run. GPU quota for the week is exhausted (used 29 h 34 min of 30 h at 23:10 UTC).
