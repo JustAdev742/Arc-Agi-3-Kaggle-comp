@@ -310,6 +310,18 @@ Decision: submission config = exp-011's (low effort, raised to medium on stagnat
           slot is spare: raise to medium earlier (stagnation_actions 3 instead of 6) to buy medium's extra levels
           without paying its action cost everywhere (exp-015).
 
+## 2026-09-16 · exp-011c · exp-011 notebook, third sample (harness 756a87e) · CLOSES the harness question: no bisect
+Measured: dev 0.775, 6 levels (runs/kaggle-repl-dev-011c, arc3-eval-dev-f v4; ran 20:42-21:43): ar25, lp85, sb26, su15, tn36,
+          vc33; actions 1012; 0 model errors.
+          The exp-011 notebook now reads 1.229 / 1.372 / 0.775 (9 / 9 / 6 levels); the current harness at the same
+          config reads 0.608 / 0.692 / 1.041 (6 / 6 / 6). Means 1.13 vs 0.78 with three samples each and a spread of
+          0.6 within the first triple: the difference is inside the noise and the "9 levels twice" was the lucky pair.
+          No bisect; the current harness (events line off, error fixes in) stays the base.
+Notes:    the practical noise model for this stack at 1200 s/game: score +-0.3 and levels +-2 between identical runs.
+          Single-run decisions are only safe for effects larger than that (exp-004 thinking off, the council, medium
+          effort on score); everything smaller needs three runs a side, which the long-horizon runs (exp-017/018)
+          will also be subject to.
+
 ## 2026-09-16 · exp-016 · base config (adaptive low effort, events line off, harness ec12191) on ALL 25 public games · dev third sample, val second sample
 Measured: all-25 0.791; **dev 1.041, val 0.000** (runs/kaggle-repl-all-016, kernel arc3-eval-all-a v1; 8 workers, 1200 s each;
           ran 19:50-21:18). Levels 7/183: ar25 L1, ft09 L1, lp85 L1, sb26 L2, su15 L1, tn36 L1; actions 1277; 0 model errors. ft09 L1 solved for the

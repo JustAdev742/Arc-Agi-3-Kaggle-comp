@@ -205,6 +205,9 @@ research log exp-006a.
 - exp-016 (all 25 games, current harness) finished 21:18: **dev 1.041 (6 levels), val 0.0**, all-25 0.791; ft09 L1
   solved for the first time. exp-018 (the submission's operating point: 25 games concurrently, 3 h each) pushed
   21:19 as `arc3-eval-all-long-a`; exp-011c still running.
+- exp-011c finished 21:43: **0.775, 6 levels** on the exp-011 commit itself. Harness question closed: the two
+  triples (1.23/1.37/0.78 vs 0.61/0.69/1.04) overlap; noise is +-0.3 in score and +-2 levels between identical runs.
+  exp-018 (relaunched 21:28 after a note-quoting bug) and exp-017 (pushed 21:46) are the long-horizon runs.
 - 14:09: exp-010c (`arc3-eval-dev-council-c` v1, harness 7de7f95) running; exp-004 v2 queued. Queue after them, in
   order: exp-011b (the exp-011 notebook unchanged, per the noise rule), exp-012 (harness 7de7f95: events line in every
   tool output, single results iterate, ascii(region) degrades to tiles, role always present), then a private Save &
