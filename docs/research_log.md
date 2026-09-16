@@ -142,6 +142,10 @@ Notes:    the gain is two levels (vc33 L2, ls20 L1) at the noise level of a sing
 ## 2026-09-16 · exp-006b · code-only rules agent (probe -> auto_rules -> goal -> BFS plan -> verified execution) · BASELINE
 Why:      an end-to-end test of components A-C on real games without a model, and a fallback when the server dies.
 Measured: six games, 150 s each (runs/smoke-rules3, commit 8ce2e7e): m0r0 L1 solved by a plan in 43 actions (human 30),
-          nothing else; 25-game run pending (runs/exp006b-rules-all-s0). Explorer baseline (exp-002): 0.06 on all 25.
+          nothing else. All 25 games, 120 s each, 4 workers (runs/exp006b-rules-all-s0, commit b9f878d): score 0.199
+          (dev 0.011, val 0.794), 3 levels of 183: r11l L1 in 14 actions (human 22, during the probe phase), m0r0 L1 by
+          plan (215 actions, after 6 mismatched optimistic plans), tn36 L1 (180 actions). Explorer (exp-002) 0.06,
+          random (exp-000) 0.19 on all 25. Fits take 0.1-3 s per call and were run after every action, so the
+          120 s budget bought only 25-250 actions per game.
 Notes:    goal inference without a model is the limit (unique-colour / avatar-sized / collectible heuristics); ls20 loops
           on an optimistic plan against an invisible wall (fixed: bumps stay in optimistic plans, failed goals are banned).

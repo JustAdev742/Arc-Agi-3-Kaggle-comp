@@ -1,0 +1,1460 @@
+{
+ "run_name": "exp006b-rules-all-s0",
+ "agent": "rules",
+ "split": "all",
+ "games": [
+  "ar25",
+  "bp35",
+  "cd82",
+  "cn04",
+  "dc22",
+  "ft09",
+  "g50t",
+  "ka59",
+  "lf52",
+  "lp85",
+  "ls20",
+  "m0r0",
+  "r11l",
+  "re86",
+  "s5i5",
+  "sb26",
+  "sc25",
+  "sk48",
+  "sp80",
+  "su15",
+  "tn36",
+  "tr87",
+  "tu93",
+  "vc33",
+  "wa30"
+ ],
+ "seed": 0,
+ "time_budget_s": 120.0,
+ "max_actions": 250,
+ "config": {},
+ "note": "exp-006b: code-only rules agent (probe, auto_rules, goal hints/candidates, BFS plan, verify)",
+ "harness_commit": "b9f878d",
+ "arc3_version": "0.1.0",
+ "python": "3.12.3",
+ "platform": "Linux-6.18.44-fc-v33-x86_64-with-glibc2.39",
+ "started": "20260916T070929",
+ "wall_s": 2081.9,
+ "score": 0.19869974999594614,
+ "score_dev": 0.010820473052310082,
+ "score_val": 0.7936507936507936,
+ "levels_completed": 3,
+ "levels_total": 183,
+ "games_solved": 0,
+ "actions": 4566,
+ "failures": {
+  "action_cap": 11,
+  "timeout": 14
+ },
+ "results": [
+  {
+   "game_id": "ar25",
+   "version": "ar25-0c556536",
+   "seed": 0,
+   "score": 0.0,
+   "levels_completed": 0,
+   "win_levels": 8,
+   "actions": 219,
+   "resets": 2,
+   "level_actions": [
+    219,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "level_scores": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "baselines": [
+    32,
+    50,
+    75,
+    37,
+    89,
+    159,
+    233,
+    73
+   ],
+   "wall_s": 126.256,
+   "time_budget_s": 120.0,
+   "state": "GAME_OVER",
+   "failure": "timeout",
+   "error": null,
+   "agent_stats": {
+    "plans": 31,
+    "plan_actions": 76,
+    "mismatches": 13,
+    "probes": 57,
+    "random": 84,
+    "levels_won": 0,
+    "goals_tried": 119,
+    "optimistic_plans": 4
+   },
+   "seconds_per_action": 0.5765,
+   "tags": [
+    "keyboard_click"
+   ]
+  },
+  {
+   "game_id": "bp35",
+   "version": "bp35-0a0ad940",
+   "seed": 0,
+   "score": 0.0,
+   "levels_completed": 0,
+   "win_levels": 9,
+   "actions": 12,
+   "resets": 0,
+   "level_actions": [
+    12,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "level_scores": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "baselines": [
+    21,
+    48,
+    44,
+    38,
+    33,
+    87,
+    86,
+    131,
+    163
+   ],
+   "wall_s": 2081.699,
+   "time_budget_s": 120.0,
+   "state": "NOT_FINISHED",
+   "failure": "timeout",
+   "error": null,
+   "agent_stats": {
+    "plans": 1,
+    "plan_actions": 1,
+    "mismatches": 1,
+    "probes": 11,
+    "random": 0,
+    "levels_won": 0,
+    "goals_tried": 5
+   },
+   "seconds_per_action": 173.4749,
+   "tags": [
+    "keyboard_click"
+   ]
+  },
+  {
+   "game_id": "cd82",
+   "version": "cd82-fb555c5d",
+   "seed": 0,
+   "score": 0.0,
+   "levels_completed": 0,
+   "win_levels": 6,
+   "actions": 250,
+   "resets": 2,
+   "level_actions": [
+    250,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "level_scores": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "baselines": [
+    55,
+    8,
+    41,
+    21,
+    23,
+    23
+   ],
+   "wall_s": 38.509,
+   "time_budget_s": 120.0,
+   "state": "GAME_OVER",
+   "failure": "action_cap",
+   "error": null,
+   "agent_stats": {
+    "plans": 0,
+    "plan_actions": 0,
+    "mismatches": 0,
+    "probes": 66,
+    "random": 182,
+    "levels_won": 0,
+    "goals_tried": 54
+   },
+   "seconds_per_action": 0.154,
+   "tags": [
+    "keyboard_click"
+   ]
+  },
+  {
+   "game_id": "cn04",
+   "version": "cn04-2fe56bfb",
+   "seed": 0,
+   "score": 0.0,
+   "levels_completed": 0,
+   "win_levels": 6,
+   "actions": 250,
+   "resets": 3,
+   "level_actions": [
+    250,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "level_scores": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "baselines": [
+    29,
+    54,
+    85,
+    300,
+    208,
+    113
+   ],
+   "wall_s": 41.11,
+   "time_budget_s": 120.0,
+   "state": "GAME_OVER",
+   "failure": "action_cap",
+   "error": null,
+   "agent_stats": {
+    "plans": 6,
+    "plan_actions": 17,
+    "mismatches": 0,
+    "probes": 68,
+    "random": 162,
+    "levels_won": 0,
+    "goals_tried": 237
+   },
+   "seconds_per_action": 0.1644,
+   "tags": [
+    "keyboard_click"
+   ]
+  },
+  {
+   "game_id": "dc22",
+   "version": "dc22-fdcac232",
+   "seed": 0,
+   "score": 0.0,
+   "levels_completed": 0,
+   "win_levels": 6,
+   "actions": 95,
+   "resets": 0,
+   "level_actions": [
+    95,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "level_scores": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "baselines": [
+    59,
+    102,
+    67,
+    98,
+    324,
+    578
+   ],
+   "wall_s": 121.5,
+   "time_budget_s": 120.0,
+   "state": "NOT_FINISHED",
+   "failure": "timeout",
+   "error": null,
+   "agent_stats": {
+    "plans": 26,
+    "plan_actions": 32,
+    "mismatches": 24,
+    "probes": 33,
+    "random": 30,
+    "levels_won": 0,
+    "goals_tried": 701,
+    "optimistic_plans": 24
+   },
+   "seconds_per_action": 1.2789,
+   "tags": [
+    "keyboard_click"
+   ]
+  },
+  {
+   "game_id": "ft09",
+   "version": "ft09-0d8bbf25",
+   "seed": 0,
+   "score": 0.0,
+   "levels_completed": 0,
+   "win_levels": 6,
+   "actions": 193,
+   "resets": 0,
+   "level_actions": [
+    193,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "level_scores": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "baselines": [
+    43,
+    12,
+    23,
+    28,
+    65,
+    37
+   ],
+   "wall_s": 120.605,
+   "time_budget_s": 120.0,
+   "state": "NOT_FINISHED",
+   "failure": "timeout",
+   "error": null,
+   "agent_stats": {
+    "plans": 0,
+    "plan_actions": 0,
+    "mismatches": 0,
+    "probes": 23,
+    "random": 170,
+    "levels_won": 0,
+    "goals_tried": 38
+   },
+   "seconds_per_action": 0.6249,
+   "tags": []
+  },
+  {
+   "game_id": "g50t",
+   "version": "g50t-5849a774",
+   "seed": 0,
+   "score": 0.0,
+   "levels_completed": 0,
+   "win_levels": 7,
+   "actions": 250,
+   "resets": 1,
+   "level_actions": [
+    250,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "level_scores": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "baselines": [
+    78,
+    175,
+    179,
+    230,
+    96,
+    54,
+    67
+   ],
+   "wall_s": 72.589,
+   "time_budget_s": 120.0,
+   "state": "GAME_OVER",
+   "failure": "action_cap",
+   "error": null,
+   "agent_stats": {
+    "plans": 3,
+    "plan_actions": 5,
+    "mismatches": 1,
+    "probes": 18,
+    "random": 226,
+    "levels_won": 0,
+    "goals_tried": 328,
+    "optimistic_plans": 1
+   },
+   "seconds_per_action": 0.2904,
+   "tags": [
+    "keyboard"
+   ]
+  },
+  {
+   "game_id": "ka59",
+   "version": "ka59-38d34dbb",
+   "seed": 0,
+   "score": 0.0,
+   "levels_completed": 0,
+   "win_levels": 7,
+   "actions": 250,
+   "resets": 2,
+   "level_actions": [
+    250,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "level_scores": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "baselines": [
+    28,
+    109,
+    51,
+    51,
+    33,
+    132,
+    326
+   ],
+   "wall_s": 105.535,
+   "time_budget_s": 120.0,
+   "state": "GAME_OVER",
+   "failure": "action_cap",
+   "error": null,
+   "agent_stats": {
+    "plans": 31,
+    "plan_actions": 40,
+    "mismatches": 8,
+    "probes": 75,
+    "random": 133,
+    "levels_won": 0,
+    "goals_tried": 295,
+    "optimistic_plans": 5
+   },
+   "seconds_per_action": 0.4221,
+   "tags": [
+    "keyboard_click"
+   ]
+  },
+  {
+   "game_id": "lf52",
+   "version": "lf52-271a04aa",
+   "seed": 0,
+   "score": 0.0,
+   "levels_completed": 0,
+   "win_levels": 10,
+   "actions": 64,
+   "resets": 0,
+   "level_actions": [
+    64,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "level_scores": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "baselines": [
+    32,
+    81,
+    60,
+    71,
+    205,
+    148,
+    244,
+    109,
+    164,
+    225
+   ],
+   "wall_s": 124.419,
+   "time_budget_s": 120.0,
+   "state": "GAME_OVER",
+   "failure": "timeout",
+   "error": null,
+   "agent_stats": {
+    "plans": 0,
+    "plan_actions": 0,
+    "mismatches": 0,
+    "probes": 21,
+    "random": 43,
+    "levels_won": 0,
+    "goals_tried": 30
+   },
+   "seconds_per_action": 1.944,
+   "tags": [
+    "click"
+   ]
+  },
+  {
+   "game_id": "lp85",
+   "version": "lp85-305b61c3",
+   "seed": 0,
+   "score": 0.0,
+   "levels_completed": 0,
+   "win_levels": 8,
+   "actions": 211,
+   "resets": 0,
+   "level_actions": [
+    211,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "level_scores": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "baselines": [
+    17,
+    38,
+    31,
+    16,
+    41,
+    60,
+    26,
+    159
+   ],
+   "wall_s": 120.067,
+   "time_budget_s": 120.0,
+   "state": "NOT_FINISHED",
+   "failure": "timeout",
+   "error": null,
+   "agent_stats": {
+    "plans": 0,
+    "plan_actions": 0,
+    "mismatches": 0,
+    "probes": 23,
+    "random": 188,
+    "levels_won": 0,
+    "goals_tried": 188
+   },
+   "seconds_per_action": 0.569,
+   "tags": [
+    "click"
+   ]
+  },
+  {
+   "game_id": "ls20",
+   "version": "ls20-9607627b",
+   "seed": 0,
+   "score": 0.0,
+   "levels_completed": 0,
+   "win_levels": 7,
+   "actions": 250,
+   "resets": 1,
+   "level_actions": [
+    250,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "level_scores": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "baselines": [
+    22,
+    123,
+    73,
+    84,
+    96,
+    192,
+    186
+   ],
+   "wall_s": 119.401,
+   "time_budget_s": 120.0,
+   "state": "GAME_OVER",
+   "failure": "action_cap",
+   "error": null,
+   "agent_stats": {
+    "plans": 43,
+    "plan_actions": 53,
+    "mismatches": 41,
+    "probes": 16,
+    "random": 180,
+    "levels_won": 0,
+    "goals_tried": 244,
+    "optimistic_plans": 41
+   },
+   "seconds_per_action": 0.4776,
+   "tags": [
+    "keyboard"
+   ]
+  },
+  {
+   "game_id": "m0r0",
+   "version": "m0r0-492f87ba",
+   "seed": 0,
+   "score": 0.09271420845244534,
+   "levels_completed": 1,
+   "win_levels": 6,
+   "actions": 250,
+   "resets": 1,
+   "level_actions": [
+    215,
+    35,
+    0,
+    0,
+    0,
+    0
+   ],
+   "level_scores": [
+    1.9469983775013522,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "baselines": [
+    30,
+    111,
+    203,
+    26,
+    500,
+    237
+   ],
+   "wall_s": 51.066,
+   "time_budget_s": 120.0,
+   "state": "GAME_OVER",
+   "failure": "action_cap",
+   "error": null,
+   "agent_stats": {
+    "plans": 10,
+    "plan_actions": 63,
+    "mismatches": 6,
+    "probes": 43,
+    "random": 143,
+    "levels_won": 1,
+    "goals_tried": 66
+   },
+   "seconds_per_action": 0.2043,
+   "tags": [
+    "keyboard_click"
+   ]
+  },
+  {
+   "game_id": "r11l",
+   "version": "r11l-495a7899",
+   "seed": 0,
+   "score": 4.761904761904762,
+   "levels_completed": 1,
+   "win_levels": 6,
+   "actions": 81,
+   "resets": 1,
+   "level_actions": [
+    14,
+    67,
+    0,
+    0,
+    0,
+    0
+   ],
+   "level_scores": [
+    115.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "baselines": [
+    22,
+    33,
+    51,
+    26,
+    52,
+    49
+   ],
+   "wall_s": 120.227,
+   "time_budget_s": 120.0,
+   "state": "GAME_OVER",
+   "failure": "timeout",
+   "error": null,
+   "agent_stats": {
+    "plans": 0,
+    "plan_actions": 0,
+    "mismatches": 0,
+    "probes": 70,
+    "random": 10,
+    "levels_won": 1,
+    "goals_tried": 16
+   },
+   "seconds_per_action": 1.4843,
+   "tags": [
+    "click"
+   ]
+  },
+  {
+   "game_id": "re86",
+   "version": "re86-8af5384d",
+   "seed": 0,
+   "score": 0.0,
+   "levels_completed": 0,
+   "win_levels": 8,
+   "actions": 66,
+   "resets": 0,
+   "level_actions": [
+    66,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "level_scores": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "baselines": [
+    26,
+    42,
+    86,
+    108,
+    189,
+    139,
+    424,
+    241
+   ],
+   "wall_s": 120.118,
+   "time_budget_s": 120.0,
+   "state": "NOT_FINISHED",
+   "failure": "timeout",
+   "error": null,
+   "agent_stats": {
+    "plans": 56,
+    "plan_actions": 56,
+    "mismatches": 56,
+    "probes": 9,
+    "random": 1,
+    "levels_won": 0,
+    "goals_tried": 77
+   },
+   "seconds_per_action": 1.82,
+   "tags": [
+    "keyboard_click"
+   ]
+  },
+  {
+   "game_id": "s5i5",
+   "version": "s5i5-18d95033",
+   "seed": 0,
+   "score": 0.0,
+   "levels_completed": 0,
+   "win_levels": 8,
+   "actions": 250,
+   "resets": 4,
+   "level_actions": [
+    250,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "level_scores": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "baselines": [
+    20,
+    89,
+    106,
+    54,
+    162,
+    38,
+    86,
+    83
+   ],
+   "wall_s": 63.927,
+   "time_budget_s": 120.0,
+   "state": "GAME_OVER",
+   "failure": "action_cap",
+   "error": null,
+   "agent_stats": {
+    "plans": 0,
+    "plan_actions": 0,
+    "mismatches": 0,
+    "probes": 29,
+    "random": 217,
+    "levels_won": 0,
+    "goals_tried": 144
+   },
+   "seconds_per_action": 0.2557,
+   "tags": [
+    "click"
+   ]
+  },
+  {
+   "game_id": "sb26",
+   "version": "sb26-7fbdac44",
+   "seed": 0,
+   "score": 0.0,
+   "levels_completed": 0,
+   "win_levels": 8,
+   "actions": 250,
+   "resets": 1,
+   "level_actions": [
+    250,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "level_scores": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "baselines": [
+    18,
+    28,
+    18,
+    19,
+    31,
+    23,
+    58,
+    18
+   ],
+   "wall_s": 33.756,
+   "time_budget_s": 120.0,
+   "state": "GAME_OVER",
+   "failure": "action_cap",
+   "error": null,
+   "agent_stats": {
+    "plans": 0,
+    "plan_actions": 0,
+    "mismatches": 0,
+    "probes": 38,
+    "random": 211,
+    "levels_won": 0,
+    "goals_tried": 168
+   },
+   "seconds_per_action": 0.135,
+   "tags": [
+    "keyboard_click"
+   ]
+  },
+  {
+   "game_id": "sc25",
+   "version": "sc25-635fd71a",
+   "seed": 0,
+   "score": 0.0,
+   "levels_completed": 0,
+   "win_levels": 6,
+   "actions": 25,
+   "resets": 0,
+   "level_actions": [
+    25,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "level_scores": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "baselines": [
+    36,
+    6,
+    32,
+    83,
+    143,
+    50
+   ],
+   "wall_s": 135.997,
+   "time_budget_s": 120.0,
+   "state": "NOT_FINISHED",
+   "failure": "timeout",
+   "error": null,
+   "agent_stats": {
+    "plans": 2,
+    "plan_actions": 2,
+    "mismatches": 2,
+    "probes": 21,
+    "random": 2,
+    "levels_won": 0,
+    "goals_tried": 42
+   },
+   "seconds_per_action": 5.4399,
+   "tags": [
+    "keyboard_click"
+   ]
+  },
+  {
+   "game_id": "sk48",
+   "version": "sk48-d8078629",
+   "seed": 0,
+   "score": 0.0,
+   "levels_completed": 0,
+   "win_levels": 8,
+   "actions": 106,
+   "resets": 0,
+   "level_actions": [
+    106,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "level_scores": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "baselines": [
+    61,
+    177,
+    101,
+    103,
+    230,
+    181,
+    125,
+    92
+   ],
+   "wall_s": 121.529,
+   "time_budget_s": 120.0,
+   "state": "NOT_FINISHED",
+   "failure": "timeout",
+   "error": null,
+   "agent_stats": {
+    "plans": 0,
+    "plan_actions": 0,
+    "mismatches": 0,
+    "probes": 57,
+    "random": 49,
+    "levels_won": 0,
+    "goals_tried": 210
+   },
+   "seconds_per_action": 1.1465,
+   "tags": [
+    "keyboard_click"
+   ]
+  },
+  {
+   "game_id": "sp80",
+   "version": "sp80-589a99af",
+   "seed": 0,
+   "score": 0.0,
+   "levels_completed": 0,
+   "win_levels": 6,
+   "actions": 250,
+   "resets": 8,
+   "level_actions": [
+    250,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "level_scores": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "baselines": [
+    39,
+    58,
+    25,
+    148,
+    96,
+    152
+   ],
+   "wall_s": 3.11,
+   "time_budget_s": 120.0,
+   "state": "GAME_OVER",
+   "failure": "action_cap",
+   "error": null,
+   "agent_stats": {
+    "plans": 32,
+    "plan_actions": 117,
+    "mismatches": 20,
+    "probes": 99,
+    "random": 26,
+    "levels_won": 0,
+    "goals_tried": 40,
+    "optimistic_plans": 2
+   },
+   "seconds_per_action": 0.0124,
+   "tags": [
+    "keyboard_click"
+   ]
+  },
+  {
+   "game_id": "su15",
+   "version": "su15-1944f8ab",
+   "seed": 0,
+   "score": 0.0,
+   "levels_completed": 0,
+   "win_levels": 9,
+   "actions": 250,
+   "resets": 5,
+   "level_actions": [
+    250,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "level_scores": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "baselines": [
+    22,
+    42,
+    26,
+    115,
+    36,
+    31,
+    8,
+    40,
+    41
+   ],
+   "wall_s": 4.253,
+   "time_budget_s": 120.0,
+   "state": "GAME_OVER",
+   "failure": "action_cap",
+   "error": null,
+   "agent_stats": {
+    "plans": 0,
+    "plan_actions": 0,
+    "mismatches": 0,
+    "probes": 8,
+    "random": 237,
+    "levels_won": 0,
+    "goals_tried": 12
+   },
+   "seconds_per_action": 0.017,
+   "tags": [
+    "click"
+   ]
+  },
+  {
+   "game_id": "tn36",
+   "version": "tn36-ef4dde99",
+   "seed": 0,
+   "score": 0.11287477954144622,
+   "levels_completed": 1,
+   "win_levels": 7,
+   "actions": 205,
+   "resets": 2,
+   "level_actions": [
+    180,
+    25,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "level_scores": [
+    3.160493827160494,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "baselines": [
+    32,
+    72,
+    26,
+    40,
+    30,
+    55,
+    62
+   ],
+   "wall_s": 181.441,
+   "time_budget_s": 120.0,
+   "state": "GAME_OVER",
+   "failure": "timeout",
+   "error": null,
+   "agent_stats": {
+    "plans": 3,
+    "plan_actions": 11,
+    "mismatches": 0,
+    "probes": 47,
+    "random": 145,
+    "levels_won": 1,
+    "goals_tried": 22
+   },
+   "seconds_per_action": 0.8851,
+   "tags": [
+    "click"
+   ]
+  },
+  {
+   "game_id": "tr87",
+   "version": "tr87-cd924810",
+   "seed": 0,
+   "score": 0.0,
+   "levels_completed": 0,
+   "win_levels": 6,
+   "actions": 124,
+   "resets": 0,
+   "level_actions": [
+    124,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "level_scores": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "baselines": [
+    54,
+    58,
+    40,
+    45,
+    71,
+    146
+   ],
+   "wall_s": 121.726,
+   "time_budget_s": 120.0,
+   "state": "NOT_FINISHED",
+   "failure": "timeout",
+   "error": null,
+   "agent_stats": {
+    "plans": 0,
+    "plan_actions": 0,
+    "mismatches": 0,
+    "probes": 8,
+    "random": 116,
+    "levels_won": 0,
+    "goals_tried": 68
+   },
+   "seconds_per_action": 0.9817,
+   "tags": [
+    "keyboard"
+   ]
+  },
+  {
+   "game_id": "tu93",
+   "version": "tu93-0768757b",
+   "seed": 0,
+   "score": 0.0,
+   "levels_completed": 0,
+   "win_levels": 9,
+   "actions": 219,
+   "resets": 4,
+   "level_actions": [
+    219,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "level_scores": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "baselines": [
+    19,
+    16,
+    34,
+    42,
+    123,
+    80,
+    14,
+    23,
+    111
+   ],
+   "wall_s": 120.019,
+   "time_budget_s": 120.0,
+   "state": "GAME_OVER",
+   "failure": "timeout",
+   "error": null,
+   "agent_stats": {
+    "plans": 17,
+    "plan_actions": 17,
+    "mismatches": 6,
+    "probes": 40,
+    "random": 158,
+    "levels_won": 0,
+    "goals_tried": 293,
+    "optimistic_plans": 6
+   },
+   "seconds_per_action": 0.548,
+   "tags": [
+    "keyboard_click"
+   ]
+  },
+  {
+   "game_id": "vc33",
+   "version": "vc33-5430563c",
+   "seed": 0,
+   "score": 0.0,
+   "levels_completed": 0,
+   "win_levels": 7,
+   "actions": 250,
+   "resets": 4,
+   "level_actions": [
+    250,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "level_scores": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "baselines": [
+    7,
+    18,
+    44,
+    61,
+    131,
+    34,
+    152
+   ],
+   "wall_s": 31.329,
+   "time_budget_s": 120.0,
+   "state": "GAME_OVER",
+   "failure": "action_cap",
+   "error": null,
+   "agent_stats": {
+    "plans": 0,
+    "plan_actions": 0,
+    "mismatches": 0,
+    "probes": 28,
+    "random": 218,
+    "levels_won": 0,
+    "goals_tried": 48
+   },
+   "seconds_per_action": 0.1253,
+   "tags": [
+    "click"
+   ]
+  },
+  {
+   "game_id": "wa30",
+   "version": "wa30-ee6fef47",
+   "seed": 0,
+   "score": 0.0,
+   "levels_completed": 0,
+   "win_levels": 9,
+   "actions": 196,
+   "resets": 0,
+   "level_actions": [
+    196,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "level_scores": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "baselines": [
+    71,
+    119,
+    183,
+    98,
+    368,
+    68,
+    79,
+    442,
+    415
+   ],
+   "wall_s": 121.073,
+   "time_budget_s": 120.0,
+   "state": "NOT_FINISHED",
+   "failure": "timeout",
+   "error": null,
+   "agent_stats": {
+    "plans": 0,
+    "plan_actions": 0,
+    "mismatches": 0,
+    "probes": 9,
+    "random": 187,
+    "levels_won": 0,
+    "goals_tried": 120
+   },
+   "seconds_per_action": 0.6177,
+   "tags": [
+    "keyboard"
+   ]
+  }
+ ]
+}
