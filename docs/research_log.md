@@ -276,6 +276,20 @@ Measured: dev 0.324 (runs/kaggle-repl-dev-004, kernel arc3-eval-dev-g v2, harnes
 Notes:    low-effort thinking stays; it is what keeps the model from spraying actions. The remaining knob worth a run is
           the other direction (medium effort on every call, fewer calls) once the noise repeat of exp-011 is in.
 
+## 2026-09-16 · exp-013 · medium reasoning effort on every call (fixed policy, max_output 4096) on harness 699825b · PROMISING (repeat pending)
+Why:      exp-004 showed that no thinking makes the model spray actions; the other direction, more thinking per call and
+          fewer calls, had not been measured.
+Measured: dev 1.251 (runs/kaggle-repl-dev-013, kernel arc3-eval-dev-i v1, harness 699825b = the exp-012 code plus
+          the eval label fix; ran 17:00-18:08). **Levels 10/142**: ar25 L1, m0r0 L1, s5i5 L1, sb26 L1, su15 L2, tn36 L1, tu93 L1, vc33 L2; actions 2463; model calls 866;
+          0 model errors. Against the exp-011 pair (1.229 / 1.372, 9 levels): one more level (su15 L2 and vc33 L2 both
+          solved, tu93 L1 again), score inside the pair's band; the extra actions went to games that scored zero anyway
+          (bp35 328, cd82 397, tr87 348). Per-call p50 latency 11-32 s, not higher than exp-011's, and 25-66 calls per
+          game: with this template "medium" does not lengthen the calls much but the plans it produces are longer batches.
+          Also relevant to exp-012: this run carries the same events-line/iterable-result code and did not lose levels,
+          which points at noise rather than harm for exp-012's 0.608.
+Decision: repeat (exp-013b, kernel arc3-eval-dev-i v2) before keeping, per the noise rule; if it holds at 10 levels the
+          submission config moves to fixed medium effort.
+
 ## 2026-09-16 · submission notebook check · private Save & Run All on the RTX PRO 6000 · PASSED
 Measured: kernel `arc-prize-2026-arc-agi-3-arc3-agent` v2 (private), harness 699825b, REPL agent, datasets FP8 27B + wheelhouse.
           vLLM ready on the first attempt (MTP + FP8 KV); offline smoke on ls20 + vc33 at 300 s/game, workers 1: vc33 L1

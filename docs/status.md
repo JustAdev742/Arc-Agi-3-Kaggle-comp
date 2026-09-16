@@ -178,6 +178,8 @@ research log exp-006a.
 - **Submission notebook Save & Run All PASSED on the RTX** (17:03, `arc-prize-2026-arc-agi-3-arc3-agent` v2, private,
   harness 699825b): vLLM up on the first attempt, offline smoke on ls20 + vc33 (vc33 L1 in 8 actions), `submission.parquet`
   written, 17 min of RTX. This is the Milestone 2 candidate; publishing needs your OK (open items). exp-012b pushed 17:04.
+- exp-013 (medium effort every call) finished 18:08: **dev 1.251, 10 levels** (su15 L2, vc33 L2), the most levels of
+  any run; score inside the exp-011 band. Repeat exp-013b pushed 18:10. exp-012b still running.
 - 14:09: exp-010c (`arc3-eval-dev-council-c` v1, harness 7de7f95) running; exp-004 v2 queued. Queue after them, in
   order: exp-011b (the exp-011 notebook unchanged, per the noise rule), exp-012 (harness 7de7f95: events line in every
   tool output, single results iterate, ascii(region) degrades to tiles, role always present), then a private Save &
