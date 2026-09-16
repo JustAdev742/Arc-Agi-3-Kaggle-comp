@@ -318,9 +318,12 @@ Measured: val 0.794 (runs/kaggle-repl-val-011, kernel arc3-eval-val-a v1; 6 game
           For scale: the code-only rules agent scored the same 0.794 on val (exp-006b, r11l L1), and the dev pair of this
           config is 1.229 / 1.372. The dev number carries a day of tuning on dev transcripts; val does not.
 Notes:    val transcripts are not used for harness changes (the split exists to stay untuned). The gap says the next
-          gains must come from general mechanisms, above all goal inference when the world model is already right
-          (dc22 on dev is the training case for it), not from more per-game fixes. exp-016 = the base config on all 25
+          gains must come from general mechanisms rather than more per-game fixes. exp-016 = the base config on all 25
           games in one run (dev third sample, val second sample) is next.
+          Local check of the 'goal sweep' idea on dc22 (plan to every goal hint, verified, one call): no strict plan
+          exists for any hint because the avatar's walkable colour forms islands (docs/postmortems/dc22-islands-2026-09-16.md);
+          the optimistic plans each cost 1-2 actions; a naive sweep after model retirement wasted 82 unverified actions.
+          Not built: no game in hand where it would have completed a level. Lesson recorded in the post-mortem.
 
 ## 2026-09-16 · submission notebook check · private Save & Run All on the RTX PRO 6000 · PASSED
 Measured: kernel `arc-prize-2026-arc-agi-3-arc3-agent` v2 (private), harness 699825b, REPL agent, datasets FP8 27B + wheelhouse.
