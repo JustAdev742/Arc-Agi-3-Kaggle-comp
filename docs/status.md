@@ -167,6 +167,9 @@ research log exp-006a.
 - exp-011b (repeat) finished 16:45: **dev 1.372, 9 levels**, 7 of 8 solved games shared with exp-011 (1.229/9): the
   exp-011 harness is the confirmed base (pair mean 1.30). Submission notebook (REPL agent, harness 699825b) pushed
   16:46 as a private Save & Run All on the RTX: `arc-prize-2026-arc-agi-3-arc3-agent` v2 (Milestone 2 check).
+- exp-012 finished 16:59: **dev 0.608, 6 levels**, below the exp-011 pair (1.23/1.37, 9); no mechanism visible in the
+  transcripts (describe_events calls fell 126 -> 40 as intended). Repeat (exp-012b) decides; until then the
+  submission base is the exp-011 harness 756a87e. exp-013 (medium effort) running since 17:00.
 - 14:09: exp-010c (`arc3-eval-dev-council-c` v1, harness 7de7f95) running; exp-004 v2 queued. Queue after them, in
   order: exp-011b (the exp-011 notebook unchanged, per the noise rule), exp-012 (harness 7de7f95: events line in every
   tool output, single results iterate, ascii(region) degrades to tiles, role always present), then a private Save &

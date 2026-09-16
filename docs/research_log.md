@@ -276,6 +276,20 @@ Measured: dev 0.324 (runs/kaggle-repl-dev-004, kernel arc3-eval-dev-g v2, harnes
 Notes:    low-effort thinking stays; it is what keeps the model from spraying actions. The remaining knob worth a run is
           the other direction (medium effort on every call, fewer calls) once the noise repeat of exp-011 is in.
 
+## 2026-09-16 · exp-012 · events line in every tool output, iterable single results, ascii(region) degrades to tiles, role key always present, DeepGEMM off for FP8 specialists · PENDING (one run below the exp-011 pair; repeat before deciding)
+Why:      exp-011 transcripts: 77 inspection-only calls spent on describe_events() after an act, nine refused
+          ascii(region) calls, KeyError 'role' nine times, `for r in act('ACT')` iterating dict keys.
+Measured: dev 0.608 (runs/kaggle-repl-dev-012, kernel arc3-eval-dev-h v1, harness 7de7f95, same settings; ran 15:51-16:59).
+          Levels 6/142: ar25 L1, bp35 L1, s5i5 L1, sb26 L1, su15 L1, vc33 L1; actions 1181; 0 model errors.
+          Against the exp-011 pair (1.229 / 1.372, 9 levels each): lost lp85, m0r0, tn36 (all solved in both exp-011 runs),
+          gained bp35. Transcripts: describe_events() calls 126 -> 40 (the events line did its job), inspection-only share
+          0.40 (pair: 0.46 / 0.41), tool errors 38 (31 / 45), mean tool output 631 chars (456 / 474), code cells 512
+          (587 / 586), turns 141 (152 / 157). No mechanism visible in the transcripts for a loss of three levels; the
+          longer tool outputs cost about 12% of the calls.
+Decision: not kept yet. The base for the submission stays the exp-011 harness (756a87e) until exp-012b, a repeat of this
+          notebook, lands: two runs below the pair mean revert the events line (keep the three error fixes, which
+          cannot lower a score); one run inside the pair's band means noise and the bundle is kept.
+
 ## 2026-09-16 · exp-011b · exp-011 repeated unchanged (noise repeat) · CONFIRMS exp-011
 Measured: dev 1.372 (runs/kaggle-repl-dev-011b, kernel arc3-eval-dev-f v3, same notebook and harness 756a87e as exp-011, same
           seed and settings; ran 15:37-16:45). Levels 9/142: ar25 L2 (8.33 on its two levels), lp85 L1, m0r0 L1, s5i5 L1,
