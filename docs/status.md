@@ -47,7 +47,7 @@ competition pages (JS-only), confirm the runtime limit or license.
 
 ## Session 1 outcome (2026-09-16)
 
-Built and tested (all in `tests/`, 30 tests green on this container):
+Built and tested (all in `tests/`, green on this container via `make test`):
 
 - Evaluation harness with the toolkit scorer, fixed dev/val split, run records, crash isolation.
 - Exact perception library and the local env wrapper mirroring the gateway's reset billing.

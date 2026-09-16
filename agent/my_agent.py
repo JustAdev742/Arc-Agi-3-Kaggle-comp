@@ -49,4 +49,15 @@ class MyAgent(Agent):
             return self.driver.choose(latest_frame)
         except Exception as e:  # last line of defence: never kill the game thread
             log.exception("%s: driver failed (%s); sending RESET", self.game_id, e)
+            self.driver.last_data, self.driver.last_reasoning = {}, None
             return GameAction.RESET
+
+    def do_action_request(self, action: GameAction) -> FrameData:
+        """Send the action with *this game's* data. The framework's default reads the (x, y) off the
+        shared GameAction enum member, which every game thread mutates: a race under Swarm."""
+        data = dict(self.driver.last_data) if action.is_complex() else {}
+        reasoning = self.driver.last_reasoning
+        if reasoning is not None and not isinstance(reasoning, dict):
+            reasoning = {"text": str(reasoning)}
+        raw = self.arc_env.step(action, data=data, reasoning=reasoning)
+        return self._convert_raw_frame_data(raw)

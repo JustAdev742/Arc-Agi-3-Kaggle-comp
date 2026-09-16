@@ -95,3 +95,22 @@ def test_build_notebook_roundtrip(tmp_path):
     assert "%%writefile /tmp/my_agent.py" in "".join(nb["cells"][3]["source"])
     assert "KAGGLE_IS_COMPETITION_RERUN" in "".join(nb["cells"][1]["source"])
     assert nb["metadata"]["kaggle"]["isInternetEnabled"] is False
+
+
+def test_click_coordinates_do_not_go_through_the_shared_enum(monkeypatch):
+    """Two games choosing clicks concurrently must each send their own (x, y)."""
+    from arcengine import GameAction
+
+    a, arc, card = make_framework_agent(monkeypatch, game_id="vc33")
+    a.driver.last_data = {"x": 7, "y": 9}
+    GameAction.ACTION6.set_data({"x": 60, "y": 61})  # another thread clobbered the shared member
+    sent = {}
+
+    def fake_step(action, data=None, reasoning=None):
+        sent.update(data or {})
+        return a.arc_env.observation_space
+
+    monkeypatch.setattr(a.arc_env, "step", fake_step)
+    a.do_action_request(GameAction.ACTION6)
+    assert sent == {"x": 7, "y": 9}
+    arc.close_scorecard(card)

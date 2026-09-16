@@ -62,7 +62,7 @@ class Frame:
 
     @classmethod
     def from_raw(cls, raw: FrameDataRaw, *, step: int = 0, level_step: int = 0) -> "Frame":
-        layers = [np.asarray(l, dtype=np.int16) for l in raw.frame] if raw.frame else [np.zeros((64, 64), np.int16)]
+        layers = [np.asarray(layer, dtype=np.int16) for layer in raw.frame] if raw.frame else [np.zeros((64, 64), np.int16)]
         return cls(
             grid=layers[-1], layers=layers, state=raw.state,
             levels_completed=int(raw.levels_completed), win_levels=int(raw.win_levels),

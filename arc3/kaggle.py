@@ -54,7 +54,7 @@ def agent_config() -> dict[str, Any]:
 
 
 def to_frame(fd: FrameData, *, step: int, level_step: int) -> Frame:
-    layers = [np.asarray(l, dtype=np.int16) for l in (fd.frame or [])] or [np.zeros((64, 64), np.int16)]
+    layers = [np.asarray(layer, dtype=np.int16) for layer in (fd.frame or [])] or [np.zeros((64, 64), np.int16)]
     return Frame(grid=layers[-1], layers=layers, state=fd.state, levels_completed=int(fd.levels_completed),
                  win_levels=int(fd.win_levels), available_actions=list(fd.available_actions or []),
                  full_reset=bool(fd.full_reset), game_id=fd.game_id or "", step=step, level_step=level_step)
@@ -77,6 +77,8 @@ class Driver:
         self.levels = 0
         self.prev: Optional[Frame] = None
         self.last_action: Optional[Action] = None
+        self.last_data: dict[str, int] = {}
+        self.last_reasoning: Any = None
         self.crashes = 0
 
     def _make(self, name: str) -> Agent:
@@ -108,12 +110,15 @@ class Driver:
             action = Action.reset()
         self.prev = frame
         self.last_action = action
+        self.last_data = dict(action.data)
+        self.last_reasoning = action.reasoning if isinstance(action.reasoning, (dict, str)) else None
         self.step += 1
         self.level_step += 1
         ga = action.action
         if ga.is_complex():
+            # GameAction members are process-wide singletons shared by every game thread; this
+            # mutation is racy, so MyAgent.do_action_request reads ``last_data`` instead.
             ga.set_data({"x": int(action.x or 0), "y": int(action.y or 0)})
-        ga.reasoning = action.reasoning if isinstance(action.reasoning, (dict, str)) else None
         return ga
 
     def _crash(self, where: str, e: Exception) -> None:

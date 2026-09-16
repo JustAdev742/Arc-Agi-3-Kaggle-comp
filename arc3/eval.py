@@ -116,7 +116,6 @@ def play_game(
     try:
         agent = get_agent(agent_name)(ctx)
         frame = env.frame
-        last_progress_step = 0
         while True:
             if agent.is_done(frame):
                 res.failure = "solved" if frame.done else "gave_up"
@@ -134,7 +133,6 @@ def play_game(
             frame = env.step(action)
             agent.observe(action, before, frame)
             if frame.levels_completed > before.levels_completed:
-                last_progress_step = env.step_count
                 log.info("%s level %d done at action %d (%.0fs)", game_id, frame.levels_completed, env.step_count, time.time() - t0)
             if jsonl is not None:
                 d = grid_diff(before.grid, frame.grid)
