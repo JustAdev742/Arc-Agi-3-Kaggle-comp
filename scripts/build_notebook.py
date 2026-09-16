@@ -40,7 +40,7 @@ _ACCELERATORS = {
 def package_tarball() -> str:
     buf = io.BytesIO()
     with tarfile.open(fileobj=buf, mode="w:gz") as tar:
-        for p in sorted((ROOT / "arc3").rglob("*.py")):
+        for p in sorted(list((ROOT / "arc3").rglob("*.py")) + list((ROOT / "arc3" / "data").glob("*.json"))):
             tar.add(p, arcname=str(p.relative_to(ROOT)))
     return base64.b64encode(buf.getvalue()).decode()
 
@@ -131,6 +131,7 @@ def build(accelerator: str, agent: str, model_dataset: str, wheels_dataset: str,
         os.environ['ARC3_START_EPOCH'] = str(START)
         os.environ.setdefault('ARC3_TIME_BUDGET_S', '{budget_s}')
         os.environ.setdefault('ARC3_AGENT', '{agent}')
+        os.environ.setdefault('ARC3_MEMORY_PATH', '/kaggle/working/shared_lessons.jsonl')  # lessons shared across the games of this run
         RERUN = bool(os.getenv('KAGGLE_IS_COMPETITION_RERUN'))
         print('competition rerun:', RERUN)
         subprocess.check_call([sys.executable, '-m', 'pip', 'install', '-q', '--no-index', '--no-warn-conflicts',

@@ -1,0 +1,416 @@
+{
+ "version": 1,
+ "source": "/home/user/Arc-Agi-3-Kaggle-comp/runs",
+ "n_transcripts_with_wins": 79,
+ "skills": [
+  {
+   "game": "ar25",
+   "level": 1,
+   "wins": 11,
+   "actions": 19,
+   "signature": {
+    "avatar": true,
+    "click_only": false,
+    "keys": [
+     "DOWN",
+     "LEFT",
+     "RIGHT",
+     "UP"
+    ],
+    "many_entities": false,
+    "tile": 9,
+    "hud": true
+   },
+   "strategy": "avatar with keys DOWN/LEFT/RIGHT/UP: goal 'reach yellow L #10 at (51,45)'; solved in 19 actions (UP, DOWN, LEFT, RIGHT, DOWN, LEFTx5, DOWNx8). Learned: avatar at (51,27), need 6 more DOWN",
+   "runs": [
+    "kaggle-council-dev-010c",
+    "kaggle-repl-all-016",
+    "kaggle-repl-dev-004",
+    "kaggle-repl-dev-011",
+    "kaggle-repl-dev-011b",
+    "kaggle-repl-dev-011c",
+    "kaggle-repl-dev-012",
+    "kaggle-repl-dev-012b",
+    "kaggle-repl-dev-013",
+    "kaggle-repl-dev-013b",
+    "kaggle-repl-dev-014"
+   ]
+  },
+  {
+   "game": "ar25",
+   "level": 2,
+   "wins": 1,
+   "actions": 26,
+   "signature": {
+    "avatar": false,
+    "click_only": false,
+    "keys": [],
+    "many_entities": false,
+    "tile": 1,
+    "hud": false
+   },
+   "strategy": "keys and clicks, no avatar found: goal 'overlap #9 c4 onto yellow #19 at (3,42)'; solved in 26 actions (DOWN, UP, RIGHT, LEFT, DOWN, UP, ..., RIGHTx2, LEFTx5, ACT, UP, DOWNx8). Learned: UP/DOWN now move #9 by 3 in y",
+   "runs": [
+    "kaggle-repl-dev-011b"
+   ]
+  },
+  {
+   "game": "bp35",
+   "level": 1,
+   "wins": 3,
+   "actions": 41,
+   "signature": {
+    "avatar": true,
+    "click_only": false,
+    "keys": [
+     "LEFT",
+     "RIGHT"
+    ],
+    "many_entities": true,
+    "tile": 5,
+    "hud": true
+   },
+   "strategy": "avatar with keys LEFT/RIGHT: goal 'reach pink entity #289 at (20,37)'; solved in 41 actions (LEFT, RIGHT, CLICKx7, RIGHTx5, ACT, CLICKx9, LEFTx5, CLICKx4, RIGHTx4, LEFTx3). Learned: pink entity is on same row as avatar",
+   "runs": [
+    "kaggle-council-dev-010c",
+    "kaggle-repl-dev-004",
+    "kaggle-repl-dev-012"
+   ]
+  },
+  {
+   "game": "cd82",
+   "level": 1,
+   "wins": 1,
+   "actions": 46,
+   "signature": {
+    "avatar": false,
+    "click_only": false,
+    "keys": [],
+    "many_entities": true,
+    "tile": 5,
+    "hud": true
+   },
+   "strategy": "keys and clicks, no avatar found: goal 'top-white/bottom-purple block'; solved in 46 actions (UP, DOWN, LEFT, RIGHT, ACTx2, UP, ..., ACT, RIGHT, DOWN, RIGHT, CLICK). Learned: ring orbits block (LEFT/RIGHT/UP/DOWN step it around); ACT paints block half on ring side with selected colour",
+   "runs": [
+    "kaggle-repl-dev-013b"
+   ]
+  },
+  {
+   "game": "ft09",
+   "level": 1,
+   "wins": 1,
+   "actions": 7,
+   "signature": {
+    "avatar": false,
+    "click_only": true,
+    "keys": [],
+    "many_entities": true,
+    "tile": 6,
+    "hud": true
+   },
+   "strategy": "click-only: goal 'make gray-frame answer 3x3 == BL reference'; solved in 7 actions (CLICKx6). Learned: ANS vs BL differ at (1,0),(1,2),(2,0),(2,2)",
+   "runs": [
+    "kaggle-repl-all-016"
+   ]
+  },
+  {
+   "game": "ka59",
+   "level": 1,
+   "wins": 1,
+   "actions": 51,
+   "signature": {
+    "avatar": true,
+    "click_only": false,
+    "keys": [
+     "RIGHT"
+    ],
+    "many_entities": true,
+    "tile": 3,
+    "hud": true
+   },
+   "strategy": "avatar with keys RIGHT: goal 'fill BOTH frames; right done, now left frame (12,33) with #7'; solved in 51 actions (UP, DOWN, LEFT, RIGHT, DOWN, LEFTx2, ..., RIGHT, UPx2, DOWN, CLICK, LEFTx4). Learned: right green stuck left of wall; left green in left frame not enough",
+   "runs": [
+    "kaggle-repl-dev-013b"
+   ]
+  },
+  {
+   "game": "lp85",
+   "level": 1,
+   "wins": 8,
+   "actions": 8,
+   "signature": {
+    "avatar": false,
+    "click_only": true,
+    "keys": [],
+    "many_entities": true,
+    "tile": 4,
+    "hud": true
+   },
+   "strategy": "click-only: goal 'rotate ring (red=CW+recolor, green=CCW) until win'; solved in 8 actions (CLICKx7). Learned: green click = CCW rotate, ring now back to initial",
+   "runs": [
+    "kaggle-repl-all-016",
+    "kaggle-repl-dev-004",
+    "kaggle-repl-dev-011",
+    "kaggle-repl-dev-011b",
+    "kaggle-repl-dev-011c",
+    "kaggle-repl-dev-012b",
+    "kaggle-repl-dev-013b",
+    "kaggle-repl-dev-014"
+   ]
+  },
+  {
+   "game": "ls20",
+   "level": 1,
+   "wins": 1,
+   "actions": 25,
+   "signature": {
+    "avatar": true,
+    "click_only": false,
+    "keys": [],
+    "many_entities": true,
+    "tile": 2,
+    "hud": true
+   },
+   "strategy": "avatar, key map not fitted: goal 'collect #4 and #5'; solved in 25 actions (UP, DOWN, LEFT, RIGHT, UPx3, LEFTx3, ..., DOWN, LEFT, UPx4, RIGHTx3, UPx2). Learned: #6 (c0) collected on contact; #13 also moved",
+   "runs": [
+    "kaggle-repl-dev-012b"
+   ]
+  },
+  {
+   "game": "m0r0",
+   "level": 1,
+   "wins": 4,
+   "actions": 25,
+   "signature": {
+    "avatar": true,
+    "click_only": false,
+    "keys": [
+     "DOWN",
+     "LEFT",
+     "RIGHT",
+     "UP"
+    ],
+    "many_entities": false,
+    "tile": 5,
+    "hud": true
+   },
+   "strategy": "avatar with keys DOWN/LEFT/RIGHT/UP: goal 'likely merge the two eyes (overlap)'; solved in 25 actions (UP, DOWN, LEFT, RIGHT, UPx2, LEFT, ..., UPx5, RIGHT, UP, ACT, RIGHT). Learned: both at top row2, ACT no effect",
+   "runs": [
+    "kaggle-repl-dev-004",
+    "kaggle-repl-dev-011",
+    "kaggle-repl-dev-011b",
+    "kaggle-repl-dev-013"
+   ]
+  },
+  {
+   "game": "s5i5",
+   "level": 1,
+   "wins": 8,
+   "actions": 19,
+   "signature": {
+    "avatar": false,
+    "click_only": true,
+    "keys": [],
+    "many_entities": true,
+    "tile": 5,
+    "hud": true
+   },
+   "strategy": "click-only: goal 'move red dots to red plus targets (dot4->(52,10) right, dot16->(10,52) down)'; solved in 19 actions (CLICKx18). Learned: right square moves dot4 +3, bottom square moves dot16 +3",
+   "runs": [
+    "kaggle-repl-dev-004",
+    "kaggle-repl-dev-011",
+    "kaggle-repl-dev-011b",
+    "kaggle-repl-dev-012",
+    "kaggle-repl-dev-013",
+    "kaggle-repl-dev-013b",
+    "kaggle-repl-dev-014",
+    "kaggle-repl-dev-015"
+   ]
+  },
+  {
+   "game": "sb26",
+   "level": 1,
+   "wins": 12,
+   "actions": 13,
+   "signature": {
+    "avatar": false,
+    "click_only": false,
+    "keys": [],
+    "many_entities": true,
+    "tile": 4,
+    "hud": true
+   },
+   "strategy": "keys and clicks, no avatar found: goal 'match middle to top row (done!) and complete level'; solved in 13 actions (CLICKx3, ACT, CLICKx8). Learned: middle now shows blue,green,yellow,purple matching top",
+   "runs": [
+    "kaggle-council-dev-010c",
+    "kaggle-repl-all-016",
+    "kaggle-repl-dev-004",
+    "kaggle-repl-dev-011",
+    "kaggle-repl-dev-011b",
+    "kaggle-repl-dev-011c",
+    "kaggle-repl-dev-012",
+    "kaggle-repl-dev-012b",
+    "kaggle-repl-dev-013",
+    "kaggle-repl-dev-013b",
+    "kaggle-repl-dev-014",
+    "kaggle-repl-dev-015"
+   ]
+  },
+  {
+   "game": "sb26",
+   "level": 2,
+   "wins": 2,
+   "actions": 27,
+   "signature": {
+    "avatar": false,
+    "click_only": false,
+    "keys": [],
+    "many_entities": true,
+    "tile": 4,
+    "hud": true
+   },
+   "strategy": "keys and clicks, no avatar found: goal 'arrange to match top row [c12,c15,c8,c9,c14,c11,c6]'; solved in 27 actions (ACT, CLICKx26). Learned: upper has 4 filled, lower has 3 filled + 1 empty",
+   "runs": [
+    "kaggle-repl-all-016",
+    "kaggle-repl-dev-011"
+   ]
+  },
+  {
+   "game": "su15",
+   "level": 1,
+   "wins": 11,
+   "actions": 18,
+   "signature": {
+    "avatar": false,
+    "click_only": true,
+    "keys": [],
+    "many_entities": true,
+    "tile": 3,
+    "hud": true
+   },
+   "strategy": "click-only: goal 'purple to blue circle top-right (~48,15)'; solved in 18 actions (CLICKx17). Learned: click dot => purple +2,-2 (dot shifts)",
+   "runs": [
+    "kaggle-council-dev-010c",
+    "kaggle-repl-all-016",
+    "kaggle-repl-dev-011",
+    "kaggle-repl-dev-011b",
+    "kaggle-repl-dev-011c",
+    "kaggle-repl-dev-012",
+    "kaggle-repl-dev-012b",
+    "kaggle-repl-dev-013",
+    "kaggle-repl-dev-013b",
+    "kaggle-repl-dev-014",
+    "kaggle-repl-dev-015"
+   ]
+  },
+  {
+   "game": "su15",
+   "level": 2,
+   "wins": 1,
+   "actions": 55,
+   "signature": {
+    "avatar": false,
+    "click_only": true,
+    "keys": [],
+    "many_entities": true,
+    "tile": 2,
+    "hud": true
+   },
+   "strategy": "click-only: goal 'merge #36 into blob'; solved in 55 actions (CLICKx28, RESETx2, CLICKx25). Learned: game over",
+   "runs": [
+    "kaggle-repl-dev-013"
+   ]
+  },
+  {
+   "game": "tn36",
+   "level": 1,
+   "wins": 5,
+   "actions": 14,
+   "signature": {
+    "avatar": false,
+    "click_only": true,
+    "keys": [],
+    "many_entities": true,
+    "tile": 4,
+    "hud": true
+   },
+   "strategy": "click-only: goal 'move blue ball up into yellow U?'; solved in 14 actions (CLICKx13). Learned: bar=click budget (61 start, now ~48); white T's were removable",
+   "runs": [
+    "kaggle-repl-all-016",
+    "kaggle-repl-dev-011b",
+    "kaggle-repl-dev-011c",
+    "kaggle-repl-dev-013",
+    "kaggle-repl-dev-013b"
+   ]
+  },
+  {
+   "game": "tu93",
+   "level": 1,
+   "wins": 5,
+   "actions": 27,
+   "signature": {
+    "avatar": true,
+    "click_only": false,
+    "keys": [
+     "DOWN",
+     "RIGHT"
+    ],
+    "many_entities": true,
+    "tile": 3,
+    "hud": true
+   },
+   "strategy": "avatar with keys DOWN/RIGHT: goal 'reach c14 target'; solved in 27 actions (UP, DOWN, LEFT, RIGHT, DOWNx3, RIGHT, ..., RIGHTx2, DOWN, RIGHT, UP, RIGHT). Learned: batch stops on cursor(2-cell) mismatch; single acts still execute",
+   "runs": [
+    "kaggle-council-dev-010c",
+    "kaggle-repl-dev-011",
+    "kaggle-repl-dev-013",
+    "kaggle-repl-dev-013b",
+    "kaggle-repl-dev-014"
+   ]
+  },
+  {
+   "game": "vc33",
+   "level": 1,
+   "wins": 8,
+   "actions": 6,
+   "signature": {
+    "avatar": false,
+    "click_only": true,
+    "keys": [],
+    "many_entities": false,
+    "tile": 4,
+    "hud": true
+   },
+   "strategy": "click-only: goal 'align blue block under yellow marker?'; solved in 6 actions (CLICKx5). Learned: top blue btn=right, bottom=left",
+   "runs": [
+    "kaggle-repl-dev-011",
+    "kaggle-repl-dev-011b",
+    "kaggle-repl-dev-011c",
+    "kaggle-repl-dev-012",
+    "kaggle-repl-dev-012b",
+    "kaggle-repl-dev-013",
+    "kaggle-repl-dev-013b",
+    "kaggle-repl-dev-014"
+   ]
+  },
+  {
+   "game": "vc33",
+   "level": 2,
+   "wins": 2,
+   "actions": 19,
+   "signature": {
+    "avatar": false,
+    "click_only": true,
+    "keys": [],
+    "many_entities": true,
+    "tile": 4,
+    "hud": true
+   },
+   "strategy": "click-only: goal 'overlap knob dark c14 with marker #9'; solved in 19 actions (CLICKx19). Learned: knob stuck at x20; btn2(y26) grows #12 right",
+   "runs": [
+    "kaggle-repl-dev-013",
+    "kaggle-repl-dev-013b"
+   ]
+  }
+ ]
+}

@@ -92,6 +92,8 @@ def test_build_notebook_roundtrip(tmp_path):
     with tarfile.open(fileobj=io.BytesIO(base64.b64decode(b64)), mode="r:gz") as tar:
         names = tar.getnames()
     assert "arc3/__init__.py" in names and "arc3/agents/repl_agent.py" in names
+    assert "arc3/memory.py" in names and "arc3/data/skills.json" in names  # the offline skill library ships with the code
+    assert "ARC3_MEMORY_PATH" in "".join(nb["cells"][1]["source"])
     assert "%%writefile /tmp/my_agent.py" in "".join(nb["cells"][3]["source"])
     assert "KAGGLE_IS_COMPETITION_RERUN" in "".join(nb["cells"][1]["source"])
     assert nb["metadata"]["kaggle"]["isInternetEnabled"] is False
