@@ -91,8 +91,10 @@ class CouncilAgent(ReplAgent):
             return None
         if self.specialist_schedule != "events":
             return "periodic" if (self.st.turns - 1) % self.specialist_every == 0 else None
-        if self.st.turns == 1 or f.levels_completed != self._last_round_level:
-            return "level_start"
+        if f.levels_completed != self._last_round_level:
+            # a level's first round waits for the first action on it: before that the specialists have no transition
+            # to analyse and write "no actions taken" (exp-010 ar25, every game), which then sat in the prompt for turns
+            return "level_start" if int(getattr(f, "level_step", 0) or 0) >= 1 or self.st.actions_model > 0 else None
         wm_mis = int(self.st.wm_checked - self.st.wm_matched)
         if wm_mis > self._last_round_mismatches:
             return "mismatch"
@@ -168,8 +170,17 @@ class CouncilAgent(ReplAgent):
 
     # ------------------------------------------------------------------ coordinator turn
     def _report_block(self) -> str:
-        return REPORT_HEADER + "\n" + "\n".join(
-            f"[{role}{'' if t == self.st.turns else f', from turn {t}'}] {text[:600]}" for role, (t, text) in self.reports.items())
+        """The reports for the coordinator: a report is written out once; on later turns it is one line saying it is
+        unchanged (the full text is already in the conversation; exp-010 repeated every report on every turn)."""
+        shown = self.__dict__.setdefault("_shown", {})
+        lines = []
+        for role, (t, text) in self.reports.items():
+            if shown.get(role) == t:
+                lines.append(f"[{role}, from turn {t}: unchanged]")
+            else:
+                shown[role] = t
+                lines.append(f"[{role}{'' if t == self.st.turns else f', from turn {t}'}] {text[:600]}")
+        return REPORT_HEADER + "\n" + "\n".join(lines)
 
     def _user_message(self) -> dict[str, Any]:
         reason = self._round_reason()

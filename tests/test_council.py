@@ -52,11 +52,14 @@ def test_council_injects_specialist_reports_into_coordinator_turn():
 
 
 def test_council_shared_model_and_timeout_tolerance():
+    n_coord = {"n": 0}
+
     def slow_or_tool(messages):
         if "Role: " in messages[0]["content"]:
             time.sleep(3)  # specialists too slow: the round times out, coordinator still acts
             return ChatResponse(content="late", prompt_tokens=1, completion_tokens=1)
-        return MockClient.tool("act('UP')")
+        n_coord["n"] += 1
+        return MockClient.tool("act('UP')") if n_coord["n"] % 2 == 1 else MockClient.say("ok")  # one action per turn
 
     client = MockClient(slow_or_tool)
     arc = make_arcade("environment_files")
@@ -66,11 +69,11 @@ def test_council_shared_model_and_timeout_tolerance():
     agent = get("council")(ctx)
     try:
         t0 = time.time()
-        run(agent, env, 1)
+        run(agent, env, 2)  # the level's first round runs after the first action (turn 2)
         assert time.time() - t0 < 30
         st = agent.stats()
         assert st["council"]["shared_model"] is True and st["council"]["timeouts"] == 1
-        assert st["actions_model"] == 1
+        assert st["actions_model"] == 2
     finally:
         agent.close()
         env.close()
@@ -106,8 +109,14 @@ def test_council_events_schedule_and_rich_state():
         later = [t for t in seen_states if "Rules (auto-fitted" in t]
         assert later and "Entities (persistent ids" in later[0] and "Avatar: #" in later[0], later[0][:500] if later else seen_states[-1][:500]
         assert "STAGNATION" not in later[0] and "took NO action" not in later[0]  # nudges are for the coordinator only
-        third_user = [m for m in coord.calls[4] if m["role"] == "user"][0]["content"]
+        third_user = [m for m in coord.calls[4] if m["role"] == "user"][-1]["content"]  # the turn-3 observation
         assert "[mechanics] MECHANICS: use plan_to_entity(3)" in third_user, third_user[:400]
+        # no round before the first action: the first state the specialists saw already had the four key presses
+        first_user = [m for m in coord.calls[0] if m["role"] == "user"][0]["content"]
+        assert "Specialist reports" not in first_user and len(seen_states) == 4 and "moved" in seen_states[0]
+        # a report is written out once; afterwards the block only says it is unchanged
+        again = agent._report_block()
+        assert "unchanged]" in again and "use plan_to_entity(3)" not in again, again
     finally:
         agent.close()
         env.close()
@@ -121,10 +130,13 @@ def test_council_async_round_is_injected_within_the_turn():
         role = messages[0]["content"].split("Role: ")[1].split(".")[0]
         return ChatResponse(content=f"{role}: target is #6", prompt_tokens=10, completion_tokens=5)
 
+    script = [MockClient.tool("act('UP')"), MockClient.say("ok"),  # turn 1: one action, no round yet
+              MockClient.tool("print(1)"), MockClient.tool("act('DOWN')"), MockClient.say("ok")]  # turn 2: the round runs during print(1)
+
     def coordinator(messages):
-        time.sleep(0.6)  # slower than the round: the reports are ready before the second call
+        time.sleep(0.6)  # slower than the round: the reports are ready before the next call
         n = sum(1 for m in messages if m["role"] == "assistant")
-        return MockClient.tool("print(1)") if n == 0 else (MockClient.tool("act('UP')") if n == 1 else MockClient.say("ok"))
+        return script[min(n, len(script) - 1)]
 
     coord = MockClient(coordinator)
     arc = make_arcade("environment_files")
@@ -134,11 +146,11 @@ def test_council_async_round_is_injected_within_the_turn():
                                "roles": ["goal"], "inspect_steps_before_nudge": 5})
     agent = get("council")(ctx)
     try:
-        run(agent, env, 1)
-        first_user = [m for m in coord.calls[0] if m["role"] == "user"][0]["content"]
-        assert "Specialist reports" not in first_user  # not waited for
-        second_call_users = [m["content"] for m in coord.calls[1] if m["role"] == "user"]
-        assert any(str(u).startswith("New Specialist reports") and "GOAL ANALYST: target is #6" in str(u) for u in second_call_users), second_call_users
+        run(agent, env, 2)
+        turn2_user = [m for m in coord.calls[2] if m["role"] == "user"][-1]["content"]
+        assert "Specialist reports" not in str(turn2_user)  # not waited for
+        next_call_users = [m["content"] for m in coord.calls[3] if m["role"] == "user"]
+        assert any(str(u).startswith("New Specialist reports") and "GOAL ANALYST: target is #6" in str(u) for u in next_call_users), next_call_users
         assert agent.stats()["council"]["late_injections"] == 1
     finally:
         agent.close()
