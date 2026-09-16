@@ -34,7 +34,7 @@ def test_council_injects_specialist_reports_into_coordinator_turn():
     env = LocalEnv(arc, "ls20")
     ctx = AgentContext(game_id="ls20", deadline=time.time() + 300,
                        config={"client": coord, "specialist_client": MockClient(specialist), "image": False,
-                               "specialist_every": 2, "idle_turns_before_fallback": 5})
+                               "specialist_schedule": "every", "specialist_every": 2, "idle_turns_before_fallback": 5})
     agent = get("council")(ctx)
     try:
         run(agent, env, 3)
@@ -70,6 +70,42 @@ def test_council_shared_model_and_timeout_tolerance():
         st = agent.stats()
         assert st["council"]["shared_model"] is True and st["council"]["timeouts"] == 1
         assert st["actions_model"] == 1
+    finally:
+        agent.close()
+        env.close()
+
+
+def test_council_events_schedule_and_rich_state():
+    """Events schedule: a round on the first turn (level start) and after a turn without an action; the specialists
+    read the coordinator's observation (entities, avatar, rules line) and their reports are dated."""
+    seen_states = []
+
+    def specialist(messages):
+        role = messages[0]["content"].split("Role: ")[1].split(".")[0]
+        text = messages[1]["content"][0]["text"] if isinstance(messages[1]["content"], list) else messages[1]["content"]
+        seen_states.append(text)
+        return ChatResponse(content=f"{role}: use plan_to_entity(3)", prompt_tokens=50, completion_tokens=10)
+
+    # turn 1: four key presses (acts); turn 2: talk only, also after the no-code nudge (idle) -> turn 3 gets an 'idle_turn' round
+    coord = MockClient([MockClient.tool("act('UP','DOWN','LEFT','RIGHT')"), MockClient.say("ok"),
+                        MockClient.say("thinking only"), MockClient.say("still thinking"),
+                        MockClient.tool("act('UP')"), MockClient.say("ok")])
+    arc = make_arcade("environment_files")
+    env = LocalEnv(arc, "ls20")
+    ctx = AgentContext(game_id="ls20", deadline=time.time() + 300,
+                       config={"client": coord, "specialist_client": MockClient(specialist), "image": False,
+                               "roles": ["mechanics", "planner"], "specialist_every": 10, "idle_turns_before_fallback": 5})
+    agent = get("council")(ctx)
+    try:
+        run(agent, env, 5)
+        st = agent.stats()["council"]
+        assert st["reasons"].get("level_start") == 1 and st["reasons"].get("idle_turn") == 1, st
+        assert st["rounds"] == 2 and "periodic" not in st["reasons"]
+        later = [t for t in seen_states if "Rules (auto-fitted" in t]
+        assert later and "Entities (persistent ids" in later[0] and "Avatar: #" in later[0], later[0][:500] if later else seen_states[-1][:500]
+        assert "STAGNATION" not in later[0] and "took NO action" not in later[0]  # nudges are for the coordinator only
+        third_user = [m for m in coord.calls[4] if m["role"] == "user"][0]["content"]
+        assert "[mechanics] MECHANICS: use plan_to_entity(3)" in third_user, third_user[:400]
     finally:
         agent.close()
         env.close()

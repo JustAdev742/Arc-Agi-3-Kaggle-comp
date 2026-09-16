@@ -3,7 +3,7 @@ import time
 
 from arc3.agents import get
 from arc3.agents.base import AgentContext
-from arc3.env import LocalEnv, make_arcade
+from arc3.env import Action, Frame, GameState, LocalEnv, make_arcade
 from arc3.llm import MockClient
 
 
@@ -248,3 +248,45 @@ def test_stop_near_deadline_spends_no_action():
     finally:
         agent.close()
         env.close()
+
+
+def _frame(grid, levels=0, level_step=0, state=GameState.NOT_FINISHED):
+    return Frame(grid=grid, layers=[grid], state=state, levels_completed=levels, win_levels=3, available_actions=[1, 2, 3, 4],
+                 game_id="fake", step=level_step, level_step=level_step)
+
+
+def test_level_and_stagnation_notices_and_adaptive_effort():
+    import numpy as np
+
+    mock = MockClient([MockClient.tool("act('UP')"), MockClient.say("ok")] * 6)
+    ctx = AgentContext(game_id="fake", deadline=time.time() + 300, config={"client": mock, "image": False, "stagnation_actions": 3})
+    agent = get("repl")(ctx)
+    try:
+        g0 = np.zeros((64, 64), dtype=np.int16)
+        g0[10:14, 10:14] = 9
+        g1 = g0.copy()
+        g1[10:14, 10:14] = 0
+        g1[6:10, 10:14] = 9
+        f0, f1 = _frame(g0), _frame(g1, level_step=1)
+        agent.act(f0)  # starts turn 1; the mock's act('UP') arrives as a request
+        agent.observe(Action.simple(1), f0, f1)
+        # level completes on the next action: the new level shows a different board
+        g2 = np.zeros((64, 64), dtype=np.int16)
+        g2[30:34, 30:34] = 9
+        f2 = _frame(g2, levels=1, level_step=0)
+        agent.observe(Action.simple(1), f1, f2)
+        agent.frame = f2
+        text = agent._observation_text()
+        assert "LEVEL 1 COMPLETED after 2 actions" in text and "goal_candidates()" in text, text[:400]
+        assert agent.stats()["levels_completed"] == 1
+        # three actions that change nothing -> stagnation notice with untested actions, and a raised effort for the turn
+        for i in range(3):
+            agent.observe(Action.simple(2), f2, _frame(g2, levels=1, level_step=i + 1))
+        agent.frame = f2
+        text = agent._observation_text()
+        assert "STAGNATION: the last 3 actions changed nothing" in text and "Untested here" in text, text[:600]
+        assert agent._effort_for_turn() == "medium" and agent.stats()["effort_raises"] == 1
+        agent.recent_changes.append(40)  # something changed again: back to the configured effort
+        assert agent._effort_for_turn() == agent.reasoning_effort  # back to the configured effort (None here)
+    finally:
+        agent.close()

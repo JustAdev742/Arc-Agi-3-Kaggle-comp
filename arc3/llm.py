@@ -166,6 +166,7 @@ class MockClient:
     def __init__(self, script: list[Any] | Callable[[list[dict[str, Any]]], Any]):
         self.script = script
         self.calls: list[list[dict[str, Any]]] = []
+        self.kwargs: list[dict[str, Any]] = []  # the keyword arguments of each call (reasoning_effort, max_tokens, ...)
         self.model = "mock"
         self.i = 0
 
@@ -180,6 +181,7 @@ class MockClient:
 
     def chat(self, messages, **kw) -> ChatResponse:
         self.calls.append([dict(m) for m in messages])
+        self.kwargs.append(dict(kw))
         if callable(self.script):
             out = self.script(messages)
         else:

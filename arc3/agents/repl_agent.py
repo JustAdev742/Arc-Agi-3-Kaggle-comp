@@ -71,6 +71,9 @@ class Stats:
     rules_fits: int = 0
     rules_time_s: float = 0.0
     rules_coverage: float = 0.0
+    effort_raises: int = 0  # turns run at the raised reasoning effort (adaptive policy)
+    stagnation_notices: int = 0
+    levels_completed: int = 0
     latencies: list[float] = field(default_factory=list)
 
 
@@ -105,6 +108,16 @@ class ReplAgent(Agent):
         self.use_ascii = (not self.use_image) if ascii_cfg == "auto" else bool(ascii_cfg)
         self.objects_in_prompt = int(c.get("objects_in_prompt", 16))
         self.auto_rules_in_prompt = bool(c.get("auto_rules_in_prompt", True))
+        # Thinking policy: 'fixed' uses reasoning_effort every call; 'adaptive' (default) raises it to effort_raised for a
+        # turn when the game is stagnant (the last stagnation_actions actions changed nothing, or two turns without an
+        # action) and drops back afterwards, so extra thinking is bought only where it can change the next action.
+        self.effort_policy = str(c.get("effort_policy", "adaptive"))
+        self.effort_raised = str(c.get("effort_raised", "medium"))
+        self.stagnation_actions = int(c.get("stagnation_actions", 6))
+        self.recent_changes: list[int] = []  # cells changed by each of the last actions
+        self.recent_actions: list[str] = []
+        self.level_notice = ""  # shown once, at the first turn after a level is completed
+        self.idle_turns_in_row = 0
         self.tile_map_max_cells = int(c.get("tile_map_max_cells", 1024))  # 32x32 at most in the observation
         self.history_frames = int(c.get("history_frames", 6))
         self.idle_limit = int(c.get("idle_turns_before_fallback", 3))
@@ -223,6 +236,18 @@ class ReplAgent(Agent):
         self.history.append({"a": str(action), "changed": int(d.changed), "level": int(after.levels_completed) + 1})
         del self.history[:-40]
         self.last_result = res
+        self.recent_changes.append(int(d.changed))
+        self.recent_actions.append(str(action))
+        del self.recent_changes[:-24]
+        del self.recent_actions[:-24]
+        if res["level_completed"]:
+            self.st.levels_completed += 1
+            n_level = int(before.level_step) + 1
+            last = ", ".join(self.recent_actions[-8:])
+            self.level_notice = (f"LEVEL {before.level} COMPLETED after {n_level} actions on it (the last actions were: {last}). "
+                                 f"You are now on level {after.level}: the layout changed, so re-read ents(); goal_candidates() lists "
+                                 "win conditions consistent with the completed levels; keep the key map and rules that worked.")
+            self.recent_changes.clear()
         if res["level_completed"] or self.tracker_level != after.levels_completed:
             self.tracker.reset(after.grid)
             self.tracker_level = after.levels_completed
@@ -357,7 +382,35 @@ class ReplAgent(Agent):
             return Action.click(x, y)
         return Action(GameAction.from_id(aid))
 
-    def _user_message(self) -> dict[str, Any]:
+    def _stagnant(self) -> bool:
+        k = self.stagnation_actions
+        return k > 0 and len(self.recent_changes) >= k and not any(self.recent_changes[-k:])
+
+    def _untested_actions(self, frame: Frame, limit: int = 5) -> list[str]:
+        """Legal actions never tried on this level: keys, ACT, and one click per entity class never clicked."""
+        avail = [ACTION_NAMES[a] for a in (frame.available_actions or []) if a in ACTION_NAMES]
+        tried = set()
+        clicked: set[tuple[int, int]] = set()
+        for a in self.tracker.actions:
+            if isinstance(a, tuple):
+                tried.add("CLICK")
+                clicked.add((int(a[1]), int(a[2])))
+            else:
+                tried.add(str(a))
+        out = [k for k in ("UP", "DOWN", "LEFT", "RIGHT", "ACT") if k in avail and k not in tried]
+        if "CLICK" in avail and self.tracker.frames:
+            roles = self.tracker.roles()
+            seen_cls: set[tuple] = set()
+            for e in sorted(self.tracker.compound_frames()[-1], key=lambda e: -e.size):
+                key = (e.color, e.shape)
+                if key in seen_cls or roles.get(e.id) == "hud" or any(e.contains(x, y) for x, y in clicked):
+                    continue
+                seen_cls.add(key)
+                out.append(f"click #{e.id} (colour {e.color}) at ({(e.x0 + e.x1) // 2},{(e.y0 + e.y1) // 2})")
+        return out[:limit]
+
+    def _observation_text(self, *, include_nudges: bool = True) -> str:
+        """The text the coordinator sees each turn (also given to council specialists without the nudges)."""
         f = self.frame
         assert f is not None
         parts: list[str] = []
@@ -366,11 +419,22 @@ class ReplAgent(Agent):
         avail = ", ".join(ACTION_NAMES[a] for a in (f.available_actions or [1, 2, 3, 4, 5, 6]) if a in ACTION_NAMES)
         parts.append(f"Level {f.level}/{f.win_levels} | step {f.step} | this level: {f.level_step} actions | "
                      f"time left {left_s} | legal: {avail} | state {f.state.name}")
+        if self.level_notice:
+            parts.append(self.level_notice)
+            if include_nudges:
+                self.level_notice = ""
         if self.turn_log:
             parts.append("Since your last turn: " + "; ".join(self.turn_log[-12:]))
-            self.turn_log.clear()
-        elif self.st.turns > 1 and not self.last_turn_acted:
+            if include_nudges:
+                self.turn_log.clear()
+        elif include_nudges and self.st.turns > 1 and not self.last_turn_acted:
             parts.append("Your previous turn took NO action. Inspection alone makes no progress: act this turn.")
+        if include_nudges and self._stagnant():
+            self.st.stagnation_notices += 1
+            untested = self._untested_actions(f)
+            parts.append(f"STAGNATION: the last {self.stagnation_actions} actions changed nothing. Do not repeat them. "
+                         + (f"Untested here: {', '.join(untested)}. " if untested else "")
+                         + "Write down the hypotheses you have not tested, then act on the cheapest one.")
         if self.objects_in_prompt > 0:
             ents = self.tracker.entities_summary(self.objects_in_prompt)
             av = self.tracker.avatar()
@@ -397,7 +461,12 @@ class ReplAgent(Agent):
                 parts.append(f"Board as a tile map ({n}x{n}, one hex colour per {tile}x{tile} tile; row = y // {tile}, column = x // {tile}; "
                              f"pixel (x, y) = (column*{tile}, row*{tile})):\n" + tile_map(f.grid, tile))
             parts.append(f"Board image attached (64x64, logical tile {tile}); grid/objects()/ascii()/tilemap() are in the REPL.")
-        content: Any = "\n\n".join(parts)
+        return "\n\n".join(parts)
+
+    def _user_message(self) -> dict[str, Any]:
+        f = self.frame
+        assert f is not None
+        content: Any = self._observation_text()
         if self.use_image:
             png = render_png(f.grid, scale=self.image_scale)
             content = [{"type": "text", "text": content},
@@ -455,11 +524,22 @@ class ReplAgent(Agent):
             return True
         return False
 
+    def _effort_for_turn(self) -> Optional[str]:
+        """Reasoning effort for this turn: the configured one, raised when the game is stagnant (adaptive policy)."""
+        if self.effort_policy != "adaptive":
+            return self.reasoning_effort
+        stuck = self._stagnant() or self.idle_turns_in_row >= 2
+        if stuck and self.effort_raised and self.effort_raised != self.reasoning_effort:
+            self.st.effort_raises += 1
+            return self.effort_raised
+        return self.reasoning_effort
+
     def _turn(self) -> None:
         acted = False
         nudged = False
         errored = False
         inspect_only = 0
+        effort = self._effort_for_turn()
         try:
             self.messages.append(self._user_message())
             for _ in range(self.max_tool_steps):
@@ -480,7 +560,7 @@ class ReplAgent(Agent):
                 try:
                     resp: ChatResponse = self.client.chat(
                         self.messages, tools=TOOLS, max_tokens=self.max_output_tokens, temperature=self.temperature,
-                        top_p=self.top_p, thinking=self.thinking, reasoning_effort=self.reasoning_effort,
+                        top_p=self.top_p, thinking=self.thinking, reasoning_effort=effort,
                         timeout_s=max(self.min_call_timeout_s, min(self.model_timeout_s, self.ctx.time_left() - 5)))
                 except Exception as e:  # noqa: BLE001
                     msg = str(e).lower()
@@ -570,8 +650,10 @@ class ReplAgent(Agent):
                     break
             if acted:
                 self.consecutive_idle = 0
+                self.idle_turns_in_row = 0
             elif not errored:  # the model answered and chose not to act; an error-ended turn is not idleness
                 self.consecutive_idle += 1
+                self.idle_turns_in_row += 1
                 self.st.idle_turns += 1
             self.last_turn_acted = acted or errored
         except Exception as e:  # noqa: BLE001
