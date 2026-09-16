@@ -1,6 +1,6 @@
 {
-  "id": "scottmahony/arc3-eval-dev-council-b",
-  "title": "arc3-eval-dev-council-b",
+  "id": "scottmahony/arc3-eval-dev-f",
+  "title": "arc3-eval-dev-f",
   "code_file": "eval.ipynb",
   "language": "python",
   "kernel_type": "notebook",
@@ -11,9 +11,7 @@
   "keywords": [],
   "dataset_sources": [
     "saltb0x/arc3-vllm-wheelhouse-v0271-cu129",
-    "saltb0x/qwen3-8-27b-fp8",
-    "scottmahony/qwen3-vl-8b-instruct-fp8",
-    "scottmahony/qwen3-vl-8b-instruct-nvfp4"
+    "saltb0x/qwen3-8-27b-fp8"
   ],
   "kernel_sources": [],
   "competition_sources": [
