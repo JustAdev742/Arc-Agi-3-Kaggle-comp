@@ -98,3 +98,35 @@ def test_turning_sprite_keeps_its_id():
     av = t.avatar()
     assert av["alive"] and av["key_moves"] == 4
     assert av["keymap"] == {"UP": (0, -4), "DOWN": (0, 4), "LEFT": (-4, 0), "RIGHT": (4, 0)}
+
+
+def test_marker_riding_on_a_sprite_edge_joins_its_compound():
+    """wa30 (exp-009): a 4x1 'eyes' strip sits on whichever edge of the 4x3 body faces the move; the body's box shifts
+    by 3 or 4 px, the union by exactly 4. compound_frames() must move the union."""
+    import numpy as np
+
+    from arc3.entities import Tracker
+
+    def frame(x, y, facing):
+        g = np.ones((64, 64), dtype=np.int16)
+        if facing in ("UP", "DOWN"):
+            g[y:y + 4, x:x + 4] = 14
+            g[y if facing == "UP" else y + 3, x:x + 4] = 0
+        else:
+            g[y:y + 4, x:x + 4] = 14
+            g[y:y + 4, x if facing == "LEFT" else x + 3] = 0
+        g[10:14, 10:14] = 9
+        return g
+
+    t = Tracker()
+    t.reset(frame(32, 48, "DOWN"))
+    pos = (32, 48)
+    for k, d in (("UP", (0, -4)), ("DOWN", (0, 4)), ("LEFT", (-4, 0)), ("RIGHT", (4, 0)), ("UP", (0, -4))):
+        pos = (pos[0] + d[0], pos[1] + d[1])
+        t.update(frame(pos[0], pos[1], k), k)
+    frames = t.compound_frames()
+    heads = [[e for e in f if e.color == 14] for f in frames]
+    assert all(len(h) == 1 and h[0].w == 4 and h[0].h == 4 for h in heads), heads[-1]
+    xy = [(h[0].x0, h[0].y0) for h in heads]
+    assert xy == [(32, 48), (32, 44), (32, 48), (28, 48), (32, 48), (32, 44)]
+    assert len({h[0].id for h in heads}) == 1

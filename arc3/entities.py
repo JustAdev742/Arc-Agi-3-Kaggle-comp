@@ -467,6 +467,7 @@ class Tracker:
         shape hash of the multi-colour patch (registered so mask-based blocking keeps working)."""
         movers = {eid for eid, mv in self.moves.items() if mv}
         groups = [set(g) for g in self.groups()]
+        attached = self._attached_parts(movers)
         out: list[tuple[Ent, ...]] = []
         for frame in self.frames:
             by_id = {e.id: e for e in frame}
@@ -480,6 +481,10 @@ class Tracker:
                         if e.x0 < p.x0 and p.x1 < e.x1 and e.y0 < p.y0 and p.y1 < e.y1:
                             parts[e.id].append(p)
                             taken.add(p.id)
+            for small, big in attached.items():  # facing markers riding on a sprite's edge (wa30's eyes)
+                if small in by_id and big in by_id and small not in taken and big not in taken:
+                    parts[big].append(by_id[small])
+                    taken.add(small)
             for g in groups:
                 members = [by_id[i] for i in g if i in by_id and i not in taken]
                 if len(members) > 1:
@@ -500,6 +505,33 @@ class Tracker:
                 else:
                     merged.append(e)
             out.append(tuple(merged))
+        return out
+
+    def _attached_parts(self, movers: set[int]) -> dict[int, int]:
+        """small mover id -> bigger mover id when the two touch (boxes within one cell) in every frame both appear
+        in, at least twice: a marking that rides on a sprite's edge and jumps to another edge when it turns (wa30's
+        eyes, exp-009) is part of that sprite, and only the union moves by the true step."""
+        shared: dict[tuple[int, int], int] = defaultdict(int)
+        touching: dict[tuple[int, int], int] = defaultdict(int)
+        size: dict[int, int] = {}
+        for frame in self.frames:
+            ms = [e for e in frame if e.id in movers]
+            for e in ms:
+                size.setdefault(e.id, e.size)
+            for a in ms:
+                for b in ms:
+                    if a.id >= b.id:
+                        continue
+                    key = (a.id, b.id)
+                    shared[key] += 1
+                    if not (a.x1 + 1 < b.x0 or b.x1 + 1 < a.x0 or a.y1 + 1 < b.y0 or b.y1 + 1 < a.y0):
+                        touching[key] += 1
+        out: dict[int, int] = {}
+        for (a, b), n in shared.items():
+            if n >= 2 and touching[(a, b)] == n and size.get(a) != size.get(b):
+                small, big = (a, b) if size[a] < size[b] else (b, a)
+                if small not in out and big not in out:
+                    out[small] = big
         return out
 
     def _merge(self, head: Ent, parts: list[Ent]) -> Ent:
