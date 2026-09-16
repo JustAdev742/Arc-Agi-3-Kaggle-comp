@@ -3,6 +3,7 @@ import json
 import time
 
 from arc3.agents import get
+from arc3.agents.repl_agent import TURN_DONE
 from arc3.agents.base import AgentContext
 from arc3.env import Action, Frame, GameState, LocalEnv, make_arcade
 from arc3.llm import MockClient
@@ -426,3 +427,109 @@ def test_lessons_from_model_and_flags_reach_the_observation(tmp_path):
     assert saved["model_lessons"] == 1 and len(saved["lessons"]) == 3
     meta = json.loads(open(tmp_path / "ls20.transcript.jsonl").readline())
     assert len(meta["lessons"]) == 3
+
+
+def test_level_consolidation_records_lessons_refuses_actions_and_clears_history(tmp_path):
+    import numpy as np
+
+    calls = {"n": 0}
+
+    def script(messages):
+        calls["n"] += 1
+        last = messages[-1]
+        text = last.get("content") if isinstance(last.get("content"), str) else ""
+        if "Consolidation step" in text:
+            return MockClient.tool("learn('walk the avatar onto the odd-coloured tile', kind='goal')\n"
+                                   "learn('UP moves the avatar 4 px', kind='mechanic')\nnote('level 1 target was #3')\n"
+                                   "r = act('UP')")
+        if last.get("role") == "tool":
+            return MockClient.say("done\nFRICTION: the tile map is hard to read")
+        return MockClient.tool("act('UP')") if calls["n"] % 2 else MockClient.say("moved")
+
+    mock = MockClient(script)
+    ctx = AgentContext(game_id="fake", deadline=time.time() + 300, out_dir=str(tmp_path),
+                       config={"client": mock, "image": False, "consolidation_calls": 2})
+    agent = get("repl")(ctx)
+    try:
+        g0 = np.zeros((64, 64), dtype=np.int16)
+        g0[10:14, 10:14] = 9
+        g1 = g0.copy()
+        g1[10:14, 10:14] = 0
+        g1[6:10, 10:14] = 9
+        f0, f1 = _frame(g0), _frame(g1, level_step=1)
+        agent.act(f0)
+        agent.observe(Action.simple(1), f0, f1)
+        # The level completes: the engine returns the terminal frame of level 1 first and the new level's start last.
+        g_term = g1.copy()
+        g_term[6:10, 10:14] = 0
+        g_term[2:6, 10:14] = 9
+        g2 = np.zeros((64, 64), dtype=np.int16)
+        g2[30:34, 30:34] = 9
+        f2 = Frame(grid=g2, layers=[g_term, g2], state=GameState.NOT_FINISHED, levels_completed=1, win_levels=3,
+                   available_actions=[1, 2, 3, 4], game_id="fake", step=2, level_step=0)
+        agent.observe(Action.simple(1), f1, f2)
+        assert agent.consolidate_pending and agent.consolidate_pending["level"] == 1
+        assert "moved" in agent.consolidate_pending["winning_move"]  # the winning move was tracked on the terminal frame
+        assert len(agent.level_archive) == 1 and len(agent.level_archive[0][0]) == 3  # start, after UP, terminal (observed)
+        n_msgs = len(agent.messages)
+        agent.frame = f2
+        agent._consolidate_level()
+        assert agent.consolidate_pending is None and agent.stats()["consolidations"] == 1
+        assert [m["role"] for m in agent.messages] == ["system"]  # conversation cleared at the level boundary
+        assert n_msgs > 1
+        lessons = {(it["kind"], it["text"]) for it in agent.memory.to_list()}
+        assert ("goal", "walk the avatar onto the odd-coloured tile") in lessons
+        assert ("mechanic", "UP moves the avatar 4 px") in lessons
+        assert any(it["kind"] == "recipe" for it in agent.memory.to_list())
+        assert agent.notes == ["level 1 target was #3"]
+        assert agent.friction == ["the tile map is hard to read"]
+        assert not agent.no_actions
+        rec = [r for r in agent.transcript if r["kind"] == "consolidation"]
+        assert len(rec) == 2
+        # act() inside the consolidation cell was refused: only the first turn's UP was ever served.
+        assert agent.stats()["actions_model"] == 1
+        while not agent.action_q.empty():
+            assert agent.action_q.get_nowait() is TURN_DONE
+        text = agent._observation_text()
+        assert "LEVEL 1 COMPLETED after 2 actions" in text and "Lessons (this game" in text
+    finally:
+        agent.close()
+    meta = json.loads(open(tmp_path / "fake.transcript.jsonl").readline())
+    assert meta["friction"] == ["the tile map is hard to read"]
+
+
+def test_consolidation_is_skipped_when_disabled_or_out_of_time():
+    import numpy as np
+
+    mock = MockClient([MockClient.tool("act('UP')"), MockClient.say("ok")] * 4)
+    ctx = AgentContext(game_id="fake", deadline=time.time() + 300, config={"client": mock, "image": False, "level_consolidation": False})
+    agent = get("repl")(ctx)
+    try:
+        g0 = np.zeros((64, 64), dtype=np.int16)
+        g0[10:14, 10:14] = 9
+        g1 = np.zeros((64, 64), dtype=np.int16)
+        g1[30:34, 30:34] = 9
+        f0, f1 = _frame(g0), _frame(g1, levels=1)
+        agent.act(f0)
+        agent.observe(Action.simple(1), f0, f1)
+        assert agent.consolidate_pending is None
+    finally:
+        agent.close()
+    mock = MockClient([MockClient.tool("act('UP')"), MockClient.say("ok")] * 4)
+    ctx = AgentContext(game_id="fake", deadline=time.time() + 60, config={"client": mock, "image": False})
+    agent = get("repl")(ctx)
+    try:
+        g0 = np.zeros((64, 64), dtype=np.int16)
+        g0[10:14, 10:14] = 9
+        g1 = np.zeros((64, 64), dtype=np.int16)
+        g1[30:34, 30:34] = 9
+        f0, f1 = _frame(g0), _frame(g1, levels=1)
+        agent.act(f0)
+        agent.observe(Action.simple(1), f0, f1)
+        assert agent.consolidate_pending is not None
+        agent.messages.append({"role": "user", "content": "old"})
+        calls_before = agent.stats()["model_calls"]
+        agent._consolidate_level()  # under 3 turns of time left: no model call, history cleared anyway
+        assert agent.stats()["model_calls"] == calls_before and [m["role"] for m in agent.messages] == ["system"]
+    finally:
+        agent.close()

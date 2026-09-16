@@ -504,3 +504,25 @@ Plan:     dev, 1200 s, 8 workers, same seed and settings as exp-011..015 (notebo
           set exp-011/011b/011c/012b/013b/015: 1.229/1.372/0.775/0.692/0.608/1.041). Config knobs for the ablation:
           memory (all off), memory_shared, skills.
 Measured: not run. GPU quota for the week is exhausted (used 29 h 34 min of 30 h at 23:10 UTC).
+
+## 2026-09-16 · exp-020 · Tycho port bundle: level-boundary consolidation + conversation clear, observed terminal frame, animation note, friction line · PLANNED (needs GPU quota)
+Why:      lesson 0013 (owner's reference, Tycho): the one harness structure they show adding score is a per-level
+          conversation with a consolidation pass at the boundary (scribe writes level insights; the chat is cleared;
+          notes, programs and plans persist on disk). Our agent keeps one growing conversation across levels and evicts by
+          tokens, so stale reasoning from level 1 stays in the prompt on level 3, and the winning frame of a completed
+          level was simulated rather than observed (the engine returns it as the first layer of the level-completing
+          step: verified on vc33/ls20/ar25 replays).
+Change:   repl agent: after a completed level, one or two "consolidation" model calls (no actions; act() is refused with
+          a message) ask for learn()/note() entries on the goal, mechanics, recipe and mistakes plus an optional
+          FRICTION line (kept in the transcript meta, never shown), then the conversation is cleared to the system prompt
+          and the next level starts from a fresh observation with the lessons and notes. The tracker sees the observed
+          terminal frame, so the level archive and the harness-side goal predicates use real evidence; the winning move
+          is described in the level notice. Transient animation frames are noted as "[animation: N frames]" in the
+          turn log. Config: level_consolidation (default True), consolidation_calls (2). Prompt Method step 5 updated.
+          Tests: test_level_consolidation_records_lessons_refuses_actions_and_clears_history,
+          test_consolidation_is_skipped_when_disabled_or_out_of_time.
+Expected: fewer wasted actions on levels 2+ (no re-probing of a known key map, no stale plans), at most 2 extra calls
+          per completed level. Risk: a level solved late leaves no time for the pass (skipped under 3 turns of time).
+Plan:     two arms against the six-run base: exp-019 (memory on, level_consolidation off) and exp-020 (both on), dev,
+          1200 s, 8 workers, three runs each. Notebooks built from HEAD in the scratchpad.
+Measured: not run (GPU quota exhausted until 2026-09-19 00:00 UTC).

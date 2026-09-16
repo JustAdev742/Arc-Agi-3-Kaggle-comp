@@ -71,6 +71,7 @@ class Stats:
     wm_errors: int = 0
     lessons_auto: int = 0
     lessons_model: int = 0
+    consolidations: int = 0
     rules_fits: int = 0
     rules_time_s: float = 0.0
     rules_coverage: float = 0.0
@@ -156,6 +157,14 @@ class ReplAgent(Agent):
                               share=bool(c.get("memory_shared", True)))
         self.skills = load_skills(c.get("skills_path")) if (self.memory_on and bool(c.get("skills", True))) else []
         self.learn_nudge = ""  # "what did we learn?" question, asked once after a game over / retired model
+        # Tycho-style level boundary (lesson 0013): after a level is completed, one consolidation call records what
+        # the level taught (learn()/note(), no actions), then the conversation is cleared; lessons, notes and the
+        # REPL state carry over. The fresh observation then starts the next level from a short prompt.
+        self.level_consolidation = bool(c.get("level_consolidation", True))
+        self.consolidation_calls = int(c.get("consolidation_calls", 2))
+        self.consolidate_pending: Optional[dict[str, Any]] = None
+        self.no_actions = False  # set during the consolidation step: act() is refused
+        self.friction: list[str] = []  # the model's own harness-friction notes (read after the run, never in-prompt)
         self.tracker = Tracker()
         self.tracker_level = -1
         self.turn_log: list[str] = []  # compact action summaries for the next user message
@@ -259,11 +268,25 @@ class ReplAgent(Agent):
         self.recent_actions.append(str(action))
         del self.recent_changes[:-24]
         del self.recent_actions[:-24]
+        aid0 = int(action.action.value)
+        label0: Any = ("CLICK", int(action.x or 0), int(action.y or 0)) if aid0 == 6 else ACTION_NAMES.get(aid0, str(action))
+        win_summary = ""
         if res["level_completed"]:
             self.st.levels_completed += 1
             n_level = int(before.level_step) + 1
             last = ", ".join(self.recent_actions[-8:])
-            goals = self._archive_level(action)
+            observed_terminal = False
+            if len(after.layers) > 1 and after.layers[0].shape == before.grid.shape:
+                # The engine returns the completed level's terminal frame first and the next level's start last
+                # (checked on vc33/ls20/ar25 replays, 2026-09-16): the winning move is tracked on the real terminal
+                # frame, so the level archive and the goal predicates use observed evidence, not a simulation.
+                try:
+                    rec = self.tracker.update(after.layers[0], label0)
+                    win_summary = Tracker.describe({**rec, "action": str(action)}, self.tracker)
+                    observed_terminal = True
+                except Exception:  # noqa: BLE001
+                    observed_terminal = False
+            goals = self._archive_level(action, observed_terminal=observed_terminal)
             goal_txt = (" Win conditions consistent with every completed level so far: " + "; ".join(goals[:5]) + "."
                         if goals else " No win condition is consistent with all completed levels yet.")
             self.level_notice = (f"LEVEL {before.level} COMPLETED after {n_level} actions on it (the last actions were: {last})."
@@ -273,6 +296,9 @@ class ReplAgent(Agent):
             self.memory.add("recipe", f"Level {before.level} completed in {n_level} actions; the last actions were {last}"
                             + (f"; win condition consistent with every level so far: {goals[0]}" if goals else ""),
                             level=before.level, evidence=f"actions={n_level}")
+            if self.level_consolidation:
+                self.consolidate_pending = {"level": int(before.level), "actions": n_level, "last": last, "goals": goals[:3],
+                                            "winning_move": win_summary}
         if after.game_over and not before.game_over:
             prev = ", ".join(self.recent_actions[-4:-1]) or "none"
             self.memory.add("hazard", f"GAME OVER on level {after.level} right after {action} (the actions before it: {prev}); "
@@ -282,12 +308,14 @@ class ReplAgent(Agent):
         if res["level_completed"] or self.tracker_level != after.levels_completed:
             self.tracker.reset(after.grid)
             self.tracker_level = after.levels_completed
-            summary = f"{action} -> changed {d.changed} cells"
+            summary = win_summary or f"{action} -> changed {d.changed} cells"
         else:
-            aid = int(action.action.value)
-            label: Any = ("CLICK", int(action.x or 0), int(action.y or 0)) if aid == 6 else ACTION_NAMES.get(aid, str(action))
-            rec = self.tracker.update(after.grid, label)
+            rec = self.tracker.update(after.grid, label0)
             summary = Tracker.describe({**rec, "action": str(action)}, self.tracker)
+            if len(after.layers) > 2:
+                # Transient animation frames (Tycho's frame roles): the actor sees a one-line note, code can read
+                # frames; the tracker and the rule fitter only ever see the decision frame.
+                summary += f" [animation: {len(after.layers)} frames]"
         self.turn_log.append(summary + (" LEVEL COMPLETED" if res["level_completed"] else "") + (" GAME OVER" if after.game_over else ""))
         self.fallback.observe(action, before, after)
         req = self.pending
@@ -323,7 +351,8 @@ class ReplAgent(Agent):
         p.parent.mkdir(parents=True, exist_ok=True)
         with open(p, "w") as f:
             f.write(json.dumps({"kind": "meta", "game": self.ctx.game_id, "config": {k: v for k, v in self.ctx.config.items() if k not in ("client", "specialist_client")},
-                                "notes": self.notes, "lessons": self.memory.to_list(), "stats": self.stats()}, default=str) + "\n")
+                                "notes": self.notes, "lessons": self.memory.to_list(), "friction": self.friction,
+                                "stats": self.stats()}, default=str) + "\n")
             f.writelines(json.dumps(rec, default=str) + "\n" for rec in self.transcript)
         return str(p)
 
@@ -378,6 +407,9 @@ class ReplAgent(Agent):
                 "history": self.history[-30:], "last": self.last_result}
 
     def _handle_actions(self, actions: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        if self.no_actions:
+            raise RuntimeError("actions are not allowed during the level consolidation step: record lessons with learn() and notes "
+                               "with note(), then reply 'done'; the next turn starts the new level")
         results: list[dict[str, Any]] = []
         for a in actions:
             act = self._to_action(a)
@@ -415,15 +447,19 @@ class ReplAgent(Agent):
             return Action.click(x, y)
         return Action(GameAction.from_id(aid))
 
-    def _archive_level(self, final_action: Action) -> list[str]:
-        """Archive the completed level's symbolic frames with a simulated winning frame and return the goal
-        predicates consistent with every completed level (the harness-side twin of the REPL's goal_candidates())."""
+    def _archive_level(self, final_action: Action, *, observed_terminal: bool = False) -> list[str]:
+        """Archive the completed level's symbolic frames (with the observed terminal frame when the tracker saw it,
+        else a simulated winning frame) and return the goal predicates consistent with every completed level (the
+        harness-side twin of the REPL's goal_candidates())."""
         try:
             from .. import dsl
             t = self.tracker
             frames = t.compound_frames()
             if not frames:
                 return []
+            if observed_terminal and len(frames) >= 2:
+                self.level_archive.append((list(frames), True))
+                return [g["goal"] for g in dsl.goal_predicates(self.level_archive)]
             aid = int(final_action.action.value)
             label: Any = ("CLICK", int(final_action.x or 0), int(final_action.y or 0)) if aid == 6 else ACTION_NAMES.get(aid, str(final_action))
             log = dsl.make_log(frames, t.actions, t.unders, t.bg)
@@ -669,11 +705,80 @@ class ReplAgent(Agent):
             return self.effort_raised
         return self.reasoning_effort
 
+    def _consolidate_level(self) -> None:
+        """Tycho-style scribe pass at a level boundary: one or two model calls that record what the completed level
+        taught (learn()/note(), no actions), then the conversation is cleared. Skipped when time is short."""
+        info = self.consolidate_pending or {}
+        self.consolidate_pending = None
+        if not info or self.closed:
+            return
+        if self.ctx.time_left() < 3 * self.min_time_for_turn_s:
+            self.messages = self.messages[:1]
+            return
+        goals = "; ".join(info.get("goals") or []) or "none consistent yet"
+        move = f" The winning move: {info['winning_move']}." if info.get("winning_move") else ""
+        self.messages.append({"role": "user", "content": (
+            f"LEVEL {info['level']} COMPLETED in {info['actions']} actions (the last actions were: {info['last']}).{move} "
+            f"Win conditions consistent with every completed level so far: {goals}. Consolidation step before level "
+            f"{info['level'] + 1}: do NOT act. In ONE python call record what this level taught with learn(...): the win "
+            "condition as you now understand it (kind='goal'), the mechanics that mattered (kind='mechanic'), the recipe that "
+            "worked (kind='recipe'), and any mistake to avoid (kind='mistake'); keep facts with note(). Then reply 'done'. "
+            "Optionally add one line 'FRICTION: <what in the tools or observations slowed you down>' (read after the run, "
+            "never shown to you). Your conversation is cleared after this step; lessons, notes and the REPL state carry over.")})
+        self.no_actions = True
+        try:
+            for _ in range(max(1, self.consolidation_calls)):
+                if self.closed or self.ctx.time_left() < 2 * self.min_time_for_turn_s:
+                    break
+                self._evict()
+                t0 = time.time()
+                try:
+                    resp: ChatResponse = self.client.chat(
+                        self.messages, tools=TOOLS, max_tokens=self.max_output_tokens, temperature=self.temperature,
+                        top_p=self.top_p, thinking=self.thinking, reasoning_effort=self.reasoning_effort,
+                        preserve_thinking=self.preserve_thinking,
+                        timeout_s=max(self.min_call_timeout_s, min(self.model_timeout_s, self.ctx.time_left() - 5)))
+                except Exception as e:  # noqa: BLE001
+                    self.log.warning("consolidation call failed: %s", e)
+                    break
+                dt = time.time() - t0
+                self.st.model_calls += 1
+                self.st.model_time_s += dt
+                self.st.latencies.append(dt)
+                self.st.prompt_tokens += resp.prompt_tokens
+                self.st.completion_tokens += resp.completion_tokens
+                self.messages.append(resp.assistant_message(with_reasoning=bool(self.preserve_thinking)))
+                self._record("consolidation", turn=self.st.turns, level=info["level"], content=resp.content[:1500],
+                             code=[tc.arguments.get("code", "")[:3000] for tc in resp.tool_calls], latency_s=round(dt, 1))
+                for line in (resp.content or "").splitlines():
+                    if line.strip().upper().startswith("FRICTION:"):
+                        self.friction.append(line.strip()[9:].strip()[:300])
+                if not resp.tool_calls:
+                    break
+                for tc in resp.tool_calls:
+                    self.st.tool_calls += 1
+                    if tc.name != "python":
+                        self.messages.append({"role": "tool", "tool_call_id": tc.id, "content": f"unknown tool {tc.name}; only `python` exists"})
+                        continue
+                    code = str(tc.arguments.get("code", "") or "")
+                    r = self.sandbox.run(code, self._state_payload(), timeout_s=self.tool_timeout_s, action_handler=self._handle_actions)
+                    if r.get("notes"):
+                        self.notes = list(r["notes"])[-40:]
+                    self._learn_from_result(r)
+                    self.messages.append({"role": "tool", "tool_call_id": tc.id, "content": self._tool_text(r, events_line=False)})
+        finally:
+            self.no_actions = False
+            self.st.consolidations += 1
+            self.messages = self.messages[:1]  # the next level starts from the system prompt and a fresh observation
+            self.learn_nudge = ""
+
     def _turn(self) -> None:
         acted = False
         nudged = False
         errored = False
         inspect_only = 0
+        if self.consolidate_pending:
+            self._consolidate_level()
         effort = self._effort_for_turn()
         try:
             um = self._user_message()
