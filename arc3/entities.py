@@ -108,6 +108,7 @@ class Tracker:
         self._art_gone: set[int] = set()  # entities currently hidden under a mover (kept in the symbolic frame)
         self._art_appeared: set[int] = set()  # pieces split off by a mover (left out of the symbolic frame)
         self._art_changed: set[int] = set()  # entities whose current raw box/size is an occlusion artefact
+        self._hud_seen: set[int] = set()
         self.unders: list[np.ndarray] = []  # static layer snapshot per frame (aligned with frames)
         self.occluded_events = 0  # changes attributed to occlusion by movers and therefore not reported
 
@@ -305,6 +306,7 @@ class Tracker:
         self.n_transitions += 1
         self.actions.append(action)
         self._snapshot()
+        self.hud_ids()
         rec = {"action": action, "moved": moved, "appeared": appeared, "disappeared": disappeared,
                "recolored": recolored, "reshaped": reshaped, "same": len(new) - len(moved) - len(appeared) - len(recolored) - len(reshaped)}
         self.log.append(rec)
@@ -324,9 +326,12 @@ class Tracker:
         return [e.id for e in self.current if self.changed_ids[e.id] == 0]
 
     def hud_ids(self) -> list[int]:
-        """Edge-hugging strips that were reshaped or recoloured in at least two transitions."""
-        out = []
+        """Edge-hugging strips that were reshaped or recoloured in at least two transitions, plus any entity that
+        qualified earlier in the level (a bar that has run out is still a bar)."""
+        out = list(self._hud_seen)
         for e in self.current:
+            if e.id in self._hud_seen:
+                continue
             if not (e.touches_edge(margin=2) and (e.w >= 16 or e.h >= 16) and self.changed_ids[e.id] >= 2):
                 continue
             hist = self.pos_hist.get(e.id, [])
@@ -334,6 +339,7 @@ class Tracker:
             along_axis = all(y == hist[0][1] for _, y in hist) if e.w >= e.h else all(x == hist[0][0] for x, _ in hist)
             if along_axis:
                 out.append(e.id)
+                self._hud_seen.add(e.id)
         return out
 
     def avatar(self) -> Optional[dict[str, Any]]:

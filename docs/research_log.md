@@ -108,9 +108,11 @@ Measured: scripts/rule_coverage.py, fixed blind probe (60 actions on level 1: ke
             + periodic counters, per-id move classes, HUD-masked prediction checks, split/merge artefacts:
                                     mean 0.283 over 25 (probe_all_v5.log, commit 4b28d5b)
             + canonical terrain under occlusion, click 'goto' effect, region-restricted classes, shape-only click targets:
-                                    mean 0.325 over 25 (runs/rule-coverage/summary.json, probe_all_v7.log)
-            per game >= 0.5: ar25 1.00, ft09 1.00, m0r0 1.00, re86 0.96, ls20 0.71, dc22 0.70, ka59 0.63
-            0.0: s5i5, su15, vc33 ('resized' counters that change by varying amounts; blind clicks that do nothing)
+                                    mean 0.325 over 25 (probe_all_v7.log, commit 0ada112)
+            + HUD bars remembered after they run out:
+                                    mean 0.375 over 25 (runs/rule-coverage/summary.json, probe_all_v8.log)
+            per game >= 0.5: ar25 1.00, ft09 1.00, m0r0 1.00, tn36 1.00, ls20 0.98, re86 0.96, dc22 0.70, ka59 0.63
+            0.0: s5i5, sp80, su15, vc33 (blind clicks that do nothing; counters that change by varying amounts)
           CPU only: play + fit under 4 s per game. No GPU run yet: exp-005 (tracker + planner) is still queued on Kaggle.
 Notes:    this is a lower bound (blind probe, one level) and not a score. It is the exp-006 gate metric: the fraction of
           observed mechanics the library can express. Remaining unexplained kinds: 'resized' (bars/counters that change by

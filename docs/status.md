@@ -89,8 +89,8 @@ architectural step therefore has to be measured on dev and val, not assumed.
 ## Rule library coverage (exp-006a, code-only, 2026-09-16)
 
 `scripts/rule_coverage.py` plays each public game blind for 60 actions and measures the fraction of entity events the
-fitted rule set explains: mean 0.33 over 25 games; ar25 1.00, ft09 1.00, m0r0 1.00, re86 0.96, ls20 0.71, dc22 0.70,
-ka59 0.63; three games at 0. Lower bound, not a score. Details: `runs/rule-coverage/summary.json`,
+fitted rule set explains: mean 0.375 over 25 games; ar25 1.00, ft09 1.00, m0r0 1.00, tn36 1.00, ls20 0.98, re86 0.96,
+dc22 0.70, ka59 0.63; four games at 0. Lower bound, not a score. Details: `runs/rule-coverage/summary.json`,
 research log exp-006a.
 
 ## Open items (need you)
@@ -145,7 +145,7 @@ Built and tested (all in `tests/`, green on this container via `make test`):
   `goal_predicates` lists win conditions consistent with completed levels. Tracker: occlusion-aware events, static
   layer, compound sprites, canonical terrain state. In the REPL as `auto_rules()/plan_rules()/rules_predictor()/
   goal_candidates()`; the prompt's Method uses them. Code-only coverage gate: mean 0.33 over the 25 public games
-  (7 games >= 0.63, three at 0). Regression-guarded in `tests/test_rule_coverage.py`. Model-driven effect: exp-007 (running).
+  (8 games >= 0.63, four at 0). Regression-guarded in `tests/test_rule_coverage.py`. Model-driven effect: exp-007 (running).
 - Per-game transcripts (`runs/<name>/<game>.transcript.jsonl`) and `scripts/transcript_report.py` for post-mortems.
 
 Next on the GPU box, in order:
