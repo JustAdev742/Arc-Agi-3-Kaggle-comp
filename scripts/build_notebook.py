@@ -53,7 +53,58 @@ def md_cell(src: str) -> dict:
     return {"cell_type": "markdown", "metadata": {}, "source": src}
 
 
-def build(accelerator: str, agent: str, model_dataset: str, wheels_dataset: str, budget_s: int, smoke_s: int = 300) -> dict:
+def _mount_expr(ref: str) -> str:
+    """Python expression (as source) resolving a dataset ref to its mount path or None."""
+    if not ref:
+        return "None"
+    owner, slug = ref.split("/", 1)
+    return (f"next((p for p in ['/kaggle/input/{slug}', '/kaggle/input/datasets/{owner}/{slug}'] if os.path.isdir(p)), None)")
+
+
+def vllm_setup_source(model_dataset: str, wheels_dataset: str, specialist_dataset: str = "") -> str:
+    """Notebook cell source: install vLLM from the wheelhouse, start the coordinator server (and the
+    specialist server for the council arm) with fallback flags, and publish ARC3_AGENT_CONFIG."""
+    return dedent(f"""\
+        # Local model server(s). Datasets are attached in kernel-metadata.json.
+        MODEL_DIR = {_mount_expr(model_dataset)}
+        WHEELS = {_mount_expr(wheels_dataset)}
+        SPECIALIST_DIR = {_mount_expr(specialist_dataset)}
+        vllm_procs = []
+        cfg = json.loads(os.environ.get('ARC3_AGENT_CONFIG', '{{}}'))
+        if os.environ['ARC3_AGENT'] in ('repl', 'council'):
+            if MODEL_DIR is None:
+                print('no model dataset attached -> falling back to explorer'); os.environ['ARC3_AGENT'] = 'explorer'
+            else:
+                if WHEELS:
+                    t0 = time.time()
+                    subprocess.check_call([sys.executable, '-m', 'pip', 'install', '-q', '--no-index', '--no-warn-conflicts', '--find-links', WHEELS, 'vllm'])
+                    print('vllm installed in %.0fs' % (time.time() - t0))
+                from arc3.serve import start_vllm_with_fallback
+                two = os.environ['ARC3_AGENT'] == 'council' and SPECIALIST_DIR is not None and not cfg.get('specialist')
+                proc, ok = start_vllm_with_fallback(MODEL_DIR, log_path='/kaggle/working/vllm.log', port=8000, served_name='arc3-model',
+                                                    gpu_mem=0.62 if two else 0.90, timeout_s=1500)
+                print('vllm ready:', ok, 'after %.0fs' % (time.time() - START))
+                if not ok:
+                    print(open('/kaggle/working/vllm.log').read()[-3000:]); os.environ['ARC3_AGENT'] = 'explorer'
+                else:
+                    vllm_procs.append(proc)
+                    cfg.update({{'base_url': 'http://127.0.0.1:8000/v1', 'model': 'arc3-model'}})
+                    if two:
+                        proc2, ok2 = start_vllm_with_fallback(SPECIALIST_DIR, log_path='/kaggle/working/vllm-specialist.log', port=8001,
+                                                              served_name='arc3-specialist', gpu_mem=0.30, max_model_len=16384, mtp_tokens=0, timeout_s=900)
+                        print('specialist vllm ready:', ok2, 'after %.0fs' % (time.time() - START))
+                        if ok2:
+                            vllm_procs.append(proc2)
+                            cfg['specialist'] = {{'base_url': 'http://127.0.0.1:8001/v1', 'model': 'arc3-specialist'}}
+                        else:
+                            print(open('/kaggle/working/vllm-specialist.log').read()[-2000:]); print('council will use the coordinator model for specialist roles')
+                    os.environ['ARC3_AGENT_CONFIG'] = json.dumps(cfg)
+        print('agent:', os.environ['ARC3_AGENT'], 'config keys:', sorted(cfg))
+        """)
+
+
+def build(accelerator: str, agent: str, model_dataset: str, wheels_dataset: str, budget_s: int, smoke_s: int = 300,
+          specialist_dataset: str = "") -> dict:
     if accelerator not in _ACCELERATORS:
         raise SystemExit(f"unknown accelerator {accelerator}")
     agent_body = AGENT_SRC.read_text()
@@ -82,31 +133,7 @@ def build(accelerator: str, agent: str, model_dataset: str, wheels_dataset: str,
         import arc3; print('arc3', arc3.__version__, 'unpacked at /kaggle/working/arc3')
         """)))
     cells.append(code_cell("%%writefile /tmp/my_agent.py\n" + agent_body))
-    cells.append(code_cell(dedent(f"""\
-        # Optional local model server. Attach the model + vLLM wheelhouse datasets in kernel-metadata.json.
-        MODEL_DIR = next((p for p in ['/kaggle/input/{model_dataset.split('/')[-1] if model_dataset else 'NONE'}',
-                                      '/kaggle/input/datasets/{model_dataset if model_dataset else 'NONE/NONE'}'] if os.path.isdir(p)), None)
-        WHEELS = next((p for p in ['/kaggle/input/{wheels_dataset.split('/')[-1] if wheels_dataset else 'NONE'}',
-                                   '/kaggle/input/datasets/{wheels_dataset if wheels_dataset else 'NONE/NONE'}'] if os.path.isdir(p)), None)
-        vllm_proc = None
-        if os.environ['ARC3_AGENT'] == 'repl':
-            if MODEL_DIR is None:
-                print('no model dataset attached -> falling back to explorer'); os.environ['ARC3_AGENT'] = 'explorer'
-            else:
-                if WHEELS:
-                    subprocess.check_call([sys.executable, '-m', 'pip', 'install', '-q', '--no-index', '--find-links', WHEELS, 'vllm'])
-                from arc3.serve import start_vllm_with_fallback
-                vllm_proc, ok = start_vllm_with_fallback(MODEL_DIR, log_path='/kaggle/working/vllm.log', port=8000,
-                                                         served_name='arc3-model', timeout_s=1500)
-                print('vllm ready:', ok, 'after %.0fs' % (time.time() - START))
-                if not ok:
-                    print(open('/kaggle/working/vllm.log').read()[-3000:]); os.environ['ARC3_AGENT'] = 'explorer'
-                else:
-                    cfg = json.loads(os.environ.get('ARC3_AGENT_CONFIG', '{{}}'))
-                    cfg.update({{'base_url': 'http://127.0.0.1:8000/v1', 'model': 'arc3-model'}})
-                    os.environ['ARC3_AGENT_CONFIG'] = json.dumps(cfg)
-        print('agent:', os.environ['ARC3_AGENT'])
-        """)))
+    cells.append(code_cell(vllm_setup_source(model_dataset, wheels_dataset, specialist_dataset)))
     cells.append(code_cell(dedent(f"""\
         if RERUN:
             subprocess.check_call('curl --fail --retry 999 --retry-all-errors --retry-delay 5 --retry-max-time 600 http://gateway:8001/api/games', shell=True)
@@ -150,8 +177,8 @@ def build(accelerator: str, agent: str, model_dataset: str, wheels_dataset: str,
                 print('no bundled environment_files; skipping offline smoke')
             import pandas as pd
             pd.DataFrame([['1_0', '1', True, 1]], columns=['row_id', 'game_id', 'end_of_game', 'score']).to_parquet('/kaggle/working/submission.parquet', index=False)
-        if vllm_proc is not None:
-            vllm_proc.terminate()
+        for p_ in vllm_procs:
+            p_.terminate()
         """)))
     accel = _ACCELERATORS[accelerator]
     return {
@@ -168,7 +195,9 @@ def build(accelerator: str, agent: str, model_dataset: str, wheels_dataset: str,
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--accelerator", default="rtx6000", choices=sorted(_ACCELERATORS))
-    p.add_argument("--agent", default="repl", choices=["repl", "explorer", "random"])
+    p.add_argument("--agent", default="repl", choices=["repl", "council", "explorer", "random"])
+    p.add_argument("--specialist-dataset", default="scottmahony/qwen3-vl-8b-instruct-nvfp4",
+                   help="owner/slug of the specialist model dataset (council arm only)")
     p.add_argument("--model-dataset", default="saltb0x/qwen3-8-27b-fp8",
                    help="owner/slug of the model weights dataset (default: official Qwen3.8-27B-FP8 snapshot, "
                         "verified byte-for-byte against HF sha 017b9c7a on 2026-09-16)")
@@ -178,14 +207,15 @@ def main() -> None:
     p.add_argument("--smoke-s", type=int, default=300, help="per-game seconds for the Save & Run All offline smoke")
     p.add_argument("--out", default=str(NOTEBOOK_PATH))
     a = p.parse_args()
-    nb = build(a.accelerator, a.agent, a.model_dataset, a.wheels_dataset, a.budget_s, a.smoke_s)
+    spec = a.specialist_dataset if a.agent == 'council' else ''
+    nb = build(a.accelerator, a.agent, a.model_dataset, a.wheels_dataset, a.budget_s, a.smoke_s, spec)
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
     Path(a.out).write_text(json.dumps(nb, indent=1))
     print(f"[build_notebook] wrote {a.out} (accelerator={a.accelerator}, agent={a.agent}, {len(json.dumps(nb)) // 1024} KB)")
     if METADATA_PATH.exists():
         meta = json.loads(METADATA_PATH.read_text())
         meta["enable_gpu"] = _ACCELERATORS[a.accelerator]["gpu"]
-        ds = [d for d in (a.model_dataset, a.wheels_dataset) if d]
+        ds = [d for d in (a.model_dataset, a.wheels_dataset, spec) if d]
         if ds:
             meta["dataset_sources"] = ds
         METADATA_PATH.write_text(json.dumps(meta, indent=2) + "\n")

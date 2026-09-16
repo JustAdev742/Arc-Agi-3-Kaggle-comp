@@ -21,6 +21,11 @@ def get(name: str):
         # Lazy imports so optional deps (e.g. requests for the REPL agent) stay optional.
         from . import random_agent, explorer  # noqa: F401
         try:
+            from . import council  # noqa: F401
+        except Exception as e:  # pragma: no cover
+            import logging
+            logging.getLogger(__name__).warning("council agent unavailable: %s", e)
+        try:
             from . import repl_agent  # noqa: F401
         except Exception as e:  # pragma: no cover
             import logging

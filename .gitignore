@@ -38,3 +38,4 @@ wheels/
 # Pulled reference notebooks (other teams' code; keep out of our repo)
 reference/
 notebooks/diag/diag.ipynb
+notebooks/eval/eval.ipynb
