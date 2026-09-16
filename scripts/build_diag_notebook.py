@@ -116,17 +116,23 @@ def build(model_dataset: str, wheels_dataset: str, budget_min: int, smoke_s: int
                 except Exception as e:
                     DIAG[f'chat_{effort}'] = {'error': str(e)[:500]}
                 print(effort, json.dumps(DIAG[f'chat_{effort}'], indent=1))
-            # throughput: 8 concurrent short generations
+            # throughput: 1 then 8 concurrent short generations (never let a server error kill the notebook)
             def one():
                 t = time.time(); rr = client.chat(msgs[:1] + [{'role': 'user', 'content': 'Count from 1 to 200 separated by spaces.'}], max_tokens=400, thinking=False, timeout_s=600)
                 return rr.completion_tokens, time.time() - t
             for n in (1, 8):
                 t0 = time.time()
-                with cf.ThreadPoolExecutor(n) as ex:
-                    res = list(ex.map(lambda _: one(), range(n)))
-                wall = time.time() - t0; toks = sum(r[0] for r in res)
-                DIAG[f'throughput_{n}'] = {'wall_s': round(wall, 1), 'tokens': toks, 'tok_per_s': round(toks / wall, 1)}
+                try:
+                    with cf.ThreadPoolExecutor(n) as ex:
+                        res = list(ex.map(lambda _: one(), range(n)))
+                    wall = time.time() - t0; toks = sum(r[0] for r in res)
+                    DIAG[f'throughput_{n}'] = {'wall_s': round(wall, 1), 'tokens': toks, 'tok_per_s': round(toks / wall, 1)}
+                except Exception as e:
+                    DIAG[f'throughput_{n}'] = {'error': str(e)[:500]}
+                    DIAG['vllm_ready'] = False  # server is unusable; skip the REPL smoke
                 print(n, DIAG[f'throughput_{n}'])
+            DIAG['vllm_log_tail'] = open('/kaggle/working/vllm.log').read()[-2500:]
+            DIAG['attention_backend'] = [l for l in open('/kaggle/working/vllm.log') if 'attention backend' in l][-1:]
         """)))
     cells.append(code_cell(dedent(f"""\
         if DIAG['vllm_ready'] and left() > {smoke_s} + 120:

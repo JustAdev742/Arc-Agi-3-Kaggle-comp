@@ -85,6 +85,10 @@ def kaggle_env() -> dict[str, str]:
         for key in ("LIBRARY_PATH", "LD_LIBRARY_PATH"):
             env[key] = os.pathsep.join(p for p in [cuda, env.get(key, "")] if p)
     env.setdefault("VLLM_USE_FLASHINFER_SAMPLER", "0")
+    # On the RTX PRO 6000 (SM120) vLLM 0.27.1 auto-picks FlashInfer, which then needs cubins from
+    # NVIDIA's artifactory (no internet on Kaggle) or a JIT it refuses ("requires sm75 or higher",
+    # diag run 2026-09-16). Triton attention was the other listed candidate and supports FP8 KV.
+    env.setdefault("VLLM_ATTENTION_BACKEND", "TRITON_ATTN")
     env.setdefault("VLLM_STARTUP_TIMEOUT", "1800")
     return env
 

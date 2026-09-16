@@ -15,3 +15,7 @@ What the competition dataset ships and how Kaggle mounts things (verified from t
 - The RTX PRO 6000 accelerator id in notebook metadata is `nvidiaRtxPro6000` (2nd/3rd place notebooks). The starter kit's
   `nvidiaRtx6000` is unknown to Kaggle and the run silently lands on 2x T4 (our diag run #2). Always check `nvidia-smi`
   in the log before trusting a GPU run.
+- On the RTX PRO 6000, vLLM 0.27.1 auto-selects the FlashInfer attention backend and the first request dies
+  ("FlashInfer requires GPUs with sm75 or higher": its SM120 cubins come from NVIDIA's artifactory, unreachable
+  offline). Force `VLLM_ATTENTION_BACKEND=TRITON_ATTN` (`arc3.serve.kaggle_env`). Model load itself was fine:
+  28.95 GiB FP8 weights in 120 s, MTP draft detected, 53 GiB KV cache, server up in ~5.5 min.
