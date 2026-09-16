@@ -125,6 +125,10 @@ Built and tested (all in `tests/`, green on this container via `make test`):
   Both confirm that blind search is worth ~0 under RHAE (`docs/lessons/0003-*`).
 - **Control arm on Kaggle RTX: exp-003c dev 0.56** (single 27B REPL agent, 20 min/game, 8 concurrent, no errors). exp-003
   (0.53) had the context-overflow bug. Single runs are noisy at the 1-2 level scale (research log).
+- **exp-007 dev 0.839** (same settings + tracker, planner, rule library v3, Method): 5 levels like the control but with half
+  the actions (755 vs 1415); provisional, two levels of difference. Transcripts show the binding constraint: ~35 model
+  calls per game, 2.5 inspection-only calls per turn (`docs/postmortems/exp007-inspection-budget-2026-09-16.md`).
+  exp-008 (fitter v5, per-turn rules summary, goal hints, probe suggestions) is queued on Kaggle.
 - The REPL agent (Duck-style, persistent sandbox, image + ASCII + helpers, eviction, governor,
   explorer fallback). **First real-model run 2026-09-16 (diag v5 smoke)**: plumbing works end to end on Kaggle;
   the model acts too rarely per turn and prompts are too large (see research log exp-003a).
