@@ -739,6 +739,15 @@ class ReplAgent(Agent):
         return line
 
     @staticmethod
+    def _result_shown(result: Any, stdout: str) -> bool:
+        """True when the cell already printed its act() result (the action label appears in stdout), so echoing
+        the same JSON again would only cost prompt tokens (exp-009 transcripts showed every result twice)."""
+        first = result[0] if isinstance(result, list) and result else result
+        if isinstance(first, dict) and first.get("action"):
+            return str(first["action"]) in stdout
+        return False
+
+    @staticmethod
     def _tool_text(r: dict[str, Any]) -> str:
         parts = []
         if r.get("stdout"):
@@ -747,7 +756,7 @@ class ReplAgent(Agent):
         if wm and wm.get("checked"):
             parts.append(f"[world model: {wm['matched']}/{wm['checked']} predictions correct" + (
                 f"; mismatches: {wm['recent_mismatches'][-2:]}]" if wm["recent_mismatches"] else "]"))
-        if r.get("result") is not None:
+        if r.get("result") is not None and not ReplAgent._result_shown(r["result"], r.get("stdout") or ""):
             parts.append("result: " + json.dumps(r["result"], ensure_ascii=False)[:1500])
         if r.get("error"):
             parts.append(r["error"])

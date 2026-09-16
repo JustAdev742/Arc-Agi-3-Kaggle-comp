@@ -42,6 +42,22 @@ class MoveModel:
         self.bg = tracker.bg
         self.optimistic = False
         self.obstacles = self._fit_obstacles()
+        self.companions = self._fit_companions()
+
+    def _fit_companions(self) -> list[tuple[int, int, int, np.ndarray]]:
+        """Parts that always move with the avatar (ka59's eye, ar25's pupils): (dx, dy, colour, mask) relative to
+        the avatar's top-left, from the tracker's identical-move groups. They move with the sprite in predictions."""
+        out = []
+        for grp in self.tracker.groups():
+            if self.avatar_id not in grp:
+                continue
+            for eid in grp:
+                if eid == self.avatar_id:
+                    continue
+                e = self.tracker.get(eid)
+                if e is not None:
+                    out.append((e.x0 - self.pos[0], e.y0 - self.pos[1], e.color, e.mask.copy()))
+        return out
 
     # ------------------------------------------------------------ fitting
     def _fit_obstacles(self) -> np.ndarray:
@@ -50,14 +66,26 @@ class MoveModel:
         for (x0, y0) in self.tracker.pos_hist.get(self.avatar_id, []):
             occ[y0:y0 + self.h, x0:x0 + self.w] |= self.mask
         obs = np.zeros((n, n), dtype=bool)
+        roles = self.tracker.roles()
         for e in self.tracker.current:
-            if e.id == self.avatar_id:
-                continue
-            roles = self.tracker.roles()
-            if roles.get(e.id) == "hud":
+            if e.id == self.avatar_id or roles.get(e.id) == "hud":
                 continue
             obs[e.y0:e.y1 + 1, e.x0:e.x1 + 1] |= e.mask
         obs &= ~occ
+        # Terrain the avatar has stood on is walkable wherever it appears: a floor drawn as one big entity (ka59's
+        # white rooms, exp-009) is not a wall. The static layer holds each cell's colour when no mover covers it.
+        under = self.tracker.under
+        if under is not None and under.shape == (n, n):
+            walkable = {int(under[y, x]) for (x0, y0) in self.tracker.pos_hist.get(self.avatar_id, [])
+                        for y in range(y0, min(n, y0 + self.h)) for x in range(x0, min(n, x0 + self.w)) if self.mask[y - y0, x - x0]}
+            walkable.discard(self.color)
+            if self.bg is not None:
+                walkable.discard(int(self.bg))
+            self.walkable = walkable
+            if walkable:
+                obs &= ~np.isin(under, sorted(walkable))
+        else:
+            self.walkable = set()
         # Bumps: a key press that moved nothing marks the cells the avatar would have entered.
         for eid, action, x0, y0 in self.tracker.blocked:
             k = _norm_key(action)
@@ -127,12 +155,34 @@ class MoveModel:
         new = self.step(pos, k)
         if new == pos:
             return g
-        x0, y0 = pos
-        region = g[y0:y0 + self.h, x0:x0 + self.w]
-        region[self.mask] = self.bg if self.bg is not None else 0
-        nx, ny = new
-        target = g[ny:ny + self.h, nx:nx + self.w]
-        target[self.mask] = self.color
+        under = self.tracker.under
+        fill = self.bg if self.bg is not None else 0
+
+        def erase(x0: int, y0: int, mask: np.ndarray) -> None:
+            h, w = mask.shape
+            if x0 < 0 or y0 < 0 or x0 + w > 64 or y0 + h > 64:
+                return
+            region = g[y0:y0 + h, x0:x0 + w]
+            if under is not None and under.shape == g.shape:
+                # the terrain the sprite stood on, not the background colour (ka59's white floor, exp-009)
+                src = under[y0:y0 + h, x0:x0 + w]
+                keep = mask & (src != self.color)
+                region[keep] = src[keep]
+                region[mask & ~keep] = fill
+            else:
+                region[mask] = fill
+
+        def draw(x0: int, y0: int, mask: np.ndarray, colour: int) -> None:
+            h, w = mask.shape
+            if x0 < 0 or y0 < 0 or x0 + w > 64 or y0 + h > 64:
+                return
+            g[y0:y0 + h, x0:x0 + w][mask] = colour
+
+        parts = [(0, 0, self.color, self.mask)] + list(getattr(self, "companions", []))
+        for dx, dy, _, mask in parts:
+            erase(pos[0] + dx, pos[1] + dy, mask)
+        for dx, dy, colour, mask in parts:
+            draw(new[0] + dx, new[1] + dy, mask, colour)
         return g
 
     # ------------------------------------------------------------ search
@@ -181,5 +231,5 @@ class MoveModel:
         return self.bfs(goal)
 
     def summary(self) -> dict[str, Any]:
-        return {"avatar": self.avatar_id, "keymap": self.keymap, "pos": self.pos, "sprite": (self.w, self.h),
+        return {"avatar": self.avatar_id, "keymap": self.keymap, "pos": self.pos, "sprite": (self.w, self.h), "walkable_colours": sorted(getattr(self, "walkable", ())),
                 "obstacle_cells": int(self.obstacles.sum())}

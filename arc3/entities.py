@@ -359,7 +359,9 @@ class Tracker:
         for e in self.current:
             if e.id in self._hud_seen:
                 continue
-            if not (e.touches_edge(margin=2) and (e.w >= 16 or e.h >= 16) and self.changed_ids[e.id] >= 2):
+            long_bar = e.w >= 16 or e.h >= 16
+            thin_strip = min(e.w, e.h) == 1 and max(e.w, e.h) >= 2  # ka59: the "used" half of a bottom bar grows from 1 cell
+            if not (e.touches_edge(margin=2) and (long_bar or thin_strip) and self.changed_ids[e.id] >= 2):
                 continue
             hist = self.pos_hist.get(e.id, [])
             # a bar may shift along its own axis as it shrinks from one end; it never moves across it
@@ -370,12 +372,27 @@ class Tracker:
         return out
 
     def avatar(self) -> Optional[dict[str, Any]]:
-        """The entity that moves most often on key actions, with its observed key map."""
-        best: Optional[tuple[int, int]] = None
+        """The entity that moves with the keys, with its observed key map. Among entities with at least two key
+        moves, one that is alive and moved on the most recent key presses wins: when the avatar dies or merges
+        into another sprite (ka59, exp-009) control passes to whatever moves now, not to the dead id."""
+        recent: Counter = Counter()
+        seen = 0
+        for rec in reversed(self.log):
+            if rec["action"] in ("UP", "DOWN", "LEFT", "RIGHT", 1, 2, 3, 4):
+                for eid, _, _ in rec["moved"]:
+                    recent[eid] += 1
+                seen += 1
+                if seen >= 6:
+                    break
+        alive_ids = {e.id for e in self.current}
+        best: Optional[tuple[int, tuple[int, int, int]]] = None
         for eid, mv in self.moves.items():
             n_keys = sum(1 for a, _, _ in mv if a in ("UP", "DOWN", "LEFT", "RIGHT") or a in (1, 2, 3, 4))
-            if n_keys >= 2 and (best is None or n_keys > best[1]):
-                best = (eid, n_keys)
+            if n_keys < 2:
+                continue
+            score = (int(eid in alive_ids), recent[eid], n_keys)
+            if best is None or score > best[1]:
+                best = (eid, score)
         if best is None:
             return None
         eid = best[0]
@@ -385,7 +402,7 @@ class Tracker:
             if ds:
                 keymap[a] = Counter(ds).most_common(1)[0][0]
         e = self.get(eid)
-        return {"id": eid, "key_moves": best[1], "keymap": keymap, "alive": e is not None,
+        return {"id": eid, "key_moves": best[1][2], "keymap": keymap, "alive": e is not None,
                 "entity": e.summary(self.tile) if e else None}
 
     def groups(self) -> list[list[int]]:

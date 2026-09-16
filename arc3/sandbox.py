@@ -61,7 +61,8 @@ def _recv():
     return json.loads(line)
 
 G = {"__name__": "__repl__", "np": np, "notes": []}
-WM = {"predict": None, "checked": 0, "matched": 0, "mismatches": [], "errors": 0}
+WM = {"predict": None, "checked": 0, "matched": 0, "mismatches": [], "errors": 0, "streak": 0}
+WM_RETIRE_AFTER = 3  # consecutive mismatches after which the registered world model is dropped
 LOG = {"level": None, "transitions": []}  # (before_grid, action_label, after_grid) for the current level
 TRK = {"t": _Tracker()}
 
@@ -79,6 +80,15 @@ def event_log():
 def describe_events(n=3):
     t = TRK["t"]
     return [_Tracker.describe(r, t) for r in t.log[-n:]]
+
+def _last_event_text(max_len=220):
+    """Entity events of the last transition, as the short text every act() result carries."""
+    t = TRK["t"]
+    if not t.log:
+        return ""
+    txt = _Tracker.describe(t.log[-1], t)
+    txt = txt.split(": ", 1)[1] if ": " in txt else txt
+    return txt if len(txt) <= max_len else txt[:max_len - 3] + "..."
 
 def avatar():
     """{'id', 'keymap': {'UP': (dx,dy), ...}, 'entity'} for the entity that moves with the keys, or None."""
@@ -411,10 +421,22 @@ def set_model(predict):
     real action against it and reports mismatches; see world_model_stats()."""
     if predict is not None and not callable(predict):
         raise TypeError("set_model expects a callable predict(grid, action) or None")
+    live = isinstance(getattr(predict, "__self__", None), _MoveModel)
+    if live:
+        # move_model().predict is a snapshot of the evidence at fit time; the harness registers a predictor that
+        # re-fits from the tracker before every prediction (ka59, exp-009: a stale fit mismatched 14 times) and
+        # follows PLAN['optimistic'] so an optimistic plan is checked against the optimistic model.
+        def predict(grid, action):  # noqa: F811
+            m = _MoveModel(TRK["t"])
+            if PLAN["optimistic"]:
+                m = m.relax()
+            return m.predict(grid, action)
     WM["predict"] = predict
-    WM["checked"] = WM["matched"] = WM["errors"] = 0
+    WM["checked"] = WM["matched"] = WM["errors"] = WM["streak"] = 0
     WM["mismatches"] = []
-    return "world model registered" if predict else "world model cleared"
+    if predict is None:
+        return "world model cleared"
+    return "world model registered (live move model: re-fitted from the evidence before every prediction)" if live else "world model registered"
 
 def world_model_stats():
     out = {"checked": WM["checked"], "matched": WM["matched"], "errors": WM["errors"],
@@ -493,12 +515,21 @@ def _check_prediction(before, action, after):
     WM["checked"] += 1
     if wrong == 0:
         WM["matched"] += 1
+        WM["streak"] = 0
         return {"pred_ok": True, "pred_wrong_cells": 0}
     ys, xs = np.nonzero(diff)
     d = {"pred_ok": False, "pred_wrong_cells": wrong,
          "pred_bbox": [int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())],
          "pred_sample": [[int(x), int(y), int(pred[y, x]), int(after[y, x])] for y, x in list(zip(ys, xs))[:5]]}
     WM["mismatches"].append({"action": _action_label(action), "wrong_cells": wrong, "bbox": d["pred_bbox"]})
+    WM["streak"] = WM.get("streak", 0) + 1
+    if WM["streak"] >= WM_RETIRE_AFTER:
+        # A model wrong three times running is not being revised; keep checking it and every batch stops after
+        # one action (ka59, exp-009: 14 mismatches, one action per call). Drop it and say so.
+        WM["predict"] = None
+        WM["streak"] = 0
+        d["pred_retired"] = (f"world model retired after {WM_RETIRE_AFTER} consecutive mismatches; re-fit it "
+                             "(move_model() / rules_predictor()) or rewrite predict, then set_model again")
     return d
 
 def _to_grid(x):
@@ -622,6 +653,7 @@ def act(*actions):
             if r.get("level_completed"):
                 _archive_level(_action_label(a))
             _refresh(reply["state"], _action_label(a))
+            r["events"] = _last_event_text()
             if not r.get("level_completed"):
                 LOG["transitions"].append((before, _action_label(a), G["grid"].copy()))
                 hyp = _check_hypotheses(before, _action_label(a), G["grid"])
@@ -644,6 +676,7 @@ def act(*actions):
         if r.get("level_completed"):
             _archive_level(_action_label(a))
         _refresh(reply["state"], _action_label(a))
+        r["events"] = _last_event_text()
         chk = None if r.get("level_completed") else _check_prediction(before, a, G["grid"])  # a new level's first frame is not a prediction target
         if chk:
             r.update(chk)
@@ -656,6 +689,8 @@ def act(*actions):
         if chk and not chk.get("pred_ok") and len(norm) > 1:
             r["batch_stopped"] = f"prediction mismatch after {len(results)} of {len(norm)} actions; revise the model"
             break
+        if WM["predict"] is None and len(norm) > len(results):  # retired mid-batch: the rest runs unverified
+            return results + act(*norm[len(results):]) if len(norm) - len(results) > 1 else results + [act(norm[len(results)])]
         if r.get("level_completed") or r.get("game_over") or r.get("won"):
             break
     return results if len(norm) > 1 else results[0]

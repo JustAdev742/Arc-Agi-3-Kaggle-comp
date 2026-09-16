@@ -291,3 +291,14 @@ def test_level_and_stagnation_notices_and_adaptive_effort():
         assert agent._effort_for_turn() == agent.reasoning_effort  # back to the configured effort (None here)
     finally:
         agent.close()
+
+
+def test_tool_text_does_not_echo_a_printed_act_result():
+    from arc3.agents.repl_agent import ReplAgent
+
+    res = {"action": "ACTION6(48,15)", "changed": 2, "events": "#27 size 60->58"}
+    shown = ReplAgent._tool_text({"stdout": "{'action': 'ACTION6(48,15)', 'changed': 2}\n", "result": res, "actions": 1})
+    assert "result:" not in shown and "1 action(s) executed" in shown
+    hidden = ReplAgent._tool_text({"stdout": "probing\n", "result": [res], "actions": 1})
+    assert "result: [{\"action\": \"ACTION6(48,15)\"" in hidden
+    assert "result:" in ReplAgent._tool_text({"stdout": "", "result": 42})

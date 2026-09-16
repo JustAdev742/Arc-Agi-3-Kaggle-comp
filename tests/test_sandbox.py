@@ -233,7 +233,7 @@ rs = act(plan); print(all(r['pred_ok'] for r in rs), len(rs) == len(plan))
     assert r["error"] == "", r
     lines = r["stdout"].strip().splitlines()
     assert lines[0].startswith("True")
-    assert lines[1] == "world model registered"
+    assert lines[1].startswith("world model registered")
     assert lines[2] == "True True"
     assert abs(w.pos[0] - w.target[0]) <= 4 and abs(w.pos[1] - w.target[1]) <= 4
     sb.stop()
@@ -323,4 +323,63 @@ print(r_strict is None, r_opt is not None and len(r_opt) >= 8, PLAN['optimistic'
     lines = r["stdout"].strip().splitlines()
     assert lines[0] == "True True True", lines
     assert lines[1] == "True True True", lines
+    sb.stop()
+
+
+def test_act_results_carry_events_live_move_model_and_retirement():
+    """Every act() result carries the entity events of its transition; set_model(move_model().predict) re-fits before
+    each prediction; a predictor that is wrong three times running is retired (result gains 'pred_retired')."""
+    from tests.test_planner import GridWorld
+
+    sb = PersistentSandbox(sys_path=[ROOT] + sys.path)
+    w = GridWorld()
+
+    def handler(actions):
+        g = w.act(actions[0]["action"])
+        return [{"changed": 32, "level_completed": False, "state": "NOT_FINISHED"}], state(g, [g])
+
+    code = """
+rs = act('RIGHT', 'UP', 'DOWN', 'LEFT')
+print(all('moved' in r['events'] for r in rs), rs[0]['events'][:40])
+print(set_model(move_model().predict))
+r = act('RIGHT'); print(r['pred_ok'], 'moved (+4,+0)' in r['events'])
+set_model(lambda grid, action: grid)  # always predicts no change: wrong on every move
+rs = act('LEFT', 'LEFT', 'LEFT', 'LEFT')
+print([r.get('pred_ok') for r in rs], 'pred_retired' in rs[-1] or any('pred_retired' in r for r in rs))
+print(world_model_stats()['checked'])
+r = act('RIGHT'); print('pred_ok' in r)
+"""
+    r = sb.run(code, state(w.grid(), [w.grid()]), timeout_s=30, action_handler=handler)
+    assert r["error"] == "", r
+    lines = r["stdout"].strip().splitlines()
+    assert lines[0].startswith("True #"), lines[0]
+    assert lines[1].startswith("world model registered (live move model")
+    assert lines[2] == "True True"
+    # the always-wrong model stops the batch on its first miss; the batch is re-issued by the model in real play,
+    # here three single mismatches retire it
+    assert lines[3].startswith("[False]")
+    sb.stop()
+
+
+def test_world_model_retires_after_three_consecutive_mismatches():
+    from tests.test_planner import GridWorld
+
+    sb = PersistentSandbox(sys_path=[ROOT] + sys.path)
+    w = GridWorld()
+
+    def handler(actions):
+        g = w.act(actions[0]["action"])
+        return [{"changed": 32, "level_completed": False, "state": "NOT_FINISHED"}], state(g, [g])
+
+    code = """
+set_model(lambda grid, action: grid)
+out = [act('RIGHT') for _ in range(3)]
+print([r['pred_ok'] for r in out], 'pred_retired' in out[-1], 'pred_retired' in out[0])
+r = act('RIGHT'); print('pred_ok' in r, world_model_stats()['checked'])
+"""
+    r = sb.run(code, state(w.grid(), [w.grid()]), timeout_s=30, action_handler=handler)
+    assert r["error"] == "", r
+    lines = r["stdout"].strip().splitlines()
+    assert lines[0] == "[False, False, False] True False"
+    assert lines[1] == "False 3"  # retired: the fourth action is not checked
     sb.stop()

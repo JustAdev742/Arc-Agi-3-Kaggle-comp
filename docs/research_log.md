@@ -194,3 +194,27 @@ Measured: dev 0.836 (runs/kaggle-repl-dev-009, kernel arc3-eval-dev-d v1, harnes
 Notes:    every harness arm beats the control; among them the order is inside single-run noise. exp-009b (the same
           notebook pushed again as kernel arc3-eval-dev-e, 11:06) measures that noise. The per-call cost has not moved
           (about 35 calls per game); the ascii() tile-map change and the stagnation/level notices came after this build.
+
+## 2026-09-16 · exp-011 · verified-navigation fixes from the exp-009 transcripts (walkable floor entities, sprite companions, avatar hand-over, live move model, model retirement, inline events, batched click probes) · PENDING (built, not yet run)
+Why:      exp-009 transcripts (`scripts/transcript_report.py runs/kaggle-repl-dev-009`): ka59 registered
+          set_model(move_model().predict) and then took one action per call for 14 consecutive prediction mismatches;
+          su15 called describe_events 33 times (one click per call, 1.5 actions per call); every act() result was echoed
+          twice. A local replay of ka59's first six actions (`scratchpad/replay_ka59.py`, environment_files) showed the
+          cause: the strict move model marked the white floor entity (colour 1, which the avatar had already stood on)
+          as an obstacle, so the strict plan was None, the optimistic plan was executed, and the strict predictor
+          "mismatched" every correct step (19 wrong cells = the sprite drawn twice). When the avatar then merged into
+          #7, avatar() kept returning the dead id.
+Change:   planner: cells whose static-layer colour the avatar has stood on are walkable wherever they occur; parts that
+          always move with the avatar (tracker groups: ka59's eye, ar25's pupils) move with it in predictions; the
+          sprite is erased with the terrain colour, not the background. tracker: avatar() prefers an alive entity that
+          moved on the most recent key presses (control hand-over); 1-cell-thick edge strips that keep resizing count as
+          HUD (ka59's growing "used" half of the bottom bar). sandbox: set_model(move_model().predict) registers a live
+          predictor that re-fits from the evidence before every prediction and follows PLAN['optimistic']; three
+          consecutive mismatches retire the model with 'pred_retired' in the result; every act() result carries its
+          entity 'events'. REPL: no second echo of a printed result. Prompt: click three or four entities per act() call.
+          Replay after the fix: strict plan ['RIGHT','RIGHT'] exists, prediction exact except one HUD cell (masked),
+          avatar() hands over to #7 after its first key move. Tests: tests/test_planner.py (FloorWorld, hand-over),
+          tests/test_sandbox.py (events, live model, retirement), tests/test_repl_agent.py (echo).
+Expected: fewer calls per action on navigation games (ka59, ls20, re86, dc22 style) and on click games (su15, sb26);
+          no change on games without an avatar. Measured against exp-009/exp-009b with the same settings.
+Measured: not yet run (kernel queue: exp-010 council and exp-009b occupy both slots).
