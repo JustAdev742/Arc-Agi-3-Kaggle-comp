@@ -95,7 +95,7 @@ class ReplAgent(Agent):
         self.model_timeout_s = float(c.get("model_timeout_s", 480))
         self.tool_timeout_s = float(c.get("tool_timeout_s", 30))
         self.max_tool_steps = int(c.get("max_tool_steps", 8))
-        self.inspect_steps_before_nudge = int(c.get("inspect_steps_before_nudge", 3))
+        self.inspect_steps_before_nudge = int(c.get("inspect_steps_before_nudge", 1))  # exp-007: 2.5 inspection calls per turn at ~30 s each
         self.use_image = bool(c.get("image", True))
         self.image_scale = int(c.get("image_scale", 4))
         self.image_tokens = int(c.get("image_tokens", 600))  # Qwen3.8 ViT: 576 tokens for a 384px image (diag v5)
@@ -456,8 +456,13 @@ class ReplAgent(Agent):
                     break
                 if not acted and inspect_only >= self.inspect_steps_before_nudge and not nudged:
                     nudged = True
-                    self.messages.append({"role": "user", "content": f"{inspect_only} inspection steps used (~10 s each). "
-                                          "Call act(...) in your next python call, a single probe is fine, then re-inspect."})
+                    lat = self.st.latencies[-8:]
+                    per_call = (sum(lat) / len(lat)) if lat else 25.0
+                    calls_left = int(self.ctx.time_left() / max(per_call, 5.0))
+                    self.messages.append({"role": "user", "content": (
+                        f"{inspect_only} inspection step(s) used. Each call costs about {per_call:.0f} s of model time and roughly "
+                        f"{calls_left} calls remain for this game. The entity list, events and rules summary above already describe "
+                        "the board: call act(...) in your next python call (a single probe is fine), then re-inspect.")})
                 self._evict()
                 t0 = time.time()
                 raw_before = self._raw_tokens(self.messages)

@@ -95,8 +95,9 @@ def test_inspection_nudge_and_no_action_notice():
     agent = get("repl")(ctx)
     try:
         run(agent, env, 1)
-        nudges = [m for m in calls[3] if m["role"] == "user" and "inspection steps used" in str(m["content"])]
-        assert nudges, "a nudge must follow three inspection-only steps"
+        nudges = [m for m in calls[1] if m["role"] == "user" and "inspection step(s) used" in str(m["content"])]
+        assert nudges, "a nudge must follow the first inspection-only step"
+        assert "calls remain" in nudges[0]["content"]
         second_turn_user = [m for m in calls[4] if m["role"] == "user"][-1]["content"]
         assert "took NO action" in second_turn_user
         assert agent.stats()["actions_model"] == 1
