@@ -540,9 +540,21 @@ def diff(a=None, b=None):
         b, a = G["grid"], a
     return _P.diff(_to_grid(a), _to_grid(b)).summary()
 
-def ascii(g=None, scale=None):
+def ascii(g=None, scale=None, region=None):
+    """Text view of the board. Without `region` this is the tile map (one hex colour per logical tile, the same map as
+    in the observation). region=(x0, y0, x1, y1) shows those pixels at full resolution (at most 32x32 cells)."""
     g = G["grid"] if g is None else _to_grid(g)
-    return _P.ascii(g, scale=scale)
+    if region is not None:
+        x0, y0, x1, y1 = (int(v) for v in region)
+        x0, y0 = max(0, x0), max(0, y0)
+        x1, y1 = min(g.shape[1] - 1, max(x0, x1)), min(g.shape[0] - 1, max(y0, y1))
+        if (x1 - x0 + 1) * (y1 - y0 + 1) > 1024:
+            raise ValueError("region too large: at most 32x32 cells; use the tile map for the whole board")
+        return _P.ascii(g[y0:y1 + 1, x0:x1 + 1], scale=1)
+    t = int(G.get("tile") or 1)
+    if t <= 1:
+        return _P.ascii(g, scale=scale)
+    return f"(tile map, one char per {t}x{t} tile; ascii(region=(x0,y0,x1,y1)) shows pixels)\n" + _P.tile_map(g, t)
 
 def downscale(g=None):
     g = G["grid"] if g is None else _to_grid(g)
