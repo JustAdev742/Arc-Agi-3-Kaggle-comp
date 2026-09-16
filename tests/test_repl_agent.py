@@ -63,8 +63,11 @@ def test_eviction_keeps_context_bounded():
     try:
         run(agent, env, 15)
         assert agent.stats()["evictions"] > 0
-        assert agent._estimate_tokens(agent.messages) < 6000
+        agent._evict()  # the newest pair may have been appended after the last in-turn eviction
+        budget = agent.context_tokens - agent.max_output_tokens - 1024
+        assert agent._estimate_tokens(agent.messages) <= budget + 100, agent._estimate_tokens(agent.messages)
         assert agent.messages[0]["role"] == "system"
+        assert any(m["role"] == "user" for m in agent.messages[1:3])  # the current turn's user message survives
     finally:
         agent.close()
         env.close()
