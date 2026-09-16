@@ -215,6 +215,10 @@ Notes:    the 14 'gave_up' failures are a label artefact (exp-009 had 16): the a
           waits for the first action (the specialists had written 'no actions taken; no transitions to analyze' in
           every game) and each report is written out once, later turns only say it is unchanged (the full text was
           repeated on every turn). These go into exp-010c if exp-010b shows the specialists helping at all.
+          Report usage: 70 rounds, ~400 chars per report; the coordinator's cells referred to a specialist or report
+          in 6 of 19 games, once each. The reports restate the observation the coordinator already has (entities,
+          Rules line, goal hints); their marginal information is low by construction. A specialist that adds value
+          must see or do something the coordinator does not (the full transition log, a search, an executed probe).
 
 ## 2026-09-16 · exp-011 · verified-navigation fixes from the exp-009 transcripts (walkable floor entities, sprite companions, avatar hand-over, live move model, model retirement, inline events, batched click probes) · PENDING (built, not yet run)
 Why:      exp-009 transcripts (`scripts/transcript_report.py runs/kaggle-repl-dev-009`): ka59 registered
