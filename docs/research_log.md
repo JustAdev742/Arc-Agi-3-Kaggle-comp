@@ -82,3 +82,13 @@ Decision: bugs, not architecture: (1) calibrate the token estimate against the s
           death requires a failed liveness check; (3) dead-server fallback capped at 40 actions; (4) error-ended turns
           are not idle turns. Re-run as exp-003c before any architecture change. The time budget per game is the
           binding constraint: ~35 calls in 20 min at 8-way concurrency; thinking length is the next ablation (exp-004).
+
+## 2026-09-16 · exp-003c · control arm re-run with the exp-003 bug fixes · KEPT (this is the control number)
+Settings: identical to exp-003 (dev, 1200 s/game, 8 concurrent, reasoning_effort=low); kernel `scottmahony/arc3-eval-dev` v2,
+          commit b0c0a4e; files `runs/kaggle-repl-dev-003c/`. 67 min RTX (440 s setup).
+Measured: **dev 0.56**; 5/142 levels: ar25 L1 in 20 actions (human 32, cap), lp85 11 (17, cap), sb26 12 (18, cap),
+          su15 31 (22 -> 50), vc33 12 (7 -> 34). 0 model errors, 0 context overflows, fallback 0-1 actions per game
+          (the stop step). 28-71 model calls per game, p50 15-48 s, ~1,400 completion tokens per call.
+Notes:    exp-003 solved tu93 and re86 but not ar25; exp-003c the reverse: single 20-min runs are noisy at the level of
+          1-2 levels. Deltas smaller than ~0.3 on dev will not be trusted without a repeat. The model still never uses
+          set_model/verify_model on its own; exp-005 tests the tracker + planner + prescribed procedure.

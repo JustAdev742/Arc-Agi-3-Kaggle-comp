@@ -106,7 +106,7 @@ def play_game(
     deadline = time.time() + time_budget_s
     ctx = AgentContext(game_id=game_id, seed=seed, deadline=deadline, max_actions=max_actions,
                        baselines=list(env.baselines), config=dict(config or {}),
-                       log=logging.getLogger(f"arc3.agent.{game_id}"))
+                       log=logging.getLogger(f"arc3.agent.{game_id}"), out_dir=str(out_dir) if out_dir else None)
     jsonl = None
     if out_dir is not None:
         out_dir.mkdir(parents=True, exist_ok=True)

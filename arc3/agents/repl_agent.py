@@ -133,12 +133,17 @@ class ReplAgent(Agent):
         self.last_turn_acted = True
         self.st = Stats()
         self.level_seen = -1
+        self.transcript: list[dict[str, Any]] = []
+        self.transcript_dir = c.get("transcript_dir") or getattr(ctx, "out_dir", None)
 
     # ------------------------------------------------------------------ harness interface
     def is_done(self, frame: Frame) -> bool:
         if frame.done:
             return True
-        if self.stop_requested and not self._worker_alive() and self.action_q.empty():
+        idle = not self._worker_alive() and self.action_q.empty()
+        if idle and not self.use_fallback_only and self.ctx.time_left() < self.min_time_for_turn_s:
+            self.stop_requested = True  # too little time for another model turn: stop without spending an action
+        if self.stop_requested and idle:
             return True
         return False
 
@@ -237,9 +242,31 @@ class ReplAgent(Agent):
         s["fallback"] = self.fallback.stats()
         return s
 
+    def _record(self, kind: str, **fields: Any) -> None:
+        self.transcript.append({"t": round(time.time(), 1), "kind": kind, **fields})
+
+    def dump_transcript(self, path: Optional[str] = None) -> Optional[str]:
+        """Write the compact transcript (model calls, code, tool outputs) as JSONL; returns the path."""
+        d = path or self.transcript_dir
+        if not d:
+            return None
+        p = Path(d) / f"{self.ctx.game_id}.transcript.jsonl"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with open(p, "w") as f:
+            f.write(json.dumps({"kind": "meta", "game": self.ctx.game_id, "config": {k: v for k, v in self.ctx.config.items() if k not in ("client", "specialist_client")},
+                                "notes": self.notes, "stats": self.stats()}, default=str) + "\n")
+            f.writelines(json.dumps(rec, default=str) + "\n" for rec in self.transcript)
+        return str(p)
+
     def close(self) -> None:
         self.closed = True
         self.result_q.put(None)
+        if self.worker is not None and self.worker.is_alive():
+            self.worker.join(timeout=3.0)  # let a finishing turn record its tool output before the dump
+        try:
+            self.dump_transcript()
+        except Exception:  # noqa: BLE001
+            self.log.exception("transcript dump failed")
         self.sandbox.stop()
 
     # ------------------------------------------------------------------ worker side
@@ -468,6 +495,9 @@ class ReplAgent(Agent):
                 self.st.prompt_tokens += resp.prompt_tokens
                 self.st.completion_tokens += resp.completion_tokens
                 self.messages.append(resp.assistant_message())
+                self._record("assistant", turn=self.st.turns, reasoning=resp.reasoning[:1500], content=resp.content[:1500],
+                             code=[tc.arguments.get("code", "")[:3000] for tc in resp.tool_calls], latency_s=round(dt, 1),
+                             prompt_tokens=resp.prompt_tokens, completion_tokens=resp.completion_tokens)
                 if not resp.tool_calls:
                     if not acted and not nudged:
                         nudged = True
@@ -504,6 +534,9 @@ class ReplAgent(Agent):
                     else:
                         inspect_only += 1
                     self.messages.append({"role": "tool", "tool_call_id": tc.id, "content": self._tool_text(r)})
+                    self._record("tool", turn=self.st.turns, output=self._tool_text(r)[:2000], actions=r.get("actions", 0),
+                                 error=bool(r.get("error")), step=self.frame.step if self.frame else None,
+                                 level=self.frame.level if self.frame else None)
                     lr = self.last_result or {}
                     if r.get("actions") and (lr.get("level_completed") or lr.get("game_over") or lr.get("won")):
                         stop = True

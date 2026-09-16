@@ -76,24 +76,6 @@ def test_eviction_keeps_context_bounded():
         env.close()
 
 
-def test_stops_cleanly_when_time_is_short_instead_of_spending_actions():
-    mock = MockClient([MockClient.tool("act('UP')")])
-    arc = make_arcade("environment_files")
-    env = LocalEnv(arc, "ls20")
-    ctx = AgentContext(game_id="ls20", deadline=time.time() + 5, config={"client": mock, "image": False, "min_time_for_turn_s": 45})
-    agent = get("repl")(ctx)
-    try:
-        assert not agent.is_done(env.frame)
-        a = agent.act(env.frame)  # too little time for a model turn: one fallback probe at most, then stop
-        env.step(a)
-        assert agent.stop_requested
-        assert agent.is_done(env.frame)
-        assert mock.calls == []  # no doomed model call was made
-    finally:
-        agent.close()
-        env.close()
-
-
 def test_inspection_nudge_and_no_action_notice():
     calls = []
 
@@ -225,6 +207,38 @@ def test_turn_log_uses_entity_events():
         second_turn_user = [m for m in mock.calls[2] if m["role"] == "user"][-1]["content"]
         assert "Since your last turn:" in second_turn_user and "moved (" in second_turn_user, second_turn_user[:400]
         assert "Entities (persistent ids" in second_turn_user
+    finally:
+        agent.close()
+        env.close()
+
+
+def test_transcript_is_written_on_close(tmp_path):
+    mock = MockClient([MockClient.tool("print(1)\nact('UP')"), MockClient.say("done")])
+    arc = make_arcade("environment_files")
+    env = LocalEnv(arc, "ls20")
+    ctx = AgentContext(game_id="ls20", deadline=time.time() + 300, config={"client": mock, "image": False}, out_dir=str(tmp_path))
+    agent = get("repl")(ctx)
+    run(agent, env, 1)
+    agent.close()
+    env.close()
+    import json as _json
+    with open(tmp_path / "ls20.transcript.jsonl") as f:
+        lines = [_json.loads(line) for line in f]
+    assert lines[0]["kind"] == "meta" and lines[0]["stats"]["actions_model"] == 1
+    kinds = [l["kind"] for l in lines[1:]]
+    assert "assistant" in kinds and "tool" in kinds
+    assert any("act('UP')" in c for l in lines if l["kind"] == "assistant" for c in l["code"])
+
+
+def test_stop_near_deadline_spends_no_action():
+    mock = MockClient([MockClient.tool("act('UP')")])
+    arc = make_arcade("environment_files")
+    env = LocalEnv(arc, "ls20")
+    ctx = AgentContext(game_id="ls20", deadline=time.time() + 5, config={"client": mock, "image": False, "min_time_for_turn_s": 45})
+    agent = get("repl")(ctx)
+    try:
+        assert agent.is_done(env.frame)  # stop requested before any action is asked for
+        assert env.step_count == 0 and mock.calls == []
     finally:
         agent.close()
         env.close()

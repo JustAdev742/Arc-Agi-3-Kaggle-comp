@@ -20,6 +20,7 @@ class AgentContext:
     max_actions: Optional[int] = None
     baselines: list[int] = field(default_factory=list)  # human baseline actions per level (may be empty on Kaggle)
     config: dict[str, Any] = field(default_factory=dict)
+    out_dir: Optional[str] = None  # where the agent may write transcripts/artifacts for this game
     log: logging.Logger = field(default_factory=lambda: logging.getLogger("arc3.agent"))
 
     def time_left(self) -> float:
