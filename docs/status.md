@@ -138,6 +138,15 @@ Built and tested (all in `tests/`, green on this container via `make test`):
   **not yet run against real models**. `scripts/build_eval_notebook.py` runs any agent on a split on Kaggle's RTX.
 - Kaggle path: framework adapter with shared deadline and crash recovery, notebook builder that
   embeds the package and optionally starts vLLM, tests for both.
+- Rule library (`arc3/dsl.py`, plan-100 II.2.B): rule types Move (walkable/blocking colours per cell, required colour),
+  Push, Drift, Vanish, OnOverlap, Recolor, OnClick (move/vanish/recolor/goto), periodic Counter; `fit` enumerates
+  parameters and keeps contradiction-free rules, `auto_rules` selects a set, `explain` reports coverage and the
+  unexplained (transition, entity, event) items, `predictor` feeds `set_model`, `plan` searches simulated frames,
+  `goal_predicates` lists win conditions consistent with completed levels. Tracker: occlusion-aware events, static
+  layer, compound sprites, canonical terrain state. In the REPL as `auto_rules()/plan_rules()/rules_predictor()/
+  goal_candidates()`; the prompt's Method uses them. Code-only coverage gate: mean 0.33 over the 25 public games
+  (7 games >= 0.63, three at 0). Regression-guarded in `tests/test_rule_coverage.py`. Model-driven effect: exp-007 (running).
+- Per-game transcripts (`runs/<name>/<game>.transcript.jsonl`) and `scripts/transcript_report.py` for post-mortems.
 
 Next on the GPU box, in order:
 1. `make setup && make games && make test`; start vLLM with Qwen3.8-27B-FP8 (`arc3.serve.build_vllm_command`)
