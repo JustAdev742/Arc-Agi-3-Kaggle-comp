@@ -280,6 +280,8 @@ def goal_candidates():
     """Win-condition candidates consistent with every completed level so far: true at the winning frame, false
     before. Names can be passed to plan_rules(). Empty until a level has been completed."""
     levels = [(list(lv["frames"]) + [lv["final_frame"]], True) for lv in ARCH["levels"] if lv.get("final_frame") is not None]
+    if not levels:
+        return ["(no level completed yet in this game: nothing to infer the win condition from; use goal_hints() and the Goal line of the observation)"]
     out = _dsl.goal_predicates(levels)
     GOALS.clear()
     for g in out:
@@ -588,8 +590,18 @@ def ascii(g=None, scale=None, region=None):
     return f"(tile map, one char per {t}x{t} tile; ascii(region=(x0,y0,x1,y1)) shows pixels)\n" + _P.tile_map(g, t)
 
 def downscale(g=None):
+    """The board at one cell per logical tile (numpy array). Uses the engine's pixel upscale when there is one,
+    else the tracker's tile size (ft09's 6-px tiles with 1-px gaps, exp-009: the raw 64x64 grid came back and the
+    model rebuilt the tile map by hand over four calls). tilemap() is the same view as text."""
     g = G["grid"] if g is None else _to_grid(g)
-    return _P.downscale(g)[0]
+    small, s = _P.downscale(g)
+    tile = int(G.get("tile") or 1)
+    if s <= 1 and tile > 1:
+        h, w = g.shape
+        ys = [min(h - 1, y * tile + tile // 2) for y in range((h + tile - 1) // tile)]
+        xs = [min(w - 1, x * tile + tile // 2) for x in range((w + tile - 1) // tile)]
+        return g[np.ix_(ys, xs)]
+    return small
 
 def background(g=None):
     g = G["grid"] if g is None else _to_grid(g)

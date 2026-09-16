@@ -70,3 +70,31 @@ def test_real_game_avatar_detected():
     env.close()
     assert av is not None and av["key_moves"] >= 3, av
     assert len(t.static_ids()) > 0
+
+
+def test_turning_sprite_keeps_its_id():
+    """wa30 (exp-009): the avatar's body is 3x4 when facing up/down and 4x3 when facing left/right; every turn used to
+    create a new id, so avatar() reported a dead entity and the key map was split across ids."""
+    import numpy as np
+
+    from arc3.entities import Tracker
+
+    def frame(x, y, horizontal):
+        g = np.ones((64, 64), dtype=np.int16)
+        if horizontal:
+            g[y:y + 3, x:x + 4] = 14
+        else:
+            g[y:y + 4, x:x + 3] = 14
+        g[10:14, 10:14] = 9  # a static block
+        return g
+
+    t = Tracker()
+    t.reset(frame(32, 48, False))
+    t.update(frame(32, 44, False), "UP")
+    t.update(frame(32, 48, False), "DOWN")
+    rec = t.update(frame(28, 48, True), "LEFT")  # turns and moves
+    assert [m[0] for m in rec["moved"]] == [t.avatar()["id"]] and rec["reshaped"] and not rec["appeared"] and not rec["disappeared"]
+    t.update(frame(32, 48, True), "RIGHT")
+    av = t.avatar()
+    assert av["alive"] and av["key_moves"] == 4
+    assert av["keymap"] == {"UP": (0, -4), "DOWN": (0, 4), "LEFT": (-4, 0), "RIGHT": (4, 0)}

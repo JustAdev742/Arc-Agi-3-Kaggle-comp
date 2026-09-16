@@ -225,6 +225,32 @@ class Tracker:
                 self.moves[prev[i].id].append((action, dx, dy))
             if new[j].size != prev[i].size:
                 reshaped.append((prev[i].id, prev[i].size, new[j].size))
+        # Pass 1c: same colour and cell count with a transposed box (w, h) -> (h, w), nearest position: a sprite that
+        # turns as it changes direction (wa30's 3x4 / 4x3 body, exp-009) keeps its id instead of dying and being reborn
+        # on every turn, which lost the avatar and its key map.
+        pairs = []
+        by_turn: dict[tuple, list[int]] = defaultdict(list)
+        for j, e in enumerate(new):
+            if j not in matched_new and e.w != e.h:
+                by_turn[(e.color, e.size, e.h, e.w)].append(j)
+        for i, p in enumerate(prev):
+            if i in matched_prev or p.w == p.h:
+                continue
+            for j in by_turn.get((p.color, p.size, p.w, p.h), []):
+                d = abs(new[j].x0 - p.x0) + abs(new[j].y0 - p.y0)
+                if d <= 4 * max(p.w, p.h):
+                    pairs.append((d, i, j))
+        for d, i, j in sorted(pairs):
+            if i in matched_prev or j in matched_new:
+                continue
+            matched_prev.add(i)
+            matched_new.add(j)
+            new[j].id = prev[i].id
+            if d:
+                dx, dy = new[j].x0 - prev[i].x0, new[j].y0 - prev[i].y0
+                moved.append((prev[i].id, dx, dy))
+                self.moves[prev[i].id].append((action, dx, dy))
+            reshaped.append((prev[i].id, prev[i].size, new[j].size))
         # Pass 2: overlapping bbox, different appearance (recoloured or reshaped in place).
         pairs = []
         for i, p in enumerate(prev):
@@ -384,13 +410,15 @@ class Tracker:
                 seen += 1
                 if seen >= 6:
                     break
-        alive_ids = {e.id for e in self.current}
-        best: Optional[tuple[int, tuple[int, int, int]]] = None
+        alive = {e.id: e for e in self.current}
+        best: Optional[tuple[int, tuple[int, int, int, int]]] = None
         for eid, mv in self.moves.items():
             n_keys = sum(1 for a, _, _ in mv if a in ("UP", "DOWN", "LEFT", "RIGHT") or a in (1, 2, 3, 4))
             if n_keys < 2:
                 continue
-            score = (int(eid in alive_ids), recent[eid], n_keys)
+            # ties (a body and the marking that rides on it, wa30) go to the bigger part: its moves are the sprite's
+            size = alive[eid].size if eid in alive else 0
+            score = (int(eid in alive), recent[eid], n_keys, size)
             if best is None or score > best[1]:
                 best = (eid, score)
         if best is None:

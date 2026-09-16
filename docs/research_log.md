@@ -212,6 +212,12 @@ Change:   planner: cells whose static-layer colour the avatar has stood on are w
           predictor that re-fits from the evidence before every prediction and follows PLAN['optimistic']; three
           consecutive mismatches retire the model with 'pred_retired' in the result; every act() result carries its
           entity 'events'. REPL: no second echo of a printed result. Prompt: click three or four entities per act() call.
+          Second pass over wa30 and ft09: the tracker keeps an id across a sprite turn (same colour and cell count,
+          transposed box; wa30's 3x4/4x3 body was reborn on every turn, so avatar() reported a dead id and the model
+          spent 282 actions and several RESETs), avatar() breaks ties by size (the body, not the strip riding on it),
+          downscale() returns the tile-sampled board when the engine has no pixel upscale (ft09: the model rebuilt an
+          11x11 tile map by hand over four calls), goal_candidates() explains itself on level 1 instead of returning [].
+          Code-only coverage after the bundle: mean 0.505 over 25 games (v13 log; 0.50 before).
           Replay after the fix: strict plan ['RIGHT','RIGHT'] exists, prediction exact except one HUD cell (masked),
           avatar() hands over to #7 after its first key move. Tests: tests/test_planner.py (FloorWorld, hand-over),
           tests/test_sandbox.py (events, live model, retirement), tests/test_repl_agent.py (echo).
