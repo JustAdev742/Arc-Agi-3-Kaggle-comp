@@ -1,4 +1,5 @@
 """End-to-end plumbing test of the REPL agent with a scripted mock model on a real game."""
+import json
 import time
 
 from arc3.agents import get
@@ -375,3 +376,53 @@ def test_image_limit_error_strips_images_and_retries_without_counting_an_error()
     finally:
         agent.close()
         env.close()
+
+
+def test_lessons_from_model_and_flags_reach_the_observation(tmp_path):
+    calls = {"n": 0}
+
+    def script(messages):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return MockClient.tool("learn('walls of colour 5 block UP', kind='mechanic')\nact('UP')")
+        return MockClient.say("ok")
+
+    mock = MockClient(script)
+    arc = make_arcade("environment_files")
+    env = LocalEnv(arc, "ls20")
+    ctx = AgentContext(game_id="ls20", deadline=time.time() + 300, out_dir=str(tmp_path),
+                       config={"client": mock, "image": False})
+    agent = get("repl")(ctx)
+    try:
+        run(agent, env, 1)
+        for _ in range(100):  # the cell's final message (with the lesson) lands after the action was observed
+            if agent.memory.model_lessons:
+                break
+            time.sleep(0.1)
+        assert agent.memory.model_lessons == 1
+        # Harness-written lessons from the sandbox flags.
+        agent._learn_from_result({"flags": {"pred_retired": {"action": "UP", "wrong_cells": 4, "recent": ["UP", "UP", "LEFT"]},
+                                            "batch_stopped": {"done": 3, "planned": 9, "idle": ["RIGHT", "RIGHT", "RIGHT"]}}})
+        obs = agent._observation_text()
+        assert "Lessons (this game" in obs
+        assert "[mechanic L1] walls of colour 5 block UP" in obs
+        assert "world model was retired" in obs and "batch of 9 actions stopped after 3" in obs
+        assert "What did we learn?" in obs  # asked once after the retired model...
+        assert "What did we learn?" not in agent._observation_text()  # ...and not again
+        st = agent.stats()
+        assert st["lessons_model"] == 1 and st["lessons_auto"] == 2
+        # Another game in the same run sees the shared mechanic, not the private mistakes.
+        other = get("repl")(AgentContext(game_id="ft09", deadline=time.time() + 300, out_dir=str(tmp_path),
+                                         config={"client": mock, "image": False}))
+        try:
+            txt = other.memory.render_others()
+            assert "[ls20 mechanic] walls of colour 5 block UP" in txt and "retired" not in txt
+        finally:
+            other.close()
+    finally:
+        agent.close()
+        env.close()
+    saved = json.loads((tmp_path / "ls20.lessons.json").read_text())
+    assert saved["model_lessons"] == 1 and len(saved["lessons"]) == 3
+    meta = json.loads(open(tmp_path / "ls20.transcript.jsonl").readline())
+    assert len(meta["lessons"]) == 3

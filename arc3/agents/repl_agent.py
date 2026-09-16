@@ -29,6 +29,7 @@ from arcengine import GameAction, GameState
 
 from ..env import Action, Frame
 from ..llm import ChatClient, ChatResponse
+from ..memory import Lessons, level_signature, load_skills, match_skills, render_skills
 from ..entities import Tracker
 from ..perception import ascii as grid_ascii
 from ..perception import detect_scale, diff, render_png, tile_map
@@ -68,6 +69,8 @@ class Stats:
     wm_checked: int = 0
     wm_matched: int = 0
     wm_errors: int = 0
+    lessons_auto: int = 0
+    lessons_model: int = 0
     rules_fits: int = 0
     rules_time_s: float = 0.0
     rules_coverage: float = 0.0
@@ -146,6 +149,13 @@ class ReplAgent(Agent):
             self.fallback = ExplorerAgent(ctx)
         self.messages: list[dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}]
         self.notes: list[str] = []
+        # Learning memory (exp-019): harness-written "what did we learn" lessons plus the model's own learn() calls,
+        # shown every turn and kept across levels; shareable kinds go to a run-wide file the other games read.
+        self.memory_on = bool(c.get("memory", True))
+        self.memory = Lessons(ctx.game_id, out_dir=ctx.out_dir, shared_path=c.get("memory_path"), enabled=self.memory_on,
+                              share=bool(c.get("memory_shared", True)))
+        self.skills = load_skills(c.get("skills_path")) if (self.memory_on and bool(c.get("skills", True))) else []
+        self.learn_nudge = ""  # "what did we learn?" question, asked once after a game over / retired model
         self.tracker = Tracker()
         self.tracker_level = -1
         self.turn_log: list[str] = []  # compact action summaries for the next user message
@@ -260,6 +270,15 @@ class ReplAgent(Agent):
                                  f"{goal_txt} You are now on level {after.level}: the layout changed, so re-read ents(); "
                                  "keep the key map and rules that worked.")
             self.recent_changes.clear()
+            self.memory.add("recipe", f"Level {before.level} completed in {n_level} actions; the last actions were {last}"
+                            + (f"; win condition consistent with every level so far: {goals[0]}" if goals else ""),
+                            level=before.level, evidence=f"actions={n_level}")
+        if after.game_over and not before.game_over:
+            prev = ", ".join(self.recent_actions[-4:-1]) or "none"
+            self.memory.add("hazard", f"GAME OVER on level {after.level} right after {action} (the actions before it: {prev}); "
+                            "the level restarts, so do not repeat that move from that position", level=after.level)
+            self.learn_nudge = ("What did we learn? Before acting, say what you assumed, what actually happened, and record "
+                                "the lesson with learn('...', kind='hazard'); it is shown every turn and carried to the next level.")
         if res["level_completed"] or self.tracker_level != after.levels_completed:
             self.tracker.reset(after.grid)
             self.tracker_level = after.levels_completed
@@ -289,6 +308,7 @@ class ReplAgent(Agent):
         s["model_latency_p50_s"] = round(float(np.median(lat)), 2) if lat else None
         s["sandbox_restarts"] = self.sandbox.restarts
         s["fallback"] = self.fallback.stats()
+        s["lessons_auto"], s["lessons_model"] = self.memory.auto_lessons, self.memory.model_lessons
         return s
 
     def _record(self, kind: str, **fields: Any) -> None:
@@ -303,7 +323,7 @@ class ReplAgent(Agent):
         p.parent.mkdir(parents=True, exist_ok=True)
         with open(p, "w") as f:
             f.write(json.dumps({"kind": "meta", "game": self.ctx.game_id, "config": {k: v for k, v in self.ctx.config.items() if k not in ("client", "specialist_client")},
-                                "notes": self.notes, "stats": self.stats()}, default=str) + "\n")
+                                "notes": self.notes, "lessons": self.memory.to_list(), "stats": self.stats()}, default=str) + "\n")
             f.writelines(json.dumps(rec, default=str) + "\n" for rec in self.transcript)
         return str(p)
 
@@ -316,6 +336,7 @@ class ReplAgent(Agent):
             self.dump_transcript()
         except Exception:  # noqa: BLE001
             self.log.exception("transcript dump failed")
+        self.memory.save()
         self.sandbox.stop()
 
     # ------------------------------------------------------------------ worker side
@@ -444,6 +465,45 @@ class ReplAgent(Agent):
                 out.append(f"click #{e.id} (colour {e.color}) at ({(e.x0 + e.x1) // 2},{(e.y0 + e.y1) // 2})")
         return out[:limit]
 
+    def _learn_from_result(self, r: dict[str, Any]) -> None:
+        """Turn a cell's decisive events into lessons: the model's learn() calls, a retired world model, a stopped batch."""
+        lvl = self.frame.level if self.frame else None
+        try:
+            if r.get("lessons"):
+                self.memory.add_many(r["lessons"], level=lvl, source="model")
+            flags = r.get("flags") or {}
+            pr = flags.get("pred_retired")
+            if pr:
+                self.memory.add("mistake", f"Level {lvl}: the world model was retired after wrong predictions on "
+                                f"{', '.join(map(str, pr.get('recent') or []))} (last {pr.get('action')}, {pr.get('wrong_cells')} wrong cells); "
+                                "re-fit it from the evidence (move_model() / auto_rules()) before planning with it again", level=lvl)
+                self.learn_nudge = ("What did we learn? The world model was wrong three times running: say which rule or obstacle "
+                                    "it misjudged and record it with learn('...', kind='mechanic') before you act again.")
+            bs = flags.get("batch_stopped")
+            if bs:
+                self.memory.add("mistake", f"Level {lvl}: a batch of {bs.get('planned')} actions stopped after {bs.get('done')}: "
+                                f"{', '.join(map(str, bs.get('idle') or []))} changed nothing, so the plan assumed movement that "
+                                "does not happen there (blocked cell or an action this game ignores)", level=lvl)
+        except Exception:  # noqa: BLE001
+            self.log.debug("lesson extraction failed", exc_info=True)
+        self.st.lessons_auto, self.st.lessons_model = self.memory.auto_lessons, self.memory.model_lessons
+
+    def _skills_text(self) -> str:
+        """Offline skill library retrieval by the level's code-computed signature (empty when nothing matches)."""
+        if not self.skills or self.frame is None:
+            return ""
+        try:
+            f = self.frame
+            av = self.tracker.avatar()
+            avail = [a for a in (f.available_actions or [1, 2, 3, 4, 5, 6])]
+            ents = self.tracker.entities_summary(64)
+            sig = level_signature(has_avatar=bool(av), click_only=(set(avail) <= {0, 6}), keymap=(av or {}).get("keymap"),
+                                  n_entities=len(ents), tile=int(self.tracker.tile or 1),
+                                  hud=any(e.get("role") == "hud" for e in ents))
+            return render_skills(match_skills(self.skills, sig, limit=3, exclude_game=self.ctx.game_id))
+        except Exception:  # noqa: BLE001
+            return ""
+
     def _observation_text(self, *, include_nudges: bool = True) -> str:
         """The text the coordinator sees each turn (also given to council specialists without the nudges)."""
         f = self.frame
@@ -469,7 +529,12 @@ class ReplAgent(Agent):
             untested = self._untested_actions(f)
             parts.append(f"STAGNATION: the last {self.stagnation_actions} actions changed nothing. Do not repeat them. "
                          + (f"Untested here: {', '.join(untested)}. " if untested else "")
-                         + "Write down the hypotheses you have not tested, then act on the cheapest one.")
+                         + "Write down the hypotheses you have not tested, then act on the cheapest one."
+                         + (" What did we learn? Record the wrong assumption with learn('...') so it is not repeated."
+                            if self.memory_on else ""))
+        if include_nudges and self.learn_nudge and self.memory_on:
+            parts.append(self.learn_nudge)
+            self.learn_nudge = ""
         if self.objects_in_prompt > 0:
             ents = self.tracker.entities_summary(self.objects_in_prompt)
             av = self.tracker.avatar()
@@ -485,6 +550,10 @@ class ReplAgent(Agent):
             parts.append(rs)
         if self.notes:
             parts.append("Your notes:\n- " + "\n- ".join(self.notes[-20:]))
+        if self.memory_on:
+            for block in (self.memory.render(), self.memory.render_others(), self._skills_text()):
+                if block:
+                    parts.append(block)
         if self.use_ascii:
             s = detect_scale(f.grid)
             small = f.grid[::s, ::s]
@@ -704,6 +773,7 @@ class ReplAgent(Agent):
                         self.st.tool_errors += 1
                     if r.get("notes"):
                         self.notes = list(r["notes"])[-40:]
+                    self._learn_from_result(r)
                     wm = r.get("world_model")
                     if wm:
                         self.st.wm_checked, self.st.wm_matched, self.st.wm_errors = int(wm["checked"]), int(wm["matched"]), int(wm["errors"])

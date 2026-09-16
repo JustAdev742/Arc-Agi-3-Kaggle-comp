@@ -13,7 +13,7 @@ Protocol (JSON lines over stdin/stdout of the child):
 
 Preloaded names in the child (all from ``arc3.perception``, exact numpy code):
   grid, frames, level, levels_completed, win_levels, step, level_step, state, available,
-  scale, objects(), components(), diff(), ascii(), downscale(), act(), note(), notes,
+  scale, objects(), components(), diff(), ascii(), downscale(), act(), note(), notes, learn(),
   history, last, np, set_model(predict), world_model_stats(), verify_model(predict), transitions(),
   ents(), events(n), event_log(), describe_events(n), avatar(), roles(), entity(id), tile,
   move_model(), plan_to(x, y), plan_to_entity(id)
@@ -60,7 +60,8 @@ def _recv():
         raise SystemExit(0)
     return json.loads(line)
 
-G = {"__name__": "__repl__", "np": np, "notes": []}
+G = {"__name__": "__repl__", "np": np, "notes": [], "lessons": []}
+CELL = {"pred_retired": None, "batch_stopped": None}  # decisive events of the current cell, reported to the agent
 WM = {"predict": None, "checked": 0, "matched": 0, "mismatches": [], "errors": 0, "streak": 0}
 WM_RETIRE_AFTER = 3  # consecutive mismatches after which the registered world model is dropped
 LOG = {"level": None, "transitions": []}  # (before_grid, action_label, after_grid) for the current level
@@ -562,6 +563,8 @@ def _check_prediction(before, action, after):
         WM["streak"] = 0
         d["pred_retired"] = (f"world model retired after {WM_RETIRE_AFTER} consecutive mismatches; re-fit it "
                              "(move_model() / rules_predictor()) or rewrite predict, then set_model again")
+        CELL["pred_retired"] = {"action": _action_label(action), "wrong_cells": wrong,
+                                "recent": [m["action"] for m in WM["mismatches"][-WM_RETIRE_AFTER:]]}
     return d
 
 def _to_grid(x):
@@ -660,6 +663,12 @@ def note(text):
     G["notes"].append(str(text))
     return len(G["notes"])
 
+def learn(text, kind="mistake"):
+    """Record a lesson ("what did we learn?"): kept for the whole game, shown every turn, carried to the next level,
+    and shared with the other games of this run when it is a mechanic, hazard, recipe or strategy."""
+    G["lessons"].append({"kind": str(kind), "text": str(text)})
+    return len(G["lessons"])
+
 def _is_single(a):
     if isinstance(a, (str, dict)):
         return True
@@ -717,6 +726,7 @@ def act(*actions):
                 break
             if _idle_streak(results) >= IDLE_STOP and len(norm) > len(results):
                 r["batch_stopped"] = f"{IDLE_STOP} actions in a row changed nothing; stopped after {len(results)} of {len(norm)} (the rest would be wasted)"
+                CELL["batch_stopped"] = {"done": len(results), "planned": len(norm), "idle": [_action_label(a) for a in norm[len(results) - IDLE_STOP:len(results)]]}
                 break
         return results if len(norm) > 1 else _Result(results[0])
     # With a registered world model, actions go one at a time so each prediction is checked and a
@@ -747,6 +757,7 @@ def act(*actions):
             break
         if _idle_streak(results) >= IDLE_STOP and len(norm) > len(results):
             r["batch_stopped"] = f"{IDLE_STOP} actions in a row changed nothing; stopped after {len(results)} of {len(norm)} (the rest would be wasted)"
+            CELL["batch_stopped"] = {"done": len(results), "planned": len(norm), "idle": [_action_label(a) for a in norm[len(results) - IDLE_STOP:len(results)]]}
             break
         if WM["predict"] is None and len(norm) > len(results):  # retired mid-batch: the rest runs unverified
             return results + act(*norm[len(results):]) if len(norm) - len(results) > 1 else results + [act(norm[len(results)])]
@@ -776,7 +787,7 @@ def _idle_streak(results):
 def click(x, y):
     return act(("CLICK", int(x), int(y)))
 
-HELPER_NAMES = ("objects", "components", "diff", "ascii", "tilemap", "downscale", "background", "moved", "note", "act", "click",
+HELPER_NAMES = ("objects", "components", "diff", "ascii", "tilemap", "downscale", "background", "moved", "note", "learn", "act", "click",
                 "set_model", "world_model_stats", "verify_model", "transitions", "set_models", "alive_models",
                 "ents", "events", "event_log", "describe_events", "avatar", "roles", "entity",
                 "move_model", "plan_to", "plan_to_entity",
@@ -804,6 +815,8 @@ while True:
     else:
         _refresh(msg["state"])
     _n_log = len(TRK["t"].log)
+    CELL["pred_retired"] = CELL["batch_stopped"] = None
+    G["lessons"] = []
     sys.stdout = buf = io.StringIO()
     err = ""
     result = None
@@ -828,6 +841,7 @@ while True:
         out += f"\n[your function(s) {', '.join(shadowed)} shadow harness variables; their current values are in STATE[...]]"
     cell_events = [_Tracker.describe(rec, TRK["t"])[:220] for rec in TRK["t"].log[_n_log:]][:10]
     _send({"type": "final", "stdout": out, "error": err, "result": result, "notes": G.get("notes", []), "events": cell_events,
+           "lessons": list(G.get("lessons") or []), "flags": {k: v for k, v in CELL.items() if v},
            "world_model": world_model_stats() if (WM["predict"] is not None or HYP["models"]) else None})
 '''
 
@@ -970,7 +984,8 @@ class PersistentSandbox:
                         out = out[: self.max_output_chars] + f"\n...[truncated {len(out) - self.max_output_chars} chars]"
                     return {"stdout": out, "error": str(msg.get("error") or ""), "result": msg.get("result"), "events": msg.get("events") or [],
                             "notes": list(msg.get("notes") or []), "actions": n_actions, "timed_out": False,
-                            "restarted": restarted, "world_model": msg.get("world_model")}
+                            "restarted": restarted, "world_model": msg.get("world_model"),
+                            "lessons": list(msg.get("lessons") or []), "flags": dict(msg.get("flags") or {})}
 
     def __del__(self):  # pragma: no cover
         try:
