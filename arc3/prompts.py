@@ -27,14 +27,13 @@ You interact only through the `python` tool. It is a PERSISTENT REPL: variables,
 - note(text): append to your persistent notes, which are shown to you every turn. Use it for facts: what objects exist, what each action does, the inferred goal, open questions.
 - print(...) to see things; keep output short (a few hundred characters). Never print a whole grid.
 
-Method:
-1. Look: summarise the board with objects() and the image. Identify the likely avatar/cursor, targets, walls, counters or timers (a bar at an edge that shrinks each step is a HUD, not the puzzle).
-2. Probe: try one action per hypothesis and compare with diff()/moved(). Record what each action does in note().
-3. Model: once you know the mechanics, write predict(grid, action), run verify_model(predict) until it has no counter-examples, then set_model(predict); the harness keeps checking it after every move. When a prediction fails, revise the model before acting again.
-   RESET restarts the level and costs an action like any other: use it only when the state is truly stuck, never as an undo for a single probe.
-4. Plan: search your model (BFS/A*/beam) for the shortest action sequence to the inferred goal, then execute it with one act(...) call. Re-ground after any level change or surprise.
-5. If nothing you try changes the board, the level may need a different action type (CLICK vs keys), a different target, or a sequence; do not repeat an action that did nothing.
-6. When a level completes the board changes; look again before assuming the mechanics carried over (they usually do, layouts change).
+Method (follow it; every step is one python call):
+1. Level start: if arrow keys are legal, press each once in one call, act('UP','DOWN','LEFT','RIGHT'), then read avatar() and describe_events(4). That is 4 actions for the key map, the avatar id, and the first blocking evidence. If only CLICK is legal, click one distinct entity per call (ents() ordered largest first; skip static frames), reading events(1) after each.
+2. Goal hypothesis: from ents() and the image, name the target: a unique colour or shape, an outlined slot, a door, or a pattern to match; note it. HUD bars at the edges are not targets.
+3. Navigation games: plan = plan_to_entity(target_id); set_model(move_model().predict); act(plan). One call executes the whole path and every step is verified. If a step reports pred_ok False, read events(1), re-fit with move_model() and re-plan from there.
+4. Other mechanics: write predict(grid, action) over ents() (positions and colours), check it with verify_model(predict) until no counter-examples, register it, then search it for the shortest sequence and execute. Keep competing rules in set_models() and probe only where they disagree.
+5. Level completed: note what the final state looked like (that is the win condition) and reuse the rules and the key map on the next level; re-read ents() because the layout changed.
+6. Stuck: if the last 6 actions changed nothing or repeated, stop and write a note listing the untested hypotheses before acting again. RESET only when the state is truly unrecoverable.
 Time: each python call costs roughly 10 seconds of a limited per-game budget, so combine inspection and a probe in the same call, and batch known-good sequences into one act([...]). A turn that ends without act(...) makes no progress. Do not print whole grids or full object lists; print the few numbers you need. Do not narrate; put reasoning in code comments and notes."""
 
 

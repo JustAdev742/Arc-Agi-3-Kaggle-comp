@@ -116,6 +116,9 @@ Built and tested (all in `tests/`, green on this container via `make test`):
 - Entity tracking (`arc3/entities.py`, plan-100 II.2.A): persistent ids across frames, per-action events (moved/appeared/
   disappeared/recoloured/reshaped), roles (static, hud, avatar with its key map), multi-part sprite groups, tile size;
   in the REPL as `ents()/events()/avatar()/roles()` and in every per-action summary the model reads. Unmeasured (exp-005).
+- Navigation planner (`arc3/planner.py`, plan-100 II.2.C first slice): avatar move rule and obstacles fitted from evidence
+  (including bumps into invisible walls), BFS `plan_to_entity`/`plan_to`, and a predictor the verifier checks; the system
+  prompt now prescribes the procedure (keys once, target, plan, verified execution). Unmeasured (exp-005).
 - Executable world-model hooks in the sandbox: `set_model(predict)` checks every real action against the model's own
   predictor (mismatches stop batched actions and are reported each turn); `transitions()` logs the level's
   (before, action, after) triples; `verify_model(predict)` replays them and returns counter-examples (plan-100 §3.2).
