@@ -1426,6 +1426,22 @@ def render(grid: np.ndarray, before: Frame, after: Frame, shapes: dict[str, np.n
     return g
 
 
+def optimistic(rules: list[Rule]) -> list[Rule]:
+    """Copies of the movement rules with the least restrictive blocking still compatible with the evidence: a
+    'walkable' set becomes 'blocked by nothing' and bump positions are dropped. Plans under these rules are
+    experiments: the verifier catches the first wrong step and the refit learns the real obstacle."""
+    out: list[Rule] = []
+    for r in rules:
+        mv = r.move if isinstance(r, Push) else r
+        if isinstance(mv, Move) and (mv.walkable is not None or mv.blocked_origins or mv.blocked_by == "any"):
+            relaxed = Move(mv.cls, mv.keymap, None, None, mv.requires, mv.slide)
+            relaxed.under, relaxed.bg = mv.under, mv.bg
+            out.append(Push(relaxed, r.pushable, r.blocked_by) if isinstance(r, Push) else relaxed)
+        else:
+            out.append(r)
+    return out
+
+
 def set_terrain(rules: list[Rule], under: Optional[np.ndarray], bg: Optional[int]) -> None:
     """Give the movement rules the static layer to simulate against (planning and prediction)."""
     for r in rules:

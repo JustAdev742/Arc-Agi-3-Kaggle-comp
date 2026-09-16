@@ -19,7 +19,7 @@ def register(name: str):
 def get(name: str):
     if name not in REGISTRY:
         # Lazy imports so optional deps (e.g. requests for the REPL agent) stay optional.
-        from . import random_agent, explorer  # noqa: F401
+        from . import explorer, random_agent, rules_agent  # noqa: F401
         try:
             from . import council  # noqa: F401
         except Exception as e:  # pragma: no cover
