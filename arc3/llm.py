@@ -36,8 +36,10 @@ class ChatResponse:
     raw: Any = None
     finish_reason: str = ""
 
-    def assistant_message(self) -> dict[str, Any]:
+    def assistant_message(self, *, with_reasoning: bool = False) -> dict[str, Any]:
         msg: dict[str, Any] = {"role": "assistant", "content": self.content or ""}
+        if with_reasoning and self.reasoning:
+            msg["reasoning_content"] = self.reasoning  # vLLM/Qwen3.8 read this back when preserve_thinking is on
         if self.tool_calls:
             msg["tool_calls"] = [
                 {"id": tc.id, "type": "function",
@@ -105,6 +107,7 @@ class ChatClient:
     def chat(self, messages: list[dict[str, Any]], *, tools: Optional[list[dict[str, Any]]] = None,
              max_tokens: int = 4096, temperature: float = 0.6, top_p: float = 0.95,
              thinking: Optional[bool] = None, reasoning_effort: Optional[str] = None,
+             preserve_thinking: Optional[bool] = None,
              timeout_s: Optional[float] = None, extra: Optional[dict[str, Any]] = None) -> ChatResponse:
         body: dict[str, Any] = {"model": self.model, "messages": messages, "max_tokens": max_tokens,
                                 "temperature": temperature, "top_p": top_p}
@@ -112,12 +115,14 @@ class ChatClient:
             body["tools"] = tools
             body["tool_choice"] = "auto"
         body.update(self.extra_body)
-        if thinking is not None or reasoning_effort:
+        if thinking is not None or reasoning_effort or preserve_thinking is not None:
             ctk = dict(body.get("chat_template_kwargs") or {})
             if thinking is not None:
                 ctk["enable_thinking"] = bool(thinking)
             if reasoning_effort:  # Qwen3.8 template knob: low | medium | high | xhigh
                 ctk["reasoning_effort"] = reasoning_effort
+            if preserve_thinking is not None:  # Qwen3.8: keep earlier assistant reasoning in the prompt (continuity within a turn)
+                ctk["preserve_thinking"] = bool(preserve_thinking)
             body["chat_template_kwargs"] = ctk
         if extra:
             body.update(extra)

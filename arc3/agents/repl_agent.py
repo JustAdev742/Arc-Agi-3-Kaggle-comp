@@ -95,6 +95,7 @@ class ReplAgent(Agent):
         self.top_p = float(c.get("top_p", 0.95))
         self.thinking = c.get("thinking", None)
         self.reasoning_effort = c.get("reasoning_effort", None)  # Qwen3.8: low|medium|high|xhigh
+        self.preserve_thinking = c.get("preserve_thinking", None)  # Qwen3.8: keep the turn's earlier reasoning in the prompt
         self.model_timeout_s = float(c.get("model_timeout_s", 480))
         self.tool_timeout_s = float(c.get("tool_timeout_s", 30))
         self.max_tool_steps = int(c.get("max_tool_steps", 8))
@@ -524,6 +525,9 @@ class ReplAgent(Agent):
             return True
         return False
 
+    def _before_model_call(self) -> None:  # noqa: B027
+        """Hook run before every model call of a turn (the council injects late specialist reports here)."""
+
     def _effort_for_turn(self) -> Optional[str]:
         """Reasoning effort for this turn: the configured one, raised when the game is stagnant (adaptive policy)."""
         if self.effort_policy != "adaptive":
@@ -545,6 +549,7 @@ class ReplAgent(Agent):
             for _ in range(self.max_tool_steps):
                 if self.closed or self.ctx.time_left() < self.min_time_for_turn_s / 2:
                     break
+                self._before_model_call()
                 if not acted and inspect_only >= self.inspect_steps_before_nudge and not nudged:
                     nudged = True
                     lat = self.st.latencies[-8:]
@@ -560,7 +565,7 @@ class ReplAgent(Agent):
                 try:
                     resp: ChatResponse = self.client.chat(
                         self.messages, tools=TOOLS, max_tokens=self.max_output_tokens, temperature=self.temperature,
-                        top_p=self.top_p, thinking=self.thinking, reasoning_effort=effort,
+                        top_p=self.top_p, thinking=self.thinking, reasoning_effort=effort, preserve_thinking=self.preserve_thinking,
                         timeout_s=max(self.min_call_timeout_s, min(self.model_timeout_s, self.ctx.time_left() - 5)))
                 except Exception as e:  # noqa: BLE001
                     msg = str(e).lower()
@@ -599,7 +604,7 @@ class ReplAgent(Agent):
                 self.st.latencies.append(dt)
                 self.st.prompt_tokens += resp.prompt_tokens
                 self.st.completion_tokens += resp.completion_tokens
-                self.messages.append(resp.assistant_message())
+                self.messages.append(resp.assistant_message(with_reasoning=bool(self.preserve_thinking)))
                 self._record("assistant", turn=self.st.turns, reasoning=resp.reasoning[:1500], content=resp.content[:1500],
                              code=[tc.arguments.get("code", "")[:3000] for tc in resp.tool_calls], latency_s=round(dt, 1),
                              prompt_tokens=resp.prompt_tokens, completion_tokens=resp.completion_tokens)

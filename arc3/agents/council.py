@@ -14,6 +14,9 @@ Config (ctx.config), on top of ReplAgent's keys:
   specialist_every      periodic floor / period in turns (default 3 for events, 1 for every)
   specialist_max_round_s when the average round takes longer than this, the periodic floor is dropped and only
                         events trigger a round (default 30; calls are the budget, lesson 0009)
+  specialist_sync       True: run the round before the coordinator's call (adds its latency to the turn);
+                        False (default): run it concurrently with the coordinator's first call and inject the
+                        reports before the next call of the turn, or at the next turn if the turn already ended
   specialist_timeout_s  wall-clock cap for the whole specialist round (default 60)
   specialist_max_tokens (default 400), specialist_thinking (default False), specialist_image (default True)
   specialist_client     object, tests only
@@ -62,6 +65,11 @@ class CouncilAgent(ReplAgent):
         self._last_round_turn = 0
         self._last_round_level = -1
         self._last_round_mismatches = 0
+        self.specialist_sync = bool(c.get("specialist_sync", False))
+        self._round_pool = cf.ThreadPoolExecutor(max_workers=1, thread_name_prefix=f"council-{ctx.game_id}")
+        self._round_future: Optional[cf.Future] = None
+        self._reports_version = 0  # bumps when a round delivers reports
+        self._injected_version = 0  # the version the coordinator has already seen
 
     # ------------------------------------------------------------------ specialist round
     def _state_text(self) -> str:
@@ -142,23 +150,48 @@ class CouncilAgent(ReplAgent):
                     fut.cancel()
         for role, text in new.items():
             self.reports[role] = (self.st.turns, text)
-        self.cst["time_s"] += time.time() - t0
+        if new:
+            self._reports_version += 1
+        dt = time.time() - t0
+        self.cst["time_s"] += dt
+        self._record("council", turn=self.st.turns, reason=reason, roles=sorted(new), round_s=round(dt, 1),
+                     reports={r: t[:400] for r, t in new.items()})
 
     # ------------------------------------------------------------------ coordinator turn
+    def _report_block(self) -> str:
+        return REPORT_HEADER + "\n" + "\n".join(
+            f"[{role}{'' if t == self.st.turns else f', from turn {t}'}] {text[:600]}" for role, (t, text) in self.reports.items())
+
     def _user_message(self) -> dict[str, Any]:
         reason = self._round_reason()
         if reason:
-            self._run_specialists(reason)
+            if self.specialist_sync or self.shared_model:
+                self._run_specialists(reason)  # a shared server gains nothing from overlap; keep it simple
+            elif self._round_future is None or self._round_future.done():
+                self._round_future = self._round_pool.submit(self._run_specialists, reason)
         msg = super()._user_message()
         if not self.reports:
             return msg
-        block = REPORT_HEADER + "\n" + "\n".join(
-            f"[{role}{'' if t == self.st.turns else f', from turn {t}'}] {text[:600]}" for role, (t, text) in self.reports.items())
+        self._injected_version = self._reports_version
+        block = self._report_block()
         if isinstance(msg["content"], list):
             msg["content"][0]["text"] = block + "\n\n" + msg["content"][0]["text"]
         else:
             msg["content"] = block + "\n\n" + msg["content"]
         return msg
+
+    def _before_model_call(self) -> None:
+        """Reports that arrived while the coordinator was busy are handed over before its next call."""
+        if self._reports_version > self._injected_version and self.reports:
+            self._injected_version = self._reports_version
+            self.cst["late_injections"] = self.cst.get("late_injections", 0) + 1
+            self.messages.append({"role": "user", "content": "New " + self._report_block()})
+
+    def close(self) -> None:
+        try:
+            self._round_pool.shutdown(wait=False, cancel_futures=True)
+        finally:
+            super().close()
 
     def stats(self) -> dict[str, Any]:
         s = super().stats()

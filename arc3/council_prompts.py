@@ -43,5 +43,6 @@ ROLES: dict[str, str] = {
 }
 
 REPORT_HEADER = (
-    "Specialist reports (advisory: verify against grid/objects()/diff() before relying on them):"
+    "Specialist reports (advisory; each cites entity ids from the same observation you have; verify a claim with "
+    "ents()/events()/the Rules line before relying on it; the PLANNER's helper calls can be run as written):"
 )
