@@ -154,6 +154,8 @@ research log exp-006a.
   FP8 first, NVFP4 with Marlin last) pushed 11:58 as `arc3-eval-dev-council-b`.
 - exp-009b finished 12:14: **dev 0.870, 6 levels** (exp-009: 0.836, 6) with only 3 of 9 solved games in common: score
   stable to about +-0.05, per-game outcomes churn. Keep/revert threshold set (research log). exp-011 pushed 12:15.
+- **exp-011 finished 14:02: dev 1.229, 9 levels** (best so far; exp-005 1.11/8, exp-009 repeats 0.84-0.87/6): the
+  transcript-driven harness fixes are KEPT. exp-004 (thinking off) pushed 14:03 as `arc3-eval-dev-g` v2.
 
 ## Session 2 outcome (2026-09-16, afternoon)
 

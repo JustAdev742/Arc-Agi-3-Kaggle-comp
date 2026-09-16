@@ -231,7 +231,7 @@ Notes:    the 14 'gave_up' failures are a label artefact (exp-009 had 16): the a
           Rules line, goal hints); their marginal information is low by construction. A specialist that adds value
           must see or do something the coordinator does not (the full transition log, a search, an executed probe).
 
-## 2026-09-16 · exp-011 · verified-navigation fixes from the exp-009 transcripts (walkable floor entities, sprite companions, avatar hand-over, live move model, model retirement, inline events, batched click probes) · PENDING (built, not yet run)
+## 2026-09-16 · exp-011 · verified-navigation fixes from the exp-009 transcripts (walkable floor entities, sprite companions, avatar hand-over, live move model, model retirement, inline events, batched click probes) · KEPT
 Why:      exp-009 transcripts (`scripts/transcript_report.py runs/kaggle-repl-dev-009`): ka59 registered
           set_model(move_model().predict) and then took one action per call for 14 consecutive prediction mismatches;
           su15 called describe_events 33 times (one click per call, 1.5 actions per call); every act() result was echoed
@@ -271,4 +271,12 @@ Change:   planner: cells whose static-layer colour the avatar has stood on are w
           lost, m0r0 0.09 -> 0.85): no regression on the code-only path.
 Expected: fewer calls per action on navigation games (ka59, ls20, re86, dc22 style) and on click games (su15, sb26);
           no change on games without an avatar. Measured against exp-009/exp-009b with the same settings.
-Measured: not yet run (kernel queue: exp-010 council and exp-009b occupy both slots).
+Measured: **dev 1.229** (runs/kaggle-repl-dev-011, kernel arc3-eval-dev-f v2, harness 756a87e, same settings and seed as
+          exp-009; ran 12:55-14:02 on the RTX; v1 landed on a T4 and was wasted). Levels 9/142: ar25 L1, lp85 L1, m0r0 L1,
+          s5i5 L1 (first solve of s5i5), sb26 L2, su15 L1, tu93 L1 (first solve of tu93), vc33 L1; actions 1180; 0 model
+          errors; 19 of 19 games used their full 1200 s. Against the exp-009 repeats (0.836 / 0.870, 6 levels each) this
+          is +0.36 over the better one with 3 more levels, past the keep threshold set by exp-009b; it is also above
+          exp-005 (1.108, 8 levels). Six arms: control 0.56 (5) < exp-008 0.73 (5) < exp-007 0.84 (5) = exp-009 0.84 (6)
+          ~ exp-009b 0.87 (6) < exp-005 1.11 (8) < exp-011 1.23 (9). Median latency per call fell on most games (12-27 s
+          against 18-63 s in exp-009b) and calls per game rose to 27-56.
+Kept:     yes. Follow-up: a repeat (exp-011b) when a slot is free, per the noise rule.
