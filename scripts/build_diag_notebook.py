@@ -25,9 +25,9 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR = ROOT / "notebooks" / "diag"
 
 
-def build(model_dataset: str, wheels_dataset: str, budget_min: int, smoke_s: int) -> dict:
+def build(model_dataset: str, wheels_dataset: str, budget_min: int, smoke_s: int, attempts_json: str = "", title: str = "rtx6000") -> dict:
     tarball = package_tarball()
-    cells = [md_cell("# arc3 GPU diagnostics (rtx6000)\n\nBounded probe of the serving stack. Not a submission.")]
+    cells = [md_cell(f"# arc3 GPU diagnostics ({title})\n\nBounded probe of the serving stack. Not a submission.")]
     cells.append(code_cell(dedent(f"""\
         import os, sys, time, json, subprocess, threading, base64, io, tarfile, shutil, glob
         START = time.time(); BUDGET_S = {budget_min} * 60
@@ -75,14 +75,18 @@ def build(model_dataset: str, wheels_dataset: str, budget_min: int, smoke_s: int
         DIAG['versions_after'] = sh("pip list 2>/dev/null | grep -iE '^(torch|vllm|transformers|flashinfer|flashinfer-python|triton|xformers|numpy|pillow) '")
         print(DIAG['versions_after'])
         """)))
-    cells.append(code_cell(dedent("""\
+    cells.append(code_cell("ATTEMPTS_JSON = " + repr(attempts_json) + "\n" + dedent("""\
+        from arc3 import serve
         from arc3.serve import start_vllm_with_fallback, build_vllm_command
+        ATTEMPTS = json.loads(ATTEMPTS_JSON) if ATTEMPTS_JSON.strip() else None
         vllm_proc = None; DIAG['vllm_ready'] = False
         if DIAG['pip_vllm_rc'] == 0 and MODEL_DIR and left() > 600:
             print(' '.join(build_vllm_command(MODEL_DIR)))
+            print('GPU fraction free before start:', serve.gpu_fraction_available(), 'attempt ladder:', ATTEMPTS)
             t0 = time.time()
             vllm_proc, DIAG['vllm_ready'] = start_vllm_with_fallback(MODEL_DIR, log_path='/kaggle/working/vllm.log', port=8000,
-                                                                     served_name='arc3-model', timeout_s=min(1200, left() - 420))
+                                                                     served_name='arc3-model', timeout_s=min(2400, left() - 420), attempts=ATTEMPTS)
+            DIAG['last_start'] = dict(serve.LAST_START)
             DIAG['vllm_start_s'] = round(time.time() - t0, 1)
             DIAG['vllm_attempts'] = open('/kaggle/working/vllm.log').read().count('$ ')
             print('vLLM ready:', DIAG['vllm_ready'], 'after', DIAG['vllm_start_s'], 's, attempts', DIAG['vllm_attempts'])
@@ -173,9 +177,11 @@ def main() -> None:
     p.add_argument("--smoke-s", type=int, default=300)
     p.add_argument("--username", default="scottmahony")
     p.add_argument("--slug", default="arc3-gpu-diag")
+    p.add_argument("--attempts-json", default="", help="JSON list of start_vllm attempt dicts (model_dir/label/env_extra allowed) replacing the default ladder")
+    p.add_argument("--title", default="rtx6000")
     a = p.parse_args()
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    (OUT_DIR / "diag.ipynb").write_text(json.dumps(build(a.model_dataset, a.wheels_dataset, a.budget_min, a.smoke_s), indent=1))
+    (OUT_DIR / "diag.ipynb").write_text(json.dumps(build(a.model_dataset, a.wheels_dataset, a.budget_min, a.smoke_s, a.attempts_json, a.title), indent=1))
     meta = {"id": f"{a.username}/{a.slug}", "title": a.slug, "code_file": "diag.ipynb", "language": "python",
             "kernel_type": "notebook", "is_private": True, "enable_gpu": True, "enable_tpu": False, "enable_internet": False,
             "keywords": [], "dataset_sources": [a.wheels_dataset, a.model_dataset], "kernel_sources": [],
