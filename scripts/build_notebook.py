@@ -163,8 +163,11 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--accelerator", default="rtx6000", choices=sorted(_ACCELERATORS))
     p.add_argument("--agent", default="repl", choices=["repl", "explorer", "random"])
-    p.add_argument("--model-dataset", default="", help="owner/slug of the attached model weights dataset")
-    p.add_argument("--wheels-dataset", default="", help="owner/slug of the attached vLLM wheelhouse dataset")
+    p.add_argument("--model-dataset", default="saltb0x/qwen3-8-27b-fp8",
+                   help="owner/slug of the model weights dataset (default: official Qwen3.8-27B-FP8 snapshot, "
+                        "verified byte-for-byte against HF sha 017b9c7a on 2026-09-16)")
+    p.add_argument("--wheels-dataset", default="saltb0x/arc3-vllm-wheelhouse-v0271-cu129",
+                   help="owner/slug of the vLLM wheelhouse dataset (vLLM 0.27.1, CUDA 12.9, built for the ARC3 duck harness)")
     p.add_argument("--budget-s", type=int, default=9 * 3600)
     p.add_argument("--out", default=str(NOTEBOOK_PATH))
     a = p.parse_args()

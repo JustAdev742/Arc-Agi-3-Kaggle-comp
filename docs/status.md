@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-09-16 (session 1, remote CPU container: 4 vCPU, 15 GB RAM, no GPU; Kaggle token pending).
+Last updated: 2026-09-16 (session 1, remote CPU container: 4 vCPU, 15 GB RAM, no GPU; Kaggle CLI authenticated as `scottmahony`).
 
 ## Competition facts: verified vs. unconfirmed
 
@@ -31,16 +31,30 @@ Duck harness (MIT classifier in its pyproject; no LICENSE file at repo root; tre
 Could not: run any model (no GPU), push a Kaggle kernel (no token), read Kaggle's own
 competition pages (JS-only), confirm the runtime limit or license.
 
+## Models and serving assets (decided 2026-09-16, per CLAUDE.md)
+
+| Role | Asset | Status |
+|---|---|---|
+| Primary | **Qwen3.8-27B-FP8** (official). Kaggle dataset `saltb0x/qwen3-8-27b-fp8`: 81 files, 30.89 GB, byte-for-byte equal to HF `Qwen/Qwen3.8-27B-FP8` @ `017b9c7a` (includes `mtp.safetensors`) | VERIFIED |
+| A/B arm | **NVFP4**: HF `nvidia/Qwen3.8-27B-NVFP4` @ `dbb8f445` (19 files, 21.95 GB). No Kaggle mirror confirmed identical yet; upload from the GPU box if none matches | PENDING |
+| Baseline reproduction | Qwen3.6-27B-FP8 as used by the Duck: `driessmit1/vrfai-qwen3-6-27b-fp8-hf-snapshot` | available |
+| vLLM wheelhouse | `saltb0x/arc3-vllm-wheelhouse-v0271-cu129` (vLLM 0.27.1, CUDA 12.9, flashinfer 0.6.16, built for the ARC3 duck harness). Alternative: `nick2187/qwen38-vllm0272-cu130-wheelhouse-v1` (vLLM 0.27.2, CUDA 13, needs a newer driver) | diag run pending |
+| Tool-call parser | Qwen3.8's chat template emits `<tool_call><function=...><parameter=...>` XML: vLLM `--tool-call-parser qwen3_coder`, `--reasoning-parser qwen3`; template knobs `enable_thinking`, `reasoning_effort` in {xhigh (default), medium, low}, `preserve_thinking` | VERIFIED (template) |
+
+## Kaggle validation runs this milestone (allowance: 3)
+
+1. `scottmahony/arc-prize-2026-arc-agi-3-arc3-agent` v1, **CPU**, 2026-09-16: explorer notebook, Save & Run All. Installed
+   arc-agi from the bundle, unpacked arc3, played ls20 + vc33 offline (60 actions each), wrote submission.parquet. PASS. GPU quota: 0.
+2. `scottmahony/arc3-gpu-diag` v1, **rtx6000**, 2026-09-16: serving-stack probe (driver, vLLM install, start time, tool-call
+   completion with image, throughput, 5-min REPL smoke). Bounded to ~30 min. Result: see below once fetched.
+
 ## Open items (need you)
 
 1. Daily submission limit: paste the "Submission limits" lines from the Kaggle **Rules** page (still
    UNCONFIRMED; 5 per day from two secondary sources).
-2. Kaggle API token (`KGAT_...`): either paste it in chat (stored in git-ignored `.kaggle/access_token`,
-   never echoed) or set `KAGGLE_API_TOKEN` in the Claude Code environment settings and start a new
-   session. `make kaggle-check` then verifies access and lists the competition files.
-3. Decide the model to attach as a Kaggle dataset: Qwen3.8-27B FP8 (default) vs. the
-   Milestone-1 winner's Qwen3.6-27B FP8 snapshot. With the token I will first check Kaggle Models
-   for an existing Qwen3.8-27B upload (saves a 28 GB dataset upload).
+2. For future sessions put the Kaggle token in the Claude Code environment as `KAGGLE_API_TOKEN` (this
+   session keeps it in git-ignored `.kaggle/access_token`). Consider regenerating the token after this
+   project since it passed through a chat upload.
 
 ## Follow-ups noticed (not fixed on purpose)
 
