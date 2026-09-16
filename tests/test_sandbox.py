@@ -471,3 +471,57 @@ print(all('role' in e for e in ents()))
     r2 = sb.run("x = 1", state(w.grid(), [w.grid()]), timeout_s=30, action_handler=handler)
     assert r2["events"] == []
     sb.stop()
+
+
+def test_observed_terminal_frame_feeds_goal_candidates_and_dict_goals():
+    """The harness attaches the completed level's observed winning frame ('terminal') to the level-completing action
+    result; the sandbox archives it (not a simulation), goal_candidates() sees the sprite parked exactly on its slot
+    (same_box) and plan_rules accepts the new relation goals as dicts."""
+    from tests.test_planner import GridWorld
+
+    sb = PersistentSandbox(sys_path=[ROOT] + sys.path)
+    w = GridWorld()
+    lvl = {"n": 1}
+
+    def handler(actions):
+        g = w.act(actions[0]["action"])
+        x, y = w.pos
+        tx, ty = w.target
+        done = abs(x - tx) <= 4 and abs(y - ty) <= 4
+        res = {"changed": 32, "level_completed": done, "state": "NOT_FINISHED"}
+        if done:
+            # observed terminal: the avatar drawn exactly over the target box (same colour 9 sprite, same 4x4 box)
+            term = g.copy()
+            term[y:y + 4, x:x + 4] = 0
+            term[ty:ty + 4, tx:tx + 4] = 9
+            res["terminal"] = term.tolist()
+            lvl["n"] += 1
+            w.pos = (8, 32)
+            g = w.grid()
+        st = state(g, [g])
+        st["level"] = lvl["n"]
+        return [res], st
+
+    st0 = state(w.grid(), [w.grid()])
+    st0["level"] = 1
+    code = """
+act('RIGHT', 'UP', 'DOWN', 'LEFT')
+auto_rules()
+tid = [e['id'] for e in ents() if e['color'] == 12][0]
+rs = act(plan_rules({'reach_entity': tid}))
+print(rs[-1]['level_completed'], 'terminal' in rs[-1])
+g = goal_candidates(); print(g)
+print(plan_rules({'same_box': (9, 12)}) is not None, plan_rules({'inside': (9, 12)}) is None)  # equal sizes: inside is impossible
+try:
+    plan_rules({'bogus': (1, 2)})
+except ValueError as e:
+    print('same_box' in str(e))
+"""
+    r = sb.run(code, st0, timeout_s=60, action_handler=handler)
+    assert r["error"] == "", r
+    lines = r["stdout"].strip().splitlines()
+    assert lines[0] == "True False", lines  # the terminal grid never reaches the model's result dict
+    assert "same_box(colour 9, colour 12)" in lines[1], lines
+    assert lines[2] == "True True", lines
+    assert lines[3] == "True", lines
+    sb.stop()

@@ -240,6 +240,20 @@ def _goal_fn(goal):
             a, b = v
             pad = 1 if k == "touch" else 0
             return lambda f: any(x.overlaps(y, pad) for x in f if x.color == int(a) for y in f if y.color == int(b))
+        if k in ("same_box", "same_columns", "same_rows", "inside"):
+            a, b = int(v[0]), int(v[1])
+            def _rel(x, y, k=k):
+                if x is y:
+                    return False
+                if k == "same_box":
+                    return (x.x0, x.y0, x.x1, x.y1) == (y.x0, y.y0, y.x1, y.y1)
+                if k == "same_columns":
+                    return (x.x0, x.x1) == (y.x0, y.x1) and not (x.y0 <= y.y1 and y.y0 <= x.y1)
+                if k == "same_rows":
+                    return (x.y0, x.y1) == (y.y0, y.y1) and not (x.x0 <= y.x1 and y.x0 <= x.x1)
+                return (y.x0 <= x.x0 and x.x1 <= y.x1 and y.y0 <= x.y0 and x.y1 <= y.y1
+                        and (x.x1 - x.x0 + 1) * (x.y1 - x.y0 + 1) < (y.x1 - y.x0 + 1) * (y.y1 - y.y0 + 1))
+            return lambda f: any(_rel(x, y) for x in f if x.color == a for y in f if y.color == b)
         if k == "reach":
             av = TRK["t"].avatar()
             if not av:
@@ -255,12 +269,14 @@ def _goal_fn(goal):
             box = _dsl.Ent(-1, tgt.color, tgt.x0, tgt.y0, tgt.w, tgt.h, tgt.size, tgt.shape_hash)
             return lambda f: any(e.id == aid and e.overlaps(box, 1) for e in f)
     raise ValueError("goal must be a callable(frame)->bool, a goal_candidates() name, or one of "
-                     "{'none_left': colour}, {'count': (colour, n)}, {'overlap': (a, b)}, {'touch': (a, b)}, {'reach': (x, y)}, {'reach_entity': id}")
+                     "{'none_left': colour}, {'count': (colour, n)}, {'overlap': (a, b)}, {'touch': (a, b)}, {'same_box': (a, b)}, "
+                     "{'same_columns': (a, b)}, {'same_rows': (a, b)}, {'inside': (a, b)}, {'reach': (x, y)}, {'reach_entity': id}")
 
 def plan_rules(goal, rules=None, max_depth=200, max_nodes=40000, optimistic=True):
     """Shortest action list reaching `goal` in the rule-set simulation from the current frame (BFS), or None.
-    goal: {'none_left': colour} | {'count': (colour, n)} | {'overlap': (a, b)} | {'touch': (a, b)} | {'reach': (x, y)} |
-    {'reach_entity': id} | a goal_candidates() name | callable(frame)->bool. Execute with act(plan) after
+    goal: {'none_left': colour} | {'count': (colour, n)} | {'overlap': (a, b)} | {'touch': (a, b)} | {'same_box': (a, b)} |
+    {'same_columns': (a, b)} | {'same_rows': (a, b)} | {'inside': (a, b)} | {'reach': (x, y)} | {'reach_entity': id} |
+    a goal_candidates() name | callable(frame)->bool. Execute with act(plan) after
     set_model(rules_predictor()). If no path exists under the fitted rules, an optimistic path is returned (unknown
     colours assumed passable; PLAN['optimistic'] is True): its first wrong step is caught and becomes evidence."""
     rs = list(rules) if rules is not None else RULES["rules"]
@@ -373,11 +389,22 @@ def probe_suggestions(limit=8):
             out.append({"action": ("CLICK", (e.x0 + e.x1) // 2, (e.y0 + e.y1) // 2), "why": f"entity #{e.id} colour {e.color} {e.w}x{e.h}: class never clicked"})
     return out[:limit]
 
-def _archive_level(final_action):
+def _archive_level(final_action, terminal=None):
+    """Archive the completed level for goal_candidates(): the observed terminal frame when the harness supplied it
+    (the engine returns it as the first layer of the level-completing step), else a simulated winning frame."""
     t = TRK["t"]
     if not t.frames:
         return
     final = None
+    if terminal is not None:
+        try:
+            t.update(_to_grid(terminal), final_action)
+            frames = t.compound_frames()
+            ARCH["levels"].append({"level": LOG["level"], "frames": list(frames[:-1]), "actions": list(t.actions), "unders": list(t.unders),
+                                   "bg": t.bg, "final_action": final_action, "final_frame": frames[-1], "observed": True})
+            return
+        except Exception:  # noqa: BLE001
+            pass
     frames = t.compound_frames()
     rules_ = RULES["rules"] or _dsl.fallback_move_rules(t.avatar(), frames[-1])
     try:
@@ -713,7 +740,7 @@ def act(*actions):
                 raise RuntimeError(reply.get("error", "action failed"))
             r = reply["result"][0]
             if r.get("level_completed"):
-                _archive_level(_action_label(a))
+                _archive_level(_action_label(a), r.pop("terminal", None))
             _refresh(reply["state"], _action_label(a))
             r["events"] = _last_event_text()
             if not r.get("level_completed"):
@@ -740,7 +767,7 @@ def act(*actions):
             raise RuntimeError(reply.get("error", "action failed"))
         r = reply["result"][0]
         if r.get("level_completed"):
-            _archive_level(_action_label(a))
+            _archive_level(_action_label(a), r.pop("terminal", None))
         _refresh(reply["state"], _action_label(a))
         r["events"] = _last_event_text()
         chk = None if r.get("level_completed") else _check_prediction(before, a, G["grid"])  # a new level's first frame is not a prediction target

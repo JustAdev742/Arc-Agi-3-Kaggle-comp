@@ -540,5 +540,9 @@ Change:   dsl.goal_predicates adds relations between two distinct entities (same
 Measured: goal-predicate recall 5 -> 9 of 17 solved levels (ar25 L1/L2 same_box(4,11), lp85, s5i5, su15 L1 gained);
           bp35, cd82, ka59, m0r0, sb26, vc33 still none. Some new candidates are spurious (su15 same_columns(0,0)); the
           model sees them as candidates, the cross-level consistency check prunes them from level 2 on.
-Kept:     yes (code-only; no model run). Follow-up: plan_rules() goals for the new relations; vc33-style alignment of a
-          sub-part with a marker needs part-level entities.
+          The REPL's own goal_candidates() now uses the observed terminal frame too (the harness attaches it to the
+          level-completing act() result; the sandbox pops it before the model sees the result and archives the real
+          frame): on the ar25 replay the REPL lists same_box(colour 4, colour 11) first, and plan_rules accepts the
+          relations as dict goals ({'same_box': (a, b)}, {'same_columns': ...}, {'same_rows': ...}, {'inside': ...}).
+Kept:     yes (code-only; no model run). Follow-up: vc33-style alignment of a sub-part with a marker needs
+          part-level entities.

@@ -320,6 +320,8 @@ class ReplAgent(Agent):
         self.fallback.observe(action, before, after)
         req = self.pending
         self.pending = None
+        if res["level_completed"] and len(after.layers) > 1 and after.layers[0].shape == after.grid.shape:
+            res["terminal"] = after.layers[0].tolist()  # the completed level's observed winning frame (sandbox archive)
         if req is not None and not req.auto:
             req.result = {**res, **(req.result or {})}
             self.result_q.put(req)
