@@ -36,3 +36,18 @@ Measured: total 0.057 (dev 0.044, val 0.097), run `runs/exp002-explorer-v2-all-s
           1370–2298 actions are worth ~0. ~10 ms/action on 4 CPUs.
 Decision: Keep as the crash/idle fallback inside the REPL agent and on Kaggle; stop iterating on it.
           Blind search cannot reach RHAE-relevant action counts; the model-driven harness is the only path.
+
+## 2026-09-16 · exp-003a · first real-model run: single Qwen3.8-27B-FP8 REPL agent, Kaggle RTX PRO 6000 smoke · BASELINE (plumbing)
+Why:      Prove the serving stack and the agent loop end to end on the competition hardware before spending a dev run.
+Settings: ls20 + vc33, 300 s/game, 150-action cap, reasoning_effort=low, max_output 3072, image scale 6 + ASCII board,
+          vLLM 0.27.1 (Triton attention, MTP 2 tokens, FP8 KV), kernel `scottmahony/arc3-gpu-diag` v5, commit 82be16d,
+          files `runs/kaggle-diag-v5-repl-smoke/`.
+Measured: 0/14 levels. ls20: 20 model calls, 3 model actions, 146 fallback actions; vc33: 16 calls, 7 model actions,
+          141 fallback. p50 11 s per call; 303k and 213k prompt tokens (~15k per call); 690 completion tokens per call.
+          Server: 94 tok/s single, 308 tok/s at 8 concurrent, MTP acceptance ~2.5.
+Diagnosis: (1) prompt bloat: ASCII board every turn plus the model printing ascii()/objects() into tool outputs;
+          (2) the model inspects for up to 12 tool steps per turn and rarely calls act(); (3) when time runs short the
+          explorer fallback fires and spends actions at 1 ms each, which is exactly what RHAE punishes.
+Next:     exp-003b: observation diet (no ASCII when the image is attached, objects summary in the user text, 2k-char
+          tool output cap), turn policy (act within 3 inspection steps, max 8 steps), fallback only on errors with a
+          per-game cap; re-run the smoke, then dev.

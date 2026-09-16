@@ -30,7 +30,7 @@ from arcengine import GameAction, GameState
 from ..env import Action, Frame
 from ..llm import ChatClient, ChatResponse
 from ..perception import ascii as grid_ascii
-from ..perception import detect_scale, diff, render_png
+from ..perception import detect_scale, diff, objects_summary, render_png
 from ..prompts import ACTION_NAMES, NAME_TO_ID, SYSTEM_PROMPT, TOOLS
 from ..sandbox import PersistentSandbox
 from . import register
@@ -86,17 +86,24 @@ class ReplAgent(Agent):
         self.reasoning_effort = c.get("reasoning_effort", None)  # Qwen3.8: low|medium|high|xhigh
         self.model_timeout_s = float(c.get("model_timeout_s", 180))
         self.tool_timeout_s = float(c.get("tool_timeout_s", 30))
-        self.max_tool_steps = int(c.get("max_tool_steps", 12))
+        self.max_tool_steps = int(c.get("max_tool_steps", 8))
+        self.inspect_steps_before_nudge = int(c.get("inspect_steps_before_nudge", 3))
         self.use_image = bool(c.get("image", True))
-        self.image_scale = int(c.get("image_scale", 6))
-        self.image_tokens = int(c.get("image_tokens", 400))
-        self.use_ascii = bool(c.get("ascii", True))
-        self.history_frames = int(c.get("history_frames", 12))
+        self.image_scale = int(c.get("image_scale", 4))
+        self.image_tokens = int(c.get("image_tokens", 300))
+        ascii_cfg = c.get("ascii", "auto")  # auto: only when no image is attached
+        self.use_ascii = (not self.use_image) if ascii_cfg == "auto" else bool(ascii_cfg)
+        self.objects_in_prompt = int(c.get("objects_in_prompt", 16))
+        self.history_frames = int(c.get("history_frames", 6))
         self.idle_limit = int(c.get("idle_turns_before_fallback", 3))
+        self.fallback_burst = int(c.get("fallback_burst", 2))
+        self.fallback_cap = int(c.get("fallback_cap", 30))  # per game, while the model is alive
+        self.fallback_cap_dead = int(c.get("fallback_cap_dead", 400))  # per game, after the server died
         self.max_model_errors = int(c.get("max_model_errors", 5))
-        self.min_time_for_turn_s = float(c.get("min_time_for_turn_s", 20))
+        self.min_time_for_turn_s = float(c.get("min_time_for_turn_s", 45))
+        self.min_call_timeout_s = float(c.get("min_call_timeout_s", 60))
         root = str(Path(__file__).resolve().parents[2])
-        self.sandbox = PersistentSandbox(sys_path=[root] + [p for p in sys.path if p])
+        self.sandbox = PersistentSandbox(sys_path=[root] + [p for p in sys.path if p], max_output_chars=int(c.get("tool_output_chars", 2500)))
         self.fallback = ExplorerAgent(ctx)
         self.messages: list[dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}]
         self.notes: list[str] = []
@@ -113,10 +120,19 @@ class ReplAgent(Agent):
         self.consecutive_idle = 0
         self.consecutive_errors = 0
         self.use_fallback_only = False
+        self.stop_requested = False
+        self.last_turn_acted = True
         self.st = Stats()
         self.level_seen = -1
 
     # ------------------------------------------------------------------ harness interface
+    def is_done(self, frame: Frame) -> bool:
+        if frame.done:
+            return True
+        if self.stop_requested and not self._worker_alive() and self.action_q.empty():
+            return True
+        return False
+
     def act(self, frame: Frame) -> Action:
         self.frame = frame
         if not self.frames or self.frames[-1] is not frame.grid:
@@ -141,19 +157,30 @@ class ReplAgent(Agent):
                 return req.action
             if self._worker_alive():
                 continue
-            # No turn in flight. Decide: model turn, or fallback.
-            if self.use_fallback_only or self.consecutive_idle >= self.idle_limit or \
-                    self.ctx.time_left() < self.min_time_for_turn_s:
-                if self.consecutive_idle >= self.idle_limit:
-                    self.consecutive_idle = 0  # give the model another chance after a burst of fallback actions
-                    self._fallback_burst = 8
-                if getattr(self, "_fallback_burst", 0) > 0 or self.use_fallback_only or self.ctx.time_left() < self.min_time_for_turn_s:
-                    self._fallback_burst = max(0, getattr(self, "_fallback_burst", 0) - 1)
-                    a = self.fallback.act(frame)
-                    self.pending = _Req(a, auto=True)
-                    self.st.actions_fallback += 1
-                    return a
+            # No turn in flight. Decide: model turn, fallback, or stop.
+            if self.use_fallback_only:
+                if self.st.actions_fallback >= self.fallback_cap_dead:
+                    self.stop_requested = True
+                return self._fallback_action(frame)
+            if self.ctx.time_left() < self.min_time_for_turn_s:
+                # Not enough time for another model turn: stop cleanly rather than spend actions.
+                self.stop_requested = True
+                return self._fallback_action(frame) if self.st.actions_fallback < self.fallback_cap else Action.reset()
+            if getattr(self, "_fallback_burst_left", 0) > 0 and self.st.actions_fallback < self.fallback_cap:
+                self._fallback_burst_left -= 1
+                return self._fallback_action(frame)
+            if self.consecutive_idle >= self.idle_limit and self.st.actions_fallback < self.fallback_cap:
+                # The model keeps ending turns without acting: a tiny probe burst to move the state, then back to it.
+                self.consecutive_idle = 0
+                self._fallback_burst_left = max(0, self.fallback_burst - 1)
+                return self._fallback_action(frame)
             self._start_turn()
+
+    def _fallback_action(self, frame: Frame) -> Action:
+        a = self.fallback.act(frame)
+        self.pending = _Req(a, auto=True)
+        self.st.actions_fallback += 1
+        return a
 
     def observe(self, action: Action, before: Frame, after: Frame) -> None:
         self.frame = after
@@ -274,12 +301,20 @@ class ReplAgent(Agent):
         if self.turn_log:
             parts.append("Since your last turn: " + "; ".join(self.turn_log[-12:]))
             self.turn_log.clear()
+        elif self.st.turns > 1 and not self.last_turn_acted:
+            parts.append("Your previous turn took NO action. Inspection alone makes no progress: act this turn.")
+        if self.objects_in_prompt > 0:
+            objs = objects_summary(f.grid, limit=self.objects_in_prompt)
+            parts.append("Objects (largest first; colour, x, y, w, h, size): " + "; ".join(
+                f"#{o['id']} c{o['color']} @({o['x']},{o['y']}) {o['w']}x{o['h']} n={o['size']}" for o in objs))
         if self.notes:
             parts.append("Your notes:\n- " + "\n- ".join(self.notes[-20:]))
         if self.use_ascii:
             s = detect_scale(f.grid)
             small = f.grid[::s, ::s]
             parts.append(f"Board (ascii, {small.shape[0]}x{small.shape[1]}, scale {s}, hex colours):\n" + grid_ascii(f.grid))
+        else:
+            parts.append(f"Board: see the attached image (64x64, logical scale {detect_scale(f.grid)}); grid/objects()/ascii() are in the REPL.")
         content: Any = "\n\n".join(parts)
         if self.use_image:
             png = render_png(f.grid, scale=self.image_scale)
@@ -323,18 +358,23 @@ class ReplAgent(Agent):
     def _turn(self) -> None:
         acted = False
         nudged = False
+        inspect_only = 0
         try:
             self.messages.append(self._user_message())
             for _ in range(self.max_tool_steps):
                 if self.closed or self.ctx.time_left() < self.min_time_for_turn_s / 2:
                     break
+                if not acted and inspect_only >= self.inspect_steps_before_nudge and not nudged:
+                    nudged = True
+                    self.messages.append({"role": "user", "content": f"{inspect_only} inspection steps used (~10 s each). "
+                                          "Call act(...) in your next python call, a single probe is fine, then re-inspect."})
                 self._evict()
                 t0 = time.time()
                 try:
                     resp: ChatResponse = self.client.chat(
                         self.messages, tools=TOOLS, max_tokens=self.max_output_tokens, temperature=self.temperature,
                         top_p=self.top_p, thinking=self.thinking, reasoning_effort=self.reasoning_effort,
-                        timeout_s=max(10.0, min(self.model_timeout_s, self.ctx.time_left() - 5)))
+                        timeout_s=max(self.min_call_timeout_s, min(self.model_timeout_s, self.ctx.time_left() - 5)))
                 except Exception as e:  # noqa: BLE001
                     self.st.model_errors += 1
                     self.consecutive_errors += 1
@@ -377,6 +417,8 @@ class ReplAgent(Agent):
                         self.notes = list(r["notes"])[-40:]
                     if r.get("actions"):
                         acted = True
+                    else:
+                        inspect_only += 1
                     self.messages.append({"role": "tool", "tool_call_id": tc.id, "content": self._tool_text(r)})
                     lr = self.last_result or {}
                     if r.get("actions") and (lr.get("level_completed") or lr.get("game_over") or lr.get("won")):
@@ -385,6 +427,7 @@ class ReplAgent(Agent):
                 if stop:
                     break
             self.consecutive_idle = 0 if acted else self.consecutive_idle + 1
+            self.last_turn_acted = acted
             if not acted:
                 self.st.idle_turns += 1
         except Exception as e:  # noqa: BLE001

@@ -71,8 +71,12 @@ architectural step therefore has to be measured on dev and val, not assumed.
 5. `scottmahony/arc3-gpu-diag` v4, RTX, 2026-09-16: `--attention-backend TRITON_ATTN` fixed the main model ("Using
    AttentionBackendEnum.TRITON_ATTN backend") but the MTP draft model still auto-selected FlashInfer (vLLM never inherits
    the target backend for drafts) and the first request failed the same way. 9 min of RTX quota.
-6. `scottmahony/arc3-gpu-diag` v5, RTX, 2026-09-16: draft backend pinned via `--speculative-config {..., "attention_backend":
-   "TRITON_ATTN"}`; start-up now proves itself with one real completion and retries without MTP otherwise. Result pending.
+6. `scottmahony/arc3-gpu-diag` v5, RTX, 2026-09-16: **PASS**. Draft backend pinned via `--speculative-config {...,
+   "attention_backend": "TRITON_ATTN"}`. vLLM install 141 s, server ready 316 s (first attempt, MTP + FP8 KV), probe OK.
+   Tool-call completion with image: 1.3 s, 80 completion tokens, code parsed. Throughput: 94 tok/s single stream,
+   308 tok/s at 8 concurrent; MTP mean acceptance length 2.4-3.0. REPL smoke (ls20 + vc33, 5 min, 150-action cap):
+   0 levels; model took 3 and 7 actions in 20 and 16 calls (p50 11 s/call, ~15k prompt tokens/call); the explorer
+   fallback then spent the remaining ~145 actions in seconds. Files: `runs/kaggle-diag-v5-repl-smoke/`. 18 min RTX.
 
 ## Open items (need you)
 
@@ -97,7 +101,8 @@ Built and tested (all in `tests/`, green on this container via `make test`):
 - Two CPU baselines measured (research log exp-000..002): random 0.19, explorer 0.06 on all 25 games.
   Both confirm that blind search is worth ~0 under RHAE (`docs/lessons/0003-*`).
 - The REPL agent (Duck-style, persistent sandbox, image + ASCII + helpers, eviction, governor,
-  explorer fallback) with a scripted-model end-to-end test. **Not yet run against a real model.**
+  explorer fallback). **First real-model run 2026-09-16 (diag v5 smoke)**: plumbing works end to end on Kaggle;
+  the model acts too rarely per turn and prompts are too large (see research log exp-003a).
 - The council agent (`arc3/agents/council.py`): the user's six-specialist + coordinator design as an ablation arm,
   specialists run concurrently on a second vLLM server (Qwen3-VL-8B-NVFP4) or on the coordinator model; mock-tested,
   **not yet run against real models**. `scripts/build_eval_notebook.py` runs any agent on a split on Kaggle's RTX.

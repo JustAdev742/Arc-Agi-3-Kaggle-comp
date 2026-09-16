@@ -29,7 +29,7 @@ Method:
 4. Plan: search your model (BFS/A*/beam) for the shortest action sequence to the inferred goal, then execute it with one act(...) call. Re-ground after any level change or surprise.
 5. If nothing you try changes the board, the level may need a different action type (CLICK vs keys), a different target, or a sequence; do not repeat an action that did nothing.
 6. When a level completes the board changes; look again before assuming the mechanics carried over (they usually do, layouts change).
-Be decisive: every turn should end with at least one act(...) unless you are mid-analysis. Do not narrate; put reasoning in code comments and notes."""
+Time: each python call costs roughly 10 seconds of a limited per-game budget, so combine inspection and a probe in the same call, and batch known-good sequences into one act([...]). A turn that ends without act(...) makes no progress. Do not print whole grids or full object lists; print the few numbers you need. Do not narrate; put reasoning in code comments and notes."""
 
 
 TOOLS = [{

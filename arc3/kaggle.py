@@ -135,7 +135,12 @@ class Driver:
     def done(self, latest: FrameData) -> bool:
         if latest.state is GameState.WIN:
             return True
-        return self.out_of_time()
+        if self.out_of_time():
+            return True
+        try:
+            return bool(self.agent.is_done(self._wrap(latest)))
+        except Exception:  # noqa: BLE001
+            return False
 
     def close(self) -> None:
         try:

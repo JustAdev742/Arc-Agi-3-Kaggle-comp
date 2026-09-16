@@ -30,14 +30,15 @@ def test_repl_agent_executes_model_actions_and_falls_back():
     arc = make_arcade("environment_files")
     env = LocalEnv(arc, "ls20")
     ctx = AgentContext(game_id="ls20", deadline=time.time() + 120,
-                       config={"client": mock, "tool_timeout_s": 2, "idle_turns_before_fallback": 2, "image": True, "image_scale": 2})
+                       config={"client": mock, "tool_timeout_s": 2, "idle_turns_before_fallback": 2, "fallback_burst": 2,
+                               "image": True, "image_scale": 2})
     agent = get("repl")(ctx)
     try:
         run(agent, env, 12)
         st = agent.stats()
         assert env.step_count == 12
         assert st["actions_model"] == 4, st
-        assert st["actions_fallback"] == 8, st
+        assert st["actions_fallback"] == 8, st  # bursts of 2 after every 2 idle turns
         assert st["sandbox_timeouts"] == 1 and st["sandbox_restarts"] >= 1
         assert st["idle_turns"] >= 2
         assert agent.notes and agent.notes[0].startswith("UP")
@@ -64,6 +65,53 @@ def test_eviction_keeps_context_bounded():
         assert agent.stats()["evictions"] > 0
         assert agent._estimate_tokens(agent.messages) < 6000
         assert agent.messages[0]["role"] == "system"
+    finally:
+        agent.close()
+        env.close()
+
+
+def test_stops_cleanly_when_time_is_short_instead_of_spending_actions():
+    mock = MockClient([MockClient.tool("act('UP')")])
+    arc = make_arcade("environment_files")
+    env = LocalEnv(arc, "ls20")
+    ctx = AgentContext(game_id="ls20", deadline=time.time() + 5, config={"client": mock, "image": False, "min_time_for_turn_s": 45})
+    agent = get("repl")(ctx)
+    try:
+        assert not agent.is_done(env.frame)
+        a = agent.act(env.frame)  # too little time for a model turn: one fallback probe at most, then stop
+        env.step(a)
+        assert agent.stop_requested
+        assert agent.is_done(env.frame)
+        assert mock.calls == []  # no doomed model call was made
+    finally:
+        agent.close()
+        env.close()
+
+
+def test_inspection_nudge_and_no_action_notice():
+    calls = []
+
+    def script(messages):
+        calls.append(messages)
+        n = len(calls)
+        if n <= 3:
+            return MockClient.tool("print(level)")  # inspection only
+        if n == 4:
+            return MockClient.say("still thinking")  # ends turn 1 without acting
+        return MockClient.tool("act('UP')")
+
+    mock = MockClient(script)
+    arc = make_arcade("environment_files")
+    env = LocalEnv(arc, "ls20")
+    ctx = AgentContext(game_id="ls20", deadline=time.time() + 300, config={"client": mock, "image": False})
+    agent = get("repl")(ctx)
+    try:
+        run(agent, env, 1)
+        nudges = [m for m in calls[3] if m["role"] == "user" and "inspection steps used" in str(m["content"])]
+        assert nudges, "a nudge must follow three inspection-only steps"
+        second_turn_user = [m for m in calls[4] if m["role"] == "user"][-1]["content"]
+        assert "took NO action" in second_turn_user
+        assert agent.stats()["actions_model"] == 1
     finally:
         agent.close()
         env.close()
