@@ -211,7 +211,10 @@ def rules_predictor(rules=None):
     """predict(grid, action) built from the rule set, for set_model(...) so every real action verifies it."""
     rs = list(rules) if rules is not None else RULES["rules"]
     if not rs:
-        raise ValueError("no rules: call auto_rules() first")
+        auto_rules()  # fit lazily (exp-009: seven calls lost to "call auto_rules() first")
+        rs = list(RULES["rules"])
+        if not rs:
+            raise ValueError("no rules could be fitted from this level's transitions yet: probe more, then retry")
     t = TRK["t"]
     return _dsl.predictor(rs, t.shapes, t.bg if t.bg is not None else 0, ref=lambda: t.compound_frames()[-1] if t.frames else None,
                           under=lambda: t.under)
@@ -259,7 +262,10 @@ def plan_rules(goal, rules=None, max_depth=200, max_nodes=40000, optimistic=True
     colours assumed passable; PLAN['optimistic'] is True): its first wrong step is caught and becomes evidence."""
     rs = list(rules) if rules is not None else RULES["rules"]
     if not rs:
-        raise ValueError("no rules: call auto_rules() first")
+        auto_rules()  # fit lazily (exp-009: seven calls lost to "call auto_rules() first")
+        rs = list(RULES["rules"])
+        if not rs:
+            raise ValueError("no rules could be fitted from this level's transitions yet: probe more, then retry")
     t = TRK["t"]
     frame = t.compound_frames()[-1]
     _dsl.set_terrain(rs, t.under, t.bg)
@@ -551,6 +557,11 @@ def _refresh(state, action=None):
     G["tile"] = TRK["t"].tile
     G["frames"] = [_to_grid(f) for f in state.get("frames", [])]
     for k in ("level", "levels_completed", "win_levels", "step", "level_step", "state", "available", "history", "last"):
+        if callable(G.get(k)) and not isinstance(G.get(k), type(None)):
+            # the model defined a function with a state variable's name (wa30 def state(), exp-009): keep its function
+            # and expose the value under STATE[k] instead of silently replacing the function with a string
+            G.setdefault("STATE", {})[k] = state.get(k)
+            continue
         G[k] = state.get(k)
     G["scale"] = _P.detect_scale(G["grid"])
 
@@ -710,12 +721,21 @@ def act(*actions):
 def click(x, y):
     return act(("CLICK", int(x), int(y)))
 
-for _n in ("objects", "components", "diff", "ascii", "tilemap", "downscale", "background", "moved", "note", "act", "click",
-           "set_model", "world_model_stats", "verify_model", "transitions", "set_models", "alive_models",
-           "ents", "events", "event_log", "describe_events", "avatar", "roles", "entity",
-           "move_model", "plan_to", "plan_to_entity",
-           "symlog", "fit_rules", "auto_rules", "rules", "explain_rules", "rules_predictor", "plan_rules", "goal_candidates", "goal_hints", "probe_suggestions", "PLAN"):
-    G[_n] = globals()[_n]
+HELPER_NAMES = ("objects", "components", "diff", "ascii", "tilemap", "downscale", "background", "moved", "note", "act", "click",
+                "set_model", "world_model_stats", "verify_model", "transitions", "set_models", "alive_models",
+                "ents", "events", "event_log", "describe_events", "avatar", "roles", "entity",
+                "move_model", "plan_to", "plan_to_entity",
+                "symlog", "fit_rules", "auto_rules", "rules", "explain_rules", "rules_predictor", "plan_rules", "goal_candidates", "goal_hints", "probe_suggestions", "PLAN")
+HELPERS = {_n: globals()[_n] for _n in HELPER_NAMES}
+G.update(HELPERS)
+
+def _restore_helpers():
+    """Helpers the cell rebound (``for act in plan:`` or ``rules = auto_rules()``) come back, with a note: exp-009 lost
+    eight calls to "'str' object is not callable" after such rebinding."""
+    lost = [n for n in HELPER_NAMES if G.get(n) is not HELPERS[n]]
+    for n in lost:
+        G[n] = HELPERS[n]
+    return lost
 
 while True:
     msg = _recv()
@@ -743,6 +763,13 @@ while True:
         lines = [f'  line {f.lineno}, in {f.name}' for f in (user or tb[-1:])]
         err = "Traceback:\n" + "\n".join(lines) + f"\n{type(e).__name__}: {e}"
     out = buf.getvalue()
+    lost = _restore_helpers()
+    if lost:
+        out += f"\n[helper(s) {', '.join(lost)} were rebound by your code and have been restored; use other variable names]"
+    shadowed = sorted(k for k in (G.get("STATE") or {}) if callable(G.get(k)))
+    if shadowed and not G.get("_state_note_done"):
+        G["_state_note_done"] = True
+        out += f"\n[your function(s) {', '.join(shadowed)} shadow harness variables; their current values are in STATE[...]]"
     _send({"type": "final", "stdout": out, "error": err, "result": result, "notes": G.get("notes", []),
            "world_model": world_model_stats() if (WM["predict"] is not None or HYP["models"]) else None})
 '''

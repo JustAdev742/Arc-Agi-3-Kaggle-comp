@@ -383,3 +383,27 @@ r = act('RIGHT'); print('pred_ok' in r, world_model_stats()['checked'])
     assert lines[0] == "[False, False, False] True False"
     assert lines[1] == "False 3"  # retired: the fourth action is not checked
     sb.stop()
+
+
+def test_rebound_helpers_are_restored_and_rules_fit_lazily():
+    """exp-009: `for act in plan` broke every later act(); plan_rules() before auto_rules() raised. Both are harness-side."""
+    from tests.test_planner import GridWorld
+
+    sb = PersistentSandbox(sys_path=[ROOT] + sys.path)
+    w = GridWorld()
+
+    def handler(actions):
+        g = w.act(actions[0]["action"])
+        return [{"changed": 32, "level_completed": False, "state": "NOT_FINISHED"}], state(g, [g])
+
+    r = sb.run("for act in ['UP', 'DOWN']:\n    pass\nrules = 'shadow'\nprint(type(act).__name__)",
+               state(w.grid(), [w.grid()]), timeout_s=30, action_handler=handler)
+    assert r["error"] == "" and "str" in r["stdout"] and "act, rules" in r["stdout"] and "restored" in r["stdout"]
+    r = sb.run("rs = act('UP', 'DOWN', 'LEFT', 'RIGHT'); print(len(rs), callable(rules))", state(w.grid(), [w.grid()]),
+               timeout_s=30, action_handler=handler)
+    assert r["error"] == "" and r["stdout"].strip() == "4 True", r
+    r = sb.run("p = rules_predictor(); print(callable(p), len(rules()) >= 1)", state(w.grid(), [w.grid()]), timeout_s=30, action_handler=handler)
+    assert r["error"] == "" and r["stdout"].strip() == "True True", r
+    r = sb.run("def state():\n    return 'mine'\nact('UP'); print(state(), STATE['state'])", state(w.grid(), [w.grid()]), timeout_s=30, action_handler=handler)
+    assert r["error"] == "" and r["stdout"].strip().startswith("mine NOT_FINISHED"), r
+    sb.stop()
