@@ -287,3 +287,40 @@ print(hint_ok, ps_ok)
     assert lines[6] == "2 0", lines  # new level: the symbolic log restarted
     assert lines[7] == "True True", lines  # the unique-colour target is the first goal hint; no key left to probe
     sb.stop()
+
+
+def test_optimistic_plan_when_strict_planner_has_no_path():
+    """A target inside terrain the avatar has never walked on: the strict planners return None, the optimistic
+    fallback returns a path and PLAN['optimistic'] says so."""
+    from tests.test_planner import GridWorld
+
+    class TwoFloors(GridWorld):
+        def grid(self):
+            g = super().grid()
+            g[(g == 0) & (np.arange(64)[None, :] >= 36)] = 7  # the right half has a floor colour never walked on
+            return g
+
+    sb = PersistentSandbox(sys_path=[ROOT] + sys.path)
+    w = TwoFloors()
+
+    def handler(actions):
+        g = w.act(actions[0]["action"])
+        return [{"changed": 32, "level_completed": False, "state": "NOT_FINISHED"}], state(g, [g])
+
+    code = """
+act('UP', 'DOWN', 'LEFT', 'RIGHT')  # the avatar only ever stands on colour-0 floor
+tid = [e['id'] for e in ents() if e['color'] == 12][0]
+p_strict = plan_to_entity(tid, optimistic=False)
+p_opt = plan_to_entity(tid)
+print(p_strict is None, p_opt is not None and len(p_opt) >= 8, PLAN['optimistic'])
+rep = auto_rules()
+r_strict = plan_rules({'reach_entity': tid}, optimistic=False)
+r_opt = plan_rules({'reach_entity': tid})
+print(r_strict is None, r_opt is not None and len(r_opt) >= 8, PLAN['optimistic'])
+"""
+    r = sb.run(code, state(w.grid(), [w.grid()]), timeout_s=60, action_handler=handler)
+    assert r["error"] == "", r
+    lines = r["stdout"].strip().splitlines()
+    assert lines[0] == "True True True", lines
+    assert lines[1] == "True True True", lines
+    sb.stop()

@@ -96,16 +96,34 @@ def move_model():
     Use move_model().predict with set_model(...) to have every move verified."""
     return _MoveModel(TRK["t"])
 
-def plan_to(x, y):
-    """Shortest key sequence (list of 'UP'/'DOWN'/...) until the avatar covers cell (x, y), or None."""
-    return move_model().plan_to_point(int(x), int(y))
+PLAN = {"optimistic": False}
 
-def plan_to_entity(eid, touch=True):
-    """Shortest key sequence until the avatar touches (touch=True) or overlaps entity `eid`, or None."""
+def plan_to(x, y, optimistic=True):
+    """Shortest key sequence (list of 'UP'/'DOWN'/...) until the avatar covers cell (x, y), or None. When no path
+    exists through known-passable cells and optimistic=True, returns a path that assumes unknown terrain is
+    passable (PLAN['optimistic'] becomes True): execute it with set_model(move_model().predict) so the first
+    wrong step stops the batch and becomes evidence."""
+    m = move_model()
+    p = m.plan_to_point(int(x), int(y))
+    PLAN["optimistic"] = False
+    if p is None and optimistic:
+        p = m.relax().plan_to_point(int(x), int(y))
+        PLAN["optimistic"] = p is not None
+    return p
+
+def plan_to_entity(eid, touch=True, optimistic=True):
+    """Shortest key sequence until the avatar touches (touch=True) or overlaps entity `eid`, or None; falls back
+    to an optimistic path (unknown terrain passable, PLAN['optimistic'] True) like plan_to."""
     e = TRK["t"].get(int(eid))
     if e is None:
         raise ValueError(f"no entity #{eid} in the current frame; see ents()")
-    return move_model().plan_to_entity(e, touch=touch)
+    m = move_model()
+    p = m.plan_to_entity(e, touch=touch)
+    PLAN["optimistic"] = False
+    if p is None and optimistic:
+        p = m.relax().plan_to_entity(e, touch=touch)
+        PLAN["optimistic"] = p is not None
+    return p
 
 ARCH = {"levels": []}  # completed levels of this game: {"frames", "actions", "final_action"} (symbolic)
 RULES = {"rules": [], "report": None, "level": None}
@@ -223,10 +241,12 @@ def _goal_fn(goal):
     raise ValueError("goal must be a callable(frame)->bool, a goal_candidates() name, or one of "
                      "{'none_left': colour}, {'count': (colour, n)}, {'overlap': (a, b)}, {'touch': (a, b)}, {'reach': (x, y)}, {'reach_entity': id}")
 
-def plan_rules(goal, rules=None, max_depth=200, max_nodes=40000):
+def plan_rules(goal, rules=None, max_depth=200, max_nodes=40000, optimistic=True):
     """Shortest action list reaching `goal` in the rule-set simulation from the current frame (BFS), or None.
     goal: {'none_left': colour} | {'count': (colour, n)} | {'overlap': (a, b)} | {'touch': (a, b)} | {'reach': (x, y)} |
-    {'reach_entity': id} | a goal_candidates() name | callable(frame)->bool. Execute with act(plan)."""
+    {'reach_entity': id} | a goal_candidates() name | callable(frame)->bool. Execute with act(plan) after
+    set_model(rules_predictor()). If no path exists under the fitted rules, an optimistic path is returned (unknown
+    colours assumed passable; PLAN['optimistic'] is True): its first wrong step is caught and becomes evidence."""
     rs = list(rules) if rules is not None else RULES["rules"]
     if not rs:
         raise ValueError("no rules: call auto_rules() first")
@@ -234,7 +254,17 @@ def plan_rules(goal, rules=None, max_depth=200, max_nodes=40000):
     frame = t.compound_frames()[-1]
     _dsl.set_terrain(rs, t.under, t.bg)
     acts = _dsl.planning_actions(rs, frame)
-    return _dsl.plan(rs, frame, _goal_fn(goal), acts, max_nodes=max_nodes, max_depth=max_depth)
+    fn = _goal_fn(goal)
+    p = _dsl.plan(rs, frame, fn, acts, max_nodes=max_nodes, max_depth=max_depth)
+    PLAN["optimistic"] = False
+    if p is None and optimistic:
+        # no path through known-passable cells: assume unknown colours are passable (bumps still count) and let
+        # the verified execution find out; PLAN['optimistic'] tells you the plan is an experiment
+        relaxed = _dsl.optimistic(rs)
+        _dsl.set_terrain(relaxed, t.under, t.bg)
+        p = _dsl.plan(relaxed, frame, fn, _dsl.planning_actions(relaxed, frame), max_nodes=max_nodes, max_depth=max_depth)
+        PLAN["optimistic"] = p is not None
+    return p
 
 def goal_candidates():
     """Win-condition candidates consistent with every completed level so far: true at the winning frame, false
@@ -619,7 +649,7 @@ for _n in ("objects", "components", "diff", "ascii", "downscale", "background", 
            "set_model", "world_model_stats", "verify_model", "transitions", "set_models", "alive_models",
            "ents", "events", "event_log", "describe_events", "avatar", "roles", "entity",
            "move_model", "plan_to", "plan_to_entity",
-           "symlog", "fit_rules", "auto_rules", "rules", "explain_rules", "rules_predictor", "plan_rules", "goal_candidates", "goal_hints", "probe_suggestions"):
+           "symlog", "fit_rules", "auto_rules", "rules", "explain_rules", "rules_predictor", "plan_rules", "goal_candidates", "goal_hints", "probe_suggestions", "PLAN"):
     G[_n] = globals()[_n]
 
 while True:

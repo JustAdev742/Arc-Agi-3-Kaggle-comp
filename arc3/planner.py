@@ -40,6 +40,7 @@ class MoveModel:
         self.h, self.w = self.mask.shape
         self.pos = (e.x0, e.y0)
         self.bg = tracker.bg
+        self.optimistic = False
         self.obstacles = self._fit_obstacles()
 
     # ------------------------------------------------------------ fitting
@@ -68,6 +69,26 @@ class MoveModel:
                 obs[ny:ny + self.h, nx:nx + self.w] |= self.mask
             # bumping the frame edge is handled by bounds in step()
         return obs
+
+    def relax(self) -> "MoveModel":
+        """Optimistic copy: only cells the avatar actually bumped into count as obstacles (unknown terrain is
+        assumed passable). Plans under it are experiments that the verifier checks step by step."""
+        import copy
+
+        m = copy.copy(self)
+        n = 64
+        obs = np.zeros((n, n), dtype=bool)
+        for eid, action, x0, y0 in self.tracker.blocked:
+            k = _norm_key(action)
+            if eid != self.avatar_id or k is None or k not in self.keymap:
+                continue
+            dx, dy = self.keymap[k]
+            nx, ny = x0 + dx, y0 + dy
+            if 0 <= nx and 0 <= ny and nx + self.w <= n and ny + self.h <= n:
+                obs[ny:ny + self.h, nx:nx + self.w] |= self.mask
+        m.obstacles = obs
+        m.optimistic = True
+        return m
 
     # ------------------------------------------------------------ dynamics
     def step(self, pos: tuple[int, int], key: str) -> tuple[int, int]:
