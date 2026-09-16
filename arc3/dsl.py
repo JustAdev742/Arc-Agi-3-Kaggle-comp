@@ -1614,6 +1614,23 @@ def goal_predicates(frames_by_level: list[tuple[list[Frame], bool]]) -> list[dic
                               lambda f, a=a, b=b: any(x.overlaps(y) for x in f if x.color == a for y in f if y.color == b)))
                 preds.append((f"touch(colour {a}, colour {b})",
                               lambda f, a=a, b=b: any(x.overlaps(y, 1) for x in f if x.color == a for y in f if y.color == b)))
+            # Geometric relations between two distinct entities (same colour allowed): a sprite parked exactly on its
+            # slot (ar25: avatar box == target box), a knob aligned under a marker (vc33: equal column range).
+            # goal_probe.py (2026-09-16): 5 of 17 recorded solved levels had a consistent predicate before these.
+            preds.append((f"same_box(colour {a}, colour {b})",
+                          lambda f, a=a, b=b: any(x is not y and (x.x0, x.y0, x.x1, x.y1) == (y.x0, y.y0, y.x1, y.y1)
+                                                  for x in f if x.color == a for y in f if y.color == b)))
+            preds.append((f"same_columns(colour {a}, colour {b})",
+                          lambda f, a=a, b=b: any(x is not y and (x.x0, x.x1) == (y.x0, y.x1) and not (x.y0 <= y.y1 and y.y0 <= x.y1)
+                                                  for x in f if x.color == a for y in f if y.color == b)))
+            preds.append((f"same_rows(colour {a}, colour {b})",
+                          lambda f, a=a, b=b: any(x is not y and (x.y0, x.y1) == (y.y0, y.y1) and not (x.x0 <= y.x1 and y.x0 <= x.x1)
+                                                  for x in f if x.color == a for y in f if y.color == b)))
+            if a != b:
+                preds.append((f"inside(colour {a}, colour {b})",
+                              lambda f, a=a, b=b: any(x is not y and y.x0 <= x.x0 and x.x1 <= y.x1 and y.y0 <= x.y0 and x.y1 <= y.y1
+                                                      and (x.x1 - x.x0 + 1) * (x.y1 - x.y0 + 1) < (y.x1 - y.x0 + 1) * (y.y1 - y.y0 + 1)
+                                                      for x in f if x.color == a for y in f if y.color == b)))
     out = []
     for name, p in preds:
         ok = True

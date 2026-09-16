@@ -527,3 +527,18 @@ Expected: fewer wasted actions on levels 2+ (no re-probing of a known key map, n
 Plan:     two arms against the six-run base: exp-019 (memory on, level_consolidation off) and exp-020 (both on), dev,
           1200 s, 8 workers, three runs each. Notebooks built from HEAD in the scratchpad.
 Measured: not run (GPU quota exhausted until 2026-09-19 00:00 UTC).
+
+## 2026-09-16 · exp-021 · goal predicates over entity pairs (same_box, same_columns, same_rows, inside) · KEPT (code-only gate)
+Why:      Tycho's residual failure and ours is objective inference (lesson 0013; dc22, g50t post-mortems). The harness
+          lists win conditions consistent with every completed level, but scripts/goal_probe.py (replays the recorded
+          winning actions of each solved level through the real agent and the observed terminal frame) found a
+          consistent predicate on only 5 of 17 solved levels: ar25's "avatar parked on the target" fails
+          overlap/touch because the sprite already touches the target one frame earlier.
+Change:   dsl.goal_predicates adds relations between two distinct entities (same colour allowed): same_box (a sprite
+          exactly on its slot), same_columns / same_rows (aligned in x or y without overlapping), inside (a smaller
+          entity within a larger one of another colour); all still required to be true only at the terminal frame.
+Measured: goal-predicate recall 5 -> 9 of 17 solved levels (ar25 L1/L2 same_box(4,11), lp85, s5i5, su15 L1 gained);
+          bp35, cd82, ka59, m0r0, sb26, vc33 still none. Some new candidates are spurious (su15 same_columns(0,0)); the
+          model sees them as candidates, the cross-level consistency check prunes them from level 2 on.
+Kept:     yes (code-only; no model run). Follow-up: plan_rules() goals for the new relations; vc33-style alignment of a
+          sub-part with a marker needs part-level entities.
