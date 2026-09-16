@@ -29,41 +29,38 @@
    "actions": 60,
    "levels_completed": 0,
    "play_s": 0.7,
-   "fit_s": 6.5,
+   "fit_s": 5.8,
    "levels": [
     {
      "transitions": 60,
-     "events": 101,
+     "events": 83,
      "explained": 18,
-     "coverage": 0.178,
-     "fully_explained": 41,
+     "coverage": 0.217,
+     "fully_explained": 50,
      "rules": [
-      "move[colour 9 shape 0a67dc] keys {LEFT:(-5,+0), RIGHT:(+6,+0)} only onto colours [10]",
+      "move[colour 9] keys {LEFT:(-6,+0), RIGHT:(+6,+0)} only onto colours [10]",
       "overlap[colour 10 covers colour 14] -> target_vanishes",
-      "move[colour 9 shape fb75e3] keys {RIGHT:(+5,+0), LEFT:(-6,+0)} only onto colours [10]",
       "recolor[anything] 14->10 on CLICK@self"
      ],
      "unexplained_sample": [
-      "#145 c11 moved on LEFT",
-      "#191 c15 appeared on LEFT",
-      "#191 c15 resized on LEFT",
-      "#145 c11 moved on RIGHT"
+      "#179 c3 gone on RIGHT",
+      "#180 c3 gone on RIGHT",
+      "#181 c3 gone on RIGHT",
+      "#182 c3 gone on RIGHT"
      ]
     }
    ],
-   "events": 101,
-   "coverage": 0.178,
+   "events": 83,
+   "coverage": 0.217,
    "unexplained_kinds": {
-    "moved": 6,
-    "appeared": 1,
-    "resized": 5
+    "gone": 12
    }
   },
   {
    "game": "cd82",
    "actions": 60,
    "levels_completed": 0,
-   "play_s": 0.2,
+   "play_s": 0.1,
    "fit_s": 0.3,
    "levels": [
     {
@@ -104,31 +101,29 @@
    "actions": 60,
    "levels_completed": 0,
    "play_s": 0.1,
-   "fit_s": 0.4,
+   "fit_s": 0.2,
    "levels": [
     {
      "transitions": 60,
-     "events": 86,
-     "explained": 74,
-     "coverage": 0.86,
-     "fully_explained": 54,
+     "events": 29,
+     "explained": 26,
+     "coverage": 0.897,
+     "fully_explained": 58,
      "rules": [
-      "move[colour 8] keys {UP:(+0,-3), DOWN:(+0,+3), LEFT:(-3,+0), RIGHT:(+3,+0)} only onto colours [0, 10] + 12 invisible wall positions",
       "move[colour 0] keys {UP:(+0,-3), DOWN:(+0,+3), LEFT:(-3,+0), RIGHT:(+3,+0)} only onto colours [0, 10] + 2 invisible wall positions",
-      "onclick[colour 8] -> colour 0 shape ca7367: recolour to 12"
+      "recolor[anything] 12->0 on CLICK@self",
+      "recolor[in region x41-41 y29-29] 0->14 on CLICK"
      ],
      "unexplained_sample": [
-      "#2 c0 moved on ACT",
-      "#3 c8 moved on ACT",
-      "#4 c8 moved on ACT",
-      "#2 c0 moved on ACT"
+      "#2 c0 recolor on ('CLICK', 27, 15)",
+      "#2 c0 recolor on ('CLICK', 39, 36)",
+      "#5 c14 recolor on ('CLICK', 39, 36)"
      ]
     }
    ],
-   "events": 86,
-   "coverage": 0.86,
+   "events": 29,
+   "coverage": 0.897,
    "unexplained_kinds": {
-    "moved": 9,
     "recolor": 3
    }
   },
@@ -141,9 +136,9 @@
    "levels": [
     {
      "transitions": 60,
-     "events": 40,
+     "events": 39,
      "explained": 28,
-     "coverage": 0.7,
+     "coverage": 0.718,
      "fully_explained": 58,
      "rules": [
       "move[colour 14] keys {UP:(+0,-2), DOWN:(+0,+2), LEFT:(-2,+0), RIGHT:(+2,+0)} only onto colours [2]",
@@ -151,26 +146,24 @@
      ],
      "unexplained_sample": [
       "#3 c5 resized on ('CLICK', 48, 19)",
-      "#14 c8 gone on ('CLICK', 48, 19)",
-      "#36 c8 appeared on ('CLICK', 48, 19)",
-      "#9 c9 moved on ('CLICK', 48, 36)"
+      "#14 c8 moved on ('CLICK', 48, 19)",
+      "#9 c9 moved on ('CLICK', 48, 36)",
+      "#18 c9 moved on ('CLICK', 48, 36)"
      ]
     }
    ],
-   "events": 40,
-   "coverage": 0.7,
+   "events": 39,
+   "coverage": 0.718,
    "unexplained_kinds": {
     "resized": 1,
-    "gone": 1,
-    "appeared": 1,
-    "moved": 9
+    "moved": 10
    }
   },
   {
    "game": "ft09",
    "actions": 60,
    "levels_completed": 0,
-   "play_s": 0.2,
+   "play_s": 0.3,
    "fit_s": 0.3,
    "levels": [
     {
@@ -226,14 +219,14 @@
    "game": "ka59",
    "actions": 60,
    "levels_completed": 0,
-   "play_s": 0.1,
+   "play_s": 0.2,
    "fit_s": 0.5,
    "levels": [
     {
      "transitions": 60,
      "events": 67,
-     "explained": 42,
-     "coverage": 0.627,
+     "explained": 41,
+     "coverage": 0.612,
      "fully_explained": 48,
      "rules": [
       "move[colour 14 shape c995ee] keys {UP:(+0,-3), DOWN:(+0,+3), LEFT:(-3,+0), RIGHT:(+3,+0)} only onto colours [1, 4]",
@@ -241,7 +234,6 @@
       "overlap[colour 1 covers colour 0 shape 27856d] -> target_vanishes",
       "overlap[colour 1 covers colour 14 shape ceb25f] -> target_vanishes",
       "overlap[colour 1 covers colour 14 shape 12655d] -> target_vanishes",
-      "onclick[colour 0] -> colour 1 shape 0741b9: move (-3,+0)",
       "overlap[colour 1 covers colour 0 shape a60c32] -> target_vanishes",
       "overlap[colour 1 covers colour 14 shape 3dd955] -> target_vanishes",
       "vanish[colour 14 shape c995ee in region x24-24 y30-30] on LEFT"
@@ -255,18 +247,18 @@
     }
    ],
    "events": 67,
-   "coverage": 0.627,
+   "coverage": 0.612,
    "unexplained_kinds": {
     "resized": 6,
-    "moved": 2,
-    "appeared": 4
+    "moved": 3,
+    "appeared": 3
    }
   },
   {
    "game": "lf52",
    "actions": 60,
    "levels_completed": 0,
-   "play_s": 0.4,
+   "play_s": 0.3,
    "fit_s": 4.0,
    "levels": [
     {
@@ -304,9 +296,9 @@
    "levels": [
     {
      "transitions": 60,
-     "events": 12,
+     "events": 10,
      "explained": 4,
-     "coverage": 0.333,
+     "coverage": 0.4,
      "fully_explained": 58,
      "rules": [
       "onclick[colour 8] -> colour 1 shape c0f747: move (+0,+6)",
@@ -316,18 +308,16 @@
      ],
      "unexplained_sample": [
       "#34 c10 moved on ('CLICK', 4, 32)",
-      "#38 c5 appeared on ('CLICK', 4, 32)",
-      "#38 c5 resized on ('CLICK', 58, 32)",
-      "#14 c2 moved on ('CLICK', 58, 32)"
+      "#14 c2 moved on ('CLICK', 58, 32)",
+      "#23 c15 moved on ('CLICK', 58, 32)",
+      "#13 c1 moved on ('CLICK', 58, 32)"
      ]
     }
    ],
-   "events": 12,
-   "coverage": 0.333,
+   "events": 10,
+   "coverage": 0.4,
    "unexplained_kinds": {
-    "moved": 6,
-    "appeared": 1,
-    "resized": 1
+    "moved": 6
    }
   },
   {
@@ -366,8 +356,8 @@
    "levels": [
     {
      "transitions": 60,
-     "events": 74,
-     "explained": 74,
+     "events": 82,
+     "explained": 82,
      "coverage": 1.0,
      "fully_explained": 60,
      "rules": [
@@ -377,7 +367,7 @@
      "unexplained_sample": []
     }
    ],
-   "events": 74,
+   "events": 82,
    "coverage": 1.0,
    "unexplained_kinds": {}
   },
@@ -386,24 +376,25 @@
    "actions": 60,
    "levels_completed": 0,
    "play_s": 0.2,
-   "fit_s": 8.7,
+   "fit_s": 9.4,
    "levels": [
     {
      "transitions": 59,
-     "events": 402,
-     "explained": 25,
-     "coverage": 0.062,
+     "events": 387,
+     "explained": 21,
+     "coverage": 0.054,
      "fully_explained": 15,
      "rules": [
-      "onclick[colour 15] -> colour 0 shape 36fc3e: moves onto the clicked entity",
       "onclick[colour 1 shape 622ae3] -> colour 1 shape dfcf6c: vanishes",
+      "onclick[colour 15 shape c5c1bc] -> colour 0 shape 36fc3e: moves onto the clicked entity",
       "recolor[in region x22-27 y58-60] 3<->0 on CLICK@self",
-      "overlap[colour 0 touches colour 3] -> target recolours to 0",
+      "overlap[colour 15 touches colour 0 shape 8f92f9] -> target_vanishes",
       "overlap[colour 0 touches colour 1 shape 031b9c] -> target_vanishes",
       "overlap[colour 0 touches colour 15 shape 81fb83] -> target_vanishes",
       "overlap[colour 1 covers colour 0 shape f043c5] -> target_vanishes",
       "overlap[colour 1 covers colour 0 shape cc114a] -> target_vanishes",
       "vanish[colour 0 shape ce2d61 in region x13-13 y56-56] on CLICK",
+      "vanish[colour 15 shape c5c1bc in region x26-26 y47-47] on CLICK",
       "recolor[shape ac19ea] 0<->3 on CLICK"
      ],
      "unexplained_sample": [
@@ -414,8 +405,8 @@
      ]
     }
    ],
-   "events": 402,
-   "coverage": 0.062,
+   "events": 387,
+   "coverage": 0.054,
    "unexplained_kinds": {
     "gone": 4,
     "moved": 8
@@ -430,26 +421,27 @@
    "levels": [
     {
      "transitions": 60,
-     "events": 69,
-     "explained": 66,
-     "coverage": 0.957,
+     "events": 61,
+     "explained": 58,
+     "coverage": 0.951,
      "fully_explained": 57,
      "rules": [
-      "push[colour 0 pushes colour 9] (move[colour 0] keys {UP:(+0,-3), DOWN:(+0,+3), LEFT:(-3,+0), RIGHT:(+3,+0)} only onto colours [0, 5, 9, 11])",
-      "push[colour 0 shape 8dae82 pushes colour 9] (move[colour 0 shape 8dae82] keys {UP:(+0,-3), DOWN:(+0,+3), LEFT:(-3,+0), RIGHT:(+3,+0)} only onto colours [0, 5, 9, 11])",
+      "move[colour 0] keys {UP:(+0,-3), DOWN:(+0,+3), LEFT:(-3,+0), RIGHT:(+3,+0)} only onto colours [5, 9, 11]",
+      "move[colour 9] keys {UP:(+0,-3), DOWN:(+0,+3), LEFT:(-3,+0), RIGHT:(+3,+0)} only onto colours [0, 5, 9] + 16 invisible wall positions",
       "vanish[colour 9 in region x23-23 y32-32] on ACT"
      ],
      "unexplained_sample": [
-      "#20 c0 moved on ACT",
+      "#20 c0 appeared on ACT",
       "#20 c0 moved on ACT",
       "#20 c0 moved on ACT"
      ]
     }
    ],
-   "events": 69,
-   "coverage": 0.957,
+   "events": 61,
+   "coverage": 0.951,
    "unexplained_kinds": {
-    "moved": 3
+    "appeared": 1,
+    "moved": 2
    }
   },
   {
@@ -457,7 +449,7 @@
    "actions": 50,
    "levels_completed": 0,
    "play_s": 0.1,
-   "fit_s": 1.8,
+   "fit_s": 1.6,
    "levels": [
     {
      "transitions": 49,
@@ -495,7 +487,7 @@
      "coverage": 0.357,
      "fully_explained": 55,
      "rules": [
-      "onclick[colour 15] -> colour 0 in region x17-41 y56-56: move (+8,+0)",
+      "onclick[colour 15] -> colour 0 in region x17-41 y56-56: moves onto the clicked entity",
       "overlap[colour 0 covers colour 15] -> target_vanishes",
       "overlap[colour 0 covers colour 9] -> target_vanishes",
       "overlap[colour 0 covers colour 11] -> target_vanishes",
@@ -522,40 +514,32 @@
    "actions": 60,
    "levels_completed": 0,
    "play_s": 0.2,
-   "fit_s": 0.9,
+   "fit_s": 0.4,
    "levels": [
     {
      "transitions": 60,
-     "events": 117,
-     "explained": 51,
-     "coverage": 0.436,
-     "fully_explained": 33,
+     "events": 70,
+     "explained": 30,
+     "coverage": 0.429,
+     "fully_explained": 39,
      "rules": [
-      "move[colour 10 shape 53451c] keys {DOWN:(+0,-2), RIGHT:(+2,-2), UP:(+0,+2), LEFT:(-2,+2)} only onto colours [2, 5, 9] + 3 invisible wall positions",
-      "move[colour 2] keys {LEFT:(-4,+0), RIGHT:(+4,+0)} only onto colours [5, 9, 10]",
-      "move[colour 9 shape 253240] keys {DOWN:(+0,+2), UP:(+0,-2)} only onto colours [2, 10]",
-      "overlap[colour 10 covers colour 2 shape 175b69] -> target_vanishes",
-      "vanish[colour 9 in region x39-39 y21-21] on LEFT",
-      "recolor[shape 95d52c in region x39-39 y19-19] 10<->9 on UP",
-      "recolor[shape f2bd35 in region x41-41 y19-19] 9<->10 on UP",
-      "recolor[shape 53451c] 10<->2 on LEFT",
+      "move[colour 10 shape 53451c] keys {DOWN:(+0,-2), LEFT:(-2,+0), RIGHT:(+0,-2), UP:(+0,+2)} only onto colours [2, 9]",
+      "move[colour 9 shape 253240] keys {LEFT:(-4,-2), DOWN:(+0,+2), RIGHT:(+2,+0), UP:(+0,-2)} only onto colours [2, 5] + 2 invisible wall positions",
       "recolor[in region x24-34 y49-59] 2<->14 on CLICK@self",
       "recolor[anything] 0<->14 on CLICK@self"
      ],
      "unexplained_sample": [
       "#6 c10 moved on UP",
-      "#4 c2 resized on LEFT",
-      "#6 c10 resized on LEFT",
-      "#24 c9 appeared on LEFT"
+      "#5 c9 moved on DOWN",
+      "#5 c9 moved on LEFT",
+      "#6 c10 moved on LEFT"
      ]
     }
    ],
-   "events": 117,
-   "coverage": 0.436,
+   "events": 70,
+   "coverage": 0.429,
    "unexplained_kinds": {
-    "moved": 6,
-    "resized": 4,
-    "appeared": 2
+    "moved": 12
    }
   },
   {
@@ -567,29 +551,32 @@
    "levels": [
     {
      "transitions": 60,
-     "events": 107,
-     "explained": 28,
-     "coverage": 0.262,
-     "fully_explained": 38,
+     "events": 81,
+     "explained": 35,
+     "coverage": 0.432,
+     "fully_explained": 39,
      "rules": [
-      "move[colour 6] keys {UP:(+0,-6), DOWN:(+0,+6)} only onto colours [0, 2, 3, 5, 6] + 1 invisible wall positions",
       "move[colour 1] keys {UP:(+0,-6), DOWN:(+0,+6)} only onto colours [4]",
-      "vanish[colour 1 shape c6ad17] on LEFT",
-      "move[colour 3 shape 748a33] keys {RIGHT:(-1,+0), LEFT:(+1,+0)} only onto colours [2]"
+      "move[colour 6 shape c7e9e3] keys {UP:(+0,-4), DOWN:(+0,+8)} only onto colours [0, 2, 3, 4, 5, 6]",
+      "move[colour 6 shape c90926] keys {UP:(+0,-8), DOWN:(+0,+4)} only onto colours [0, 2, 3, 4, 5, 6]",
+      "move[colour 3 shape 8aaf47] keys {DOWN:(+0,-2), UP:(+0,+2)} only onto colours [3]",
+      "vanish[colour 1 shape c1d077] on LEFT",
+      "drift[colour 3 shape c98758] (+0,-10) per action"
      ],
      "unexplained_sample": [
       "#11 c2 moved on UP",
-      "#12 c3 moved on UP",
       "#6 c3 moved on UP",
-      "#8 c2 moved on UP"
+      "#9 c3 moved on UP",
+      "#9 c3 resized on UP"
      ]
     }
    ],
-   "events": 107,
-   "coverage": 0.262,
+   "events": 81,
+   "coverage": 0.432,
    "unexplained_kinds": {
-    "moved": 10,
-    "resized": 2
+    "moved": 4,
+    "resized": 7,
+    "appeared": 1
    }
   },
   {
@@ -650,7 +637,7 @@
    "actions": 60,
    "levels_completed": 0,
    "play_s": 0.2,
-   "fit_s": 2.4,
+   "fit_s": 1.8,
    "levels": [
     {
      "transitions": 60,
@@ -673,7 +660,7 @@
    "actions": 60,
    "levels_completed": 0,
    "play_s": 0.3,
-   "fit_s": 0.5,
+   "fit_s": 0.4,
    "levels": [
     {
      "transitions": 60,
@@ -706,30 +693,30 @@
    "actions": 50,
    "levels_completed": 0,
    "play_s": 0.2,
-   "fit_s": 1.3,
+   "fit_s": 1.2,
    "levels": [
     {
      "transitions": 49,
-     "events": 105,
+     "events": 70,
      "explained": 35,
-     "coverage": 0.333,
+     "coverage": 0.5,
      "fully_explained": 14,
      "rules": [
-      "move[colour 9 shape 3970ff] keys {RIGHT:(+6,+0), DOWN:(+0,+6), UP:(+0,-6), LEFT:(-6,+0)} only onto colours [0] + 2 invisible wall positions",
-      "move[colour 9 shape 5ad5b5] keys {DOWN:(+0,+6), RIGHT:(+6,+0), LEFT:(-6,+0), UP:(+0,-6)} only onto colours [0]",
-      "move[colour 9 shape 872066] keys {UP:(+0,-6), DOWN:(+0,+6)} only onto colours [0]",
-      "move[colour 9 shape 0f2e60] keys {RIGHT:(+6,+0), LEFT:(-6,+0)} only onto colours [0]"
+      "move[colour 9 shape cf6848] keys {RIGHT:(+6,+0), DOWN:(+0,+6), UP:(+0,-6), LEFT:(-6,+0)} only onto colours [0] + 2 invisible wall positions",
+      "move[colour 9 shape c761d1] keys {DOWN:(+0,+6), RIGHT:(+6,+0), LEFT:(-6,+0), UP:(+0,-6)} only onto colours [0]",
+      "move[colour 9 shape ceb10a] keys {UP:(+0,-6), DOWN:(+0,+6)} only onto colours [0]",
+      "move[colour 9 shape c7b7c5] keys {RIGHT:(+6,+0), LEFT:(-6,+0)} only onto colours [0]"
      ],
      "unexplained_sample": [
       "#3 c0 moved on RIGHT",
-      "#9 c4 moved on RIGHT",
-      "#9 c4 moved on DOWN",
-      "#13 c0 moved on DOWN"
+      "#13 c0 moved on DOWN",
+      "#25 c0 moved on DOWN",
+      "#27 c0 moved on RIGHT"
      ]
     }
    ],
-   "events": 105,
-   "coverage": 0.333,
+   "events": 70,
+   "coverage": 0.5,
    "unexplained_kinds": {
     "moved": 12
    }
@@ -739,7 +726,7 @@
    "actions": 50,
    "levels_completed": 0,
    "play_s": 0.1,
-   "fit_s": 0.6,
+   "fit_s": 0.5,
    "levels": [
     {
      "transitions": 49,
@@ -768,39 +755,28 @@
    "actions": 60,
    "levels_completed": 0,
    "play_s": 0.1,
-   "fit_s": 0.3,
+   "fit_s": 0.2,
    "levels": [
     {
      "transitions": 60,
-     "events": 162,
-     "explained": 48,
-     "coverage": 0.296,
-     "fully_explained": 3,
+     "events": 63,
+     "explained": 63,
+     "coverage": 1.0,
+     "fully_explained": 60,
      "rules": [
-      "overlap[colour 0 touches colour 14 shape 262d33] -> target_vanishes",
-      "vanish[colour 0 shape d6cda2] on LEFT",
-      "vanish[colour 14 shape b386c6] on UP",
-      "vanish[colour 0 shape 6ab439] on UP",
-      "overlap[colour 0 touches colour 4] -> target recolours to 3",
+      "move[colour 14] keys {UP:(+0,-4), DOWN:(+0,+4), LEFT:(-4,+0), RIGHT:(+4,+0)} only onto colours [1]",
+      "overlap[colour 14 touches colour 4] -> target recolours to 3",
       "recolor[anything] 3->4 on DOWN"
      ],
-     "unexplained_sample": [
-      "#9 c0 moved on UP",
-      "#10 c14 moved on UP",
-      "#9 c0 moved on UP",
-      "#10 c14 moved on UP"
-     ]
+     "unexplained_sample": []
     }
    ],
-   "events": 162,
-   "coverage": 0.296,
-   "unexplained_kinds": {
-    "moved": 10,
-    "appeared": 2
-   }
+   "events": 63,
+   "coverage": 1.0,
+   "unexplained_kinds": {}
   }
  ],
- "mean_coverage": 0.5,
+ "mean_coverage": 0.547,
  "n_games": 25,
  "actions_per_game": 60
 }
