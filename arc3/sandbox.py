@@ -17,7 +17,7 @@ Preloaded names in the child (all from ``arc3.perception``, exact numpy code):
   history, last, np, set_model(predict), world_model_stats(), verify_model(predict), transitions(),
   ents(), events(n), event_log(), describe_events(n), avatar(), roles(), entity(id), tile,
   move_model(), plan_to(x, y), plan_to_entity(id)
-  symlog(), fit_rules(kind), auto_rules(), rules(), explain_rules(), rules_predictor(), plan_rules(goal), goal_candidates()
+  symlog(), fit_rules(kind), auto_rules(), rules(), explain_rules(), rules_predictor(), plan_rules(goal), goal_candidates(), goal_hints()
 """
 from __future__ import annotations
 
@@ -245,6 +245,42 @@ def goal_candidates():
     for g in out:
         GOALS[g["goal"]] = g["predicate"]
     return [g["goal"] for g in out]
+
+def goal_hints(limit=8):
+    """Structural goal hypotheses for a level whose win condition is unknown: unique-colour entities, entities
+    shaped like the avatar (slots), collectible sets (several small same-colour entities), and the largest
+    non-static entities. Each hint has 'hint', 'ids' and a suggested plan_rules goal."""
+    t = TRK["t"]
+    frame = t.compound_frames()[-1] if t.frames else ()
+    roles = t.roles()
+    av = t.avatar()
+    aid = int(av["id"]) if av else None
+    ents_ = [e for e in frame if roles.get(e.id) != "hud" and e.id != aid]
+    by_color = {}
+    for e in ents_:
+        by_color.setdefault(e.color, []).append(e)
+    hints = []
+    for c, lst in sorted(by_color.items(), key=lambda kv: len(kv[1])):
+        if len(lst) == 1 and lst[0].size <= 400:
+            e = lst[0]
+            hints.append({"hint": f"unique colour {c} entity #{e.id} ({e.w}x{e.h}) may be the target or exit", "ids": [e.id],
+                          "goal": {"reach_entity": e.id} if aid else {"touch": (c, c)}})
+    if aid:
+        a = t.get(aid)
+        if a is not None:
+            for e in ents_:
+                if e.shape == a.shape_hash or (e.w == a.w and e.h == a.h and e.color != a.color):
+                    hints.append({"hint": f"entity #{e.id} colour {e.color} has the avatar's size: a slot or a twin", "ids": [e.id],
+                                  "goal": {"reach_entity": e.id}})
+    for c, lst in by_color.items():
+        if 2 <= len(lst) <= 12 and all(x.size <= 64 for x in lst):
+            hints.append({"hint": f"{len(lst)} small colour-{c} entities: collect or visit them all", "ids": [x.id for x in lst][:12],
+                          "goal": {"none_left": c}})
+    dyn = [e for e in ents_ if roles.get(e.id) in ("dynamic", "unknown") and e.size <= 400]
+    for e in sorted(dyn, key=lambda e: -e.size)[:2]:
+        if not any(e.id in h["ids"] for h in hints):
+            hints.append({"hint": f"non-static entity #{e.id} colour {e.color} ({e.w}x{e.h})", "ids": [e.id], "goal": {"reach_entity": e.id} if aid else None})
+    return hints[:limit]
 
 def _archive_level(final_action):
     t = TRK["t"]
@@ -543,7 +579,7 @@ for _n in ("objects", "components", "diff", "ascii", "downscale", "background", 
            "set_model", "world_model_stats", "verify_model", "transitions", "set_models", "alive_models",
            "ents", "events", "event_log", "describe_events", "avatar", "roles", "entity",
            "move_model", "plan_to", "plan_to_entity",
-           "symlog", "fit_rules", "auto_rules", "rules", "explain_rules", "rules_predictor", "plan_rules", "goal_candidates"):
+           "symlog", "fit_rules", "auto_rules", "rules", "explain_rules", "rules_predictor", "plan_rules", "goal_candidates", "goal_hints"):
     G[_n] = globals()[_n]
 
 while True:
