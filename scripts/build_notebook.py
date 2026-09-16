@@ -73,7 +73,7 @@ def vllm_setup_source(model_dataset: str, wheels_dataset: str, specialist_datase
         cfg = json.loads(os.environ.get('ARC3_AGENT_CONFIG', '{{}}'))
         if os.environ['ARC3_AGENT'] in ('repl', 'council'):
             if MODEL_DIR is None:
-                print('no model dataset attached -> falling back to explorer'); os.environ['ARC3_AGENT'] = 'explorer'
+                print('no model dataset attached -> falling back to the rules agent'); os.environ['ARC3_AGENT'] = 'rules'
             else:
                 if WHEELS:
                     t0 = time.time()
@@ -85,7 +85,7 @@ def vllm_setup_source(model_dataset: str, wheels_dataset: str, specialist_datase
                                                     gpu_mem=0.62 if two else 0.90, timeout_s=1500)
                 print('vllm ready:', ok, 'after %.0fs' % (time.time() - START))
                 if not ok:
-                    print(open('/kaggle/working/vllm.log').read()[-3000:]); os.environ['ARC3_AGENT'] = 'explorer'
+                    print(open('/kaggle/working/vllm.log').read()[-3000:]); os.environ['ARC3_AGENT'] = 'rules'
                 else:
                     vllm_procs.append(proc)
                     cfg.update({{'base_url': 'http://127.0.0.1:8000/v1', 'model': 'arc3-model'}})

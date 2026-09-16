@@ -5,7 +5,7 @@ puts ``/kaggle/working`` (which holds the ``arc3`` package) on PYTHONPATH. Every
 interesting lives in ``arc3``; this file only adapts the framework's contract.
 
 Environment knobs (set by the notebook):
-  ARC3_AGENT         repl | explorer | random      (default explorer when no model server)
+  ARC3_AGENT         repl | council | rules | explorer | random  (default rules when no model server)
   ARC3_AGENT_CONFIG  JSON dict passed to the agent (base_url, model, ...)
   ARC3_TIME_BUDGET_S total wall-clock budget for the whole run (default 9h)
   ARC3_START_EPOCH   notebook start time (so setup time is charged to the budget)
@@ -30,7 +30,7 @@ class MyAgent(Agent):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        name = os.environ.get("ARC3_AGENT", "explorer")
+        name = os.environ.get("ARC3_AGENT", "rules")
         self.driver = Driver(self.game_id, name, config=agent_config())
         log.info("%s: agent=%s deadline in %.0fs", self.game_id, name, self.driver.deadline - __import__("time").time())
 

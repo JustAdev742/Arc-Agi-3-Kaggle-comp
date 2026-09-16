@@ -64,7 +64,7 @@ class Driver:
     """Owns one arc3 agent for one game and exposes the framework's contract."""
 
     def __init__(self, game_id: str, agent_name: str, *, config: Optional[dict[str, Any]] = None,
-                 deadline: Optional[float] = None, fallback: str = "explorer"):
+                 deadline: Optional[float] = None, fallback: str = "rules"):
         self.game_id = game_id
         self.agent_name = agent_name
         self.fallback_name = fallback

@@ -66,7 +66,7 @@ def test_crash_recovery_switches_to_fallback(monkeypatch):
         a, arc, card = make_framework_agent(monkeypatch, agent="boom")
         a.MAX_ACTIONS = 10
         a.main()
-        assert a.driver.crashes == 1 and a.driver.agent_name == "explorer"
+        assert a.driver.crashes == 1 and a.driver.agent_name == "rules"
         sc = arc.close_scorecard(card)
         assert sc.find_environment("ls20").runs[0].actions == 11
     finally:
