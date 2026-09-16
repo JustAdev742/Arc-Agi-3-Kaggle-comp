@@ -172,3 +172,41 @@ s = world_model_stats()['hypotheses']; print(s['dec']['alive'], s['inc']['correc
     assert lines[3] == "False 2 True"
     assert r["world_model"]["hypotheses"]["inc"]["alive"] is True
     sb.stop()
+
+
+def test_entities_exposed_in_sandbox():
+    sb = PersistentSandbox(sys_path=[ROOT] + sys.path)
+    grids = []
+
+    def scene(x):
+        g = np.zeros((64, 64), dtype=int)
+        g[60:64, :] = 3
+        g[20:24, x:x + 4] = 9
+        return g
+
+    pos = {"x": 4}
+
+    def handler(actions):
+        if actions[0]["action"] == "RIGHT":
+            pos["x"] += 4
+        g = scene(pos["x"])
+        grids.append(g)
+        return [{"changed": 32, "level_completed": False, "state": "NOT_FINISHED"}], state(g, [g])
+
+    code = """
+e0 = ents(); print(len(e0), sorted(x['color'] for x in e0))
+act('RIGHT'); act('RIGHT'); act('UP')
+ev = events(3); print([len(r['moved']) for r in ev])
+print(describe_events(1)[0])
+a = avatar(); print(a['id'], a['keymap'].get('RIGHT'))
+print(roles()[a['id']], tile)
+"""
+    r = sb.run(code, state(scene(4), [scene(4)]), timeout_s=20, action_handler=handler)
+    assert r["error"] == "", r
+    lines = r["stdout"].strip().splitlines()
+    assert lines[0] == "2 [3, 9]"
+    assert lines[1] == "[1, 1, 0]"
+    assert lines[2].startswith("UP: no entity changed")
+    assert lines[3].endswith("(4, 0)")
+    assert lines[4].startswith("avatar")
+    sb.stop()

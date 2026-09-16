@@ -14,7 +14,8 @@ Protocol (JSON lines over stdin/stdout of the child):
 Preloaded names in the child (all from ``arc3.perception``, exact numpy code):
   grid, frames, level, levels_completed, win_levels, step, level_step, state, available,
   scale, objects(), components(), diff(), ascii(), downscale(), act(), note(), notes,
-  history, last, np, set_model(predict), world_model_stats(), verify_model(predict), transitions()
+  history, last, np, set_model(predict), world_model_stats(), verify_model(predict), transitions(),
+  ents(), events(n), event_log(), describe_events(n), avatar(), roles(), entity(id), tile
 """
 from __future__ import annotations
 
@@ -33,6 +34,7 @@ HOST_OUT = sys.stdout
 sys.stdout = io.StringIO()  # everything the model prints is captured per run
 import numpy as np
 from arc3 import perception as _P
+from arc3.entities import Tracker as _Tracker
 
 def _send(obj):
     HOST_OUT.write(json.dumps(obj, ensure_ascii=False, default=_default) + "\n"); HOST_OUT.flush()
@@ -57,6 +59,33 @@ def _recv():
 G = {"__name__": "__repl__", "np": np, "notes": []}
 WM = {"predict": None, "checked": 0, "matched": 0, "mismatches": [], "errors": 0}
 LOG = {"level": None, "transitions": []}  # (before_grid, action_label, after_grid) for the current level
+TRK = {"t": _Tracker()}
+
+def ents(limit=40):
+    """Tracked entities of the current frame with persistent ids and roles (static, hud, avatar, dynamic)."""
+    return TRK["t"].entities_summary(limit)
+
+def events(n=1):
+    """The last n action transitions as entity events: moved/appeared/disappeared/recolored/reshaped."""
+    return TRK["t"].log[-n:]
+
+def event_log():
+    return list(TRK["t"].log)
+
+def describe_events(n=3):
+    t = TRK["t"]
+    return [_Tracker.describe(r, t) for r in t.log[-n:]]
+
+def avatar():
+    """{'id', 'keymap': {'UP': (dx,dy), ...}, 'entity'} for the entity that moves with the keys, or None."""
+    return TRK["t"].avatar()
+
+def roles():
+    return TRK["t"].roles()
+
+def entity(eid):
+    e = TRK["t"].get(eid)
+    return None if e is None else {**e.summary(TRK["t"].tile), "mask": e.mask}
 
 def transitions(last_n=None):
     """The level's recorded (before, action, after) triples, oldest first (lost if the REPL restarts)."""
@@ -179,12 +208,18 @@ def _check_prediction(before, action, after):
 def _to_grid(x):
     return np.asarray(x, dtype=np.int16)
 
-def _refresh(state):
+def _refresh(state, action=None):
     lvl = state.get("level")
-    if LOG["level"] is not None and lvl != LOG["level"]:
+    new_level = LOG["level"] is not None and lvl != LOG["level"]
+    if new_level:
         LOG["transitions"] = []  # new level: the old transitions no longer describe this layout
     LOG["level"] = lvl
     G["grid"] = _to_grid(state["grid"])
+    if TRK["t"].bg is None or new_level:
+        TRK["t"].reset(G["grid"])
+    elif action is not None:
+        TRK["t"].update(G["grid"], action)
+    G["tile"] = TRK["t"].tile
     G["frames"] = [_to_grid(f) for f in state.get("frames", [])]
     for k in ("level", "levels_completed", "win_levels", "step", "level_step", "state", "available", "history", "last"):
         G[k] = state.get(k)
@@ -275,7 +310,7 @@ def act(*actions):
             reply = _recv()
             if reply.get("type") != "action_result":
                 raise RuntimeError(reply.get("error", "action failed"))
-            _refresh(reply["state"])
+            _refresh(reply["state"], _action_label(a))
             r = reply["result"][0]
             if not r.get("level_completed"):
                 LOG["transitions"].append((before, _action_label(a), G["grid"].copy()))
@@ -295,7 +330,7 @@ def act(*actions):
         reply = _recv()
         if reply.get("type") != "action_result":
             raise RuntimeError(reply.get("error", "action failed"))
-        _refresh(reply["state"])
+        _refresh(reply["state"], _action_label(a))
         r = reply["result"][0]
         chk = _check_prediction(before, a, G["grid"])
         if chk:
@@ -317,14 +352,21 @@ def click(x, y):
     return act(("CLICK", int(x), int(y)))
 
 for _n in ("objects", "components", "diff", "ascii", "downscale", "background", "moved", "note", "act", "click",
-           "set_model", "world_model_stats", "verify_model", "transitions", "set_models", "alive_models"):
+           "set_model", "world_model_stats", "verify_model", "transitions", "set_models", "alive_models",
+           "ents", "events", "event_log", "describe_events", "avatar", "roles", "entity"):
     G[_n] = globals()[_n]
 
 while True:
     msg = _recv()
     if msg.get("type") != "run":
         continue
-    _refresh(msg["state"])
+    _last = msg["state"].get("last") or {}
+    _prev = G.get("grid")
+    _incoming = _to_grid(msg["state"]["grid"])
+    if _prev is not None and TRK["t"].bg is not None and not np.array_equal(_prev, _incoming) and msg["state"].get("level") == LOG["level"]:
+        _refresh(msg["state"], str(_last.get("action", "external")))  # actions taken outside this REPL (e.g. fallback)
+    else:
+        _refresh(msg["state"])
     sys.stdout = buf = io.StringIO()
     err = ""
     result = None

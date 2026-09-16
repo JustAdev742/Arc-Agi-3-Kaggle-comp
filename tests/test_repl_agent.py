@@ -212,3 +212,19 @@ def test_context_overflow_evicts_and_retries_without_counting_an_error():
     finally:
         agent.close()
         env.close()
+
+
+def test_turn_log_uses_entity_events():
+    mock = MockClient([MockClient.tool("act('RIGHT')"), MockClient.say("ok"), MockClient.tool("act('LEFT')"), MockClient.say("ok")])
+    arc = make_arcade("environment_files")
+    env = LocalEnv(arc, "ls20")
+    ctx = AgentContext(game_id="ls20", deadline=time.time() + 300, config={"client": mock, "image": False})
+    agent = get("repl")(ctx)
+    try:
+        run(agent, env, 2)
+        second_turn_user = [m for m in mock.calls[2] if m["role"] == "user"][-1]["content"]
+        assert "Since your last turn:" in second_turn_user and "moved (" in second_turn_user, second_turn_user[:400]
+        assert "Entities (persistent ids" in second_turn_user
+    finally:
+        agent.close()
+        env.close()

@@ -29,8 +29,9 @@ from arcengine import GameAction, GameState
 
 from ..env import Action, Frame
 from ..llm import ChatClient, ChatResponse
+from ..entities import Tracker
 from ..perception import ascii as grid_ascii
-from ..perception import detect_scale, diff, objects_summary, render_png
+from ..perception import detect_scale, diff, render_png
 from ..prompts import ACTION_NAMES, NAME_TO_ID, SYSTEM_PROMPT, TOOLS
 from ..sandbox import PersistentSandbox
 from . import register
@@ -113,6 +114,8 @@ class ReplAgent(Agent):
         self.fallback = ExplorerAgent(ctx)
         self.messages: list[dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}]
         self.notes: list[str] = []
+        self.tracker = Tracker()
+        self.tracker_level = -1
         self.turn_log: list[str] = []  # compact action summaries for the next user message
         self.frame: Optional[Frame] = None
         self.frames: list[np.ndarray] = []
@@ -141,6 +144,9 @@ class ReplAgent(Agent):
 
     def act(self, frame: Frame) -> Action:
         self.frame = frame
+        if self.tracker.bg is None or self.tracker_level != frame.levels_completed:
+            self.tracker.reset(frame.grid)
+            self.tracker_level = frame.levels_completed
         if not self.frames or self.frames[-1] is not frame.grid:
             self.frames.append(frame.grid)
             del self.frames[: -self.history_frames]
@@ -202,8 +208,14 @@ class ReplAgent(Agent):
         self.history.append({"a": str(action), "changed": int(d.changed), "level": int(after.levels_completed) + 1})
         del self.history[:-40]
         self.last_result = res
-        self.turn_log.append(f"{action} -> {'changed %d cells' % d.changed if d.changed else 'no change'}"
-                             + (" LEVEL COMPLETED" if res["level_completed"] else "") + (" GAME OVER" if after.game_over else ""))
+        if res["level_completed"] or self.tracker_level != after.levels_completed:
+            self.tracker.reset(after.grid)
+            self.tracker_level = after.levels_completed
+            summary = f"{action} -> changed {d.changed} cells"
+        else:
+            rec = self.tracker.update(after.grid, str(action).split("(")[0])
+            summary = Tracker.describe({**rec, "action": str(action)}, self.tracker)
+        self.turn_log.append(summary + (" LEVEL COMPLETED" if res["level_completed"] else "") + (" GAME OVER" if after.game_over else ""))
         self.fallback.observe(action, before, after)
         req = self.pending
         self.pending = None
@@ -321,9 +333,13 @@ class ReplAgent(Agent):
         elif self.st.turns > 1 and not self.last_turn_acted:
             parts.append("Your previous turn took NO action. Inspection alone makes no progress: act this turn.")
         if self.objects_in_prompt > 0:
-            objs = objects_summary(f.grid, limit=self.objects_in_prompt)
-            parts.append("Objects (largest first; colour, x, y, w, h, size): " + "; ".join(
-                f"#{o['id']} c{o['color']} @({o['x']},{o['y']}) {o['w']}x{o['h']} n={o['size']}" for o in objs))
+            ents = self.tracker.entities_summary(self.objects_in_prompt)
+            av = self.tracker.avatar()
+            parts.append(f"Entities (persistent ids; tile {self.tracker.tile}; roles from evidence): " + "; ".join(
+                f"#{e['id']} c{e['color']} @({e['x']},{e['y']}) {e['w']}x{e['h']}" + (f" [{e['role']}]" if e.get('role') and e['role'] != 'unknown' else "")
+                for e in ents))
+            if av:
+                parts.append(f"Avatar: #{av['id']} moves with keys {av['keymap']}")
         if getattr(self, "wm_summary", ""):
             parts.append(self.wm_summary)
         if self.notes:

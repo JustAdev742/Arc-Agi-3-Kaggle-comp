@@ -113,6 +113,9 @@ Built and tested (all in `tests/`, green on this container via `make test`):
 - The REPL agent (Duck-style, persistent sandbox, image + ASCII + helpers, eviction, governor,
   explorer fallback). **First real-model run 2026-09-16 (diag v5 smoke)**: plumbing works end to end on Kaggle;
   the model acts too rarely per turn and prompts are too large (see research log exp-003a).
+- Entity tracking (`arc3/entities.py`, plan-100 II.2.A): persistent ids across frames, per-action events (moved/appeared/
+  disappeared/recoloured/reshaped), roles (static, hud, avatar with its key map), multi-part sprite groups, tile size;
+  in the REPL as `ents()/events()/avatar()/roles()` and in every per-action summary the model reads. Unmeasured (exp-005).
 - Executable world-model hooks in the sandbox: `set_model(predict)` checks every real action against the model's own
   predictor (mismatches stop batched actions and are reported each turn); `transitions()` logs the level's
   (before, action, after) triples; `verify_model(predict)` replays them and returns counter-examples (plan-100 §3.2).

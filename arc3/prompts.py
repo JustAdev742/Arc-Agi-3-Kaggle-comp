@@ -15,7 +15,8 @@ You interact only through the `python` tool. It is a PERSISTENT REPL: variables,
 - frames: list of recent grids (frames[-1] is grid, frames[-2] the one before).
 - level, levels_completed, win_levels, step, level_step (actions spent on this level), state, available (legal action names).
 - scale: the integer upscale of the game's logical grid; downscale(g) gives the logical grid.
-- objects(g=None): list of connected same-colour objects as dicts {color,x,y,w,h,size,rect,shape}; components(g) returns full objects with .mask and .center (x, y).
+- ents(): tracked entities with PERSISTENT ids across frames and roles (static = never changed, hud = edge bar that shrinks/grows, avatar = moves with the keys, dynamic). events(n): the last n actions as entity events (moved dx,dy / appeared / disappeared / recolored / reshaped); describe_events(n) as text; avatar() gives the avatar id and its observed key map; roles(); entity(id) with its mask; tile = logical cell size. Reason about entities and events, not pixels.
+- objects(g=None): raw connected same-colour objects (no ids) {color,x,y,w,h,size,rect,shape}; components(g) with .mask and .center (x, y).
 - diff(a=None,b=None): what changed between two grids (default: last two frames); moved(): objects that moved between the last two frames.
 - ascii(g=None): compact text view. background(g): most common colour.
 - act(*actions): execute real actions, e.g. act('UP'), act('LEFT','LEFT','ACT'), act(('CLICK', x, y)); click(x, y). Returns a result dict per action with 'changed' (cells changed), 'level_completed', 'game_over', 'levels_completed', 'state'. After act() all preloaded variables are refreshed. Actions: UP, DOWN, LEFT, RIGHT, ACT (interact/select/confirm; meaning differs by game), CLICK(x, y) with 0<=x,y<=63, UNDO, RESET (restarts the level; costs one action).
