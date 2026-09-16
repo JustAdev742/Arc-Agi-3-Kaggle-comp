@@ -51,7 +51,7 @@ def md_cell(src: str) -> dict:
     return {"cell_type": "markdown", "metadata": {}, "source": src}
 
 
-def build(accelerator: str, agent: str, model_dataset: str, wheels_dataset: str, budget_s: int) -> dict:
+def build(accelerator: str, agent: str, model_dataset: str, wheels_dataset: str, budget_s: int, smoke_s: int = 300) -> dict:
     if accelerator not in _ACCELERATORS:
         raise SystemExit(f"unknown accelerator {accelerator}")
     agent_body = AGENT_SRC.read_text()
@@ -134,12 +134,16 @@ def build(accelerator: str, agent: str, model_dataset: str, wheels_dataset: str,
             rc = subprocess.call([sys.executable, 'main.py', '--agent', 'myagent'], cwd='/kaggle/working/ARC-AGI-3-Agents', env=env)
             print('framework exit code', rc, 'elapsed %.0fs' % (time.time() - START))
         else:
-            # Save & Run All: prove the package plays real games offline, then emit the dummy submission.
+            # Save & Run All: prove the *configured* agent plays real games offline (REPL against the local
+            # vLLM when it started, explorer otherwise), then emit the dummy submission.
             env_files = '{COMP_DIR}/environment_files'
             if os.path.isdir(env_files):
                 from arc3.eval import run_eval
-                run_eval('explorer', 'ls20,vc33', time_budget_s=60, max_actions=60, runs_dir='/kaggle/working/runs',
-                         environments_dir=env_files, run_name='save-and-run-smoke')
+                smoke_agent = os.environ['ARC3_AGENT']
+                cfg = json.loads(os.environ.get('ARC3_AGENT_CONFIG', '{{}}'))
+                smoke_s = int(os.environ.get('ARC3_SMOKE_S', '{smoke_s}'))
+                run_eval(smoke_agent, 'ls20,vc33', time_budget_s=smoke_s, max_actions=200, workers=1,
+                         runs_dir='/kaggle/working/runs', environments_dir=env_files, run_name='save-and-run-smoke', config=cfg)
             else:
                 print('no bundled environment_files; skipping offline smoke')
             import pandas as pd
@@ -169,9 +173,10 @@ def main() -> None:
     p.add_argument("--wheels-dataset", default="saltb0x/arc3-vllm-wheelhouse-v0271-cu129",
                    help="owner/slug of the vLLM wheelhouse dataset (vLLM 0.27.1, CUDA 12.9, built for the ARC3 duck harness)")
     p.add_argument("--budget-s", type=int, default=9 * 3600)
+    p.add_argument("--smoke-s", type=int, default=300, help="per-game seconds for the Save & Run All offline smoke")
     p.add_argument("--out", default=str(NOTEBOOK_PATH))
     a = p.parse_args()
-    nb = build(a.accelerator, a.agent, a.model_dataset, a.wheels_dataset, a.budget_s)
+    nb = build(a.accelerator, a.agent, a.model_dataset, a.wheels_dataset, a.budget_s, a.smoke_s)
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
     Path(a.out).write_text(json.dumps(nb, indent=1))
     print(f"[build_notebook] wrote {a.out} (accelerator={a.accelerator}, agent={a.agent}, {len(json.dumps(nb)) // 1024} KB)")
