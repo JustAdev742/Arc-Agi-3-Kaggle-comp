@@ -86,6 +86,12 @@ architectural step therefore has to be measured on dev and val, not assumed.
    58 min RTX.
 9. `scottmahony/arc3-eval-dev` v2, RTX, 2026-09-16: exp-003c, same settings with the fixes: **dev 0.56**, 5/142 levels, zero
    errors. 67 min RTX. This is the control.
+10. `arc3-eval-dev` v3 (exp-005, dev 1.11, 8 levels), `arc3-eval-dev-b` v1 (exp-007, 0.84, 5), `arc3-eval-dev-c` v1 (exp-008,
+    0.73, 5), `arc3-eval-dev-d` v1 (exp-009, 0.84, 6), `arc3-eval-dev-e` v2 (exp-009b repeat, 0.87, 6),
+    `arc3-eval-dev-council` v1 (exp-010, 0.28, 4; specialists never started): about 60-70 min RTX each, all
+    2026-09-16; details and per-game tables in `docs/research_log.md` and `runs/kaggle-*/summary.json`.
+11. Running: `arc3-eval-dev-council-b` v1 (exp-010b, council with the specialist ladder, pushed 11:58) and
+    `arc3-eval-dev-f` v1 (exp-011 harness bundle, pushed 12:15). Built and waiting: `arc3-eval-dev-g` (exp-004, thinking off).
 
 ## Rule library coverage (exp-006a, code-only, 2026-09-16)
 
@@ -143,7 +149,9 @@ research log exp-006a.
 - exp-010 finished 11:57: **dev 0.278, 4 levels** with all six roles on the coordinator (specialist server never
   started: flashinfer's cutlass FP4 JIT has no SM120 kernels, `vllm-specialist.log`); the shared-model council costs
   more GPU time than it gives (coordinator p50 latency up ~40%, 743 actions vs 987). exp-010b (specialist ladder,
-  FP8 first, NVFP4 with Marlin last) pushed 11:58 as `arc3-eval-dev-council-b`; exp-009b still running.
+  FP8 first, NVFP4 with Marlin last) pushed 11:58 as `arc3-eval-dev-council-b`.
+- exp-009b finished 12:14: **dev 0.870, 6 levels** (exp-009: 0.836, 6) with only 3 of 9 solved games in common: score
+  stable to about +-0.05, per-game outcomes churn. Keep/revert threshold set (research log). exp-011 pushed 12:15.
 
 ## Session 2 outcome (2026-09-16, afternoon)
 
