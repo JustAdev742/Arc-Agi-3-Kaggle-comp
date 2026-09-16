@@ -17,7 +17,7 @@ Last updated: 2026-09-16 (session 1, remote CPU container: 4 vCPU, 15 GB RAM, no
 | Entry / team merge | 2026-10-26, 23:59 UTC | VERIFIED | Kaggle overview (pasted 2026-09-16) |
 | Final submission | 2026-11-02, 23:59 UTC; winners announced 2026-12-04 | VERIFIED | Kaggle overview (pasted 2026-09-16) |
 | License for prizes | "open source license" (no specific license named); prize-eligible entries that do not open-source are removed | VERIFIED (wording) | Kaggle overview (pasted 2026-09-16) |
-| Hardware | `rtx6000` = GCP `g4-standard-48` (RTX PRO 6000, 96 GB), ARC-AGI-3 notebooks only, internet must be off; driver/CUDA in the Kaggle image still unknown | VERIFIED (machine type) | Kaggle overview (pasted 2026-09-16) |
+| Hardware | `rtx6000` = GCP `g4-standard-48` (RTX PRO 6000, 96 GB), ARC-AGI-3 notebooks only, internet must be off. Kaggle GPU image (T4 box, 2026-09-16): driver 580.159.04, CUDA 13.0 capable, nvcc 12.8, torch 2.10.0+cu128, Python 3.12.13; cu129 and cu130 wheelhouses are both driver-compatible | VERIFIED (machine type, image) | Kaggle overview; diag run |
 | Hidden set size | unknown; the Duck's Kaggle validation ran 16 games at 16 concurrent, 75 min each in a 90-min kernel | UNKNOWN | Tufa Labs README |
 | Kaggle concurrency | the framework's `Swarm` plays **all games in parallel threads** against the gateway | VERIFIED | `ARC-AGI-3-Agents/agents/swarm.py` |
 
@@ -45,8 +45,16 @@ competition pages (JS-only), confirm the runtime limit or license.
 
 1. `scottmahony/arc-prize-2026-arc-agi-3-arc3-agent` v1, **CPU**, 2026-09-16: explorer notebook, Save & Run All. Installed
    arc-agi from the bundle, unpacked arc3, played ls20 + vc33 offline (60 actions each), wrote submission.parquet. PASS. GPU quota: 0.
-2. `scottmahony/arc3-gpu-diag` v1, **rtx6000**, 2026-09-16: serving-stack probe (driver, vLLM install, start time, tool-call
-   completion with image, throughput, 5-min REPL smoke). Bounded to ~30 min. Result: see below once fetched.
+2. `scottmahony/arc3-gpu-diag` v1, 2026-09-16: serving-stack probe. **Landed on 2x Tesla T4, not the RTX 6000**: the starter kit's accelerator id
+   `nvidiaRtx6000` is unknown to Kaggle; the right id is `nvidiaRtxPro6000` (fixed in both builders, plus `--accelerator` on push). Facts obtained anyway: driver
+   580.159.04 (CUDA 13.0 capable), nvcc 12.8, Python 3.12.13, preinstalled torch 2.10.0+cu128 / transformers 5.0.0,
+   /kaggle/working 20 GB, 4 vCPU / 31 GB RAM on the T4 box. vLLM 0.27.1 + flashinfer 0.6.16 from
+   `saltb0x/arc3-vllm-wheelhouse-v0271-cu129` installed in 231 s (upgrades torch to 2.13.0, transformers 5.15.0; pip's
+   resolver warnings are noise). vLLM then refused FP8 KV cache on SM75 (T4) as expected; `arc3.serve` now picks the KV
+   dtype from compute capability. 6 min wall, T4 quota only.
+
+3. `scottmahony/arc3-gpu-diag` v2, **rtx6000** (id fixed), 2026-09-16: same probe, with a conservative-flag retry if the
+   MTP/FP8-KV start fails. Result pending. This is the last run of the allowance; further runs need your OK.
 
 ## Open items (need you)
 

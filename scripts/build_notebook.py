@@ -31,7 +31,9 @@ _ACCELERATORS = {
     "cpu": {"name": "none", "gpu": False},
     "t4": {"name": "nvidiaTeslaT4", "gpu": True},
     "p100": {"name": "nvidiaTeslaP100", "gpu": True},
-    "rtx6000": {"name": "nvidiaRtx6000", "gpu": True},
+    # "nvidiaRtxPro6000" is the id the Milestone-1 2nd/3rd place notebooks carry; the starter's
+    # "nvidiaRtx6000" is unknown to Kaggle and silently falls back to T4 (diag run, 2026-09-16).
+    "rtx6000": {"name": "nvidiaRtxPro6000", "gpu": True},
 }
 
 
@@ -93,9 +95,9 @@ def build(accelerator: str, agent: str, model_dataset: str, wheels_dataset: str,
             else:
                 if WHEELS:
                     subprocess.check_call([sys.executable, '-m', 'pip', 'install', '-q', '--no-index', '--find-links', WHEELS, 'vllm'])
-                from arc3.serve import start_vllm, wait_for_server
-                vllm_proc = start_vllm(MODEL_DIR, log_path='/kaggle/working/vllm.log', port=8000, served_name='arc3-model')
-                ok = wait_for_server('http://127.0.0.1:8000/v1', timeout_s=1800, proc=vllm_proc)
+                from arc3.serve import start_vllm_with_fallback
+                vllm_proc, ok = start_vllm_with_fallback(MODEL_DIR, log_path='/kaggle/working/vllm.log', port=8000,
+                                                         served_name='arc3-model', timeout_s=1500)
                 print('vllm ready:', ok, 'after %.0fs' % (time.time() - START))
                 if not ok:
                     print(open('/kaggle/working/vllm.log').read()[-3000:]); os.environ['ARC3_AGENT'] = 'explorer'

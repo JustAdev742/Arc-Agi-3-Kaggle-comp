@@ -14,25 +14,55 @@ import time
 from typing import Optional
 
 
+def gpu_info() -> list[dict[str, str]]:
+    """[{name, compute_cap, memory_mib}] from nvidia-smi, or [] when unavailable."""
+    try:
+        out = subprocess.check_output(["nvidia-smi", "--query-gpu=name,compute_cap,memory.total",
+                                       "--format=csv,noheader,nounits"], text=True, timeout=20)
+    except Exception:
+        return []
+    gpus = []
+    for line in out.strip().splitlines():
+        parts = [p.strip() for p in line.split(",")]
+        if len(parts) >= 3:
+            gpus.append({"name": parts[0], "compute_cap": parts[1], "memory_mib": parts[2]})
+    return gpus
+
+
+def default_kv_cache_dtype() -> str:
+    """FP8 KV cache needs SM89+ (Ada, Hopper, Blackwell); older parts (T4 = SM75) must use auto."""
+    gpus = gpu_info()
+    if not gpus:
+        return "auto"
+    try:
+        cc = min(float(g["compute_cap"]) for g in gpus)
+    except ValueError:
+        return "auto"
+    return "fp8" if cc >= 8.9 else "auto"
+
+
 def build_vllm_command(model_dir: str, *, port: int = 8000, served_name: str = "arc3-model",
                        max_model_len: int = 32768, gpu_mem: float = 0.90, mtp_tokens: int = 2,
-                       kv_cache_dtype: str = "fp8", max_num_seqs: int = 32, images_per_prompt: int = 16,
+                       kv_cache_dtype: Optional[str] = None, max_num_seqs: int = 32, images_per_prompt: int = 16,
                        tool_parser: Optional[str] = None, reasoning_parser: Optional[str] = None,
-                       extra: Optional[str] = None) -> list[str]:
+                       tensor_parallel: Optional[int] = None, extra: Optional[str] = None) -> list[str]:
     """Env overrides: VLLM_TOOL_PARSER, VLLM_REASONING_PARSER, VLLM_MTP_TOKENS, VLLM_KV_CACHE_DTYPE,
     VLLM_MAX_MODEL_LEN, VLLM_EXTRA_ARGS. ``images_per_prompt`` matters: the REPL agent attaches one
     image per user turn and vLLM's default limit is one image per prompt."""
     tool_parser = tool_parser or os.environ.get("VLLM_TOOL_PARSER", "qwen3_coder")  # Qwen3.8 chat template uses <function=...><parameter=...> XML
     reasoning_parser = reasoning_parser or os.environ.get("VLLM_REASONING_PARSER", "qwen3")
     mtp_tokens = int(os.environ.get("VLLM_MTP_TOKENS", mtp_tokens))
-    kv_cache_dtype = os.environ.get("VLLM_KV_CACHE_DTYPE", kv_cache_dtype)
+    kv_cache_dtype = os.environ.get("VLLM_KV_CACHE_DTYPE") or kv_cache_dtype or default_kv_cache_dtype()
     max_model_len = int(os.environ.get("VLLM_MAX_MODEL_LEN", max_model_len))
+    tensor_parallel = int(os.environ.get("VLLM_TP", tensor_parallel or 1))
     cmd = [sys.executable, "-m", "vllm.entrypoints.openai.api_server", "--model", model_dir,
            "--served-model-name", served_name, "--port", str(port), "--host", "127.0.0.1",
            "--max-model-len", str(max_model_len), "--gpu-memory-utilization", str(gpu_mem),
            "--max-num-seqs", str(max_num_seqs), "--limit-mm-per-prompt", '{"image": %d}' % images_per_prompt,
            "--enable-prefix-caching", "--trust-remote-code", "--enable-auto-tool-choice",
            "--tool-call-parser", tool_parser]
+    if tensor_parallel > 1:
+        cmd += ["--tensor-parallel-size", str(tensor_parallel)]
     if reasoning_parser and reasoning_parser != "none":
         cmd += ["--reasoning-parser", reasoning_parser]
     if kv_cache_dtype and kv_cache_dtype != "auto":
@@ -82,3 +112,33 @@ def wait_for_server(base_url: str = "http://127.0.0.1:8000/v1", *, timeout_s: fl
             pass
         time.sleep(5)
     return False
+
+
+def start_vllm_with_fallback(model_dir: str, *, log_path: str = "vllm.log", timeout_s: float = 1500.0,
+                             base_url: Optional[str] = None, **kw) -> tuple[Optional[subprocess.Popen], bool]:
+    """Start vLLM with the tuned flags; if the engine dies or is not ready in time, retry once with the
+    conservative set (no speculative decoding, auto KV cache). Returns (process, ready)."""
+    port = int(kw.get("port", 8000))
+    base_url = base_url or f"http://127.0.0.1:{port}/v1"
+    attempts = [dict(kw), {**kw, "mtp_tokens": 0, "kv_cache_dtype": "auto"}]
+    t_end = time.time() + timeout_s
+    for i, attempt in enumerate(attempts):
+        remaining = t_end - time.time()
+        if remaining < 120:
+            break
+        proc = start_vllm(model_dir, log_path=log_path, **attempt)
+        # First attempt gets at most ~60% of the budget so the fallback still has a chance.
+        budget = remaining * (0.6 if i == 0 and len(attempts) > 1 else 1.0)
+        if wait_for_server(base_url, timeout_s=budget, proc=proc):
+            return proc, True
+        try:
+            proc.terminate()
+            proc.wait(timeout=30)
+        except Exception:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+        with open(log_path, "a") as f:
+            f.write(f"\n# attempt {i + 1} failed or timed out; {'retrying with conservative flags' if i + 1 < len(attempts) else 'giving up'}\n")
+    return None, False

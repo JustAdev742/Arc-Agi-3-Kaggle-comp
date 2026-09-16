@@ -12,3 +12,6 @@ What the competition dataset ships and how Kaggle mounts things (verified from t
   bundled games offline there, so a broken package fails before a submission is spent.
 - GPU images keep the CUDA driver libs off the linker path; prepend `/usr/local/nvidia/lib64` (Duck notebook) and
   set `VLLM_USE_FLASHINFER_SAMPLER=0` (2nd/3rd place notebooks) before starting vLLM.
+- The RTX PRO 6000 accelerator id in notebook metadata is `nvidiaRtxPro6000` (2nd/3rd place notebooks). The starter kit's
+  `nvidiaRtx6000` is unknown to Kaggle and the run silently lands on 2x T4 (our diag run #2). Always check `nvidia-smi`
+  in the log before trusting a GPU run.

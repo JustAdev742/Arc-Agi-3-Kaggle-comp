@@ -77,10 +77,12 @@ pull-winners: _check-kaggle
 	$(KAGGLE) kernels pull mbmmurad/arc-agi-3-lb-0-86-3rd-place-candidate-milestone -p reference/forge -m
 	$(KAGGLE) kernels pull inversion/arc3-sample-submission-stochastic-goose -p reference/stochastic-goose -m
 
+ACCEL        ?= NvidiaRtxPro6000   # CLI override; the notebook metadata carries nvidiaRtxPro6000 too
+
 submit: notebook _check-kaggle
 	@grep -q REPLACE_WITH_YOUR_USERNAME notebooks/kernel-metadata.json && { \
 	    echo "ERROR: set your Kaggle username in notebooks/kernel-metadata.json"; exit 1; } || true
-	$(KAGGLE) kernels push -p notebooks/
+	$(KAGGLE) kernels push -p notebooks/ --accelerator $(ACCEL)
 	@echo "Pushed. Track it with: make status"
 
 status: _check-kaggle

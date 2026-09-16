@@ -76,15 +76,16 @@ def build(model_dataset: str, wheels_dataset: str, budget_min: int, smoke_s: int
         print(DIAG['versions_after'])
         """)))
     cells.append(code_cell(dedent("""\
-        from arc3.serve import start_vllm, wait_for_server, build_vllm_command
+        from arc3.serve import start_vllm_with_fallback, build_vllm_command
         vllm_proc = None; DIAG['vllm_ready'] = False
         if DIAG['pip_vllm_rc'] == 0 and MODEL_DIR and left() > 600:
             print(' '.join(build_vllm_command(MODEL_DIR)))
             t0 = time.time()
-            vllm_proc = start_vllm(MODEL_DIR, log_path='/kaggle/working/vllm.log', port=8000, served_name='arc3-model')
-            DIAG['vllm_ready'] = wait_for_server('http://127.0.0.1:8000/v1', timeout_s=min(1500, left() - 300), proc=vllm_proc)
+            vllm_proc, DIAG['vllm_ready'] = start_vllm_with_fallback(MODEL_DIR, log_path='/kaggle/working/vllm.log', port=8000,
+                                                                     served_name='arc3-model', timeout_s=min(1200, left() - 420))
             DIAG['vllm_start_s'] = round(time.time() - t0, 1)
-            print('vLLM ready:', DIAG['vllm_ready'], 'after', DIAG['vllm_start_s'], 's')
+            DIAG['vllm_attempts'] = open('/kaggle/working/vllm.log').read().count('$ ')
+            print('vLLM ready:', DIAG['vllm_ready'], 'after', DIAG['vllm_start_s'], 's, attempts', DIAG['vllm_attempts'])
             if not DIAG['vllm_ready']:
                 print(open('/kaggle/working/vllm.log').read()[-6000:])
         else:
@@ -151,7 +152,7 @@ def build(model_dataset: str, wheels_dataset: str, budget_min: int, smoke_s: int
         "metadata": {
             "kernelspec": {"language": "python", "display_name": "Python 3", "name": "python3"},
             "language_info": {"name": "python", "mimetype": "text/x-python", "file_extension": ".py", "pygments_lexer": "ipython3"},
-            "kaggle": {"accelerator": "nvidiaRtx6000", "isInternetEnabled": False, "isGpuEnabled": True,
+            "kaggle": {"accelerator": "nvidiaRtxPro6000", "isInternetEnabled": False, "isGpuEnabled": True,
                        "language": "python", "sourceType": "notebook"},
         },
         "nbformat_minor": 4, "nbformat": 4, "cells": cells,
@@ -162,7 +163,7 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--model-dataset", default="saltb0x/qwen3-8-27b-fp8")
     p.add_argument("--wheels-dataset", default="saltb0x/arc3-vllm-wheelhouse-v0271-cu129")
-    p.add_argument("--budget-min", type=int, default=30)
+    p.add_argument("--budget-min", type=int, default=40)
     p.add_argument("--smoke-s", type=int, default=300)
     p.add_argument("--username", default="scottmahony")
     p.add_argument("--slug", default="arc3-gpu-diag")
