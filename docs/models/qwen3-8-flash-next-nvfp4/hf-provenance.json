@@ -1,8 +1,9 @@
 {
   "repo": "nvidia/Qwen3.8-Flash-Next-NVFP4",
   "revision": "fc694b54fb0174e0913e6adf86691ef85a4ead47",
-  "downloaded": null,
+  "downloaded": "2026-09-16",
   "license": "other",
   "by": "arc3 tooling (JustAdev742/Arc-Agi-3-Kaggle-comp)",
-  "note": "132.7 GB, 25 files, largest 53.7 GB (model-fp8-mtp-ple.safetensors)"
+  "note": "132.7 GB, 25 files, largest 53.7 GB (model-fp8-mtp-ple.safetensors)",
+  "method": "streamed HF -> Kaggle by scripts/stream_hf_to_kaggle.py (no local copy)"
 }
