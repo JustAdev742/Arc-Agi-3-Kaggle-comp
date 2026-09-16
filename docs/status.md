@@ -188,6 +188,9 @@ research log exp-006a.
   First validation-split run of the base config pushed 19:22 as `arc3-eval-val-a` (exp-011v).
 - exp-014 (medium effort, events line off) finished 19:23: **0.631, 7 levels**. Effort ablation closed: adaptive
   low (exp-011 config) stays; medium's three runs average 0.92 vs 1.30. exp-015 (earlier raise to medium) pushed 19:27.
+- **Validation split, first run (exp-011v, 19:49): val 0.794, 1/41 levels** (sp80 L1). Dev 1.30 vs val 0.79: dev has
+  been tuned on, val has not; g50t had a perfect world model and no level (goal inference, like dc22 on dev).
+  exp-016 (base config on all 25 games) pushed 19:52 as `arc3-eval-all-a`.
 - 14:09: exp-010c (`arc3-eval-dev-council-c` v1, harness 7de7f95) running; exp-004 v2 queued. Queue after them, in
   order: exp-011b (the exp-011 notebook unchanged, per the noise rule), exp-012 (harness 7de7f95: events line in every
   tool output, single results iterate, ascii(region) degrades to tiles, role always present), then a private Save &

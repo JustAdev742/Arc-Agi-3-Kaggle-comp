@@ -310,6 +310,18 @@ Decision: submission config = exp-011's (low effort, raised to medium on stagnat
           slot is spare: raise to medium earlier (stagnation_actions 3 instead of 6) to buy medium's extra levels
           without paying its action cost everywhere (exp-015).
 
+## 2026-09-16 · exp-011v · base config (adaptive low effort, events line off, harness 4647ba8) on the VALIDATION split · first held-out number
+Measured: val 0.794 (runs/kaggle-repl-val-011, kernel arc3-eval-val-a v1; 6 games, 1200 s each, 6 workers; ran 19:21-19:49).
+          Levels 1/41: sp80 L1 in 39 actions (at the cap); actions 643; 0 model errors. g50t: 30/30 world-model
+          predictions correct and no level (the same failure as dc22 on dev: a correct model of the mechanics without the
+          goal); cn04 8/10 correct; r11l 473 actions without a level; lf52 (10 levels) and sc25 nothing.
+          For scale: the code-only rules agent scored the same 0.794 on val (exp-006b, r11l L1), and the dev pair of this
+          config is 1.229 / 1.372. The dev number carries a day of tuning on dev transcripts; val does not.
+Notes:    val transcripts are not used for harness changes (the split exists to stay untuned). The gap says the next
+          gains must come from general mechanisms, above all goal inference when the world model is already right
+          (dc22 on dev is the training case for it), not from more per-game fixes. exp-016 = the base config on all 25
+          games in one run (dev third sample, val second sample) is next.
+
 ## 2026-09-16 · submission notebook check · private Save & Run All on the RTX PRO 6000 · PASSED
 Measured: kernel `arc-prize-2026-arc-agi-3-arc3-agent` v2 (private), harness 699825b, REPL agent, datasets FP8 27B + wheelhouse.
           vLLM ready on the first attempt (MTP + FP8 KV); offline smoke on ls20 + vc33 at 300 s/game, workers 1: vc33 L1
