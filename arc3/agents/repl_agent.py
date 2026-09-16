@@ -68,6 +68,9 @@ class Stats:
     wm_checked: int = 0
     wm_matched: int = 0
     wm_errors: int = 0
+    rules_fits: int = 0
+    rules_time_s: float = 0.0
+    rules_coverage: float = 0.0
     latencies: list[float] = field(default_factory=list)
 
 
@@ -101,6 +104,7 @@ class ReplAgent(Agent):
         ascii_cfg = c.get("ascii", "auto")  # auto: only when no image is attached
         self.use_ascii = (not self.use_image) if ascii_cfg == "auto" else bool(ascii_cfg)
         self.objects_in_prompt = int(c.get("objects_in_prompt", 16))
+        self.auto_rules_in_prompt = bool(c.get("auto_rules_in_prompt", True))
         self.history_frames = int(c.get("history_frames", 6))
         self.idle_limit = int(c.get("idle_turns_before_fallback", 3))
         self.fallback_burst = int(c.get("fallback_burst", 2))
@@ -218,7 +222,9 @@ class ReplAgent(Agent):
             self.tracker_level = after.levels_completed
             summary = f"{action} -> changed {d.changed} cells"
         else:
-            rec = self.tracker.update(after.grid, str(action).split("(")[0])
+            aid = int(action.action.value)
+            label: Any = ("CLICK", int(action.x or 0), int(action.y or 0)) if aid == 6 else ACTION_NAMES.get(aid, str(action))
+            rec = self.tracker.update(after.grid, label)
             summary = Tracker.describe({**rec, "action": str(action)}, self.tracker)
         self.turn_log.append(summary + (" LEVEL COMPLETED" if res["level_completed"] else "") + (" GAME OVER" if after.game_over else ""))
         self.fallback.observe(action, before, after)
@@ -369,6 +375,9 @@ class ReplAgent(Agent):
                 parts.append(f"Avatar: #{av['id']} moves with keys {av['keymap']}")
         if getattr(self, "wm_summary", ""):
             parts.append(self.wm_summary)
+        rs = self._rules_summary()
+        if rs:
+            parts.append(rs)
         if self.notes:
             parts.append("Your notes:\n- " + "\n- ".join(self.notes[-20:]))
         if self.use_ascii:
@@ -554,6 +563,47 @@ class ReplAgent(Agent):
             self.st.model_errors += 1
         finally:
             self.action_q.put(TURN_DONE)
+
+    def _rules_summary(self) -> str:
+        """Auto-fitted rules for the level, shown every turn (time-boxed): the model reads coverage and the
+        unexplained items without spending a call, and knows when plan_rules() is worth calling."""
+        if not self.auto_rules_in_prompt:
+            return ""
+        t = self.tracker
+        n = len(t.actions)
+        if n < 3:
+            return ""
+        cache = getattr(self, "_rules_cache", None)
+        if cache and cache[0] == n:
+            return cache[1]
+        last_cost = getattr(self, "_rules_cost", 0.0)
+        skip = getattr(self, "_rules_skip", 0)
+        if last_cost > 2.5 and skip < 3:  # expensive fits: refresh every 4th turn only
+            self._rules_skip = skip + 1
+            return cache[1] if cache else ""
+        self._rules_skip = 0
+        t0 = time.time()
+        try:
+            from .. import dsl
+            frames, actions, unders = t.compound_frames()[-121:], t.actions[-120:], t.unders[-121:]
+            log = dsl.make_log(frames, actions, unders, t.bg)
+            rules, rep = dsl.auto_rules(log, ignore_ids=t.hud_ids())
+            self.st.rules_fits += 1
+            self.st.rules_coverage = float(rep["coverage"])
+            txt = "; ".join(r.describe() for r in rules[:6]) or "none"
+            un = rep["unexplained"][:3]
+            un_txt = "; ".join(f"#{u['id']} c{u['color']} {u['event']} on {u['action']}" for u in un)
+            line = (f"Rules (auto-fitted from {rep['transitions']} transitions, coverage {rep['coverage']:.2f}"
+                    f"{', contradictions ' + str(rep['contradictions']) if rep['contradictions'] else ''}): {txt}."
+                    + (f" Unexplained: {un_txt}." if un_txt else " Every observed event is explained: set_model(rules_predictor()) and plan_rules(goal) apply.")
+                    )
+        except Exception as e:  # noqa: BLE001
+            self.log.warning("rules summary failed: %s", e)
+            line = ""
+        self._rules_cost = time.time() - t0
+        self.st.rules_time_s += self._rules_cost
+        self._rules_cache = (n, line)
+        return line
 
     @staticmethod
     def _tool_text(r: dict[str, Any]) -> str:

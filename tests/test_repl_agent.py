@@ -196,17 +196,22 @@ def test_context_overflow_evicts_and_retries_without_counting_an_error():
         env.close()
 
 
-def test_turn_log_uses_entity_events():
-    mock = MockClient([MockClient.tool("act('RIGHT')"), MockClient.say("ok"), MockClient.tool("act('LEFT')"), MockClient.say("ok")])
+def test_turn_log_uses_entity_events_and_rules_summary():
+    mock = MockClient([MockClient.tool("act('RIGHT')"), MockClient.say("ok"), MockClient.tool("act('LEFT', 'UP', 'DOWN')"), MockClient.say("ok"),
+                       MockClient.tool("act('RIGHT')"), MockClient.say("ok")])
     arc = make_arcade("environment_files")
     env = LocalEnv(arc, "ls20")
     ctx = AgentContext(game_id="ls20", deadline=time.time() + 300, config={"client": mock, "image": False})
     agent = get("repl")(ctx)
     try:
-        run(agent, env, 2)
+        run(agent, env, 5)
         second_turn_user = [m for m in mock.calls[2] if m["role"] == "user"][-1]["content"]
         assert "Since your last turn:" in second_turn_user and "moved (" in second_turn_user, second_turn_user[:400]
         assert "Entities (persistent ids" in second_turn_user
+        third_turn_user = [m for m in mock.calls[4] if m["role"] == "user"][-1]["content"]
+        assert "Avatar: #" in third_turn_user, third_turn_user[:600]  # key labels reach the parent tracker
+        assert "Rules (auto-fitted from 4 transitions" in third_turn_user and "move[colour" in third_turn_user, third_turn_user[:800]
+        assert agent.stats()["rules_fits"] >= 1
     finally:
         agent.close()
         env.close()
