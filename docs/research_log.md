@@ -184,3 +184,13 @@ Notes:    the per-turn rules line did not change how the model plays; the rules-
           Method with all helpers; its repeat (exp-009b) will measure run-to-run noise before any further keep/revert.
           Follow-up: make goal_candidates() say "no level completed yet" instead of [] and steer the model away from it
           on level 1 (done in the prompt for exp-011).
+
+## 2026-09-16 · exp-009 · navigation-first Method + all helpers (rules v6, per-turn rules line, goal hints, probe suggestions, optimistic planners, tile map, first-step nudge, rules-agent fallback) · KEPT (pending the noise repeat)
+Measured: dev 0.836 (runs/kaggle-repl-dev-009, kernel arc3-eval-dev-d v1, harness 9c22b80, same settings; ran 09:55-11:03).
+          Levels 6/142: ar25 L1, lp85 L1, ls20 L1, sb26 L1, su15 L1, vc33 L1 (5 actions); actions 987; 0 errors.
+          Transcripts: a planner in 5 games, set_model in 5 (dc22: 49/49 predictions correct, level still not solved),
+          auto_rules in 7; 2.15 inspection-only calls per turn (exp-005 2.19), mean latency 33 s.
+          Five arms: control 0.56 (5 levels) < exp-008 0.73 (5) < exp-007 0.84 (5) = exp-009 0.84 (6) < exp-005 1.11 (8).
+Notes:    every harness arm beats the control; among them the order is inside single-run noise. exp-009b (the same
+          notebook pushed again as kernel arc3-eval-dev-e, 11:06) measures that noise. The per-call cost has not moved
+          (about 35 calls per game); the ascii() tile-map change and the stagnation/level notices came after this build.
