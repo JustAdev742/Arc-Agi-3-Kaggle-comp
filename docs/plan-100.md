@@ -58,6 +58,9 @@ Only the final step (3.6/3.7) sends actions. Everything else runs in the sandbox
 - Everything is code; the model reads summaries, never re-derives them.
 
 ### 3.2 Executable world model (EWM) by program synthesis (the central mechanism)
+
+Status 2026-09-16: the checking half exists (`set_model(predict)` in `arc3/sandbox.py`: per-action verification,
+batch stop on mismatch, stats in every turn). The synthesis loop with counter-examples over the full log does not.
 - The agent writes `predict(state, action) -> state'` as Python over the entity representation, not over
   raw pixels. Proposals come from the model; the harness verifies each proposal against the *entire*
   transition log of the level (and the game) and returns counter-examples (step, predicted vs actual).
