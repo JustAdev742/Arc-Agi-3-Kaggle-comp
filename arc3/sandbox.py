@@ -114,11 +114,14 @@ GOALS = {}
 def symlog(all_levels=False):
     """This level's transitions as entity-level records (before entities, action, after entities)."""
     t = TRK["t"]
-    log = _dsl.make_log(t.frames, t.actions)
+    log = _dsl.make_log(t.compound_frames(), t.actions, t.unders, t.bg)
     if all_levels:
         for lv in ARCH["levels"]:
-            log = _dsl.make_log(lv["frames"], lv["actions"]) + log
+            log = _dsl.make_log(lv["frames"], lv["actions"], lv.get("unders"), lv.get("bg")) + log
     return log
+
+def _hud_ids():
+    return TRK["t"].hud_ids()
 
 def _rule_view(rule, score=None):
     d = rule.to_dict()
@@ -141,7 +144,7 @@ def auto_rules(all_levels=False):
     'unexplained': [...], 'contradictions'}. coverage 1.0 = every observed event is explained: then
     set_model(rules_predictor()) and plan with plan_rules(). Otherwise the unexplained items say what to probe."""
     log = symlog(all_levels)
-    rules, rep = _dsl.auto_rules(log)
+    rules, rep = _dsl.auto_rules(log, ignore_ids=_hud_ids())
     RULES["rules"] = rules
     RULES["report"] = rep
     RULES["level"] = LOG["level"]
@@ -172,7 +175,7 @@ def rules(rules=None):
 
 def explain_rules(rules=None, all_levels=False):
     """Coverage report of a rule set against the log (default: the current rules)."""
-    rep = _dsl.explain(list(rules) if rules is not None else RULES["rules"], symlog(all_levels))
+    rep = _dsl.explain(list(rules) if rules is not None else RULES["rules"], symlog(all_levels), ignore_ids=_hud_ids())
     rep["unexplained"] = [{k: v for k, v in u.items() if k != "observed"} | {"observed": _obs_text(u.get("observed"))} for u in rep["unexplained"]]
     return rep
 
@@ -182,7 +185,8 @@ def rules_predictor(rules=None):
     if not rs:
         raise ValueError("no rules: call auto_rules() first")
     t = TRK["t"]
-    return _dsl.predictor(rs, t.shapes, t.bg if t.bg is not None else 0, ref=lambda: t.frames[-1] if t.frames else None)
+    return _dsl.predictor(rs, t.shapes, t.bg if t.bg is not None else 0, ref=lambda: t.compound_frames()[-1] if t.frames else None,
+                          under=lambda: t.under)
 
 def _goal_fn(goal):
     if callable(goal):
@@ -226,7 +230,9 @@ def plan_rules(goal, rules=None, max_depth=200, max_nodes=40000):
     rs = list(rules) if rules is not None else RULES["rules"]
     if not rs:
         raise ValueError("no rules: call auto_rules() first")
-    frame = TRK["t"].frames[-1]
+    t = TRK["t"]
+    frame = t.compound_frames()[-1]
+    _dsl.set_terrain(rs, t.under, t.bg)
     acts = _dsl.planning_actions(rs, frame)
     return _dsl.plan(rs, frame, _goal_fn(goal), acts, max_nodes=max_nodes, max_depth=max_depth)
 
@@ -245,12 +251,14 @@ def _archive_level(final_action):
     if not t.frames:
         return
     final = None
+    frames = t.compound_frames()
     try:
-        final = _dsl.simulate(t.frames[-1], final_action, RULES["rules"]) if RULES["rules"] else None
+        _dsl.set_terrain(RULES["rules"], t.under, t.bg)
+        final = _dsl.simulate(frames[-1], final_action, RULES["rules"]) if RULES["rules"] else None
     except Exception:  # noqa: BLE001
         final = None
-    ARCH["levels"].append({"level": LOG["level"], "frames": list(t.frames), "actions": list(t.actions),
-                           "final_action": final_action, "final_frame": final})
+    ARCH["levels"].append({"level": LOG["level"], "frames": list(frames), "actions": list(t.actions), "unders": list(t.unders),
+                           "bg": t.bg, "final_action": final_action, "final_frame": final})
 
 def transitions(last_n=None):
     """The level's recorded (before, action, after) triples, oldest first (lost if the REPL restarts)."""

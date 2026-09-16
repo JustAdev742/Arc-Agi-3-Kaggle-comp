@@ -92,3 +92,25 @@ Measured: **dev 0.56**; 5/142 levels: ar25 L1 in 20 actions (human 32, cap), lp8
 Notes:    exp-003 solved tu93 and re86 but not ar25; exp-003c the reverse: single 20-min runs are noisy at the level of
           1-2 levels. Deltas smaller than ~0.3 on dev will not be trusted without a repeat. The model still never uses
           set_model/verify_model on its own; exp-005 tests the tracker + planner + prescribed procedure.
+
+## 2026-09-16 · exp-006a · rule library + fitter over the symbolic transition log, code-only coverage probe · BASELINE (gate metric)
+Why:      plan-100 component B. The model never wrote a verified world model on its own (exp-003/003c). Code can enumerate
+          rule parameterisations and verify them against every transition; the model should only choose rule types.
+What:     arc3/dsl.py (Move with walkable/blocking colours and a required colour, Push, Drift, Vanish, OnOverlap, Recolor,
+          OnClick, Counter; fit/auto_rules/explain/simulate/predictor/plan/goal_predicates), tracker: occlusion filtering,
+          static layer, compound sprites, HUD strips that shift along their axis; sandbox helpers auto_rules/plan_rules/
+          rules_predictor/goal_candidates; prompt Method steps 3-5.
+Measured: scripts/rule_coverage.py, fixed blind probe (60 actions on level 1: keys in pairs, ACT, clicks on entity
+          centres), fraction of observed entity events explained by the fitted rule set (HUD excluded):
+            first version           mean 0.103 over 25 (runs/rule-coverage/probe_all.log, commit 032cf88)
+            + occlusion, cells, requires, compound sprites, onclick:
+                                    mean 0.230 over 25; dev 0.279, val 0.074 (runs/rule-coverage/summary.json, probe_all_v2.log)
+            per game >= 0.5: ar25 1.00, re86 0.89, dc22 0.70, ka59 0.51, ls20 0.50, sb26 0.50
+            0.0: lp85, m0r0, s5i5, sp80, tr87, vc33 (click games the blind probe barely moves, and 'resized' counters)
+          CPU only: play + fit under 4 s per game. No GPU run yet: exp-005 (tracker + planner) is still queued on Kaggle.
+Notes:    this is a lower bound (blind probe, one level) and not a score. It is the exp-006 gate metric: the fraction of
+          observed mechanics the library can express. Remaining unexplained kinds: 'resized' (bars/counters that change by
+          varying amounts, growth bars), 'moved' on click games (a marker jumping to the clicked column: OnClick 'goto'),
+          scrolling worlds (sk48: everything but the avatar moves; needs a class exclusion), and 'appeared' (spawns).
+          Lessons: docs/lessons/0008-terrain-vs-sprites.md. Next: exp-005 result; then the same probe driven by the model
+          (does auto_rules() + plan_rules() reduce actions per solved level on ls20/re86/ar25/dc22?).

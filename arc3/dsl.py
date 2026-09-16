@@ -145,6 +145,8 @@ class Transition:
     before: Frame
     action: Any
     after: Frame
+    under: Optional[np.ndarray] = field(default=None, repr=False)  # static layer at 'before' (terrain colour per cell)
+    bg: Optional[int] = None
     _b: dict[int, Ent] = field(default_factory=dict, repr=False)
     _a: dict[int, Ent] = field(default_factory=dict, repr=False)
 
@@ -167,10 +169,13 @@ class Transition:
         return [e for e in self.after if e.id not in self._b]
 
 
-def make_log(frames: list[Frame], actions: list[Any]) -> list[Transition]:
-    """Transitions from aligned frames/actions (frames[i] --actions[i]--> frames[i+1])."""
+def make_log(frames: list[Frame], actions: list[Any], unders: Optional[list[Optional[np.ndarray]]] = None,
+             bg: Optional[int] = None) -> list[Transition]:
+    """Transitions from aligned frames/actions (frames[i] --actions[i]--> frames[i+1]); ``unders[i]`` is the
+    static layer at frame i (cell-level terrain, used for walkable/blocking colours)."""
     n = min(len(actions), len(frames) - 1)
-    return [Transition(frames[i], actions[i], frames[i + 1]) for i in range(n)]
+    return [Transition(frames[i], actions[i], frames[i + 1], unders[i] if unders and i < len(unders) else None, bg)
+            for i in range(n)]
 
 
 # ---------------------------------------------------------------------------------------------- classes
@@ -285,10 +290,38 @@ class Rule:
         return f"<{self.describe()}>"
 
 
-def _blocked(target: Ent, others: Iterable[Ent], blocked_by: Any, dx: int, dy: int) -> bool:
+def target_cells(e: Ent, dx: int, dy: int, under: np.ndarray) -> Optional[np.ndarray]:
+    """Colours of the static layer under the entity's cells after a (dx, dy) shift; None when off-frame."""
+    x0, y0 = e.x0 + dx, e.y0 + dy
+    h, w = under.shape
+    if x0 < 0 or y0 < 0 or x0 + e.w > w or y0 + e.h > h:
+        return None
+    region = under[y0:y0 + e.h, x0:x0 + e.w]
+    m = e._mask()
+    return region[m] if m is not None else region.reshape(-1)
+
+
+def _blocked(target: Ent, others: Iterable[Ent], blocked_by: Any, dx: int, dy: int,
+             under: Optional[np.ndarray] = None, walkable: Optional[frozenset] = None, bg: Optional[int] = None) -> bool:
+    """Is the move blocked? With a static layer the check is per cell: walkable = the target cells must all
+    have a colour in the set; blocked_by = no target cell may have a colour in the set ('any' = any non-background
+    colour). Without one, other entities' masks stand in for the terrain."""
     x0, y0 = target.x0 + dx, target.y0 + dy
     if x0 < 0 or y0 < 0 or x0 + target.w > N or y0 + target.h > N:
         return True
+    if under is not None:
+        cells = target_cells(target, dx, dy, under)
+        if cells is None:
+            return True
+        if walkable is not None:
+            return not all(int(c) in walkable for c in np.unique(cells))
+        if blocked_by is None:
+            return False
+        if blocked_by == "any":
+            return bool((cells != (bg if bg is not None else -1)).any())
+        return any(int(c) in blocked_by for c in np.unique(cells))
+    if walkable is not None:
+        return False  # no terrain information: cannot judge, assume free
     if blocked_by is None:
         return False
     for o in others:
@@ -304,10 +337,21 @@ class Move(Rule):
     entity whose colour is in ``blocked_by`` ('any' = every other entity, None = nothing blocks)."""
     kind = "move"
 
-    def __init__(self, cls: Cls, keymap: dict[str, tuple[int, int]], blocked_by: Any = "any"):
+    def __init__(self, cls: Cls, keymap: dict[str, tuple[int, int]], blocked_by: Any = "any",
+                 walkable: Optional[Iterable[int]] = None, requires: Optional[int] = None):
         self.cls = cls
         self.keymap = {k: (int(v[0]), int(v[1])) for k, v in keymap.items()}
         self.blocked_by = blocked_by if blocked_by in (None, "any") else frozenset(int(c) for c in blocked_by)
+        self.walkable = None if walkable is None else frozenset(int(c) for c in walkable)
+        self.requires = requires  # a colour that must be present somewhere in the frame (e.g. an energy bar)
+        self.under: Optional[np.ndarray] = None  # static layer used by apply() when simulating (set by the planner)
+        self.bg: Optional[int] = None
+
+    def enabled(self, frame: Frame) -> bool:
+        return self.requires is None or any(e.color == self.requires for e in frame)
+
+    def blocked(self, e: Ent, frame: Frame, dx: int, dy: int, under: Optional[np.ndarray], bg: Optional[int]) -> bool:
+        return _blocked(e, frame, self.blocked_by, dx, dy, under, self.walkable, bg)
 
     def delta(self, action: Any) -> Optional[tuple[int, int]]:
         k = action_kind(action)
@@ -322,8 +366,9 @@ class Move(Rule):
         if d is None:
             return {}
         out = {}
+        on = self.enabled(tr.before)
         for e in self.cls.select(tr.before):
-            if d == (0, 0) or _blocked(e, tr.before, self.blocked_by, *d):
+            if d == (0, 0) or not on or self.blocked(e, tr.before, d[0], d[1], tr.under, tr.bg):
                 out[e.id] = Claim(moved=(0, 0))
             else:
                 out[e.id] = Claim(moved=d)
@@ -331,11 +376,11 @@ class Move(Rule):
 
     def apply(self, before: Frame, action: Any, frame: Frame) -> Frame:
         d = self.delta(action)
-        if not d:
+        if not d or not self.enabled(frame):
             return frame
         out = []
         for e in frame:
-            if self.cls.matches(e) and not _blocked(e, frame, self.blocked_by, *d):
+            if self.cls.matches(e) and not self.blocked(e, frame, d[0], d[1], self.under, self.bg):
                 out.append(e.moved(*d))
             else:
                 out.append(e)
@@ -343,11 +388,16 @@ class Move(Rule):
 
     def describe(self) -> str:
         km = ", ".join(f"{k}:({v[0]:+d},{v[1]:+d})" for k, v in self.keymap.items())
-        b = "nothing" if self.blocked_by is None else ("any entity" if self.blocked_by == "any" else f"colours {sorted(self.blocked_by)}")
-        return f"move[{self.cls}] keys {{{km}}} blocked by {b}"
+        if self.walkable is not None:
+            b = f"only onto colours {sorted(self.walkable)}"
+        else:
+            b = "blocked by " + ("nothing" if self.blocked_by is None else ("any non-background colour" if self.blocked_by == "any" else f"colours {sorted(self.blocked_by)}"))
+        req = f" while colour {self.requires} exists" if self.requires is not None else ""
+        return f"move[{self.cls}] keys {{{km}}} {b}{req}"
 
     def to_dict(self) -> dict[str, Any]:
-        return {**super().to_dict(), "cls": str(self.cls), "keymap": self.keymap,
+        return {**super().to_dict(), "cls": str(self.cls), "keymap": self.keymap, "requires": self.requires,
+                "walkable": None if self.walkable is None else sorted(self.walkable),
                 "blocked_by": None if self.blocked_by is None else ("any" if self.blocked_by == "any" else sorted(self.blocked_by))}
 
 
@@ -362,7 +412,7 @@ class Push(Rule):
         self.pushable = pushable
         self.blocked_by = blocked_by if blocked_by in (None, "any") else frozenset(int(c) for c in blocked_by)
 
-    def _resolve(self, frame: Frame, action: Any) -> dict[int, tuple[int, int]]:
+    def _resolve(self, frame: Frame, action: Any, under: Optional[np.ndarray] = None, bg: Optional[int] = None) -> dict[int, tuple[int, int]]:
         """id -> displacement for movers and pushed entities this action."""
         d = self.move.delta(action)
         moves: dict[int, tuple[int, int]] = {}
@@ -377,7 +427,7 @@ class Push(Rule):
                 continue
             hit = [e for e in frame if e.id != m.id and self.pushable.matches(e) and e.box_overlaps(x0, y0, m.w, m.h)]
             if not hit:
-                if _blocked(m, frame, self.move.blocked_by, dx, dy):
+                if self.move.blocked(m, frame, dx, dy, under, bg):
                     moves[m.id] = (0, 0)
                 else:
                     moves[m.id] = (dx, dy)
@@ -386,7 +436,7 @@ class Push(Rule):
             ok = True
             for p in hit:
                 others = [e for e in frame if e.id not in (p.id, m.id)]
-                if _blocked(p, others, self.blocked_by, dx, dy):
+                if _blocked(p, others, self.blocked_by, dx, dy, under, None, bg):
                     ok = False
             if ok:
                 moves[m.id] = (dx, dy)
@@ -402,10 +452,10 @@ class Push(Rule):
         return moves
 
     def claims(self, tr: Transition) -> dict[int, Claim]:
-        return {eid: Claim(moved=d) for eid, d in self._resolve(tr.before, tr.action).items()}
+        return {eid: Claim(moved=d) for eid, d in self._resolve(tr.before, tr.action, tr.under, tr.bg).items()}
 
     def apply(self, before: Frame, action: Any, frame: Frame) -> Frame:
-        moves = self._resolve(frame, action)
+        moves = self._resolve(frame, action, self.move.under, self.move.bg)
         return tuple(e.moved(*moves[e.id]) if e.id in moves else e for e in frame)
 
     def describe(self) -> str:
@@ -567,6 +617,90 @@ class Recolor(Rule):
         return f"recolor[{self.cls}] {self.c0}{arrow}{self.c1} on {self.trigger}"
 
 
+class OnClick(Rule):
+    """Clicking inside an entity of ``button`` affects every entity of ``target``: ('move', dx, dy), 'vanish' or
+    ('recolor', c). Clicks elsewhere do nothing to the targets."""
+    kind = "onclick"
+
+    def __init__(self, button: Cls, target: Cls, effect: Any):
+        self.button, self.target, self.effect = button, target, effect
+        self.cls = target
+
+    def _fires(self, frame: Frame, action: Any) -> bool:
+        xy = click_xy(action)
+        return xy is not None and any(b.contains(*xy) for b in self.button.select(frame))
+
+    def claims(self, tr: Transition) -> dict[int, Claim]:
+        on = self._fires(tr.before, tr.action)
+        out = {}
+        for e in self.target.select(tr.before):
+            if self.effect == "vanish":
+                out[e.id] = Claim(gone=on)
+            elif self.effect[0] == "move":
+                out[e.id] = Claim(moved=(self.effect[1], self.effect[2]) if on else (0, 0))
+            elif self.effect[0] == "recolor":
+                c = int(self.effect[1])
+                out[e.id] = Claim(recolor=(e.color, c) if (on and e.color != c) else None)
+        return out
+
+    def apply(self, before: Frame, action: Any, frame: Frame) -> Frame:
+        if not self._fires(frame, action):
+            return frame
+        if self.effect == "vanish":
+            return tuple(e for e in frame if not self.target.matches(e))
+        if self.effect[0] == "move":
+            return tuple(e.moved(self.effect[1], self.effect[2]) if self.target.matches(e) else e for e in frame)
+        c = int(self.effect[1])
+        return tuple(e.recolored(c) if self.target.matches(e) else e for e in frame)
+
+    def describe(self) -> str:
+        eff = self.effect if isinstance(self.effect, str) else (f"move ({self.effect[1]:+d},{self.effect[2]:+d})" if self.effect[0] == "move" else f"recolour to {self.effect[1]}")
+        return f"onclick[{self.button}] -> {self.target}: {eff}"
+
+
+def fit_onclick(log: list[Transition], max_rules: int = 6) -> list[tuple[OnClick, Score]]:
+    out: list[tuple[OnClick, Score]] = []
+    clicks = [tr for tr in log if click_xy(tr.action) is not None]
+    if not clicks:
+        return out
+    # buttons: classes of entities that were clicked when something else changed
+    buttons: list[Cls] = []
+    seen: set[tuple] = set()
+    effects: dict[tuple, set] = defaultdict(set)  # (target colour, target shape or None) -> effects observed
+    for tr in clicks:
+        x, y = click_xy(tr.action)  # type: ignore[misc]
+        hit = [b for b in tr.before if b.contains(x, y)]
+        changed = False
+        for e in tr.before:
+            o = tr.obs(e.id)
+            if o is None or o.trivial() or any(e.id == b.id for b in hit):
+                continue
+            changed = True
+            for key in ((e.color, None), (e.color, e.shape)):
+                if o.gone:
+                    effects[key].add("vanish")
+                elif o.moved != (0, 0):
+                    effects[key].add(("move", o.moved[0], o.moved[1]))
+                elif o.recolor:
+                    effects[key].add(("recolor", o.recolor[1]))
+        if changed:
+            for b in hit:
+                for c in (Cls(color=b.color), Cls(color=b.color, shape=b.shape)):
+                    k = (c.color, c.shape)
+                    if k not in seen:
+                        seen.add(k)
+                        buttons.append(c)
+    for b in buttons:
+        for (color, shape), effs in effects.items():
+            for eff in effs:
+                rule = OnClick(b, Cls(color=color, shape=shape), eff)
+                s = score_rule(rule, log)
+                if s.ok() and s.support > 0:
+                    out.append((rule, s))
+    out.sort(key=lambda rs: -rs[1].support)
+    return out[:max_rules]
+
+
 class CounterRule(Rule):
     """A HUD-like entity of ``cls`` shrinks by ``per`` cells on every action (or every key action)."""
     kind = "counter"
@@ -593,7 +727,7 @@ class CounterRule(Rule):
                      for e in frame)
 
     def describe(self) -> str:
-        return f"counter[{self.cls}] -{self.per} cells per {'key' if self.keys_only else 'action'}"
+        return f"counter[{self.cls}] {-self.per:+d} cells per {'key' if self.keys_only else 'action'}"
 
 
 # ---------------------------------------------------------------------------------------------- verification
@@ -623,9 +757,11 @@ def score_rule(rule: Rule, log: list[Transition], max_examples: int = 5) -> Scor
     return s
 
 
-def explain(rules: list[Rule], log: list[Transition], max_items: int = 12) -> dict[str, Any]:
+def explain(rules: list[Rule], log: list[Transition], max_items: int = 12, ignore_ids: Iterable[int] = ()) -> dict[str, Any]:
     """Coverage of a rule set: contradictions, events explained, transitions fully explained, and the first
-    unexplained (transition, entity, event) items: the counter-examples the model should look at."""
+    unexplained (transition, entity, event) items: the counter-examples the model should look at.
+    ``ignore_ids`` (e.g. HUD strips) are left out of the accounting."""
+    skip = set(ignore_ids)
     total_events = explained = contradictions = full = 0
     unexplained: list[dict[str, Any]] = []
     contra: list[dict[str, Any]] = []
@@ -635,7 +771,7 @@ def explain(rules: list[Rule], log: list[Transition], max_items: int = 12) -> di
         for r in rules:
             for eid, cl in r.claims(tr).items():
                 o = tr.obs(eid)
-                if o is None:
+                if o is None or eid in skip:
                     continue
                 if cl.contradicts(o):
                     bad = True
@@ -646,6 +782,8 @@ def explain(rules: list[Rule], log: list[Transition], max_items: int = 12) -> di
                     claimed[eid] |= cl.events()
         missing = False
         for e in tr.before:
+            if e.id in skip:
+                continue
             o = tr.obs(e.id)
             ev = obs_events(o) if o else set()
             total_events += len(ev)
@@ -656,6 +794,8 @@ def explain(rules: list[Rule], log: list[Transition], max_items: int = 12) -> di
                 if len(unexplained) < max_items:
                     unexplained.append({"index": i, "action": tr.action, "id": e.id, "color": e.color, "event": kind, "observed": o})
         for e in tr.appeared():
+            if e.id in skip:
+                continue
             total_events += 1
             missing = True
             if len(unexplained) < max_items:
@@ -682,7 +822,7 @@ def _key_deltas(log: list[Transition], cls: Cls) -> dict[str, Counter]:
 
 
 def _bump_colors(log: list[Transition], cls: Cls, keymap: dict[str, tuple[int, int]]) -> Counter:
-    """Colours found in the target box on key presses where the class stayed put."""
+    """Colours found in the target box on key presses where the class stayed put (entity-level fallback)."""
     c: Counter = Counter()
     for tr in log:
         k = action_kind(tr.action)
@@ -696,6 +836,55 @@ def _bump_colors(log: list[Transition], cls: Cls, keymap: dict[str, tuple[int, i
                     if other.id != e.id and other.box_overlaps(e.x0 + dx, e.y0 + dy, e.w, e.h):
                         c[other.color] += 1
     return c
+
+
+def _cell_evidence(log: list[Transition], cls: Cls, keymap: dict[str, tuple[int, int]]) -> tuple[set[int], set[int], bool]:
+    """(colours under successful moves, colours under failed in-frame moves, any static layer seen)."""
+    succ: set[int] = set()
+    fail: set[int] = set()
+    seen = False
+    for tr in log:
+        if tr.under is None:
+            continue
+        seen = True
+        k = action_kind(tr.action)
+        if k not in keymap:
+            continue
+        dx, dy = keymap[k]
+        for e in cls.select(tr.before):
+            o = tr.obs(e.id)
+            if o is None or o.gone:
+                continue
+            cells = target_cells(e, dx, dy, tr.under)
+            if cells is None:
+                continue
+            cols = {int(c) for c in np.unique(cells)}
+            if o.moved == (dx, dy):
+                succ |= cols
+            elif o.moved == (0, 0):
+                fail |= cols
+    return succ, fail, seen
+
+
+def _required_color(rule: "Move", log: list[Transition]) -> Optional[int]:
+    """A colour present in every before-frame where the class moved and absent in every frame where the rule
+    claimed a move that did not happen; None when no single colour separates them."""
+    present_ok: Optional[set[int]] = None
+    absent_fail: Optional[set[int]] = None
+    for tr in log:
+        cols = {e.color for e in tr.before}
+        for eid, cl in rule.claims(tr).items():
+            o = tr.obs(eid)
+            if o is None or o.gone or cl.moved is None:
+                continue
+            if cl.moved != (0, 0) and o.moved == cl.moved:
+                present_ok = cols if present_ok is None else (present_ok & cols)
+            elif cl.moved != (0, 0) and o.moved == (0, 0):
+                absent_fail = cols if absent_fail is None else (absent_fail | cols)
+    if not present_ok or absent_fail is None:
+        return None
+    cands = sorted(present_ok - absent_fail)
+    return cands[0] if len(cands) == 1 else None
 
 
 def fit_move(log: list[Transition], max_rules: int = 6, allow_contradictions: bool = False) -> list[tuple[Move, Score]]:
@@ -720,21 +909,39 @@ def fit_move(log: list[Transition], max_rules: int = 6, allow_contradictions: bo
                 guess[k] = (-ox, -oy)
         if guess != base:
             variants.insert(0, guess)
-        bumps = _bump_colors(log, cls, base)
-        cols = [c for c, _ in bumps.most_common(6)]
-        block_options: list[Any] = ["any", None]
-        for r in (1, 2, 3):
-            block_options += [frozenset(s) for s in combinations(cols, r)]
+        succ, fail, cell_level = _cell_evidence(log, cls, base)
+        options: list[tuple[Any, Optional[frozenset], int]] = []  # (blocked_by, walkable, tie rank: lower is preferred)
+        if cell_level:
+            if succ:
+                options.append((None, frozenset(succ), 0))  # walkable: only onto colours it has walked on
+            hard = fail - succ
+            if hard:
+                options.append((frozenset(hard), None, 1))
+                options += [(frozenset({c}), None, 2) for c in sorted(hard)]
+            options.append(("any", None, 3))
+            options.append((None, None, 100))
+        else:
+            bumps = _bump_colors(log, cls, base)
+            cols = [c for c, _ in bumps.most_common(6)]
+            options.append(("any", None, 0))
+            for r in (1, 2, 3):
+                options += [(frozenset(sub), None, r) for sub in combinations(cols, r)]
+            options.append((None, None, 100))
         best: Optional[tuple[Move, Score]] = None
         for km in variants:
-            for b in block_options:
-                rule = Move(cls, km, b)
+            for b, wk, rank in options:
+                rule = Move(cls, km, b, wk)
                 s = score_rule(rule, log)
+                if s.contradictions:
+                    # the move failed although the way was free: maybe it needs something present (energy bar, key)
+                    req = _required_color(rule, log)
+                    if req is not None:
+                        rule2 = Move(cls, km, b, wk, req)
+                        s2 = score_rule(rule2, log)
+                        if s2.contradictions < s.contradictions:
+                            rule, s = rule2, s2
                 if not s.ok() and not allow_contradictions:
                     continue
-                # Preference on ties: 'any' (cautious: plans go around what has not been walked through), then the
-                # smallest specific colour set, and 'nothing blocks' only when evidence rules out everything else.
-                rank = 0 if b == "any" else (100 if b is None else len(b))
                 key = (-s.contradictions, s.support, -rank, len(km))
                 if best is None or key > best[2]:
                     best = (rule, s, key)  # type: ignore[assignment]
@@ -899,8 +1106,8 @@ def fit_counter(log: list[Transition], max_rules: int = 3) -> list[tuple[Counter
     for tr in log:
         for e in tr.before:
             o = tr.obs(e.id)
-            if o and o.resized and o.resized[0] > o.resized[1]:
-                per_cls[(e.color,)][o.resized[0] - o.resized[1]] += 1
+            if o and o.resized and o.moved == (0, 0):
+                per_cls[(e.color,)][o.resized[0] - o.resized[1]] += 1  # negative = growing
                 ents[(e.color,)].append(e)
     for key, c in per_cls.items():
         per, n = c.most_common(1)[0]
@@ -917,7 +1124,7 @@ def fit_counter(log: list[Transition], max_rules: int = 3) -> list[tuple[Counter
 
 FITTERS: dict[str, Callable[..., list[tuple[Rule, Score]]]] = {
     "move": fit_move, "drift": fit_drift, "vanish": fit_vanish, "overlap": fit_overlap,
-    "recolor": fit_recolor, "counter": fit_counter,
+    "recolor": fit_recolor, "counter": fit_counter, "onclick": fit_onclick,
 }
 
 
@@ -936,23 +1143,24 @@ def fit(kind: Optional[str], log: list[Transition]) -> dict[str, list[tuple[Rule
     return out
 
 
-def auto_rules(log: list[Transition]) -> tuple[list[Rule], dict[str, Any]]:
+def auto_rules(log: list[Transition], ignore_ids: Iterable[int] = ()) -> tuple[list[Rule], dict[str, Any]]:
     """Greedy rule-set selection: add consistent rules by support while they explain new events and add no
     contradictions; a push rule replaces the move it extends. Returns (rules, explain(rules))."""
+    ignore_ids = list(ignore_ids)
     fitted = fit(None, log)
     cands: list[tuple[Rule, Score]] = []
     for lst in fitted.values():
         cands.extend(lst)
-    prio = {"push": 0, "move": 1, "overlap": 2, "vanish": 3, "recolor": 4, "counter": 5, "drift": 6}  # drift last: it explains key moves only by coincidence
+    prio = {"push": 0, "move": 1, "onclick": 2, "overlap": 3, "vanish": 4, "recolor": 5, "counter": 6, "drift": 7}  # drift last: it explains key moves only by coincidence
     cands.sort(key=lambda rs: (-rs[1].support, prio.get(rs[0].kind, 9)))
     chosen: list[Rule] = []
-    best = explain(chosen, log)
+    best = explain(chosen, log, ignore_ids=ignore_ids)
     for r, _ in cands:
         trial = list(chosen)
         if isinstance(r, Push):
             trial = [x for x in trial if x is not r.move]
         trial.append(r)
-        rep = explain(trial, log)
+        rep = explain(trial, log, ignore_ids=ignore_ids)
         if rep["contradictions"] == 0 and (rep["explained"] > best["explained"] or
                                             (rep["explained"] == best["explained"] and isinstance(r, Push))):
             chosen, best = trial, rep
@@ -960,7 +1168,7 @@ def auto_rules(log: list[Transition]) -> tuple[list[Rule], dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------------------------- simulation
-ORDER = ("push", "move", "drift", "overlap", "vanish", "recolor", "counter")
+ORDER = ("push", "move", "onclick", "drift", "overlap", "vanish", "recolor", "counter")
 
 
 def simulate(frame: Frame, action: Any, rules: list[Rule]) -> Frame:
@@ -1011,39 +1219,54 @@ def frame_from_grid(grid: np.ndarray, bg: int, ref: Optional[Frame] = None) -> F
     return tuple(out)
 
 
-def render(grid: np.ndarray, before: Frame, after: Frame, shapes: dict[str, np.ndarray], bg: int) -> np.ndarray:
-    """Paint the entity-level change ``before -> after`` onto ``grid``: erase entities that changed, then draw
-    their new state (mask by shape hash, or a filled box when the shape is unknown)."""
+def render(grid: np.ndarray, before: Frame, after: Frame, shapes: dict[str, np.ndarray], bg: int,
+           under: Optional[np.ndarray] = None) -> np.ndarray:
+    """Paint the entity-level change ``before -> after`` onto ``grid``: erase entities that changed (restoring the
+    static layer ``under`` when known, else the background), then draw their new state (mask by shape hash, or a
+    filled box when the shape is unknown)."""
     g = np.asarray(grid).copy()
     a_by_id = {e.id: e for e in after}
     changed_before = [e for e in before if a_by_id.get(e.id) is None or a_by_id[e.id].key() != e.key()]
     b_ids = {e.id for e in before}
     changed_after = [e for e in after if e.id not in b_ids or any(e.id == c.id for c in changed_before)]
 
-    def paint(e: Ent, color: int) -> None:
+    def paint(e: Ent, color: Optional[int]) -> None:
         m = shapes.get(e.shape)
-        if m is not None and m.shape == (e.h, e.w):
-            region = g[e.y0:e.y0 + e.h, e.x0:e.x0 + e.w]
-            if region.shape == m.shape:
-                region[m] = color
-                return
-        g[max(0, e.y0):e.y0 + e.h, max(0, e.x0):e.x0 + e.w] = color
+        region = g[e.y0:e.y0 + e.h, e.x0:e.x0 + e.w]
+        if m is None or m.shape != region.shape:
+            m = np.ones(region.shape, dtype=bool)
+        if color is None and under is not None and under.shape == g.shape:
+            region[m] = under[e.y0:e.y0 + e.h, e.x0:e.x0 + e.w][m]
+        else:
+            region[m] = bg if color is None else color
 
     for e in changed_before:
-        paint(e, bg)
+        paint(e, None)
     for e in changed_after:
         paint(e, e.color)
     return g
 
 
-def predictor(rules: list[Rule], shapes: dict[str, np.ndarray], bg: int, ref: Optional[Callable[[], Frame]] = None) -> Callable[[Any, Any], np.ndarray]:
-    """A grid predictor ``predict(grid, action)`` for the sandbox's set_model, built from an entity rule set."""
+def set_terrain(rules: list[Rule], under: Optional[np.ndarray], bg: Optional[int]) -> None:
+    """Give the movement rules the static layer to simulate against (planning and prediction)."""
+    for r in rules:
+        mv = r.move if isinstance(r, Push) else r
+        if isinstance(mv, Move):
+            mv.under, mv.bg = under, bg
+
+
+def predictor(rules: list[Rule], shapes: dict[str, np.ndarray], bg: int, ref: Optional[Callable[[], Frame]] = None,
+              under: Optional[Callable[[], Optional[np.ndarray]]] = None) -> Callable[[Any, Any], np.ndarray]:
+    """A grid predictor ``predict(grid, action)`` for the sandbox's set_model, built from an entity rule set.
+    ``ref`` returns the current symbolic frame (for ids), ``under`` the current static layer."""
 
     def predict(grid: Any, action: Any) -> np.ndarray:
         g = np.asarray(grid)
+        u = under() if under else None
+        set_terrain(rules, u, bg)
         before = frame_from_grid(g, bg, ref() if ref else None)
         after = simulate(before, action, rules)
-        return render(g, before, after, shapes, bg)
+        return render(g, before, after, shapes, bg, u)
 
     return predict
 
@@ -1090,6 +1313,9 @@ def planning_actions(rules: list[Rule], frame: Frame) -> list[Any]:
             acts += [k for k in r.keymap if k not in acts]
         if isinstance(r, Push):
             acts += [k for k in r.move.keymap if k not in acts]
+        if isinstance(r, OnClick):
+            for b in r.button.select(frame):
+                acts.append(("CLICK", (b.x0 + b.x1) // 2, (b.y0 + b.y1) // 2))
         trig = getattr(r, "trigger", None)
         if trig == "CLICK@self":
             for e in r.cls.select(frame):

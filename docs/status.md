@@ -86,6 +86,13 @@ architectural step therefore has to be measured on dev and val, not assumed.
 9. `scottmahony/arc3-eval-dev` v2, RTX, 2026-09-16: exp-003c, same settings with the fixes: **dev 0.56**, 5/142 levels, zero
    errors. 67 min RTX. This is the control.
 
+## Rule library coverage (exp-006a, code-only, 2026-09-16)
+
+`scripts/rule_coverage.py` plays each public game blind for 60 actions and measures the fraction of entity events the
+fitted rule set explains: mean 0.23 over 25 games (dev 0.28, val 0.07); ar25 1.00, re86 0.89, dc22 0.70, ka59 0.51,
+ls20 0.50, sb26 0.50; six games at 0. Lower bound, not a score. Details: `runs/rule-coverage/summary.json`,
+research log exp-006a.
+
 ## Open items (need you)
 
 1. Daily submission limit: paste the "Submission limits" lines from the Kaggle **Rules** page (still
