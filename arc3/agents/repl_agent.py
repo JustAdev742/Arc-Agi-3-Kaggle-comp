@@ -4,7 +4,7 @@ Architecture (see CLAUDE.md "Architecture stance", item 1-3):
   * exact perception is handed to the model as variables/helpers (arc3.perception);
   * the model keeps its own world model in a persistent REPL (arc3.sandbox);
   * a time governor stops model calls when the game's deadline nears;
-  * a no-LLM explorer is the fallback for idle turns and model/server failures.
+  * a no-LLM rules agent (or the explorer, config fallback_agent) is the fallback for idle turns and model/server failures.
 
 Threading: the harness (or the Kaggle framework) calls ``act(frame)`` for one action at a
 time. A model turn runs in a worker thread; when model code calls ``act(...)`` the
@@ -116,7 +116,12 @@ class ReplAgent(Agent):
         self.min_call_timeout_s = float(c.get("min_call_timeout_s", 120))
         root = str(Path(__file__).resolve().parents[2])
         self.sandbox = PersistentSandbox(sys_path=[root] + [p for p in sys.path if p], max_output_chars=int(c.get("tool_output_chars", 2500)))
-        self.fallback = ExplorerAgent(ctx)
+        fb = str(c.get("fallback_agent", "rules"))
+        if fb == "rules":
+            from .rules_agent import RulesAgent
+            self.fallback = RulesAgent(ctx)  # code-only probe -> fit -> plan agent (exp-006b 0.20 vs explorer 0.06)
+        else:
+            self.fallback = ExplorerAgent(ctx)
         self.messages: list[dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}]
         self.notes: list[str] = []
         self.tracker = Tracker()

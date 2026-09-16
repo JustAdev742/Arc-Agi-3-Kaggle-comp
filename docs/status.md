@@ -111,6 +111,12 @@ research log exp-006a.
 
 ## Follow-ups noticed (not fixed on purpose)
 
+- Human play data (342 replays for the 25 public games, arcprize.org/blog/arc-agi-3-human-dataset): the download short
+  link (dub.link/vfwCqvb) answers 429 from this container and the replay pages load their data through an endpoint I
+  could not find in 15 minutes. If you can download the "full Public Demo dataset" archive from that blog post and
+  drop it into `data/human/` (or a private Kaggle dataset), plan-100 §4.1 (goal priors from winning steps) becomes
+  a CPU-only job.
+
 - `arc_agi` logs at INFO through the root logger; the harness silences it with a level filter.
 - The starter's `build_notebook.py` writes the agent to `/tmp/my_agent.py`; ours bundles a
   package instead (see `scripts/build_notebook.py`).

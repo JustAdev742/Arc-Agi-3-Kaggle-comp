@@ -60,6 +60,7 @@ class RulesAgent(Agent):
         self.plan_goal: Optional[str] = None
         self.rules: list[dsl.Rule] = []
         self.plan_rules: list[dsl.Rule] = []  # the rules the current plan was made with (exact or optimistic)
+        self._fit_n = 0  # log length at the last fit
         self.archive: list[tuple[list[dsl.Frame], bool]] = []  # (frames incl. simulated final, won)
         self.tried_goals: set[str] = set()
         self.failed_steps: dict[tuple, int] = {}
@@ -75,6 +76,7 @@ class RulesAgent(Agent):
         self.tracker.reset(frame.grid)
         self.plan.clear()
         self.plan_goal = None
+        self._fit_n = 0
         self.tried_goals.clear()
         self.failed_steps.clear()
         self.clicked_classes.clear()
@@ -155,8 +157,18 @@ class RulesAgent(Agent):
         if not self.tracker.frames:
             return False
         log = dsl.make_log(self.tracker.compound_frames(), self.tracker.actions, self.tracker.unders, self.tracker.bg)
+        hud = self.tracker.hud_ids()
         try:
-            self.rules, _rep = dsl.auto_rules(log, ignore_ids=self.tracker.hud_ids())
+            # refit only when the current rules stop explaining the log (fits cost 0.1-3 s; explain is cheap)
+            n = len(log)
+            fresh = self.rules and self._fit_n and n > self._fit_n
+            if fresh:
+                rep = dsl.explain(self.rules, log[self._fit_n:], ignore_ids=hud)
+                fresh = rep["contradictions"] == 0 and rep["explained"] == rep["events"]
+            if not fresh:
+                self.rules, _rep = dsl.auto_rules(log, ignore_ids=hud)
+                self._fit_n = n
+                self.stats_["fits"] = self.stats_.get("fits", 0) + 1
         except Exception as e:  # noqa: BLE001
             self.log.warning("auto_rules failed: %s", e)
             self.rules = []
@@ -232,6 +244,10 @@ class RulesAgent(Agent):
     def observe(self, action: Action, before: Frame, after: Frame) -> None:
         label = self.pending if self.pending is not None else _label(action)
         self.pending = None
+        if not self.tracker.frames and before.state is not GameState.NOT_PLAYED:
+            # observing without having acted (used as another agent's fallback): start tracking from `before`
+            self.level = before.levels_completed
+            self.tracker.reset(before.grid)
         if label == "RESET":
             if after.levels_completed == self.level:
                 self.tracker.reset(after.grid)  # the level restarted: same rules, fresh log
@@ -241,6 +257,9 @@ class RulesAgent(Agent):
         if after.levels_completed > self.level or after.state is GameState.WIN:
             # level completed: archive with the simulated winning frame for goal inference
             frames = self.tracker.compound_frames()
+            if not frames:
+                self.stats_["levels_won"] += 1
+                return
             final = None
             rules_ = self.rules or dsl.fallback_move_rules(self.tracker.avatar(), frames[-1])
             try:
