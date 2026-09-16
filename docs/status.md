@@ -193,7 +193,9 @@ research log exp-006a.
   exp-016 (base config on all 25 games) pushed 19:52 as `arc3-eval-all-a`.
 - exp-015 (raise to medium after 3 stagnant actions) finished 20:32: **0.421, 4 levels**, REVERTED. Low-effort runs on
   the post-exp-011 harness now read 6, 6, 4 levels against 9, 9 on 756a87e: the harness commits are suspect; exp-016's
-  dev subset decides whether to bisect.
+  dev subset decides whether to bisect. The observation text is unchanged between the two (same length, no 'unknown'
+  roles printed), so no mechanism is identified yet. exp-011c (the 756a87e notebook, third sample) pushed 20:36 as
+  `arc3-eval-dev-f` v4 to run alongside exp-016 as the paired control.
 - 14:09: exp-010c (`arc3-eval-dev-council-c` v1, harness 7de7f95) running; exp-004 v2 queued. Queue after them, in
   order: exp-011b (the exp-011 notebook unchanged, per the noise rule), exp-012 (harness 7de7f95: events line in every
   tool output, single results iterate, ascii(region) degrades to tiles, role always present), then a private Save &
