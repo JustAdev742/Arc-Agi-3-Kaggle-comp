@@ -425,6 +425,9 @@ class ReplAgent(Agent):
                         self.st.wm_checked, self.st.wm_matched, self.st.wm_errors = int(wm["checked"]), int(wm["matched"]), int(wm["errors"])
                         self.wm_summary = f"world model: {wm['matched']}/{wm['checked']} predictions correct" + (
                             f"; last mismatch {wm['recent_mismatches'][-1]}" if wm["recent_mismatches"] else "")
+                        if wm.get("hypotheses"):
+                            alive = [k for k, v in wm["hypotheses"].items() if v["alive"]]
+                            self.wm_summary += f"; hypotheses alive: {alive} of {list(wm['hypotheses'])}"
                     if r.get("actions"):
                         acted = True
                     else:

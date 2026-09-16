@@ -134,3 +134,41 @@ print(set_model(good)); r = act('UP'); print(r['pred_ok'], len(transitions()))
     r = sb.run("print(len(transitions()))", {**state(grids[-1], [grids[-1]]), "level": 2}, timeout_s=20, action_handler=handler)
     assert r["stdout"].strip() == "0"
     sb.stop()
+
+
+def test_competing_hypotheses_die_on_first_wrong_prediction():
+    sb = PersistentSandbox(sys_path=[ROOT] + sys.path)
+    grids = [np.zeros((64, 64), dtype=int)]
+
+    def handler(actions):
+        g = grids[-1].copy()
+        if actions[0]["action"] == "UP":
+            g[0, 0] += 1  # the truth: UP increments (0,0)
+        grids.append(g)
+        return [{"changed": 1, "level_completed": False, "state": "NOT_FINISHED"}], state(g, [g])
+
+    code = """
+def inc(grid, action):
+    g = grid.copy()
+    if action == 'UP': g[0, 0] += 1
+    return g
+def dec(grid, action):
+    g = grid.copy()
+    if action == 'UP': g[0, 0] -= 1
+    return g
+def noop(grid, action):
+    return grid
+print(set_models({'inc': inc, 'dec': dec, 'noop': noop}))
+r = act('DOWN'); print(r['alive_models'])    # nobody predicts a change: all survive
+r = act('UP'); print(r['alive_models'])      # only inc survives
+s = world_model_stats()['hypotheses']; print(s['dec']['alive'], s['inc']['correct'], 'UP' in s['noop']['killed_by'])
+"""
+    r = sb.run(code, state(grids[0], [grids[0]]), timeout_s=20, action_handler=handler)
+    assert r["error"] == "", r
+    lines = r["stdout"].strip().splitlines()
+    assert lines[0] == "3 hypotheses registered"
+    assert lines[1] == "['dec', 'inc', 'noop']"
+    assert lines[2] == "['inc']"
+    assert lines[3] == "False 2 True"
+    assert r["world_model"]["hypotheses"]["inc"]["alive"] is True
+    sb.stop()

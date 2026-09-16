@@ -103,8 +103,49 @@ def set_model(predict):
     return "world model registered" if predict else "world model cleared"
 
 def world_model_stats():
-    return {"checked": WM["checked"], "matched": WM["matched"], "errors": WM["errors"],
-            "recent_mismatches": WM["mismatches"][-5:]}
+    out = {"checked": WM["checked"], "matched": WM["matched"], "errors": WM["errors"],
+           "recent_mismatches": WM["mismatches"][-5:]}
+    if HYP["models"]:
+        out["hypotheses"] = {k: {"alive": k in HYP["alive"], "checked": HYP["checked"][k], "correct": HYP["correct"][k],
+                                 "killed_by": HYP["killed_by"].get(k)} for k in HYP["models"]}
+    return out
+
+HYP = {"models": {}, "alive": set(), "checked": {}, "correct": {}, "killed_by": {}}
+
+def set_models(models):
+    """Register competing hypotheses: {name: predict(grid, action)}. Each real action checks all of them;
+    a hypothesis dies on its first wrong prediction (see world_model_stats()['hypotheses'] and alive_models()).
+    The single set_model() predictor is unaffected."""
+    if not isinstance(models, dict) or not all(callable(f) for f in models.values()):
+        raise TypeError("set_models expects {name: callable}")
+    HYP["models"] = dict(models)
+    HYP["alive"] = set(models)
+    HYP["checked"] = {k: 0 for k in models}
+    HYP["correct"] = {k: 0 for k in models}
+    HYP["killed_by"] = {}
+    return f"{len(models)} hypotheses registered"
+
+def alive_models():
+    return sorted(HYP["alive"])
+
+def _check_hypotheses(before, action, after):
+    if not HYP["models"]:
+        return None
+    for name in list(HYP["alive"]):
+        fn = HYP["models"][name]
+        try:
+            pred = _to_grid(fn(before.copy(), action))
+            ok = pred.shape == after.shape and bool((pred == after).all())
+        except Exception as e:  # noqa: BLE001
+            ok = False
+            HYP["killed_by"][name] = f"error: {type(e).__name__}: {e}"[:120]
+        HYP["checked"][name] += 1
+        if ok:
+            HYP["correct"][name] += 1
+        else:
+            HYP["alive"].discard(name)
+            HYP["killed_by"].setdefault(name, f"{action} at transition {len(LOG['transitions'])}")
+    return {"alive_models": sorted(HYP["alive"])}
 
 def _action_label(a):
     if a.get("action") == "CLICK":
@@ -238,6 +279,9 @@ def act(*actions):
             r = reply["result"][0]
             if not r.get("level_completed"):
                 LOG["transitions"].append((before, _action_label(a), G["grid"].copy()))
+                hyp = _check_hypotheses(before, _action_label(a), G["grid"])
+                if hyp:
+                    r.update(hyp)
             results.append(r)
             if r.get("level_completed") or r.get("game_over") or r.get("won"):
                 break
@@ -258,6 +302,9 @@ def act(*actions):
             r.update(chk)
         if not r.get("level_completed"):
             LOG["transitions"].append((before, _action_label(a), G["grid"].copy()))
+            hyp = _check_hypotheses(before, _action_label(a), G["grid"])
+            if hyp:
+                r.update(hyp)
         results.append(r)
         if chk and not chk.get("pred_ok") and len(norm) > 1:
             r["batch_stopped"] = f"prediction mismatch after {len(results)} of {len(norm)} actions; revise the model"
@@ -270,7 +317,7 @@ def click(x, y):
     return act(("CLICK", int(x), int(y)))
 
 for _n in ("objects", "components", "diff", "ascii", "downscale", "background", "moved", "note", "act", "click",
-           "set_model", "world_model_stats", "verify_model", "transitions"):
+           "set_model", "world_model_stats", "verify_model", "transitions", "set_models", "alive_models"):
     G[_n] = globals()[_n]
 
 while True:
@@ -294,7 +341,7 @@ while True:
         err = "Traceback:\n" + "\n".join(lines) + f"\n{type(e).__name__}: {e}"
     out = buf.getvalue()
     _send({"type": "final", "stdout": out, "error": err, "result": result, "notes": G.get("notes", []),
-           "world_model": world_model_stats() if WM["predict"] is not None else None})
+           "world_model": world_model_stats() if (WM["predict"] is not None or HYP["models"]) else None})
 '''
 
 
