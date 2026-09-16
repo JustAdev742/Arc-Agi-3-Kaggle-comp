@@ -121,3 +121,94 @@ def test_inspection_nudge_and_no_action_notice():
     finally:
         agent.close()
         env.close()
+
+
+def test_timeouts_do_not_trigger_fallback_only_and_widen_the_timeout():
+    import requests
+
+    calls = {"n": 0}
+
+    def flaky(messages):
+        calls["n"] += 1
+        if calls["n"] <= 6:
+            raise requests.exceptions.ReadTimeout("HTTPConnectionPool: Read timed out.")
+        return MockClient.tool("act('UP')")
+
+    mock = MockClient(flaky)
+    arc = make_arcade("environment_files")
+    env = LocalEnv(arc, "ls20")
+    ctx = AgentContext(game_id="ls20", deadline=time.time() + 600,
+                       config={"client": mock, "image": False, "model_timeout_s": 100, "max_model_errors": 3})
+    agent = get("repl")(ctx)
+    try:
+        run(agent, env, 1)
+        st = agent.stats()
+        assert not agent.use_fallback_only
+        assert st["model_errors"] == 6 and st["actions_model"] == 1 and st["actions_fallback"] == 0
+        assert agent.model_timeout_s > 100
+    finally:
+        agent.close()
+        env.close()
+
+
+def test_dead_server_switches_to_capped_fallback():
+    class DeadClient:
+        model = "dead"
+
+        def chat(self, *a, **k):
+            raise RuntimeError("Connection refused")
+
+        def models(self):
+            raise RuntimeError("Connection refused")
+
+    arc = make_arcade("environment_files")
+    env = LocalEnv(arc, "ls20")
+    ctx = AgentContext(game_id="ls20", deadline=time.time() + 600,
+                       config={"client": DeadClient(), "image": False, "max_model_errors": 2, "fallback_cap_dead": 5})
+    agent = get("repl")(ctx)
+    try:
+        frame = env.frame
+        n = 0
+        while not agent.is_done(frame) and n < 50:
+            a = agent.act(frame)
+            before = frame
+            frame = env.step(a)
+            agent.observe(a, before, frame)
+            n += 1
+        assert agent.use_fallback_only
+        assert agent.stats()["actions_fallback"] <= 6  # cap + at most one stop action
+        assert agent.stop_requested
+    finally:
+        agent.close()
+        env.close()
+
+
+def test_context_overflow_evicts_and_retries_without_counting_an_error():
+    calls = {"n": 0}
+
+    def script(messages):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("chat completion failed 400: This model's maximum context length is 32768 tokens.")
+        r = MockClient.tool("act('UP')")
+        r.prompt_tokens = 0  # no server count: skip calibration so the overflow bump is observable
+        return r
+
+    mock = MockClient(script)
+    arc = make_arcade("environment_files")
+    env = LocalEnv(arc, "ls20")
+    ctx = AgentContext(game_id="ls20", deadline=time.time() + 300, config={"client": mock, "image": False})
+    agent = get("repl")(ctx)
+    try:
+        # Seed some history so there is something to evict.
+        agent.messages += [{"role": "user", "content": "old turn"}, {"role": "assistant", "content": "ok"},
+                           {"role": "user", "content": "older turn 2"}, {"role": "assistant", "content": "ok"}]
+        ratio0 = agent.token_ratio
+        run(agent, env, 1)
+        st = agent.stats()
+        assert st["context_overflows"] == 1 and st["model_errors"] == 0 and st["actions_model"] == 1
+        assert agent.token_ratio > ratio0
+        assert not any(m.get("content") == "old turn" for m in agent.messages)
+    finally:
+        agent.close()
+        env.close()

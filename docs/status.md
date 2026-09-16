@@ -80,8 +80,9 @@ architectural step therefore has to be measured on dev and val, not assumed.
 
 7. `scottmahony/arc3-eval-smoke` v1, RTX, 2026-09-16: exp-003b smoke, **first model-driven level solved** (ls20 L1 in 19
    actions vs human 22). 18 min RTX. See research log.
-8. `scottmahony/arc3-eval-dev` v1, RTX, 2026-09-16: exp-003 control arm on the 19 dev games, 1200 s/game, 8 concurrent.
-   Running (~70 min).
+8. `scottmahony/arc3-eval-dev` v1, RTX, 2026-09-16: exp-003 control arm on the 19 dev games, 1200 s/game, 8 concurrent:
+   **dev 0.53**, 6/142 levels (all level 1, four at the human cap). Context-overflow bug sank 4 games (see research log).
+   58 min RTX.
 
 ## Open items (need you)
 
@@ -108,6 +109,7 @@ Built and tested (all in `tests/`, green on this container via `make test`):
 - Exact perception library and the local env wrapper mirroring the gateway's reset billing.
 - Two CPU baselines measured (research log exp-000..002): random 0.19, explorer 0.06 on all 25 games.
   Both confirm that blind search is worth ~0 under RHAE (`docs/lessons/0003-*`).
+- **exp-003 control arm on Kaggle RTX: dev 0.53** with the single 27B REPL agent at 20 min/game (research log).
 - The REPL agent (Duck-style, persistent sandbox, image + ASCII + helpers, eviction, governor,
   explorer fallback). **First real-model run 2026-09-16 (diag v5 smoke)**: plumbing works end to end on Kaggle;
   the model acts too rarely per turn and prompts are too large (see research log exp-003a).

@@ -65,3 +65,20 @@ Measured: **first model-driven level: ls20 level 1 in 19 actions (human 22) -> l
           Prompt tokens still ~13k per call (accumulated history within the 32k budget; prefix-cached), ~930 completion
           tokens per call: decode dominates latency.
 Notes:    Next: exp-003 on the 19 dev games (control arm), 1200 s/game, 8 concurrent. Then ablate thinking budget.
+
+## 2026-09-16 · exp-003 · control arm: single Qwen3.8-27B-FP8 REPL agent on the 19 dev games (Kaggle RTX) · BASELINE
+Settings: dev split, 1200 s/game, 8 games concurrent, 2000-action cap, reasoning_effort=low, max_output 3072,
+          image scale 4, no ASCII; vLLM 0.27.1 Triton attention + MTP 2 + FP8 KV; kernel `scottmahony/arc3-eval-dev` v1,
+          commit ff5a723 (+ world-model hooks, unused); files `runs/kaggle-repl-dev-003/`. 58 min RTX (441 s setup).
+Measured: **dev 0.53**; 6/142 levels (all level 1): lp85 in 10 actions (human 17, cap), sb26 12 (18, cap), su15 17 (22,
+          cap), tu93 23 (19), re86 50 (26), vc33 106 (7). 0 games solved; every game ended by the clean stop.
+          Per game: 26-47 model calls, p50 10-55 s per call, median 1,435 completion tokens per call; aggregate server
+          generation 347 tok/s median with 8 running requests. The model never used set_model/verify_model.
+Failures: 40 of 48 model errors were HTTP 400 "maximum context length": the eviction estimate undercounts (images 576
+          tokens, code tokenizes worse than chars/3). 5 consecutive errors flipped 4 games (sb26, vc33, cd82, wa30) into
+          "server dead" mode and the fallback spent 400 actions each. 8 errors were read timeouts at 180 s under load.
+Decision: bugs, not architecture: (1) calibrate the token estimate against the server's prompt_tokens, 2k margin,
+          evict-and-retry on a context error; (2) timeouts widen the timeout instead of counting toward death, and
+          death requires a failed liveness check; (3) dead-server fallback capped at 40 actions; (4) error-ended turns
+          are not idle turns. Re-run as exp-003c before any architecture change. The time budget per game is the
+          binding constraint: ~35 calls in 20 min at 8-way concurrency; thinking length is the next ablation (exp-004).

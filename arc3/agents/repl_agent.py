@@ -59,6 +59,7 @@ class Stats:
     turns: int = 0
     idle_turns: int = 0
     evictions: int = 0
+    context_overflows: int = 0
     actions_model: int = 0
     actions_fallback: int = 0
     model_time_s: float = 0.0
@@ -87,13 +88,15 @@ class ReplAgent(Agent):
         self.top_p = float(c.get("top_p", 0.95))
         self.thinking = c.get("thinking", None)
         self.reasoning_effort = c.get("reasoning_effort", None)  # Qwen3.8: low|medium|high|xhigh
-        self.model_timeout_s = float(c.get("model_timeout_s", 180))
+        self.model_timeout_s = float(c.get("model_timeout_s", 480))
         self.tool_timeout_s = float(c.get("tool_timeout_s", 30))
         self.max_tool_steps = int(c.get("max_tool_steps", 8))
         self.inspect_steps_before_nudge = int(c.get("inspect_steps_before_nudge", 3))
         self.use_image = bool(c.get("image", True))
         self.image_scale = int(c.get("image_scale", 4))
-        self.image_tokens = int(c.get("image_tokens", 300))
+        self.image_tokens = int(c.get("image_tokens", 600))  # Qwen3.8 ViT: 576 tokens for a 384px image (diag v5)
+        self.token_ratio = float(c.get("token_ratio", 1.3))  # server prompt_tokens / our estimate, calibrated per response
+        self.context_margin = int(c.get("context_margin", 2048))
         ascii_cfg = c.get("ascii", "auto")  # auto: only when no image is attached
         self.use_ascii = (not self.use_image) if ascii_cfg == "auto" else bool(ascii_cfg)
         self.objects_in_prompt = int(c.get("objects_in_prompt", 16))
@@ -101,10 +104,10 @@ class ReplAgent(Agent):
         self.idle_limit = int(c.get("idle_turns_before_fallback", 3))
         self.fallback_burst = int(c.get("fallback_burst", 2))
         self.fallback_cap = int(c.get("fallback_cap", 30))  # per game, while the model is alive
-        self.fallback_cap_dead = int(c.get("fallback_cap_dead", 400))  # per game, after the server died
+        self.fallback_cap_dead = int(c.get("fallback_cap_dead", 40))  # per game, after the server died
         self.max_model_errors = int(c.get("max_model_errors", 5))
         self.min_time_for_turn_s = float(c.get("min_time_for_turn_s", 45))
-        self.min_call_timeout_s = float(c.get("min_call_timeout_s", 60))
+        self.min_call_timeout_s = float(c.get("min_call_timeout_s", 120))
         root = str(Path(__file__).resolve().parents[2])
         self.sandbox = PersistentSandbox(sys_path=[root] + [p for p in sys.path if p], max_output_chars=int(c.get("tool_output_chars", 2500)))
         self.fallback = ExplorerAgent(ctx)
@@ -228,6 +231,17 @@ class ReplAgent(Agent):
         self.sandbox.stop()
 
     # ------------------------------------------------------------------ worker side
+    def _server_alive(self) -> bool:
+        """Cheap liveness check before giving up on the model (mock clients count as alive)."""
+        models = getattr(self.client, "models", None)
+        if models is None:
+            return True
+        try:
+            models()
+            return True
+        except Exception:  # noqa: BLE001
+            return False
+
     def _worker_alive(self) -> bool:
         return self.worker is not None and self.worker.is_alive()
 
@@ -328,6 +342,9 @@ class ReplAgent(Agent):
         return {"role": "user", "content": content}
 
     def _estimate_tokens(self, msgs: list[dict[str, Any]]) -> int:
+        return int(self._raw_tokens(msgs) * self.token_ratio)
+
+    def _raw_tokens(self, msgs: list[dict[str, Any]]) -> int:
         n = 0
         for m in msgs:
             c = m.get("content")
@@ -344,7 +361,7 @@ class ReplAgent(Agent):
         """Keep the estimated prompt under budget: drop whole old turns first, then the oldest
         assistant/tool pairs inside the current turn (always keeping its user message and the
         newest pair)."""
-        budget = self.context_tokens - self.max_output_tokens - 1024
+        budget = self.context_tokens - self.max_output_tokens - self.context_margin
         while len(self.messages) > 2 and self._estimate_tokens(self.messages) > budget:
             users = [k for k, m in enumerate(self.messages) if m["role"] == "user"]
             if len(users) >= 2:
@@ -360,9 +377,25 @@ class ReplAgent(Agent):
             del self.messages[pairs[0]:end]
             self.st.evictions += 1
 
+    def _force_evict(self) -> bool:
+        """Drop the oldest evictable block regardless of the estimate. False if nothing is left to drop."""
+        users = [k for k, m in enumerate(self.messages) if m["role"] == "user"]
+        if len(users) >= 2:
+            del self.messages[users[0]:users[1]]
+            self.st.evictions += 1
+            return True
+        start = users[0] + 1 if users else 1
+        pairs = [k for k in range(start, len(self.messages)) if self.messages[k]["role"] == "assistant"]
+        if len(pairs) >= 2:
+            del self.messages[pairs[0]:pairs[1]]
+            self.st.evictions += 1
+            return True
+        return False
+
     def _turn(self) -> None:
         acted = False
         nudged = False
+        errored = False
         inspect_only = 0
         try:
             self.messages.append(self._user_message())
@@ -375,21 +408,43 @@ class ReplAgent(Agent):
                                           "Call act(...) in your next python call, a single probe is fine, then re-inspect."})
                 self._evict()
                 t0 = time.time()
+                raw_before = self._raw_tokens(self.messages)
                 try:
                     resp: ChatResponse = self.client.chat(
                         self.messages, tools=TOOLS, max_tokens=self.max_output_tokens, temperature=self.temperature,
                         top_p=self.top_p, thinking=self.thinking, reasoning_effort=self.reasoning_effort,
                         timeout_s=max(self.min_call_timeout_s, min(self.model_timeout_s, self.ctx.time_left() - 5)))
                 except Exception as e:  # noqa: BLE001
+                    msg = str(e).lower()
+                    if "maximum context length" in msg or "context length" in msg or "too many tokens" in msg:
+                        # Our estimate was low: assume the worst, drop history and retry at once (not an outage).
+                        self.st.context_overflows += 1
+                        self.token_ratio = min(self.token_ratio * 1.25, 3.0)
+                        if not self._force_evict():
+                            self.log.error("context overflow with nothing left to evict; ending turn")
+                            errored = True
+                            break
+                        continue
                     self.st.model_errors += 1
                     self.consecutive_errors += 1
-                    self.log.warning("model call failed (%d in a row): %s", self.consecutive_errors, e)
-                    if self.consecutive_errors >= self.max_model_errors:
-                        self.log.error("switching to fallback explorer for the rest of %s", self.ctx.game_id)
+                    errored = True
+                    timed_out = "timed out" in msg or "timeout" in type(e).__name__.lower()
+                    self.log.warning("model call failed (%d in a row%s): %s", self.consecutive_errors,
+                                     ", timeout" if timed_out else "", e)
+                    if timed_out:
+                        # Slow, not dead (exp-003: 8 concurrent games pushed calls past 180 s). Give the next call
+                        # more room instead of counting toward the dead-server switch.
+                        self.model_timeout_s = min(self.model_timeout_s * 1.5, 900.0)
+                        self.consecutive_errors = 0
+                    elif self.consecutive_errors >= self.max_model_errors and not self._server_alive():
+                        self.log.error("model server unreachable: fallback explorer for the rest of %s", self.ctx.game_id)
                         self.use_fallback_only = True
                     time.sleep(min(5.0, 0.5 * self.consecutive_errors))
                     break
                 self.consecutive_errors = 0
+                if resp.prompt_tokens and raw_before:
+                    # Exponential moving average of the server's own count over our estimate.
+                    self.token_ratio = 0.7 * self.token_ratio + 0.3 * max(0.5, min(3.0, resp.prompt_tokens / raw_before))
                 dt = time.time() - t0
                 self.st.model_calls += 1
                 self.st.model_time_s += dt
@@ -439,10 +494,12 @@ class ReplAgent(Agent):
                         break
                 if stop:
                     break
-            self.consecutive_idle = 0 if acted else self.consecutive_idle + 1
-            self.last_turn_acted = acted
-            if not acted:
+            if acted:
+                self.consecutive_idle = 0
+            elif not errored:  # the model answered and chose not to act; an error-ended turn is not idleness
+                self.consecutive_idle += 1
                 self.st.idle_turns += 1
+            self.last_turn_acted = acted or errored
         except Exception as e:  # noqa: BLE001
             self.log.exception("turn crashed: %s", e)
             self.st.model_errors += 1
