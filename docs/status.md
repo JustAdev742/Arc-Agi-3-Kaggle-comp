@@ -111,6 +111,10 @@ research log exp-006a.
 
 ## Follow-ups noticed (not fixed on purpose)
 
+- Measurement noise: four single runs of similar arms span 0.56-1.11 with 5-8 levels; the three levels every arm
+  solves (ar25 L1, lp85 L1, sb26 L1) are the only stable signal. Plan: repeat exp-009 unchanged (exp-009b) to
+  measure run-to-run spread, then require a difference larger than that spread before keeping a change.
+
 - Human play data (342 replays for the 25 public games, arcprize.org/blog/arc-agi-3-human-dataset): the download short
   link (dub.link/vfwCqvb) answers 429 from this container and the replay pages load their data through an endpoint I
   could not find in 15 minutes. If you can download the "full Public Demo dataset" archive from that blog post and
