@@ -154,3 +154,17 @@ Measured: six games, 150 s each (runs/smoke-rules3, commit 8ce2e7e): m0r0 L1 sol
           120 s budget bought only 25-250 actions per game.
 Notes:    goal inference without a model is the limit (unique-colour / avatar-sized / collectible heuristics); ls20 loops
           on an optimistic plan against an invisible wall (fixed: bumps stay in optimistic plans, failed goals are banned).
+
+## 2026-09-16 · exp-005 · tracker + navigation planner + prescriptive Method (no rule library) · KEPT (best single run so far)
+Why:      the arm between the control and exp-007: entity tracking, move_model/plan_to_entity and the Method procedure,
+          without auto_rules/plan_rules in the prompt (harness commit f76f29c; queued 2.5 h on Kaggle, ran 07:28-08:35).
+Measured: dev 0.56 -> 1.108 (runs/kaggle-repl-dev-005, kernel arc3-eval-dev v3, same settings as exp-003c/007).
+          Levels 8/142: ar25 L1, lp85 L1, s5i5 L1, sb26 L1, su15 L1, tn36 L1, vc33 L1+L2 (11+20 actions); actions 924
+          (control 1415, exp-007 755); 0 model errors; wall 3563 s; setup 460 s.
+          Transcripts: a planner in 2 games, set_model in 3, auto_rules 0 (not available); 2.19 inspection-only calls
+          per turn (exp-007 2.48), mean latency 33 s per call.
+Notes:    exp-005 (no rules) > exp-007 (rules v3, 0.839, 5 levels) in single runs: the rules-v3 Method (auto_rules first,
+          coverage mostly < 1, probe) may have displaced the simpler plan_to_entity procedure, or it is noise (the two
+          runs share 3 of their solved levels: ar25 L1, sb26 L1, vc33 L1-L2). Both arms halve the control's actions.
+          exp-008 (rules v5 + automatic per-turn summary, queued) and exp-009 (HEAD) decide; if the rules summary does
+          not beat 1.1, the Method reverts to exp-005's wording with the rules as optional helpers.
