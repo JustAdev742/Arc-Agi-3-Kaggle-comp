@@ -143,3 +143,24 @@ def test_council_async_round_is_injected_within_the_turn():
     finally:
         agent.close()
         env.close()
+
+
+def test_council_disables_itself_after_two_empty_rounds():
+    def failing_specialist(messages):
+        raise RuntimeError("specialist server down")
+
+    coord = MockClient([MockClient.tool("act('UP')"), MockClient.say("ok")] * 4)
+    arc = make_arcade("environment_files")
+    env = LocalEnv(arc, "ls20")
+    ctx = AgentContext(game_id="ls20", deadline=time.time() + 300,
+                       config={"client": coord, "specialist_client": MockClient(failing_specialist), "image": False,
+                               "roles": ["planner"], "specialist_schedule": "every", "specialist_every": 1, "specialist_sync": True})
+    agent = get("council")(ctx)
+    try:
+        run(agent, env, 4)
+        st = agent.stats()["council"]
+        assert st["rounds"] == 2 and st["errors"] == 2 and st["disabled_at_turn"] == 2 and st["roles"] == [], st
+        assert agent.stats()["actions_model"] == 4
+    finally:
+        agent.close()
+        env.close()

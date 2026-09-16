@@ -152,6 +152,15 @@ class CouncilAgent(ReplAgent):
             self.reports[role] = (self.st.turns, text)
         if new:
             self._reports_version += 1
+            self._empty_rounds = 0
+        else:
+            # nothing came back (server down, every call failed or timed out): after two such rounds stop asking, so a
+            # dead specialist server costs the coordinator nothing more than the single-model arm
+            self._empty_rounds = getattr(self, "_empty_rounds", 0) + 1
+            if self._empty_rounds >= 2 and self.roles:
+                self.log.error("council disabled for %s: two specialist rounds returned nothing", self.ctx.game_id)
+                self.cst["disabled_at_turn"] = self.st.turns
+                self.roles = []
         dt = time.time() - t0
         self.cst["time_s"] += dt
         self._record("council", turn=self.st.turns, reason=reason, roles=sorted(new), round_s=round(dt, 1),
