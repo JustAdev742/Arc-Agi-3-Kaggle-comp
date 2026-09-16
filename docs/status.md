@@ -68,7 +68,11 @@ architectural step therefore has to be measured on dev and val, not assumed.
    artifactory, unreachable offline).
 4. `scottmahony/arc3-gpu-diag` v3, RTX, 2026-09-16: env var `VLLM_ATTENTION_BACKEND=TRITON_ATTN` changed nothing; vLLM 0.27
    logs "Unknown vLLM environment variable" and still picked FlashInfer. 9 min of RTX quota, same failure.
-5. `scottmahony/arc3-gpu-diag` v4, RTX, 2026-09-16: `--attention-backend TRITON_ATTN` on the command line. Result pending.
+5. `scottmahony/arc3-gpu-diag` v4, RTX, 2026-09-16: `--attention-backend TRITON_ATTN` fixed the main model ("Using
+   AttentionBackendEnum.TRITON_ATTN backend") but the MTP draft model still auto-selected FlashInfer (vLLM never inherits
+   the target backend for drafts) and the first request failed the same way. 9 min of RTX quota.
+6. `scottmahony/arc3-gpu-diag` v5, RTX, 2026-09-16: draft backend pinned via `--speculative-config {..., "attention_backend":
+   "TRITON_ATTN"}`; start-up now proves itself with one real completion and retries without MTP otherwise. Result pending.
 
 ## Open items (need you)
 
