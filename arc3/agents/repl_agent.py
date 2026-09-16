@@ -103,6 +103,10 @@ class ReplAgent(Agent):
         self.use_image = bool(c.get("image", True))
         self.image_scale = int(c.get("image_scale", 4))
         self.image_tokens = int(c.get("image_tokens", 600))  # Qwen3.8 ViT: 576 tokens for a 384px image (diag v5)
+        # exp-018 (2026-09-16): at the submission operating point (3 h per game) terse turns let 17+ board images
+        # accumulate under the token budget; vLLM then rejects every call (400 "At most 16 image(s)") and the
+        # game is dead. Keep the newest max_images images; older observations keep their text.
+        self.max_images = int(c.get("max_images", 12))
         self.token_ratio = float(c.get("token_ratio", 1.3))  # server prompt_tokens / our estimate, calibrated per response
         self.context_margin = int(c.get("context_margin", 2048))
         ascii_cfg = c.get("ascii", "auto")  # auto: only when no image is attached
@@ -520,10 +524,38 @@ class ReplAgent(Agent):
                 n += len(json.dumps(tc)) // 3
         return n
 
+    def _image_count(self) -> int:
+        return sum(1 for m in self.messages if isinstance(m.get("content"), list)
+                   for part in m["content"] if part.get("type") == "image_url")
+
+    def _cap_images(self, keep: int) -> int:
+        """Strip board images from the oldest messages until at most ``keep`` remain (text stays).
+        Returns the number of images removed."""
+        removed = 0
+        excess = self._image_count() - max(0, keep)
+        for m in self.messages:
+            if excess <= 0:
+                break
+            c = m.get("content")
+            if not isinstance(c, list):
+                continue
+            kept: list[dict[str, Any]] = []
+            for part in c:
+                if part.get("type") == "image_url" and excess > 0:
+                    excess -= 1
+                    removed += 1
+                    kept.append({"type": "text", "text": "[board image dropped; the current board is in the latest message]"})
+                else:
+                    kept.append(part)
+            m["content"] = kept
+        return removed
+
     def _evict(self) -> None:
         """Keep the estimated prompt under budget: drop whole old turns first, then the oldest
         assistant/tool pairs inside the current turn (always keeping its user message and the
-        newest pair)."""
+        newest pair). Also keeps the number of attached images under the server's per-prompt limit."""
+        if self._cap_images(self.max_images):
+            self.st.evictions += 1
         budget = self.context_tokens - self.max_output_tokens - self.context_margin
         while len(self.messages) > 2 and self._estimate_tokens(self.messages) > budget:
             users = [k for k, m in enumerate(self.messages) if m["role"] == "user"]
@@ -602,6 +634,14 @@ class ReplAgent(Agent):
                         timeout_s=max(self.min_call_timeout_s, min(self.model_timeout_s, self.ctx.time_left() - 5)))
                 except Exception as e:  # noqa: BLE001
                     msg = str(e).lower()
+                    if "image" in msg and ("at most" in msg or "limit" in msg) and self._image_count() > 1:
+                        # The server's image limit is lower than max_images: halve our cap, strip the oldest images
+                        # and retry at once. Retrying the same prompt would fail forever (exp-018: 193 in a row).
+                        self.st.context_overflows += 1
+                        self.max_images = max(1, min(self.max_images, self._image_count()) // 2)
+                        self._cap_images(self.max_images)
+                        self.log.warning("image limit hit; keeping the newest %d images and retrying", self.max_images)
+                        continue
                     if "maximum context length" in msg or "context length" in msg or "too many tokens" in msg:
                         # Our estimate was low: assume the worst, drop history and retry at once (not an outage).
                         self.st.context_overflows += 1

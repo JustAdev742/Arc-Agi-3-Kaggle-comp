@@ -313,3 +313,65 @@ def test_tool_text_appends_cell_events_unless_printed():
     printed = ReplAgent._tool_text({"stdout": "['UP: #3 (c9 4x4) moved (+0,-4)', 'RIGHT: no entity changed']\n", "events": ev, "actions": 2}, events_line=True)
     assert "events:" not in printed
     assert "events:" not in ReplAgent._tool_text({"stdout": "ok\n", "events": ev, "actions": 2})  # off by default (exp-012/012b)
+
+
+def test_image_cap_keeps_prompt_under_the_server_limit():
+    # exp-018: terse turns let 17+ images accumulate under the token budget; vLLM rejects the prompt (limit 16).
+    calls = {"n": 0}
+
+    def script(messages):  # one action per turn: act, then end the turn with a plain answer
+        calls["n"] += 1
+        return MockClient.tool("act('UP')") if calls["n"] % 2 else MockClient.say("moved")
+
+    mock = MockClient(script)
+    arc = make_arcade("environment_files")
+    env = LocalEnv(arc, "ls20")
+    ctx = AgentContext(game_id="ls20", deadline=time.time() + 300,
+                       config={"client": mock, "image": True, "max_images": 3, "context_tokens": 200000})
+    agent = get("repl")(ctx)
+    try:
+        run(agent, env, 8)
+        agent._evict()
+        assert agent._image_count() <= 3
+        assert agent.stats()["evictions"] > 0
+        users = [m for m in agent.messages if m["role"] == "user" and isinstance(m.get("content"), list)]
+        assert len(users) >= 4, [m["role"] for m in agent.messages]
+        # Old observations keep their text; only the image part is replaced by a note.
+        stripped = [m for m in users if any("image dropped" in str(p.get("text", "")) for p in m["content"])]
+        assert stripped, [[p.get("type") for p in m["content"]] for m in users]
+        assert all(any(p.get("type") == "text" and "act(" in str(p.get("text", "")) or "board" in str(p.get("text", "")).lower()
+                       for p in m["content"]) for m in stripped)
+        # The newest observation still carries its image.
+        assert any(p.get("type") == "image_url" for p in users[-1]["content"])
+    finally:
+        agent.close()
+        env.close()
+
+
+def test_image_limit_error_strips_images_and_retries_without_counting_an_error():
+    calls = {"n": 0}
+
+    def script(messages):
+        calls["n"] += 1
+        n_img = sum(1 for m in messages if isinstance(m.get("content"), list)
+                    for p in m["content"] if p.get("type") == "image_url")
+        if n_img > 2:
+            raise RuntimeError('chat completion failed 400: {"error":{"message":"At most 2 image(s) may be provided '
+                               'in one prompt. (parameter=image)","type":"BadRequestError","param":"image","code":400}}')
+        return MockClient.tool("act('UP')") if calls["n"] % 2 else MockClient.say("moved")
+
+    mock = MockClient(script)
+    arc = make_arcade("environment_files")
+    env = LocalEnv(arc, "ls20")
+    ctx = AgentContext(game_id="ls20", deadline=time.time() + 300,
+                       config={"client": mock, "image": True, "max_images": 12, "context_tokens": 200000})
+    agent = get("repl")(ctx)
+    try:
+        run(agent, env, 6)
+        st = agent.stats()
+        assert st["actions_model"] == 6 and st["turns"] >= 6, st
+        assert st["model_errors"] == 0 and st["context_overflows"] >= 1, st
+        assert agent.max_images <= 2 and agent._image_count() <= 2
+    finally:
+        agent.close()
+        env.close()
