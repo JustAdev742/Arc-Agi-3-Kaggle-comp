@@ -782,3 +782,14 @@ Measured: re-mined arc3/data/skills.json from 88 winning transcripts: 18 cards, 
           (ar25 L2, cd82 L1, ft09 L1, ka59 L1, ls20 L1, su15 L2: each won once in 13-21 attempts). The validated cards
           with the highest confidence: sb26 L1 0.72, su15 L1 0.67, ar25 L1 0.63, lp85 L1 0.50; the lowest: cd82/ft09/ka59/
           ls20 L1 at 0.05. This is the stable-versus-lucky split the game x run matrix showed, now on the cards.
+
+## 2026-09-17 · exp-021b gate on our own recorded runs (goal_probe --max-levels 3, after the re-mine) · MEASURED (code-only)
+Measured: 18 solved levels replayed (the re-mined library picks the latest winning run per game), 11 with at least one
+          predicate consistent after the level (61 percent; the previous set: 7 of 13, 54 percent). New: ka59 L1
+          (vanish(colour 1, shape), count(colour 1) == 2, aligned), lp85 L1 (same_rows), tn36 L1 (vanish(colour 9,
+          shape), touch(0, 10)), vc33 L1 (aligned(colour 11)), ls20 L1 (avatar_inside(colour 5)). Still none: bp35,
+          cd82, ft09, m0r0, sb26 L1/L2, vc33 L2 (a sub-part aligned with a marker needs part-level entities).
+          Levels >= 2 with level-1 candidates: 3; the eventual winner was the cheapest live hypothesis before the
+          win on ar25 L2 (1 of 5) and su15 L2 (1 of 26 live; the library over-generates on su15), none survives on
+          vc33 L2. Engine determinism holds on every replay.
+Kept:     yes. Follow-ups: part-level entities for vc33-style goals; prune the over-generation on colour-0 pairs.
