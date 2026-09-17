@@ -97,10 +97,10 @@ architectural step therefore has to be measured on dev and val, not assumed.
 12. exp-011..016 (`arc3-eval-dev-f` v2-v4, `-g` v2, `-h` v1-v2, `-i` v1-v2, `-j` v1, `-k` v1, `arc3-eval-val-a` v1,
     `arc3-eval-all-a` v1): about 60-70 min RTX each, 2026-09-16 afternoon and evening; numbers in the research log.
 13. `arc3-eval-all-long-a` v2 (exp-018: all 25 games concurrently, 3 h each) and `arc3-eval-dev-long-a` v1 (exp-017:
-    dev, 1 h per game), pushed 21:28 and 21:46. Both were cut off by the **weekly GPU quota (30 h; used 29 h 34 min at
-    23:10 UTC; resets 2026-09-19 00:00 UTC)**: exp-018 cancelled at 23:13 after 1 h 45 min, exp-017 killed when the
-    quota ran out. No output files; the live logs (Kaggle `GetKernelSessionLogsStream`) gave the partial results in the
-    research log and exposed the image-limit bug (lesson 0012). About 3.5 h RTX between them.
+    dev, 1 h per game), pushed 21:28 and 21:46. The **weekly GPU quota (30 h) ran out at about 23:20 UTC (resets
+    2026-09-19 00:00 UTC)**: exp-018 was cancelled at 23:13 after 1 h 45 min (no output; its live log exposed the
+    image-limit bug, lesson 0012), while Kaggle let exp-017 finish on borrowed quota at 00:52 UTC: **dev 1.288, 10
+    levels** (runs/kaggle-repl-dev-017; research log). About 4.7 h RTX between them.
 
 ## Rule library coverage (exp-006a, code-only, 2026-09-16)
 
@@ -228,8 +228,8 @@ research log exp-006a.
   3 h) showed every call for ft09 and s5i5 failing from 22:51 with vLLM's 400 "At most 16 image(s)" and being retried
   unchanged (554 and 340 times): a submission-path bug that only the 9-hour operating point reaches. Fixed (max_images
   cap with image-only eviction, immediate retry on the 400; commit d8e3ce4, lesson 0012). (2) exp-017 (dev, 1 h per
-  game) solved the same levels as the 1200 s runs and nothing beyond level 1 on 12 games seen: time is not the
-  bottleneck, stagnation is. (3) Built the learning memory the owner asked for: `arc3/memory.py` Lessons store
+  game) finished after all (Kaggle let it run past the quota): dev 1.288, 10 levels, inside the band of the 1200 s
+  runs with one extra level for 4-5x the actions: time is not the bottleneck, stagnation is. (3) Built the learning memory the owner asked for: `arc3/memory.py` Lessons store
   (harness-written recipe/hazard/mistake lessons plus `learn()` for the model, shown every turn, carried across
   levels, shared across the run's games through a locked JSONL), a "What did we learn?" question after each decisive
   event, and an offline skill library (`scripts/mine_skills.py` -> `arc3/data/skills.json`, 18 cards from 79 winning

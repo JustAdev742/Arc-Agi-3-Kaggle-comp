@@ -465,7 +465,7 @@ Measured: cancelled at 23:13 (1 h 45 min in; the weekly GPU quota was down to 26
 Kept:     the fix, yes (submission-path bug: at 9 h per game every game would have died this way). The measurement
           itself must be repeated after the quota resets (2026-09-19 00:00 UTC), with the fix in.
 
-## 2026-09-16 · exp-017 · dev split at 3600 s per game, 8 workers (long-horizon check) · PARTIAL (killed by quota)
+## 2026-09-16 · exp-017 · dev split at 3600 s per game, 8 workers (long-horizon check) · MEASURED (finished on borrowed quota)
 Why:      does triple the per-game time buy levels, or does the agent stagnate? (Decides how much the 9 h operating point
           is worth versus a better harness.)
 Setup:    kernel arc3-eval-dev-long-a v1, harness af19f73, exp-011 settings except time_budget_s 3600; started 21:44.
@@ -473,12 +473,16 @@ Measured: first batch of 8 games, all used the full hour: lp85 L1 (300 actions),
           ka59 0 (93), ft09 0 (52), cd82 0 (235), bp35 0 (321), ls20 0 (126): 2 levels. In the 1200 s runs the same
           eight games gave 1-2 levels (exp-011: ar25 L1, lp85 L1; exp-011b: ar25 L2, lp85 L1). Second batch (live log
           until the quota kill): s5i5 L1 at action 19 (541 s), tn36 L1 at action 69 (583 s), the rest unknown.
-          Second batch (live log until the quota kill): sb26 L1 at action 17 (237 s), s5i5 L1 at 19 (541 s), tn36 L1 at 69
-          (583 s), m0r0 L1 at 55 (1601 s); the same games and levels the 1200 s runs solve, none beyond level 1.
-          Score is not computable (no summary.json). Run files: none pulled (the kernel is killed by the quota).
-Notes:    the extra 40 minutes per game bought nothing on the first eight games: they stagnate rather than run out of
-          time. Time is not the bottleneck at the current harness; what the agent does with more turns is. This is the
-          case for the memory arm (exp-019) and against spending effort on throughput first.
+          Kaggle let the kernel run past the quota; it completed at 00:52 UTC on 2026-09-17 (runs/kaggle-repl-dev-017,
+          kernel arc3-eval-dev-long-a v1, harness 59dad5c, 2 h 59 min wall). **dev 1.288, 10/142 levels**, 4634 actions,
+          every game used its full hour: ar25 L1 (20 actions), lp85 L1 (10), m0r0 L1 (55), s5i5 L1 (19), sb26 L1 (17),
+          su15 L1 (20), tn36 L1 (69), tu93 L1 (34), vc33 L2 (57, 16). 62-148 calls per game, 0 model errors, p50 latency
+          16-65 s (8 concurrent games).
+Notes:    against the six 1200 s runs of the same config family (1.229/1.372/0.775/0.692/0.608/1.041, 9/9/6/6/6/6 levels),
+          triple the time per game gives a score inside the band and one extra level (vc33 L2, the only level 2 in the
+          run) for 4-5x the actions (4634 vs 938-1180): tn36 spent 796 actions on its level 1, wa30 498 and tr87 355 on
+          nothing. Time is not the bottleneck; the agent keeps acting without learning. This is the case for the memory
+          and level-boundary arms (exp-019/020) and for an action budget per level, not for more throughput.
 
 ## 2026-09-16 · exp-019 · learning memory: harness-written and model-written lessons shown every turn, shared across the run's games, offline skill library · PLANNED (needs GPU quota, resets 2026-09-19 00:00 UTC)
 Why:      exp-017 shows the agent stagnating with time to spare; exp-009/011 transcripts show the same mistakes repeated
