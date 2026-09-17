@@ -111,39 +111,24 @@ research log exp-006a.
 
 ## Open items (need you)
 
-- **Kaggle allows 2 concurrent batch GPU sessions and the queued exp-005 kernel (`arc3-eval-dev` v3, queued since
-  04:53 UTC while later kernels ran) holds one of them.** The CLI cannot cancel a queued kernel. If it is still
-  "Queued" when you look, cancel it from the Kaggle UI (Your Work -> arc3-eval-dev -> Cancel run) so two runs can
-  proceed in parallel.
-
-- **GPU quota is exhausted for the week** (30 h; resets 2026-09-19 00:00 UTC). Nothing can run on Kaggle until then:
-  exp-019 (memory arm, notebook ready in the scratchpad as `arc3-eval-dev-m`), the exp-018 repeat with the image fix,
-  and the Flash-Next serving check all wait. If the workstation (RTX PRO 6000, CLAUDE.md) is reachable, the same
-  evaluation runs there: `arc3.eval.run_eval('repl', 'dev', time_budget_s=1200, workers=8, config=...)` against a local
-  vLLM started with `arc3.serve.build_vllm_command`; tell me and I will write the exact commands.
-- **Flash-Next dataset is up:** `scottmahony/qwen3-8-flash-next-nvfp4` (all 25 files, 132.7 GB, streamed HF -> Kaggle
-  without touching local disk, `scripts/stream_hf_to_kaggle.py`; created 23:22 UTC, "ready" about 30 minutes later).
-  With the vLLM 0.29.0 wheelhouse (`scottmahony/arc3-vllm-wheelhouse-v0290-cu130`, ready) the single-GPU serving check
-  (`scratchpad/nb/flashnext-diag`, PLE table offloaded to host RAM) is the first thing to push when the quota resets.
-1. Daily submission limit: paste the "Submission limits" lines from the Kaggle **Rules** page (still
-   UNCONFIRMED; 5 per day from two secondary sources).
-4. **Qwen3.8-Flash-Next-NVFP4 (requested 2026-09-16 evening):** cannot be staged from this container (132.7 GB, one
-   53.7 GB file, 18 GB of writable disk here; Kaggle has no server-side Hugging Face import in the CLI). Recipe and
-   metadata for an upload from the workstation: `docs/models/qwen3-8-flash-next-nvfp4/UPLOAD.md`. Before it can
-   serve on one RTX PRO 6000: NVFP4 language weights ~79 GB on the GPU, the 51 GB n-gram/PLE table offloaded to host
-   RAM, a vLLM newer than the 0.27.1 wheelhouse (needs commit d4d703c, "Fix FP8 PLE loading in mixed ModelOpt
-   checkpoints"), and NVFP4 kernels on SM120 (unverified). The vLLM recipe page lists only 4-GPU configurations.
-3. **Milestone 2 (closes 2026-09-30):** the submission notebook (single 27B REPL agent, exp-011 harness) passed its
-   private Save & Run All on the RTX on 2026-09-16. Two decisions are yours: (a) the open-source license for the public
-   copy (MIT or Apache-2.0 for the code; the model weights are Apache-2.0 already); (b) the go-ahead to make the
-   notebook public and to press Submit to Competition (each real submission is one of the daily allowance and about 9 h
-   of the hidden-set run). I will not publish or submit without that OK.
-0. **Milestone 2 (2026-09-30)** needs the notebook public under an open-source license by then. Say which license
-   (MIT/Apache-2.0 for the code) and I will prepare the public copy once the control arm and one Save & Run All of the
-   submission notebook on the RTX are green; publishing itself waits for your explicit OK.
-2. For future sessions put the Kaggle token in the Claude Code environment as `KAGGLE_API_TOKEN` (this
-   session keeps it in git-ignored `.kaggle/access_token`). Consider regenerating the token after this
-   project since it passed through a chat upload.
+1. **Milestone 2 (closes 2026-09-30):** the submission notebook (single 27B REPL agent, exp-011 harness plus the
+   fixes since) passed its private Save & Run All on the RTX on 2026-09-16. Two decisions are yours: (a) the
+   open-source license for the public copy (MIT or Apache-2.0 for the code; the model weights are Apache-2.0
+   already); (b) the go-ahead to make the notebook public and to press Submit to Competition (each real submission
+   is one of the daily allowance and about 9 h of the hidden-set run). I will not publish or submit without that OK.
+2. **GPU quota is exhausted for the week** (30 h; resets 2026-09-19 00:00 UTC). Ready to push, in this order, when
+   it resets: exp-019 (memory only) and exp-020 (memory + level boundary), three runs each against the six-run base
+   (`scratchpad/nb/exp019`, `scratchpad/nb/exp020`; rebuild from HEAD with `scripts/build_eval_notebook.py`); the
+   exp-018 repeat with the image-limit fix; the Flash-Next serving check (`scratchpad/nb/flashnext-diag`; the dataset
+   `scottmahony/qwen3-8-flash-next-nvfp4`, all 25 files, 132.7 GB, and the vLLM 0.29.0 wheelhouse
+   `scottmahony/arc3-vllm-wheelhouse-v0290-cu130` are both ready). If the workstation (RTX PRO 6000, CLAUDE.md) is
+   reachable, the same evaluations run there with `make eval AGENT=repl ...` against a local vLLM started from
+   `arc3.serve.build_vllm_command`; tell me and I will write the exact commands.
+3. Daily submission limit: paste the "Submission limits" lines from the Kaggle **Rules** page (still UNCONFIRMED;
+   5 per day from two secondary sources).
+4. For future sessions put the Kaggle token in the Claude Code environment as `KAGGLE_API_TOKEN` (this session keeps
+   it in git-ignored `.kaggle/access_token`). Consider regenerating the token after this project since it passed
+   through a chat upload.
 
 ## Follow-ups noticed (not fixed on purpose)
 
@@ -160,6 +145,14 @@ research log exp-006a.
 - `arc_agi` logs at INFO through the root logger; the harness silences it with a level filter.
 - The starter's `build_notebook.py` writes the agent to `/tmp/my_agent.py`; ours bundles a
   package instead (see `scripts/build_notebook.py`).
+
+- Improvement pass (2026-09-17, during the quota wait; commits 08076e9, 4bedddf, 98dffb6): run summaries are now
+  written after every game and atomically, a dead pool worker no longer sinks the run, a stopped sandbox no longer
+  respawns its child, the terminal frame stays out of the per-cell state, the ruff rule set is pinned (`make check`),
+  the eval/diag builders take `--out` and their folders are ignored, the REPL agent has one model-call path, the
+  README and this file were brought up to date. Left as is on purpose: `governor.py` (tested, off the submission
+  path since lesson 0011); the council arm (parked); the `notebooks/eval` watchdog's `os._exit(0)`, which skips the
+  final summary but no longer loses the per-game results.
 
 ## Session 3 outcome (2026-09-16, midday; in progress)
 

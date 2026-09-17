@@ -48,7 +48,8 @@ def main() -> None:
     s = dest / "summary.json"
     if s.exists():
         d = json.loads(s.read_text())
-        print(f"\n== {d.get('run_name')} score={d.get('score'):.3f} dev={d.get('score_dev')} val={d.get('score_val')} "
+        partial = f" PARTIAL ({d.get('games_finished')}/{len(d.get('games', []))} games; the kernel was cut off)" if d.get("partial") else ""
+        print(f"\n== {d.get('run_name')}{partial} score={d.get('score'):.3f} dev={d.get('score_dev')} val={d.get('score_val')} "
               f"levels={d.get('levels_completed')}/{d.get('levels_total')} actions={d.get('actions')} wall={d.get('wall_s')}s failures={d.get('failures')}")
         for g in d.get("results", []):
             st = g.get("agent_stats", {})
