@@ -42,7 +42,15 @@ def build(a: argparse.Namespace) -> dict:
         os.environ['ARC3_AGENT_CONFIG'] = json.dumps({cfg!r})
         def _watchdog():
             time.sleep(BUDGET_S)
-            print('WATCHDOG: hard stop after %d min' % {a.budget_min}, flush=True); os._exit(0)
+            # The per-game summary.json files are already on disk (arc3.eval rewrites them after every game); leave a
+            # marker so pull_run.py shows that the kernel was cut off rather than finished.
+            print('WATCHDOG: hard stop after %d min' % {a.budget_min}, flush=True)
+            try:
+                with open('/kaggle/working/eval_result.json', 'w') as f:
+                    json.dump({{'watchdog': True, 'agent': os.environ.get('ARC3_AGENT'), 'total_s': round(time.time() - START, 1),
+                               'error': 'watchdog: hard stop after %d min; runs/*/summary.json is partial' % {a.budget_min}}}, f, indent=1)
+            finally:
+                os._exit(0)
         threading.Thread(target=_watchdog, daemon=True).start()
         print(subprocess.run('nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv', shell=True, capture_output=True, text=True).stdout)
         subprocess.check_call([sys.executable, '-m', 'pip', 'install', '-q', '--no-index', '--no-warn-conflicts',

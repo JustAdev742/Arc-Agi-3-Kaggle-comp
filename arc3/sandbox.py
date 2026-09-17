@@ -33,7 +33,7 @@ from collections.abc import Callable
 from typing import Any, Optional
 
 CHILD_SOURCE = r'''
-import json, sys, io, traceback, contextlib, os
+import json, sys, io, traceback
 HOST_OUT = sys.stdout
 sys.stdout = io.StringIO()  # everything the model prints is captured per run
 import numpy as np
@@ -518,8 +518,8 @@ def set_models(models):
         raise TypeError("set_models expects {name: callable}")
     HYP["models"] = dict(models)
     HYP["alive"] = set(models)
-    HYP["checked"] = {k: 0 for k in models}
-    HYP["correct"] = {k: 0 for k in models}
+    HYP["checked"] = dict.fromkeys(models, 0)
+    HYP["correct"] = dict.fromkeys(models, 0)
     HYP["killed_by"] = {}
     return f"{len(models)} hypotheses registered"
 

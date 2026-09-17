@@ -540,3 +540,22 @@ def test_stopped_sandbox_does_not_respawn_its_child():
     r = sb.run("print('again')", state(), timeout_s=20)
     assert r["stdout"].strip() == "again"
     sb.stop()
+
+
+def test_child_source_passes_pyflakes():
+    """The REPL child lives in a string literal, so the repo's linter never sees it: run ruff's pyflakes rules over
+    the extracted source (undefined names and unused imports there would only surface as runtime errors)."""
+    import shutil
+    import subprocess
+
+    from arc3.sandbox import CHILD_SOURCE
+
+    ruff = shutil.which("ruff") or str(Path(sys.executable).with_name("ruff"))
+    if not Path(ruff).exists():
+        pytest.skip("ruff not installed")
+    src = Path(ROOT) / ".pytest_cache" / "child_source.py"
+    src.parent.mkdir(exist_ok=True)
+    src.write_text(CHILD_SOURCE)
+    r = subprocess.run([ruff, "check", "--isolated", "--select", "F,E9,B006,B007", "--ignore", "E731", "--quiet", str(src)],
+                       capture_output=True, text=True, check=False)
+    assert r.returncode == 0, r.stdout + r.stderr
