@@ -16,6 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from arc3.eval import run_eval
+from arc3.presets import resolve
 
 
 def main() -> None:
@@ -28,7 +29,8 @@ def main() -> None:
     p.add_argument("--workers", type=int, default=1)
     p.add_argument("--run-name", default=None)
     p.add_argument("--runs-dir", default="runs")
-    p.add_argument("--config", default="{}", help="JSON dict passed to the agent")
+    p.add_argument("--config", default="{}", help="JSON dict passed to the agent (on top of --preset)")
+    p.add_argument("--preset", default="", help="agent config preset from arc3/presets.py (champion, bundle)")
     p.add_argument("--record-frames", action="store_true")
     p.add_argument("--note", default="")
     p.add_argument("-v", "--verbose", action="store_true")
@@ -37,7 +39,7 @@ def main() -> None:
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     logging.getLogger("arc_agi").setLevel(logging.WARNING)
     run_eval(a.agent, a.split, seed=a.seed, time_budget_s=a.time_per_game, max_actions=a.max_actions,
-             workers=a.workers, run_name=a.run_name, runs_dir=a.runs_dir, config=json.loads(a.config),
+             workers=a.workers, run_name=a.run_name, runs_dir=a.runs_dir, config=resolve(a.preset or None, json.loads(a.config)),
              record_frames=a.record_frames, note=a.note)
 
 

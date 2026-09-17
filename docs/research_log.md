@@ -686,3 +686,24 @@ Measured: engine determinism: 0 of 546 engine frames differ from the recorded on
 Follow-up: add "shape_matches(a, b)" (equal masks up to translation) and "count(colour) == count(colour)" style
           relations to goal_predicates and re-run this gate; the rest of the human dataset (341 files) turns this into
           a real recall measurement across games.
+
+## 2026-09-17 · champion record, champion preset, research-status tool, no-op measurement · KEPT (code-only)
+Why:      the owner's research brief (2026-09-17): re-establish the champion as an immutable comparison point, make sure
+          recent changes did not silently move the baseline, and answer "what is best / what changed / which failure
+          dominates" from machine-readable logs.
+Found:    the agent's defaults had drifted: memory, level consolidation and the goal-hypotheses line are on by default
+          since exp-019/020/022 were built, so the submission notebook and any control run at HEAD would have run an
+          unmeasured bundle, not the exp-011 configuration.
+Change:   docs/champion.md (exp-011 pair: 1.229 / 1.372 / 0.775 on the same notebook, val 0.794, per-game table, serving
+          flags, VRAM, weaknesses). arc3/presets.py: CHAMPION (every knob added since exp-011 off) and BUNDLE; the
+          submission builder defaults to CHAMPION (test), the eval builder and scripts/eval.py take --preset.
+          scripts/research_status.py: best run, git diff since its commit, score spread, failure categories, seconds per
+          action, time hogs, games solved in every run / never, game x run matrix (--matrix), JSON output.
+Measured: research_status on 18 dev runs: best kaggle-repl-dev-011b 1.372 / 9 levels; spread 0.32-1.37 (median 0.81);
+          never solved in any run: dc22, ft09, sk48, tr87, wa30; solved in every run: sb26; level 3 never reached.
+          No-op measurement on runs/kaggle-repl-dev-017 action logs: 4634 actions, 434 changed nothing (9.4 percent),
+          293 (6.3 percent) re-sent a (frame hash, action) pair already observed to change nothing (wa30 67, cd82 62,
+          s5i5 38, lp85 34, sk48 33); 1349 (29 percent) re-sent a (frame, action) pair of any kind (loops). On solved
+          levels the repeats cost score directly (s5i5 L1: 155 actions, 38 known no-ops).
+Next:     exp-024 control (champion preset at HEAD) first in the quota queue, before the exp-019/020/022 arms, so every
+          arm compares against a control from the same harness; exp-023 no-op memory (task #44).

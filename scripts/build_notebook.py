@@ -16,11 +16,13 @@ import argparse
 import base64
 import io
 import json
+import sys
 import tarfile
 from pathlib import Path
 from textwrap import dedent
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))  # arc3.presets
 AGENT_SRC = ROOT / "agent" / "my_agent.py"
 NOTEBOOK_PATH = ROOT / "notebooks" / "submission.ipynb"
 METADATA_PATH = ROOT / "notebooks" / "kernel-metadata.json"
@@ -145,9 +147,11 @@ def vllm_setup_source(model_dataset: str, wheels_dataset: str, specialist_datase
 
 
 def build(accelerator: str, agent: str, model_dataset: str, wheels_dataset: str, budget_s: int, smoke_s: int = 300,
-          specialist_dataset: str = "") -> dict:
+          specialist_dataset: str = "", *, preset: str = "champion", config: str = "") -> dict:
     if accelerator not in _ACCELERATORS:
         raise SystemExit(f"unknown accelerator {accelerator}")
+    from arc3.presets import resolve
+    agent_config_json = json.dumps(resolve(preset or None, json.loads(config) if config.strip() else {}))
     agent_body = AGENT_SRC.read_text()
     tarball = package_tarball()
 
@@ -160,6 +164,7 @@ def build(accelerator: str, agent: str, model_dataset: str, wheels_dataset: str,
         os.environ['ARC3_START_EPOCH'] = str(START)
         os.environ.setdefault('ARC3_TIME_BUDGET_S', '{budget_s}')
         os.environ.setdefault('ARC3_AGENT', '{agent}')
+        os.environ.setdefault('ARC3_AGENT_CONFIG', {agent_config_json!r})  # preset '{preset}' + overrides (arc3/presets.py)
         os.environ.setdefault('ARC3_MEMORY_PATH', '/kaggle/working/shared_lessons.jsonl')  # lessons shared across the games of this run
         RERUN = bool(os.getenv('KAGGLE_IS_COMPETITION_RERUN'))
         print('competition rerun:', RERUN)
@@ -249,10 +254,12 @@ def main() -> None:
                    help="owner/slug of the vLLM wheelhouse dataset (vLLM 0.27.1, CUDA 12.9, built for the ARC3 duck harness)")
     p.add_argument("--budget-s", type=int, default=9 * 3600)
     p.add_argument("--smoke-s", type=int, default=300, help="per-game seconds for the Save & Run All offline smoke")
+    p.add_argument("--preset", default="champion", choices=["champion", "bundle", ""], help="agent config preset (arc3/presets.py); '' = none")
+    p.add_argument("--config", default="", help="JSON overrides on top of the preset")
     p.add_argument("--out", default=str(NOTEBOOK_PATH))
     a = p.parse_args()
     spec = a.specialist_dataset if a.agent == 'council' else ''
-    nb = build(a.accelerator, a.agent, a.model_dataset, a.wheels_dataset, a.budget_s, a.smoke_s, spec)
+    nb = build(a.accelerator, a.agent, a.model_dataset, a.wheels_dataset, a.budget_s, a.smoke_s, spec, preset=a.preset, config=a.config)
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
     Path(a.out).write_text(json.dumps(nb, indent=1))
     print(f"[build_notebook] wrote {a.out} (accelerator={a.accelerator}, agent={a.agent}, {len(json.dumps(nb)) // 1024} KB)")

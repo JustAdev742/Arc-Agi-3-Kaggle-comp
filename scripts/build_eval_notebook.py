@@ -32,8 +32,9 @@ OUT_DIR = ROOT / "notebooks" / "eval"
 
 
 def build(a: argparse.Namespace) -> dict:
+    from arc3.presets import resolve
     tarball = package_tarball()
-    cfg = json.loads(a.config)
+    cfg = resolve(getattr(a, "preset", "") or None, json.loads(a.config) if a.config.strip() else {})
     spec = a.specialist_dataset if a.agent == "council" else ""
     cells = [md_cell(f"# arc3 evaluation: {a.agent} on {a.split}\n\nNot a submission. Writes runs/ and eval_result.json.")]
     cells.append(code_cell(dedent(f"""\
@@ -109,6 +110,7 @@ def main() -> None:
     p.add_argument("--max-actions", type=int, default=2000)
     p.add_argument("--workers", type=int, default=8)
     p.add_argument("--budget-min", type=int, default=150)
+    p.add_argument("--preset", default="", choices=["champion", "bundle", ""], help="agent config preset (arc3/presets.py); --config applies on top")
     p.add_argument("--config", default='{"context_tokens": 32768, "reasoning_effort": "low", "max_output_tokens": 3072}')
     p.add_argument("--run-name", default=None)
     p.add_argument("--note", default="")
