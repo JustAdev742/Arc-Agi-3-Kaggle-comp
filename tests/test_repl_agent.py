@@ -763,3 +763,49 @@ def test_noop_memory_records_flags_and_optionally_skips():
             agent2.close()
     finally:
         agent.close()
+
+
+def test_postmortem_call_at_the_end_of_an_unsolved_game(tmp_path):
+    """Brief item 15: one structured post-mortem call under fixed headings when an unsolved game ends with time left;
+    saved in the transcript meta and as <game>.postmortem.md; never for a won game or when the knob is off."""
+    calls = {"n": 0}
+
+    def script(messages):
+        calls["n"] += 1
+        text = messages[-1].get("content") if isinstance(messages[-1].get("content"), str) else ""
+        if "WHAT DID WE BELIEVE?" in text:
+            return MockClient.say("WHAT DID WE BELIEVE?\nThat UP moves the avatar.\nWHAT ACTUALLY HAPPENED?\nNothing moved.\nCONFIDENCE: low")
+        return MockClient.tool("act('UP')") if calls["n"] % 2 else MockClient.say("ok")
+
+    mock = MockClient(script)
+    arc = make_arcade("environment_files")
+    env = LocalEnv(arc, "ls20")
+    ctx = AgentContext(game_id="ls20", deadline=time.time() + 300,
+                       config={"client": mock, "image": False, "postmortem": True, "postmortem_min_s": 0, "transcript_dir": str(tmp_path)})
+    agent = get("repl")(ctx)
+    try:
+        run(agent, env, 3)
+        agent.close()
+        assert agent.stats()["postmortems"] == 1 and agent.postmortem_text.startswith("WHAT DID WE BELIEVE?")
+        meta = json.loads((tmp_path / "ls20.transcript.jsonl").read_text().splitlines()[0])
+        assert meta["postmortem"].startswith("WHAT DID WE BELIEVE?")
+        assert (tmp_path / "ls20.postmortem.md").read_text().startswith("# ls20: post-mortem (level 1/7")
+        pm_calls = [c for c in mock.calls if any("WHAT DID WE BELIEVE?" in (m.get("content") if isinstance(m.get("content"), str) else "") for m in c if m.get("role") == "user")]
+        assert len(pm_calls) == 1 and not pm_calls[0][-1].get("tool_calls")
+        agent.close()  # idempotent
+        assert agent.stats()["postmortems"] == 1
+    finally:
+        agent.close()
+        env.close()
+    # off by default and in the champion preset
+    from arc3.presets import CHAMPION
+    assert CHAMPION["postmortem"] is False
+    env2 = LocalEnv(arc, "ls20")
+    agent2 = get("repl")(AgentContext(game_id="ls20", deadline=time.time() + 300, config={"client": MockClient(script), "image": False, "transcript_dir": str(tmp_path / "b")}))
+    try:
+        run(agent2, env2, 2)
+        agent2.close()
+        assert agent2.stats()["postmortems"] == 0 and not (tmp_path / "b" / "ls20.postmortem.md").exists()
+    finally:
+        agent2.close()
+        env2.close()

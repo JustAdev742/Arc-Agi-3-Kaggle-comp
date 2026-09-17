@@ -23,6 +23,7 @@ CHAMPION: dict[str, Any] = {
     "bg_holes": False,                # exp-021b perception knob, unmeasured (enclosed background-coloured islands are entities)
     "noop_memory": False,             # exp-023 arm, unmeasured (known no-ops shown and flagged)
     "noop_skip": False,               # exp-023b arm, unmeasured (known no-ops not sent)
+    "postmortem": False,              # research data only (one call at the end of an unsolved game)
 }
 
 BUNDLE: dict[str, Any] = {
@@ -35,6 +36,7 @@ BUNDLE: dict[str, Any] = {
     "goal_progress_in_prompt": True,
     "bg_holes": True,
     "noop_memory": True,
+    "postmortem": True,
 }
 
 PRESETS: dict[str, dict[str, Any]] = {"champion": CHAMPION, "bundle": BUNDLE}

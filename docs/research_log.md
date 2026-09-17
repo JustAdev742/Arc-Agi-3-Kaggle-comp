@@ -763,3 +763,11 @@ Change:   sandbox disagreement_probe(actions=None): for each candidate action (l
           hypotheses predict, best first, with the hypothesis names per outcome; [] with fewer than two alive. Prompt:
           the set_models line points at it. Test: test_disagreement_probe_ranks_actions_that_separate_alive_hypotheses.
 Measured: not run (a helper the model may call; part of the exp-022 bundle's prompt).
+
+## 2026-09-17 · postmortem knob · structured post-mortem call at the end of an unsolved game (brief item 15) · BUILT (research data)
+Change:   repl agent: with postmortem on and at least postmortem_min_s (20 s) left, close() makes one model call under the
+          fixed headings (WHAT DID WE BELIEVE? ... CONFIDENCE:), stores the text in the transcript meta and writes
+          <game>.postmortem.md next to the transcript; skipped for a won game, a model that never answered or a dead
+          server; never in the champion preset (on in the evaluation bundle). Stat postmortems. Test.
+Use:      the per-game post-mortems feed docs/postmortems and the failure matrix (which assumption was wrong, what
+          cheaper test would have caught it) without reading whole transcripts.

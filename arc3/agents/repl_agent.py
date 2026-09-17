@@ -79,6 +79,7 @@ class Stats:
     action_budget_notices: int = 0
     sweep_actions: int = 0  # harness-owned probe actions at level starts (explore_first)
     noop_repeats: int = 0  # known no-ops the model re-sent (executed, flagged)
+    postmortems: int = 0  # structured post-mortem calls made at the end of an unsolved game
     noop_skipped: int = 0  # known no-ops not sent at all (noop_skip)
     rules_fits: int = 0
     rules_time_s: float = 0.0
@@ -156,6 +157,12 @@ class ReplAgent(Agent):
         # 293 of 4634 actions re-sent such a pair. noop_memory shows the known no-ops of the current frame and flags a
         # repeat in its result; noop_skip returns the known result without spending the action (off by default: a
         # game with a hidden timer could need the repeats).
+        # Structured post-mortem at the end of an unsolved game (research data, brief item 15): one model call with a
+        # fixed template, saved with the transcript and as <game>.postmortem.md. Off in the champion preset (no score
+        # value on the competition run); on in the evaluation bundle.
+        self.postmortem = bool(c.get("postmortem", False))
+        self.postmortem_min_s = float(c.get("postmortem_min_s", 20))
+        self.postmortem_text = ""
         self.noop_memory = bool(c.get("noop_memory", True))
         self.noop_skip = bool(c.get("noop_skip", False))
         self.noops: dict[str, set[str]] = {}  # frame hash -> action labels that changed nothing from that frame
@@ -464,22 +471,59 @@ class ReplAgent(Agent):
         p.parent.mkdir(parents=True, exist_ok=True)
         with open(p, "w") as f:
             f.write(json.dumps({"kind": "meta", "game": self.ctx.game_id, "config": {k: v for k, v in self.ctx.config.items() if k not in ("client", "specialist_client")},
-                                "notes": self.notes, "lessons": self.memory.to_list(), "friction": self.friction,
+                                "notes": self.notes, "lessons": self.memory.to_list(), "friction": self.friction, "postmortem": self.postmortem_text,
                                 "stats": self.stats()}, default=str) + "\n")
             f.writelines(json.dumps(rec, default=str) + "\n" for rec in self.transcript)
         return str(p)
 
     def close(self) -> None:
+        if self.closed:
+            return
         self.closed = True
         self.result_q.put(None)
         if self.worker is not None and self.worker.is_alive():
             self.worker.join(timeout=3.0)  # let a finishing turn record its tool output before the dump
+        if self.postmortem:
+            try:
+                self._postmortem()
+            except Exception:  # research data must never cost the game's records
+                self.log.exception("post-mortem failed")
         try:
             self.dump_transcript()
         except Exception:
             self.log.exception("transcript dump failed")
         self.memory.save()
         self.sandbox.stop()
+
+    POSTMORTEM_HEADINGS = ("WHAT DID WE BELIEVE?", "WHAT ACTUALLY HAPPENED?", "WHICH ASSUMPTION WAS WRONG?", "WHAT EVIDENCE EXPOSED IT?",
+                           "WHAT CHEAPER TEST WOULD HAVE CAUGHT IT?", "WHAT SHOULD THE REVISED MODEL BE?",
+                           "IS THIS LESSON GAME-SPECIFIC OR GENERAL?", "SHOULD IT BECOME A REUSABLE SKILL?", "CONFIDENCE:")
+
+    def _postmortem(self) -> None:
+        """One structured post-mortem call when an unsolved game ends with time to spare: the model extracts the lesson
+        under fixed headings (no transcript dump, no actions). Skipped for a won game, a model that never answered, a
+        dead server, or less than postmortem_min_s of time."""
+        f = self.frame
+        if f is None or f.done or self.st.model_calls == 0 or self.use_fallback_only or self.ctx.time_left() < self.postmortem_min_s:
+            return
+        self.messages.append({"role": "user", "content": (
+            f"The game ends here: level {f.level} of {f.win_levels}, {f.step} actions, time is up. Write a post-mortem in plain text, no "
+            "code, under exactly these headings, one or two sentences each:\n" + "\n".join(self.POSTMORTEM_HEADINGS)
+            + "\nBe concrete: name the entities, actions and frames that carried the evidence. CONFIDENCE is low, medium or high.")})
+        resp = self._chat(self.reasoning_effort, kind="postmortem", level=f.level)
+        text = (resp.content or "").strip() or (resp.reasoning or "").strip()
+        if not text:
+            return
+        self.st.postmortems += 1
+        self.postmortem_text = text[:4000]
+        out_dir = self.transcript_dir
+        if out_dir:
+            try:
+                p = Path(out_dir) / f"{self.ctx.game_id}.postmortem.md"
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_text(f"# {self.ctx.game_id}: post-mortem (level {f.level}/{f.win_levels}, {f.step} actions)\n\n{self.postmortem_text}\n")
+            except OSError as e:
+                self.log.warning("post-mortem file not written: %s", e)
 
     # ------------------------------------------------------------------ worker side
     def _server_alive(self) -> bool:
