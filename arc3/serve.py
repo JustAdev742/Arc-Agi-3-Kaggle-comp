@@ -69,15 +69,16 @@ def build_vllm_command(model_dir: str, *, port: int = 8000, served_name: str = "
                        kv_cache_dtype: Optional[str] = None, max_num_seqs: int = 32, images_per_prompt: int = 16,
                        tool_parser: Optional[str] = None, reasoning_parser: Optional[str] = None,
                        tensor_parallel: Optional[int] = None, enforce_eager: bool = False,
-                       extra: Optional[str] = None) -> list[str]:
+                       attention_backend: Optional[str] = None, extra: Optional[str] = None) -> list[str]:
     """Env overrides: VLLM_TOOL_PARSER, VLLM_REASONING_PARSER, VLLM_MTP_TOKENS, VLLM_KV_CACHE_DTYPE,
-    VLLM_MAX_MODEL_LEN, VLLM_EXTRA_ARGS. ``images_per_prompt`` matters: the REPL agent attaches one
-    image per user turn and vLLM's default limit is one image per prompt."""
+    VLLM_MAX_MODEL_LEN, VLLM_EXTRA_ARGS, ARC3_ATTENTION_BACKEND. ``images_per_prompt`` matters: the REPL agent
+    attaches one image per user turn and vLLM's default limit is one image per prompt; 0 omits the flag (a
+    text-only model has no image limit to set)."""
     tool_parser = tool_parser or os.environ.get("VLLM_TOOL_PARSER", "qwen3_coder")  # Qwen3.8 chat template uses <function=...><parameter=...> XML
     # vLLM >= 0.27 ignores VLLM_ATTENTION_BACKEND; the backend is a CLI arg. On the RTX PRO 6000 (SM120)
     # the auto choice is FlashInfer, which needs cubins from NVIDIA's artifactory (no internet on Kaggle)
     # and dies on the first request (diag runs v2/v3, 2026-09-16). Triton attention was the other candidate.
-    attention_backend = os.environ.get("ARC3_ATTENTION_BACKEND", "TRITON_ATTN")
+    attention_backend = attention_backend or os.environ.get("ARC3_ATTENTION_BACKEND", "TRITON_ATTN")
     reasoning_parser = reasoning_parser or os.environ.get("VLLM_REASONING_PARSER", "qwen3")
     mtp_tokens = int(os.environ.get("VLLM_MTP_TOKENS", mtp_tokens))
     kv_cache_dtype = os.environ.get("VLLM_KV_CACHE_DTYPE") or kv_cache_dtype or default_kv_cache_dtype()
@@ -86,9 +87,11 @@ def build_vllm_command(model_dir: str, *, port: int = 8000, served_name: str = "
     cmd = [sys.executable, "-m", "vllm.entrypoints.openai.api_server", "--model", model_dir,
            "--served-model-name", served_name, "--port", str(port), "--host", "127.0.0.1",
            "--max-model-len", str(max_model_len), "--gpu-memory-utilization", str(gpu_mem),
-           "--max-num-seqs", str(max_num_seqs), "--limit-mm-per-prompt", json.dumps({"image": int(images_per_prompt)}),
+           "--max-num-seqs", str(max_num_seqs),
            "--enable-prefix-caching", "--trust-remote-code", "--enable-auto-tool-choice",
            "--tool-call-parser", tool_parser]
+    if int(images_per_prompt) > 0:
+        cmd += ["--limit-mm-per-prompt", json.dumps({"image": int(images_per_prompt)})]
     if attention_backend and attention_backend.lower() != "auto":
         cmd += ["--attention-backend", attention_backend]
     if tensor_parallel > 1:

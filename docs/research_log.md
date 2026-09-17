@@ -594,3 +594,29 @@ Expected: fewer actions before the first goal-directed sequence, no untested key
 Plan:     dev, 1200 s, 8 workers, three runs, config explore_first 8, explore_first_clicks 4, on top of the exp-020
           bundle (level_consolidation on, level_action_notice 120), against the six-run base and the exp-020 arm.
 Measured: not run (GPU quota exhausted until 2026-09-19 00:00 UTC).
+
+## 2026-09-17 · serving checks prepared for two candidate models (road-to-100 item 1) · READY (needs GPU quota)
+Why:      road-to-100 ranks the served model as the largest term of the gap. Two candidates have Kaggle-hub copies and
+          public single-RTX-PRO-6000 recipes: gpt-oss-120b MXFP4 (Apache-2.0, 65 GB) and Nemotron 3 Super 120B-A12B
+          NVFP4 (NVIDIA Nemotron Open Model License, 80 GB). Devstral Small 2 has no hub copy (upload needed) and waits.
+Facts:    vLLM 0.27.1 source (tag v0.27.1): reasoning parsers `openai_gptoss`, `nemotron_v3`, `qwen3`; tool parsers
+          `openai`, `qwen3_coder`, `hermes`; `--moe-backend {marlin, triton, flashinfer_cutlass, flashinfer_trtllm, ...}`
+          (the MXFP4 oracle otherwise picks by capability; the FlashInfer TRT-LLM kernels are SM100-only and the CUTLASS
+          path needed a custom FlashInfer JIT build in the one public SM120 write-up, which is what fails offline for us);
+          vLLM accepts the OpenAI request field `reasoning_effort` (injects enable_thinking; harmony models read it).
+          Nemotron: model card recipe (fp8 KV, mamba cache float16, 32 seqs, super_v3 plugin shipped in the checkpoint,
+          qwen3_coder tools, temperature 1.0 / top_p 0.95); RTX 6000 Pro report: fits in ~77 GB with MTP off, MTP OOMs;
+          DGX Spark recipe on the 0.27.1 container uses VLLM_NVFP4_GEMM_BACKEND=marlin + VLLM_USE_FLASHINFER_MOE_FP4=0.
+          Kaggle kernel metadata takes models as `model_sources` entries owner/slug/framework/variation/version.
+Change:   build_diag_notebook.py: model refs as `model_sources` (the notebook finds the folder holding config.json under
+          /kaggle/input), --no-image (text-only probe and smoke), --efforts, --smoke-config, --effort-in-request,
+          `{MODEL_DIR}` placeholder in --attempts-json. serve.build_vllm_command: attention_backend kwarg,
+          images_per_prompt 0 omits the image limit. llm.ChatClient(effort_in_request=True) and the REPL config key
+          effort_in_request. Tests in tests/test_serve.py and tests/test_llm.py. Notes: docs/models/gpt-oss-120b-mxfp4,
+          docs/models/nemotron-3-super-120b-a12b-nvfp4.
+Plan:     after the 2026-09-19 reset and the exp-019/020/022 runs: push scratchpad/nb/diag-gptoss (ladder: Marlin MoE fp8
+          KV; Marlin auto KV eager; Triton MoE) and scratchpad/nb/diag-nemotron (default kernels; Marlin GEMM env; Marlin
+          auto KV eager), 50 min budget each. Gate: aggregate tok/s at 8 concurrent >= 308 (27B, diag v5) and the
+          ls20 + vc33 smoke not worse than the 27B's; then one dev run for the winner (needs the eval builder to take a
+          model source and the text-only config).
+Measured: not run.

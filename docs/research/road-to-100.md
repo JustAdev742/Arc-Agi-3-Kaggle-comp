@@ -96,7 +96,7 @@ or dataset copy already exists (no upload needed).
 | Qwen3.8-27B-FP8 (current) | 29 GB weights, 53 GB KV | yes | baseline; MTP, effort knob | vLLM 0.27.1 wheelhouse, TRITON_ATTN, MTP, FP8 KV (measured, diag v5) | yes | known ceiling (~1 RHAE) |
 | Qwen3.8-27B-NVFP4 | ~22 GB | yes | more KV, more concurrency, same model | same flags; NVFP4 kernels on SM120 unverified | uploaded (private) | accuracy loss; kernel support |
 | gpt-oss-120b (MXFP4, MoE 5B active) | ~63 GB | no | strongest open reasoner and coder that fits; effort knob low/medium/high; fast per token (few active params) | `--quantization mxfp4 --mxfp4-backend CUTLASS --attention-backend FLASHINFER` with `FLASHINFER_CUDA_ARCH_LIST=12.0f` (JIT for SM120), `--enforce-eager` reported for stability; ~4,630 tok/s aggregate reported on one RTX PRO 6000 | `danielhanchen/gpt-oss-120b` | FlashInfer JIT offline (our diag v2 to v4 failed on FlashInfer cubin download; JIT needs nvcc 12.8, present); text-only: loses the image |
-| Nemotron 3 Super 120B-A12B (NVFP4, MoE 12B active, hybrid Mamba) | 77 to 80 GB | no | strong open agentic model; fast per token | vLLM 0.20+ flags `--kv-cache-dtype fp8 --mamba-ssm-cache-dtype float16 --max-num-seqs 32 --reasoning-parser super_v3`; MTP OOMs on 96 GB; ~94 tok/s single stream reported | `zaynyu/nvidia-nemotron-3-super-120b-a12b-nvfp4` | 16 to 19 GB left for KV: low concurrency; newer vLLM than our wheelhouse; text-only |
+| Nemotron 3 Super 120B-A12B (NVFP4, MoE 12B active, hybrid Mamba; **NVIDIA Nemotron Open Model License, not OSI open source: owner's call before any submission use**) | 77 to 80 GB | no | strong open agentic model; fast per token | vLLM 0.20+ flags `--kv-cache-dtype fp8 --mamba-ssm-cache-dtype float16 --max-num-seqs 32 --reasoning-parser super_v3`; MTP OOMs on 96 GB; ~94 tok/s single stream reported | `sivavoleti/nemotron-3-super-120b-a12b-nvfp4` (faithful mirror with the parser plugin) | 16 to 19 GB left for KV: low concurrency; text-only; license |
 | Devstral Small 2 (24B dense, Apache-2.0) | 48 GB BF16 / 24 GB FP8 | no | 68 percent SWE-bench Verified (vendor): the best open coder at this size | standard vLLM; FP8/NVFP4 community quants | no (hub has 2505/2507 only): upload needed | text-only; no MTP; unproven on game inference |
 | Qwen3.8-Flash-Next-NVFP4 | 133 GB checkpoint, needs PLE offload | yes | newer architecture | vLLM newer than 0.27.1; unverified | dataset uploaded (docs/models) | may not serve at all on 96 GB |
 
@@ -150,5 +150,6 @@ Each item is a hypothesis with a gate; the six-run dev base and the noise rule (
 
 - Human replays: needs a browser download of the dataset from the ARC Prize blog (the short link is rate-limited
   from this container) dropped into a private Kaggle dataset or the repo's `data/` (git-ignored). Owner action.
-- Serving checks (task #40) need the 2026-09-19 quota reset; exp-019/020 go first (six runs, about 18 h of the 30).
+- Serving checks (task #40) need the 2026-09-19 quota reset; exp-019/020 go first (six runs, about 18 h of the 30). The
+  two diag kernels are built (`scratchpad/nb/diag-gptoss`, `scratchpad/nb/diag-nemotron`; research log 2026-09-17).
 - The NVFP4 27B A/B remains unrun (dataset uploaded 2026-09-16).

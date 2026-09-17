@@ -169,6 +169,10 @@ research log exp-006a.
 - **exp-022 built (code-only, tests pass): exploration-first probe sweep** at level start (`explore_first`, off by
   default): the harness presses each legal key once, ACT once and clicks one entity per class before the first model
   turn on a level and shows the effect table once. Measured after the quota reset, after exp-019/020.
+- **Serving checks prepared for two candidate models** (road-to-100 item 1): gpt-oss-120b MXFP4 and Nemotron 3 Super
+  120B-A12B NVFP4, both with Kaggle-hub copies and public RTX PRO 6000 recipes; diag kernels built
+  (`scratchpad/nb/diag-gptoss`, `scratchpad/nb/diag-nemotron`), notes in `docs/models/`, research log entry. Nemotron's
+  license is NVIDIA's Open Model License (not OSI): your call before it is used in a submission.
 - Human replay data still blocked (see follow-ups).
 - Improvement pass (task #37) closed on 2026-09-17 morning: see the follow-ups entry and commits 08076e9, 4bedddf,
   98dffb6, 96c7d94, 4f78ad1.

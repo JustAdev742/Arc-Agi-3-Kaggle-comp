@@ -50,6 +50,13 @@ def test_command_flags():
     assert spec == {"method": "mtp", "num_speculative_tokens": 2, "attention_backend": "TRITON_ATTN"}
     cmd = serve.build_vllm_command("/m", mtp_tokens=0, kv_cache_dtype="auto")
     assert "--speculative-config" not in cmd and "--kv-cache-dtype" not in cmd
+    assert cmd[cmd.index("--limit-mm-per-prompt") + 1] == '{"image": 16}'
+    # a text-only candidate (road-to-100 section 5): no image limit, its own parsers, a forced MoE kernel, another backend
+    cmd = serve.build_vllm_command("/m", mtp_tokens=0, images_per_prompt=0, tool_parser="openai", reasoning_parser="openai_gptoss",
+                                   attention_backend="FLASHINFER", extra="--moe-backend marlin")
+    assert "--limit-mm-per-prompt" not in cmd
+    assert cmd[cmd.index("--tool-call-parser") + 1] == "openai" and cmd[cmd.index("--reasoning-parser") + 1] == "openai_gptoss"
+    assert cmd[cmd.index("--attention-backend") + 1] == "FLASHINFER" and cmd[-2:] == ["--moe-backend", "marlin"]
 
 
 def test_specialist_ladder_flags():

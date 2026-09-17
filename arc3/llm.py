@@ -82,13 +82,17 @@ class ChatClient:
     """POST /chat/completions against a vLLM-style server."""
 
     def __init__(self, base_url: str = "http://127.0.0.1:8000/v1", model: str = "", api_key: str = "EMPTY",
-                 timeout_s: float = 180.0, extra_body: Optional[dict[str, Any]] = None, session: Any = None):
+                 timeout_s: float = 180.0, extra_body: Optional[dict[str, Any]] = None, session: Any = None,
+                 effort_in_request: bool = False):
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.api_key = api_key
         self.timeout_s = timeout_s
         self.extra_body = dict(extra_body or {})
         self._session = session
+        # Qwen3.8 reads reasoning_effort from chat_template_kwargs; harmony-format models (gpt-oss) take the
+        # OpenAI request field ``reasoning_effort`` (low | medium | high) and ignore template kwargs.
+        self.effort_in_request = bool(effort_in_request)
 
     def _http(self):
         if self._session is None:
@@ -116,6 +120,9 @@ class ChatClient:
             body["tools"] = tools
             body["tool_choice"] = "auto"
         body.update(self.extra_body)
+        if reasoning_effort and self.effort_in_request:
+            body["reasoning_effort"] = reasoning_effort
+            reasoning_effort = None
         if thinking is not None or reasoning_effort or preserve_thinking is not None:
             ctk = dict(body.get("chat_template_kwargs") or {})
             if thinking is not None:

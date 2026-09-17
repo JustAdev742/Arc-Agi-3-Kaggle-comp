@@ -25,8 +25,16 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR = ROOT / "notebooks" / "diag"
 
 
-def build(model_dataset: str, wheels_dataset: str, budget_min: int, smoke_s: int, attempts_json: str = "", title: str = "rtx6000") -> dict:
+def build(model_dataset: str, wheels_dataset: str, budget_min: int, smoke_s: int, attempts_json: str = "", title: str = "rtx6000",
+          *, image: bool = True, efforts: str = "low,xhigh", smoke_config: str = "", effort_in_request: bool = False) -> dict:
+    """``model_dataset`` is a Kaggle dataset ref (owner/slug) or a model ref (owner/slug/framework/variation/version);
+    either way the notebook locates the folder holding config.json under /kaggle/input. ``image`` off means a
+    text-only model: no image in the probe or the smoke. ``efforts`` are the reasoning efforts the chat probe tries
+    (a model rejects the ones it does not know; that is recorded, not fatal). ``smoke_config`` is JSON merged into
+    the REPL smoke's agent config (temperature, top_p, reasoning_effort, ...)."""
     tarball = package_tarball()
+    effort_list = [e.strip() for e in efforts.split(",") if e.strip()]
+    smoke_cfg = json.loads(smoke_config) if smoke_config.strip() else {}
     cells = [md_cell(f"# arc3 GPU diagnostics ({title})\n\nBounded probe of the serving stack. Not a submission.")]
     cells.append(code_cell(dedent(f"""\
         import os, sys, time, json, subprocess, threading, base64, io, tarfile, shutil, glob
@@ -57,12 +65,19 @@ def build(model_dataset: str, wheels_dataset: str, budget_min: int, smoke_s: int
         """)))
     cells.append(code_cell(dedent(f"""\
         def find_mount(ref):
-            owner, slug = ref.split('/')
-            for p in ['/kaggle/input/' + slug, '/kaggle/input/datasets/' + owner + '/' + slug]:
+            owner, slug = ref.split('/')[:2]
+            for p in ['/kaggle/input/' + slug, '/kaggle/input/datasets/' + owner + '/' + slug, '/kaggle/input/models/' + owner + '/' + slug]:
                 if os.path.isdir(p): return p
             hits = glob.glob('/kaggle/input/**/' + slug, recursive=True)
             return hits[0] if hits else None
-        MODEL_DIR = find_mount('{model_dataset}'); WHEELS = find_mount('{wheels_dataset}')
+        def find_model(ref):
+            # a Kaggle model mounts as .../<slug>/<framework>/<variation>/<version>/; a dataset as .../<slug>/; either
+            # way the checkpoint is the folder that holds config.json (the first one below the mount, shallowest first)
+            root = find_mount(ref)
+            if root is None: return None
+            cfgs = sorted(glob.glob(root + '/**/config.json', recursive=True), key=lambda p: p.count('/'))
+            return os.path.dirname(cfgs[0]) if cfgs else root
+        MODEL_DIR = find_model('{model_dataset}'); WHEELS = find_mount('{wheels_dataset}')
         print('MODEL_DIR', MODEL_DIR, 'WHEELS', WHEELS); DIAG['model_dir'] = MODEL_DIR; DIAG['wheels'] = WHEELS
         if WHEELS and not any(f.startswith('vllm') for f in os.listdir(WHEELS)):
             sub = [d for d in glob.glob(WHEELS + '/**/', recursive=True) if any(f.startswith('vllm') for f in os.listdir(d))]
@@ -75,10 +90,11 @@ def build(model_dataset: str, wheels_dataset: str, budget_min: int, smoke_s: int
         DIAG['versions_after'] = sh("pip list 2>/dev/null | grep -iE '^(torch|vllm|transformers|flashinfer|flashinfer-python|triton|xformers|numpy|pillow) '")
         print(DIAG['versions_after'])
         """)))
-    cells.append(code_cell("ATTEMPTS_JSON = " + repr(attempts_json) + "\n" + dedent("""\
+    cells.append(code_cell("ATTEMPTS_JSON = " + repr(attempts_json) + f"\nUSE_IMAGE = {image!r}\nEFFORTS = {effort_list!r}\nEFFORT_IN_REQUEST = {effort_in_request!r}\n" + dedent("""\
         from arc3 import serve
         from arc3.serve import start_vllm_with_fallback, build_vllm_command
-        ATTEMPTS = json.loads(ATTEMPTS_JSON) if ATTEMPTS_JSON.strip() else None
+        # attempts may name files inside the checkpoint folder (a reasoning-parser plugin) as {MODEL_DIR}/<file>
+        ATTEMPTS = json.loads(ATTEMPTS_JSON.replace('{MODEL_DIR}', MODEL_DIR or '')) if ATTEMPTS_JSON.strip() else None
         vllm_proc = None; DIAG['vllm_ready'] = False
         if DIAG['pip_vllm_rc'] == 0 and MODEL_DIR and left() > 600:
             print(' '.join(build_vllm_command(MODEL_DIR)))
@@ -103,13 +119,14 @@ def build(model_dataset: str, wheels_dataset: str, budget_min: int, smoke_s: int
         from arc3.env import LocalEnv, make_arcade
         from arc3.perception import render_png
         if DIAG['vllm_ready']:
-            client = ChatClient('http://127.0.0.1:8000/v1', model='arc3-model')
+            client = ChatClient('http://127.0.0.1:8000/v1', model='arc3-model', effort_in_request=EFFORT_IN_REQUEST)
             arc = make_arcade(COMP_ENV := '/kaggle/input/competitions/arc-prize-2026-arc-agi-3/environment_files')
             env = LocalEnv(arc, 'ls20'); png = base64.b64encode(render_png(env.frame.grid, scale=6)).decode(); env.close()
-            msgs = [{'role': 'system', 'content': SYSTEM_PROMPT},
-                    {'role': 'user', 'content': [{'type': 'text', 'text': 'Level 1/7. Inspect the board with objects() and take one action with act(...).'},
-                                                 {'type': 'image_url', 'image_url': {'url': 'data:image/png;base64,' + png}}]}]
-            for effort in ('low', 'xhigh'):
+            parts = [{'type': 'text', 'text': 'Level 1/7. Inspect the board with objects() and take one action with act(...).'}]
+            if USE_IMAGE:
+                parts.append({'type': 'image_url', 'image_url': {'url': 'data:image/png;base64,' + png}})
+            msgs = [{'role': 'system', 'content': SYSTEM_PROMPT}, {'role': 'user', 'content': parts}]
+            for effort in EFFORTS:
                 t0 = time.time()
                 try:
                     r = client.chat(msgs, tools=TOOLS, max_tokens=2048, thinking=True, reasoning_effort=effort, timeout_s=600)
@@ -141,7 +158,8 @@ def build(model_dataset: str, wheels_dataset: str, budget_min: int, smoke_s: int
     cells.append(code_cell(dedent(f"""\
         if DIAG['vllm_ready'] and left() > {smoke_s} + 120:
             from arc3.eval import run_eval
-            cfg = {{'base_url': 'http://127.0.0.1:8000/v1', 'model': 'arc3-model', 'context_tokens': 32768, 'reasoning_effort': 'low', 'max_output_tokens': 3072}}
+            cfg = {{'base_url': 'http://127.0.0.1:8000/v1', 'model': 'arc3-model', 'context_tokens': 32768, 'reasoning_effort': 'low', 'max_output_tokens': 3072,
+                   'image': {image!r}, 'effort_in_request': {effort_in_request!r}, **{smoke_cfg!r}}}
             s = run_eval('repl', 'ls20,vc33', time_budget_s={smoke_s}, max_actions=150, workers=1, runs_dir='/kaggle/working/runs',
                          environments_dir='/kaggle/input/competitions/arc-prize-2026-arc-agi-3/environment_files', run_name='diag-repl-smoke', config=cfg)
             DIAG['repl_smoke'] = {{'score': s['score'], 'levels': s['levels_completed'], 'actions': s['actions'], 'wall_s': s['wall_s'],
@@ -179,15 +197,23 @@ def main() -> None:
     p.add_argument("--slug", default="arc3-gpu-diag")
     p.add_argument("--attempts-json", default="", help="JSON list of start_vllm attempt dicts (model_dir/label/env_extra allowed) replacing the default ladder")
     p.add_argument("--title", default="rtx6000")
+    p.add_argument("--no-image", action="store_true", help="text-only model: no image in the probe or the REPL smoke")
+    p.add_argument("--efforts", default="low,xhigh", help="comma-separated reasoning efforts for the chat probe")
+    p.add_argument("--smoke-config", default="", help="JSON merged into the REPL smoke's agent config")
+    p.add_argument("--effort-in-request", action="store_true", help="send reasoning_effort as the OpenAI request field (harmony models such as gpt-oss)")
     p.add_argument("--out", default=str(OUT_DIR), help="folder for diag.ipynb + kernel-metadata.json (git-ignored; push it with scripts/push_eval.py)")
     a = p.parse_args()
     out_dir = Path(a.out)
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "diag.ipynb").write_text(json.dumps(build(a.model_dataset, a.wheels_dataset, a.budget_min, a.smoke_s, a.attempts_json, a.title), indent=1))
+    (out_dir / "diag.ipynb").write_text(json.dumps(build(a.model_dataset, a.wheels_dataset, a.budget_min, a.smoke_s, a.attempts_json, a.title,
+                                                         image=not a.no_image, efforts=a.efforts, smoke_config=a.smoke_config,
+                                                         effort_in_request=a.effort_in_request), indent=1))
+    # a model ref (owner/slug/framework/variation/version, kernels_metadata.md) goes to model_sources, a dataset ref to dataset_sources
+    is_model = a.model_dataset.count("/") >= 4
     meta = {"id": f"{a.username}/{a.slug}", "title": a.slug, "code_file": "diag.ipynb", "language": "python",
             "kernel_type": "notebook", "is_private": True, "enable_gpu": True, "enable_tpu": False, "enable_internet": False,
-            "keywords": [], "dataset_sources": [a.wheels_dataset, a.model_dataset], "kernel_sources": [],
-            "competition_sources": ["arc-prize-2026-arc-agi-3"], "model_sources": []}
+            "keywords": [], "dataset_sources": [a.wheels_dataset] + ([] if is_model else [a.model_dataset]), "kernel_sources": [],
+            "competition_sources": ["arc-prize-2026-arc-agi-3"], "model_sources": [a.model_dataset] if is_model else []}
     (out_dir / "kernel-metadata.json").write_text(json.dumps(meta, indent=2) + "\n")
     print(f"[build_diag_notebook] wrote {out_dir}/diag.ipynb + kernel-metadata.json ({a.model_dataset}, {a.wheels_dataset})")
 

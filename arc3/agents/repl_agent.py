@@ -96,7 +96,8 @@ class ReplAgent(Agent):
         c = ctx.config
         self.client = c.get("client") or ChatClient(base_url=c.get("base_url", "http://127.0.0.1:8000/v1"),
                                                      model=c.get("model", ""), api_key=c.get("api_key", "EMPTY"),
-                                                     timeout_s=float(c.get("model_timeout_s", 180)))
+                                                     timeout_s=float(c.get("model_timeout_s", 180)),
+                                                     effort_in_request=bool(c.get("effort_in_request", False)))
         self.context_tokens = int(c.get("context_tokens", 32768))
         self.max_output_tokens = int(c.get("max_output_tokens", 4096))
         self.temperature = float(c.get("temperature", 0.6))
