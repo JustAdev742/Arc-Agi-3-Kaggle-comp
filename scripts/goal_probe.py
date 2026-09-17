@@ -6,6 +6,12 @@ engine with the real REPL agent (mock model that just replays the actions), so t
 exactly what they see in production (including the observed terminal frame), and report whether
 dsl.goal_predicates() returns a win condition consistent with the completed level(s) and which one comes first.
 
+Second gate (road-to-100 item 4, 2026-09-17): on levels 2+ the harness ranks the level-1 candidates by code-computed
+distance and falsifies the ones that come true without a win (dsl.goal_progress). For every replayed level >= 2 the
+report says how many candidates were live one frame before the win, how many level 1 candidates the level falsified,
+and the rank of the eventual winner (a predicate still consistent after the level) among the live ones: rank 1 means
+goal_probe() would have planned the right goal first.
+
 Usage: .venv/bin/python scripts/goal_probe.py [--games vc33,ls20] [--max-levels 2]
 """
 from __future__ import annotations
@@ -45,14 +51,20 @@ def replay(game: str, run: str, target_level: int, arc) -> list[dict]:
     ctx = AgentContext(game_id=game, deadline=time.time() + 900,
                        config={"client": MockClient(script), "image": False, "level_consolidation": False})
     agent = get("repl")(ctx)
+    from arc3 import dsl
     try:
         frame = env.frame
         seen = 0
+        rows_before = None  # goal_progress rows at the frame before the level-completing action (levels >= 2)
         for _ in range(len(recs) + 5):
             if not acts and seen == frame.levels_completed:
                 break
             if agent.is_done(frame) or frame.levels_completed >= target_level:
                 break
+            if agent.goal_info and agent.tracker.frames:
+                av = agent.tracker.avatar()
+                rows_before = dsl.goal_progress(agent.goal_info, agent.tracker.compound_frames(),
+                                                avatar_id=int(av["id"]) if av else None)
             a = agent.act(frame)
             before = frame
             frame = env.step(a)
@@ -60,10 +72,17 @@ def replay(game: str, run: str, target_level: int, arc) -> list[dict]:
             if frame.levels_completed > seen:
                 seen = frame.levels_completed
                 arch = agent.level_archive[-1][0] if agent.level_archive else []
-                from arc3 import dsl
                 preds = dsl.goal_predicates(agent.level_archive)
-                out.append({"game": game, "level": seen, "frames": len(arch), "n_goals": len(preds),
-                            "goals": [g["goal"] for g in preds[:4]], "actions": before.level_step + 1})
+                row = {"game": game, "level": seen, "frames": len(arch), "n_goals": len(preds),
+                       "goals": [g["goal"] for g in preds[:4]], "actions": before.level_step + 1}
+                if rows_before is not None:
+                    live = [r["goal"] for r in rows_before if not r["falsified"]]
+                    winners = {g["goal"] for g in preds}
+                    rank = next((i + 1 for i, g in enumerate(live) if g in winners), None)
+                    row.update({"candidates_before": len(rows_before), "live_before_win": len(live),
+                                "falsified": sum(1 for r in rows_before if r["falsified"]), "winner_rank": rank})
+                out.append(row)
+                rows_before = None
     finally:
         agent.close()
         env.close()
@@ -95,6 +114,13 @@ def main() -> None:
     print(f"\nsolved levels replayed: {len(rows)}; with >=1 consistent goal predicate: {hit}")
     for r in rows:
         print(f"  {r['game']} L{r['level']} frames={r['frames']} actions={r['actions']} goals={r['n_goals']}: {'; '.join(r['goals'])}")
+    later = [r for r in rows if "winner_rank" in r]
+    if later:
+        first = sum(1 for r in later if r["winner_rank"] == 1)
+        print(f"\nlevels >= 2 with level-1 candidates: {len(later)}; winner was the cheapest live hypothesis before the win: {first}")
+        for r in later:
+            print(f"  {r['game']} L{r['level']}: candidates {r['candidates_before']}, live before win {r['live_before_win']}, "
+                  f"falsified by this level {r['falsified']}, winner rank {r['winner_rank']}")
 
 
 if __name__ == "__main__":
