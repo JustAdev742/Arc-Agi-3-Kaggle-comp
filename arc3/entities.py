@@ -168,6 +168,27 @@ class Tracker:
         self.next_id += 1
         return i
 
+    @staticmethod
+    def _assign(pairs: list[tuple[int, int, int]], prev: list[Entity], new: list[Entity], matched_prev: set[int],
+                matched_new: set[int]) -> list[tuple[int, int]]:
+        """Greedy nearest-first assignment of candidate (distance, prev index, new index) pairs; each side is used
+        once. The matched new entity inherits the previous id. Returns the (prev index, new index) pairs assigned."""
+        out: list[tuple[int, int]] = []
+        for _, i, j in sorted(pairs):
+            if i in matched_prev or j in matched_new:
+                continue
+            matched_prev.add(i)
+            matched_new.add(j)
+            new[j].id = prev[i].id
+            out.append((i, j))
+        return out
+
+    def _note_move(self, prev: Entity, new: Entity, action: Any, moved: list[tuple[int, int, int]]) -> None:
+        dx, dy = new.x0 - prev.x0, new.y0 - prev.y0
+        if dx or dy:
+            moved.append((prev.id, dx, dy))
+            self.moves[prev.id].append((action, dx, dy))
+
     def update(self, grid: np.ndarray, action: Any = None) -> dict[str, Any]:
         """Match the new frame's components to the tracked entities; return the event record."""
         if self.bg is None:
@@ -189,16 +210,8 @@ class Tracker:
             for j in by_hash.get((p.shape_hash, p.color), []):
                 d = abs(new[j].x0 - p.x0) + abs(new[j].y0 - p.y0)
                 pairs.append((d, i, j))
-        for d, i, j in sorted(pairs):
-            if i in matched_prev or j in matched_new:
-                continue
-            matched_prev.add(i)
-            matched_new.add(j)
-            new[j].id = prev[i].id
-            if d:
-                dx, dy = new[j].x0 - prev[i].x0, new[j].y0 - prev[i].y0
-                moved.append((prev[i].id, dx, dy))
-                self.moves[prev[i].id].append((action, dx, dy))
+        for i, j in self._assign(pairs, prev, new, matched_prev, matched_new):
+            self._note_move(prev[i], new[j], action, moved)
         # Pass 1b: same colour and box size, nearest position: a sprite whose mask changes as it moves (facing,
         # animation, a marking that shifts inside it) keeps its id.
         pairs = []
@@ -213,16 +226,8 @@ class Tracker:
                 d = abs(new[j].x0 - p.x0) + abs(new[j].y0 - p.y0)
                 if d <= 4 * max(p.w, p.h):
                     pairs.append((d, i, j))
-        for d, i, j in sorted(pairs):
-            if i in matched_prev or j in matched_new:
-                continue
-            matched_prev.add(i)
-            matched_new.add(j)
-            new[j].id = prev[i].id
-            if d:
-                dx, dy = new[j].x0 - prev[i].x0, new[j].y0 - prev[i].y0
-                moved.append((prev[i].id, dx, dy))
-                self.moves[prev[i].id].append((action, dx, dy))
+        for i, j in self._assign(pairs, prev, new, matched_prev, matched_new):
+            self._note_move(prev[i], new[j], action, moved)
             if new[j].size != prev[i].size:
                 reshaped.append((prev[i].id, prev[i].size, new[j].size))
         # Pass 1c: same colour and cell count with a transposed box (w, h) -> (h, w), nearest position: a sprite that
@@ -240,16 +245,8 @@ class Tracker:
                 d = abs(new[j].x0 - p.x0) + abs(new[j].y0 - p.y0)
                 if d <= 4 * max(p.w, p.h):
                     pairs.append((d, i, j))
-        for d, i, j in sorted(pairs):
-            if i in matched_prev or j in matched_new:
-                continue
-            matched_prev.add(i)
-            matched_new.add(j)
-            new[j].id = prev[i].id
-            if d:
-                dx, dy = new[j].x0 - prev[i].x0, new[j].y0 - prev[i].y0
-                moved.append((prev[i].id, dx, dy))
-                self.moves[prev[i].id].append((action, dx, dy))
+        for i, j in self._assign(pairs, prev, new, matched_prev, matched_new):
+            self._note_move(prev[i], new[j], action, moved)
             reshaped.append((prev[i].id, prev[i].size, new[j].size))
         # Pass 2: overlapping bbox, different appearance (recoloured or reshaped in place).
         pairs = []
@@ -262,12 +259,7 @@ class Tracker:
                 iou = _bbox_iou(p, e)
                 if iou >= 0.3:
                     pairs.append((-iou, i, j))
-        for _, i, j in sorted(pairs):
-            if i in matched_prev or j in matched_new:
-                continue
-            matched_prev.add(i)
-            matched_new.add(j)
-            new[j].id = prev[i].id
+        for i, j in self._assign(pairs, prev, new, matched_prev, matched_new):
             if new[j].color != prev[i].color:
                 recolored.append((prev[i].id, prev[i].color, new[j].color))
             else:

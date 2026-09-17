@@ -150,3 +150,28 @@ def test_eval_notebook_cells_compile_with_apostrophe_in_note():
     for i, cell in enumerate(nb["cells"]):
         if cell["cell_type"] == "code":
             compile(cell["source"], f"<cell {i}>", "exec")
+
+
+def test_driver_resets_after_game_over_and_converts_frames(monkeypatch):
+    """The framework hands the Driver only the latest frame: a GAME_OVER frame must yield RESET (the only legal
+    action), and the conversion keeps every layer with the decision frame last."""
+    from arcengine import FrameData, GameAction, GameState
+
+    from arc3.kaggle import Driver, to_frame
+
+    monkeypatch.setenv("ARC3_RESERVE_S", "0")
+    g0 = [[0] * 64 for _ in range(64)]
+    g1 = [[1] * 64 for _ in range(64)]
+    fd = FrameData(game_id="ls20", frame=[g0, g1], state=GameState.GAME_OVER, levels_completed=1, win_levels=3,
+                   available_actions=[0], full_reset=False)
+    f = to_frame(fd, step=5, level_step=2)
+    assert len(f.layers) == 2 and f.grid[0, 0] == 1 and f.layers[0][0, 0] == 0
+    assert f.game_over and f.level == 2 and f.step == 5 and f.level_step == 2
+    d = Driver("ls20", "rules", deadline=time.time() + 60)
+    try:
+        assert d.choose(fd) is GameAction.RESET and d.step == 1
+        assert d.done(fd) is False  # game over is not the end of the game: the level restarts
+        assert d.done(FrameData(game_id="ls20", frame=[g1], state=GameState.WIN, levels_completed=3, win_levels=3,
+                                available_actions=[], full_reset=False)) is True
+    finally:
+        d.close()

@@ -105,3 +105,29 @@ def test_mine_skills_extracts_a_card_per_completed_level(tmp_path):
     lib = build_library(tmp_path / "runs")
     assert len(lib["skills"]) == 1 and lib["skills"][0]["wins"] == 1
     assert lib["skills"][0]["strategy"].startswith("avatar with keys RIGHT/UP: goal 'walk #2 onto #3'; solved in 9 actions (UP, DOWN, LEFT, RIGHTx5, UP)")
+
+
+def test_concurrent_adds_and_shared_file_are_safe(tmp_path):
+    """Lessons are added from the worker thread while the observation renders on the harness thread, and every
+    game of a run appends to the same shared file; no lesson may be lost or duplicated under contention."""
+    import threading
+
+    stores = [Lessons(f"g{k}", out_dir=str(tmp_path), others_refresh_s=0.0) for k in range(4)]
+
+    def writer(store: Lessons, k: int) -> None:
+        for i in range(50):
+            store.add("mechanic", f"game {k} mechanic {i}")
+            store.add("mistake", f"game {k} mistake {i}")  # private: never shared
+
+    threads = [threading.Thread(target=writer, args=(st, k)) for k, st in enumerate(stores)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    for st in stores:
+        assert len(st.items) == 40 and st.cap == 40  # capped, and every add went through the lock
+    lines = (tmp_path / "shared_lessons.jsonl").read_text().splitlines()
+    assert len(lines) == 4 * 50  # every shared mechanic landed exactly once, none interleaved
+    assert all(json.loads(line)["kind"] == "mechanic" for line in lines)
+    others = stores[0].others(limit=1000, force=True)
+    assert len(others) == 150 and not any(o["game"] == "g0" for o in others)
