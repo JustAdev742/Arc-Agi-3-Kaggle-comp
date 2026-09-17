@@ -102,6 +102,12 @@ architectural step therefore has to be measured on dev and val, not assumed.
     image-limit bug, lesson 0012), while Kaggle let exp-017 finish on borrowed quota at 00:52 UTC: **dev 1.288, 10
     levels** (runs/kaggle-repl-dev-017; research log). About 4.7 h RTX between them.
 
+14. `scottmahony/arc3-submission-cpu-check` v1, **CPU**, 2026-09-17 02:15 UTC: the submission notebook built at the
+    current harness (Apache-2.0 LICENSE in the bundle, no model attached so the rules fallback plays) ran Save & Run
+    All to completion: arc-agi installed from the competition wheels, bundle unpacked, `my_agent.py` written, offline
+    smoke on ls20 (140 actions, 0 levels, 128 s) and vc33 (200 actions, 0 levels, 47 s), `submission.parquet` written.
+    Packaging and the framework path verified at HEAD; the model path needs the RTX Save & Run All (open item 2). GPU quota: 0.
+
 ## Rule library coverage (exp-006a, code-only, 2026-09-16)
 
 `scripts/rule_coverage.py` plays each public game blind for 60 actions and measures the fraction of entity events the
@@ -203,6 +209,9 @@ research log exp-006a.
   120B-A12B NVFP4, both with Kaggle-hub copies and public RTX PRO 6000 recipes; diag kernels built
   (`scratchpad/nb/diag-gptoss`, `scratchpad/nb/diag-nemotron`), notes in `docs/models/`, research log entry. Nemotron's
   license is NVIDIA's Open Model License (not OSI): your call before it is used in a submission.
+- **Decisions received and recorded** (open item 1): Apache-2.0, publication with a submission, no submission under
+  the "over 50" condition, Nemotron not used. **CPU Save & Run All of the submission notebook at HEAD passed**
+  (run 14): packaging, LICENSE in the bundle, rules fallback, submission.parquet.
 - Human replay data still blocked (see follow-ups).
 - Improvement pass (task #37) closed on 2026-09-17 morning: see the follow-ups entry and commits 08076e9, 4bedddf,
   98dffb6, 96c7d94, 4f78ad1.
