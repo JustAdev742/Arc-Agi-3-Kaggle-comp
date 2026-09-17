@@ -141,6 +141,7 @@ def plan_to_entity(eid, touch=True, optimistic=True):
 ARCH = {"levels": []}  # completed levels of this game: {"frames", "actions", "final_action"} (symbolic)
 RULES = {"rules": [], "report": None, "level": None}
 GOALS = {}
+GOAL_INFO = {}  # goal_candidates() entries by name: {'goal', 'kind', 'args', 'predicate'} for goal_progress()
 
 def symlog(all_levels=False):
     """This level's transitions as entity-level records (before entities, action, after entities)."""
@@ -311,9 +312,64 @@ def goal_candidates():
         return ["(no level completed yet in this game: nothing to infer the win condition from; use goal_hints() and the Goal line of the observation)"]
     out = _dsl.goal_predicates(levels)
     GOALS.clear()
+    GOAL_INFO.clear()
     for g in out:
         GOALS[g["goal"]] = g["predicate"]
+        GOAL_INFO[g["goal"]] = g
     return [g["goal"] for g in out]
+
+def _goal_items(goals=None):
+    if goals is None:
+        if not GOALS and any(lv.get("final_frame") is not None for lv in ARCH["levels"]):
+            goal_candidates()
+        items = list(GOAL_INFO.values())
+        items += [h["goal"] for h in goal_hints() if h.get("goal")]
+        return items
+    return [GOAL_INFO.get(g, g) if isinstance(g, str) else g for g in goals]
+
+def goal_progress(goals=None, last_n=6):
+    """Rank the goal hypotheses by code-computed distance at the current frame (cells or counts; 0 = satisfied by
+    that measure) with the change over the last actions, and mark the ones THIS level has already falsified: a
+    hypothesis that came true at some frame of this unfinished level cannot be the win condition. goals: default
+    goal_candidates() (from completed levels) plus goal_hints(); or a list of candidate names / plan_rules dict goals.
+    Live hypotheses first, nearest first. goal_probe() turns the cheapest live one into a plan."""
+    t = TRK["t"]
+    frames = t.compound_frames()
+    av = t.avatar()
+    aid = int(av["id"]) if av else None
+    return _dsl.goal_progress(_goal_items(goals), frames, avatar_id=aid, last_n=last_n, history=frames[-400:])
+
+def goal_probe(goals=None, max_nodes=4000, max_depth=60):
+    """The cheapest live goal hypothesis with the plan that satisfies it under the fitted rules: act(plan) either
+    completes the level or falsifies the hypothesis, the cheapest test of a goal there is. Returns {'goal', 'plan',
+    'cost', 'optimistic', 'dist', 'alternatives', 'note'}, or {'goal': None, 'why': ...} when no live hypothesis has a
+    plan yet (probe more, or write predict() for mechanics the rules do not cover)."""
+    rows = [r for r in goal_progress(goals) if not r["falsified"]]
+    if not rows:
+        return {"goal": None, "plan": None, "why": "no live goal hypothesis: every candidate was falsified or none exists yet; "
+                                                  "use goal_hints() and the observation, then learn(..., kind='goal')"}
+    found = []
+    for r in rows[:6]:
+        if r["goal"] in GOALS:
+            goal = r["goal"]
+        else:
+            args = r["args"]
+            goal = {r["kind"]: (args[0] if len(args) == 1 else tuple(args))}
+        try:
+            p = plan_rules(goal, max_nodes=max_nodes, max_depth=max_depth)
+        except ValueError as e:
+            if "no rules" in str(e):
+                return {"goal": None, "plan": None, "why": str(e), "alternatives": rows[:6]}
+            continue  # a kind plan_rules cannot search (aligned, all_same_colour_as): skip it
+        if p is not None:
+            found.append({"goal": r["goal"], "plan": p, "cost": len(p), "optimistic": bool(PLAN["optimistic"]), "dist": r["dist"]})
+    if not found:
+        return {"goal": None, "plan": None, "why": "no live hypothesis has a plan under the fitted rules: probe the unexplained "
+                                                  "mechanics or write predict()", "alternatives": rows[:6]}
+    found.sort(key=lambda x: (x["optimistic"], x["cost"]))
+    best = found[0]
+    return {**best, "alternatives": [{"goal": f["goal"], "cost": f["cost"], "optimistic": f["optimistic"]} for f in found[1:]],
+            "note": "act(plan) either completes the level or falsifies this hypothesis; then goal_probe() again"}
 
 def goal_hints(limit=8):
     """Structural goal hypotheses for a level whose win condition is unknown: unique-colour entities, entities
@@ -820,7 +876,8 @@ HELPER_NAMES = ("objects", "components", "diff", "ascii", "tilemap", "downscale"
                 "set_model", "world_model_stats", "verify_model", "transitions", "set_models", "alive_models",
                 "ents", "events", "event_log", "describe_events", "avatar", "roles", "entity",
                 "move_model", "plan_to", "plan_to_entity",
-                "symlog", "fit_rules", "auto_rules", "rules", "explain_rules", "rules_predictor", "plan_rules", "goal_candidates", "goal_hints", "probe_suggestions", "PLAN")
+                "symlog", "fit_rules", "auto_rules", "rules", "explain_rules", "rules_predictor", "plan_rules", "goal_candidates", "goal_hints",
+                "goal_progress", "goal_probe", "probe_suggestions", "PLAN")
 HELPERS = {_n: globals()[_n] for _n in HELPER_NAMES}
 G.update(HELPERS)
 

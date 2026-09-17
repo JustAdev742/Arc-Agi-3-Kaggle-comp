@@ -275,6 +275,8 @@ rs = act(plan); print(all(r.get('pred_ok', True) for r in rs), rs[-1]['level_com
 print(goal_candidates())
 print(level, len(symlog()))
 print(hint_ok, ps_ok)
+gp = goal_progress(); print(len(gp) > 0, all(not r['falsified'] for r in gp[:1]), gp[0]['dist'] is not None)
+pr = goal_probe(); print(pr['plan'] is not None and pr['cost'] == len(pr['plan']) and pr['goal'] in [r['goal'] for r in gp], 'note' in pr)
 """
     r = sb.run(code, st0, timeout_s=60, action_handler=handler)
     assert r["error"] == "", r
@@ -287,6 +289,8 @@ print(hint_ok, ps_ok)
     assert "touch(colour 9, colour 12)" in lines[5], lines
     assert lines[6] == "2 0", lines  # new level: the symbolic log restarted
     assert lines[7] == "True True", lines  # the unique-colour target is the first goal hint; no key left to probe
+    assert lines[8] == "True True True", lines  # level 2: live hypotheses ranked by distance
+    assert lines[9] == "True True", lines  # goal_probe: the cheapest live hypothesis comes with a plan under the rules
     sb.stop()
 
 

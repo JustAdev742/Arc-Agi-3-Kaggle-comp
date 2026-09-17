@@ -151,6 +151,13 @@ class ReplAgent(Agent):
         self.recent_actions: list[str] = []
         self.level_notice = ""  # shown once, at the first turn after a level is completed
         self.level_archive: list[tuple[list, bool]] = []  # completed levels' symbolic frames (+ simulated final frame)
+        # Goal hypotheses (road-to-100 item 4): from level 2 on, the win conditions consistent with every completed
+        # level are ranked by code-computed distance every turn, and a hypothesis that came true on the current level
+        # without completing it is shown as falsified. Cheap (geometry only) and off the action path.
+        self.goal_info: list[dict[str, Any]] = []
+        self.goal_progress_in_prompt = bool(c.get("goal_progress_in_prompt", True))
+        self._goal_falsified: dict[str, int] = {}
+        self._goal_checked = 0  # frames of the current level already checked for falsification
         self.idle_turns_in_row = 0
         self.tile_map_max_cells = int(c.get("tile_map_max_cells", 1024))  # 32x32 at most in the observation
         self.history_frames = int(c.get("history_frames", 6))
@@ -222,6 +229,7 @@ class ReplAgent(Agent):
         if self.tracker.bg is None or self.tracker_level != frame.levels_completed:
             self.tracker.reset(frame.grid)
             self.tracker_level = frame.levels_completed
+            self._goal_falsified, self._goal_checked = {}, 0
         if not self.frames or self.frames[-1] is not frame.grid:
             self.frames.append(frame.grid)
             del self.frames[: -self.history_frames]
@@ -362,6 +370,7 @@ class ReplAgent(Agent):
         if res["level_completed"] or self.tracker_level != after.levels_completed:
             self.tracker.reset(after.grid)
             self.tracker_level = after.levels_completed
+            self._goal_falsified, self._goal_checked = {}, 0  # falsification is per level
             summary = win_summary or f"{action} -> changed {d.changed} cells"
         else:
             rec = self.tracker.update(after.grid, label0)
@@ -523,7 +532,7 @@ class ReplAgent(Agent):
                 return []
             if observed_terminal and len(frames) >= 2:
                 self.level_archive.append((list(frames), True))
-                return [g["goal"] for g in dsl.goal_predicates(self.level_archive)]
+                return self._refresh_goal_info()
             aid = int(final_action.action.value)
             label: Any = ("CLICK", int(final_action.x or 0), int(final_action.y or 0)) if aid == 6 else ACTION_NAMES.get(aid, str(final_action))
             log = dsl.make_log(frames, t.actions, t.unders, t.bg)
@@ -533,10 +542,39 @@ class ReplAgent(Agent):
             # with no rule to simulate the winning step, the last observed frame stands in for the final one
             final = dsl.simulate(frames[-1], label, rules) if rules else frames[-1]
             self.level_archive.append(([*frames, final], True))
-            return [g["goal"] for g in dsl.goal_predicates(self.level_archive)]
+            return self._refresh_goal_info()
         except Exception as e:  # noqa: BLE001
             self.log.warning("level archive failed: %s", e)
             return []
+
+    def _refresh_goal_info(self) -> list[str]:
+        from .. import dsl
+        self.goal_info = dsl.goal_predicates(self.level_archive)
+        self._goal_falsified = {}
+        self._goal_checked = 0
+        return [g["goal"] for g in self.goal_info]
+
+    def _goal_progress_line(self) -> str:
+        """Goal hypotheses ranked by distance, with the ones this level already falsified (checked incrementally)."""
+        if not self.goal_info:
+            return ""
+        try:
+            from .. import dsl
+            t = self.tracker
+            frames = t.compound_frames()
+            if not frames:
+                return ""
+            if self._goal_checked > len(frames):
+                self._goal_falsified, self._goal_checked = {}, 0  # the tracker was reset: a new level or a restart
+            av = t.avatar()
+            aid = int(av["id"]) if av else None
+            rows = dsl.goal_progress(self.goal_info, frames, avatar_id=aid, history=frames[self._goal_checked:],
+                                     falsified=self._goal_falsified, history_offset=self._goal_checked)
+            self._goal_checked = len(frames)
+            return dsl.render_goal_progress(rows)
+        except Exception as e:  # noqa: BLE001  (an observation line must never cost a turn)
+            self.log.debug("goal progress line failed: %s", e)
+            return ""
 
     def _stagnant(self) -> bool:
         k = self.stagnation_actions
@@ -658,6 +696,10 @@ class ReplAgent(Agent):
                 for e in ents))
             if av:
                 parts.append(f"Avatar: #{av['id']} moves with keys {av['keymap']}")
+        if self.goal_progress_in_prompt and self.goal_info:
+            gl = self._goal_progress_line()
+            if gl:
+                parts.append(gl)
         if getattr(self, "wm_summary", ""):
             parts.append(self.wm_summary)
         rs = self._rules_summary()

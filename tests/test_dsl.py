@@ -210,3 +210,39 @@ def test_simulate_order_push_then_overlap():
     after = simulate((av, box, key), "RIGHT", [push, mv, ov])
     ids = {e.id: e for e in after}
     assert ids[1].x0 == 3 and ids[2].x0 == 4 and 3 not in ids
+
+
+def test_goal_kinds_distances_progress_and_falsification():
+    """road-to-100 item 4: hypotheses are ranked by a cheap distance and a hypothesis that comes true on an unfinished
+    level is falsified (satisfied without a win = not the goal)."""
+    from arc3.dsl import goal_distance, goal_kind, goal_progress, render_goal_progress
+    assert goal_kind("same_box(colour 4, colour 11)") == ("same_box", (4, 11))
+    assert goal_kind("count(colour 3) == 2") == ("count", (3, 2))
+    assert goal_kind("all_same_colour_as(7)") == ("all_same_colour_as", (7,))
+    assert goal_kind({"none_left": 5}) == ("none_left", (5,)) and goal_kind({"reach_entity": 7}) == ("reach_entity", (7,))
+    assert goal_kind({"touch": (1, 4)}) == ("touch", (1, 4)) and goal_kind("nonsense") is None and goal_kind({"bogus": 1}) is None
+    av, tgt = E(1, 1, 2, 2), E(2, 4, 8, 2)
+    f0, f1, f2 = (av, tgt), (E(1, 1, 5, 2), tgt), (E(1, 1, 8, 2), tgt)
+    assert goal_distance("reach_entity", (2,), f0, avatar_id=1) == 6 and goal_distance("reach_entity", (2,), f2, avatar_id=1) == 0
+    assert goal_distance("reach_entity", (2,), f0) is None  # no avatar known
+    assert goal_distance("same_box", (1, 4), f0) == 12 and goal_distance("same_box", (1, 4), f2) == 0
+    assert goal_distance("touch", (1, 4), f1) == 2 and goal_distance("overlap", (1, 4), f1) == 3
+    assert goal_distance("none_left", (4,), f0) == 1 and goal_distance("count", (1, 3), f0) == 2
+    assert goal_distance("same_columns", (1, 4), f2) == 1  # same columns but overlapping vertically: not the relation
+    assert goal_distance("inside", (1, 4), f0) is None  # no smaller entity of colour 1 inside a colour-4 box
+    assert goal_distance("aligned", (1,), f0) is None and goal_distance("aligned", (1,), (av, E(3, 1, 9, 2))) == 0
+    rows = goal_progress(["same_box(colour 1, colour 4)", {"none_left": 4}, "touch(colour 1, colour 4)"], [f0, f1, f2], avatar_id=1)
+    by = {r["goal"]: r for r in rows}
+    assert by["same_box(colour 1, colour 4)"]["falsified"] and by["same_box(colour 1, colour 4)"]["falsified_at"] == 2
+    assert by["touch(colour 1, colour 4)"]["falsified"] and not by["none_left(4)"]["falsified"]
+    assert rows[0]["goal"] == "none_left(4)" and rows[0]["dist"] == 1  # live first
+    assert by["same_box(colour 1, colour 4)"]["delta"] == -12
+    text = render_goal_progress(rows)
+    assert "1 live, 2 falsified" in text and "none_left(4) dist 1" in text and "Falsified this level" in text
+    # incremental use: a caller keeps the falsified dict and passes only new frames as history
+    known: dict = {}
+    r1 = goal_progress(["same_box(colour 1, colour 4)"], [f0, f1], avatar_id=1, history=[f0, f1], falsified=known)
+    assert not r1[0]["falsified"] and known == {}
+    r2 = goal_progress(["same_box(colour 1, colour 4)"], [f0, f1, f2], avatar_id=1, history=[f2], falsified=known, history_offset=2)
+    assert r2[0]["falsified"] and r2[0]["falsified_at"] == 2 and known == {"same_box(colour 1, colour 4)": 2}
+    assert goal_progress([], [f0]) == [] and goal_progress(["none_left(colour 4)"], []) == []

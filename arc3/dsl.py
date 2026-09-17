@@ -13,6 +13,7 @@ The model only chooses rule types and reads counter-examples; it never has to wr
 """
 from __future__ import annotations
 
+import re
 from collections import Counter, defaultdict, deque
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
@@ -1600,47 +1601,223 @@ def goal_predicates(frames_by_level: list[tuple[list[Frame], bool]]) -> list[dic
     if not won:
         return []
     colors = sorted({e.color for fr in won for e in fr[-1]} | {e.color for fr in won for e in fr[0]})
-    preds: list[tuple[str, Callable[[Frame], bool]]] = []
+    preds: list[tuple[str, str, tuple, Callable[[Frame], bool]]] = []
     for c in colors:
-        preds.append((f"none_left(colour {c})", lambda f, c=c: not any(e.color == c for e in f)))
+        preds.append((f"none_left(colour {c})", "none_left", (c,), lambda f, c=c: not any(e.color == c for e in f)))
         for n in range(1, 5):
-            preds.append((f"count(colour {c}) == {n}", lambda f, c=c, n=n: sum(1 for e in f if e.color == c) == n))
-        preds.append((f"aligned(colour {c})", lambda f, c=c: _aligned([e for e in f if e.color == c])))
-        preds.append((f"all_same_colour_as({c})", lambda f, c=c: len({e.color for e in f}) == 1 and all(e.color == c for e in f)))
+            preds.append((f"count(colour {c}) == {n}", "count", (c, n), lambda f, c=c, n=n: sum(1 for e in f if e.color == c) == n))
+        preds.append((f"aligned(colour {c})", "aligned", (c,), lambda f, c=c: _aligned([e for e in f if e.color == c])))
+        preds.append((f"all_same_colour_as({c})", "all_same_colour_as", (c,),
+                      lambda f, c=c: len({e.color for e in f}) == 1 and all(e.color == c for e in f)))
     for a in colors:
         for b in colors:
             if a != b:
-                preds.append((f"overlap(colour {a}, colour {b})",
+                preds.append((f"overlap(colour {a}, colour {b})", "overlap", (a, b),
                               lambda f, a=a, b=b: any(x.overlaps(y) for x in f if x.color == a for y in f if y.color == b)))
-                preds.append((f"touch(colour {a}, colour {b})",
+                preds.append((f"touch(colour {a}, colour {b})", "touch", (a, b),
                               lambda f, a=a, b=b: any(x.overlaps(y, 1) for x in f if x.color == a for y in f if y.color == b)))
             # Geometric relations between two distinct entities (same colour allowed): a sprite parked exactly on its
             # slot (ar25: avatar box == target box), a knob aligned under a marker (vc33: equal column range).
             # goal_probe.py (2026-09-16): 5 of 17 recorded solved levels had a consistent predicate before these.
-            preds.append((f"same_box(colour {a}, colour {b})",
+            preds.append((f"same_box(colour {a}, colour {b})", "same_box", (a, b),
                           lambda f, a=a, b=b: any(x is not y and (x.x0, x.y0, x.x1, x.y1) == (y.x0, y.y0, y.x1, y.y1)
                                                   for x in f if x.color == a for y in f if y.color == b)))
-            preds.append((f"same_columns(colour {a}, colour {b})",
+            preds.append((f"same_columns(colour {a}, colour {b})", "same_columns", (a, b),
                           lambda f, a=a, b=b: any(x is not y and (x.x0, x.x1) == (y.x0, y.x1) and not (x.y0 <= y.y1 and y.y0 <= x.y1)
                                                   for x in f if x.color == a for y in f if y.color == b)))
-            preds.append((f"same_rows(colour {a}, colour {b})",
+            preds.append((f"same_rows(colour {a}, colour {b})", "same_rows", (a, b),
                           lambda f, a=a, b=b: any(x is not y and (x.y0, x.y1) == (y.y0, y.y1) and not (x.x0 <= y.x1 and y.x0 <= x.x1)
                                                   for x in f if x.color == a for y in f if y.color == b)))
             if a != b:
-                preds.append((f"inside(colour {a}, colour {b})",
+                preds.append((f"inside(colour {a}, colour {b})", "inside", (a, b),
                               lambda f, a=a, b=b: any(x is not y and y.x0 <= x.x0 and x.x1 <= y.x1 and y.y0 <= x.y0 and x.y1 <= y.y1
                                                       and (x.x1 - x.x0 + 1) * (x.y1 - x.y0 + 1) < (y.x1 - y.x0 + 1) * (y.y1 - y.y0 + 1)
                                                       for x in f if x.color == a for y in f if y.color == b)))
     out = []
-    for name, p in preds:
+    for name, kind, args, p in preds:
         ok = True
         for fr in won:
             if not p(fr[-1]) or any(p(f) for f in fr[:-1]):
                 ok = False
                 break
         if ok:
-            out.append({"goal": name, "levels": len(won), "predicate": p})
+            out.append({"goal": name, "kind": kind, "args": args, "levels": len(won), "predicate": p})
     return out
+
+
+# ------------------------------------------------------------------------------ goal hypotheses: distance, falsification
+_GOAL_NAME = re.compile(r"^(\w+)\((?:colour )?(\d+)(?:, colour (\d+))?\)(?: == (\d+))?$")
+GOAL_KINDS = ("none_left", "count", "aligned", "all_same_colour_as", "overlap", "touch", "same_box", "same_columns", "same_rows",
+              "inside", "reach", "reach_entity")
+
+
+def goal_kind(goal: Any) -> Optional[tuple[str, tuple]]:
+    """(kind, args) of a goal hypothesis: a goal_predicates() entry, a plan_rules-style dict ({'none_left': c},
+    {'reach_entity': id}, {'same_box': (a, b)}, ...) or a candidate name such as 'same_box(colour 4, colour 11)'."""
+    if isinstance(goal, dict) and "kind" in goal:
+        return str(goal["kind"]), tuple(goal.get("args") or ())
+    if isinstance(goal, dict) and len(goal) == 1:
+        (k, v), = goal.items()
+        if k not in GOAL_KINDS:
+            return None
+        args = tuple(int(x) for x in v) if isinstance(v, (tuple, list)) else (int(v),)
+        return k, args
+    if isinstance(goal, str):
+        m = _GOAL_NAME.match(goal.strip())
+        if not m:
+            return None
+        kind, a, b, n = m.group(1), m.group(2), m.group(3), m.group(4)
+        if kind not in GOAL_KINDS:
+            return None
+        args: tuple = (int(a),) + ((int(b),) if b else ()) + ((int(n),) if n else ())
+        return kind, args
+    return None
+
+
+def _gap(x: Ent, y: Ent) -> int:
+    """Chebyshev gap between two bounding boxes in cells: 0 when they intersect."""
+    dx = max(0, max(x.x0, y.x0) - min(x.x1, y.x1))
+    dy = max(0, max(x.y0, y.y0) - min(x.y1, y.y1))
+    return max(dx, dy)
+
+
+def goal_distance(kind: str, args: tuple, frame: Frame, *, avatar_id: Optional[int] = None) -> Optional[int]:
+    """How far a frame is from satisfying a goal hypothesis, in cells or counts (0 = satisfied by this measure;
+    None = not computable here). Cheap geometry, no search: it ranks hypotheses and shows progress, the rule
+    simulation (plan_rules) settles the cost of the ones that matter."""
+    ents = list(frame)
+    if kind == "none_left":
+        return sum(1 for e in ents if e.color == args[0])
+    if kind == "count":
+        return abs(sum(1 for e in ents if e.color == args[0]) - int(args[1]))
+    if kind == "all_same_colour_as":
+        return sum(1 for e in ents if e.color != args[0])
+    if kind == "aligned":
+        same = [e for e in ents if e.color == args[0]]
+        if len(same) < 2:
+            return None
+        return min(len({e.x0 for e in same}), len({e.y0 for e in same})) - 1
+    if kind in ("overlap", "touch", "same_box", "same_columns", "same_rows", "inside"):
+        a, b = int(args[0]), int(args[1])
+        best: Optional[int] = None
+        for x in ents:
+            if x.color != a:
+                continue
+            for y in ents:
+                if y.color != b or x is y:
+                    continue
+                if kind == "overlap":
+                    d = _gap(x, y)
+                elif kind == "touch":
+                    d = max(0, _gap(x, y) - 1)
+                elif kind == "same_box":
+                    d = abs(x.x0 - y.x0) + abs(x.y0 - y.y0) + abs(x.x1 - y.x1) + abs(x.y1 - y.y1)
+                elif kind == "same_columns":
+                    d = abs(x.x0 - y.x0) + abs(x.x1 - y.x1) + (1 if (x.y0 <= y.y1 and y.y0 <= x.y1) else 0)
+                elif kind == "same_rows":
+                    d = abs(x.y0 - y.y0) + abs(x.y1 - y.y1) + (1 if (x.x0 <= y.x1 and y.x0 <= x.x1) else 0)
+                else:  # inside: how far x sticks out of y (only for a smaller x)
+                    if (x.x1 - x.x0 + 1) * (x.y1 - x.y0 + 1) >= (y.x1 - y.x0 + 1) * (y.y1 - y.y0 + 1):
+                        continue
+                    d = max(0, y.x0 - x.x0) + max(0, x.x1 - y.x1) + max(0, y.y0 - x.y0) + max(0, x.y1 - y.y1)
+                best = d if best is None else min(best, d)
+        return best
+    if kind in ("reach", "reach_entity"):
+        if avatar_id is None:
+            return None
+        av = next((e for e in ents if e.id == avatar_id), None)
+        if av is None:
+            return None
+        if kind == "reach_entity":
+            tgt = next((e for e in ents if e.id == int(args[0])), None)
+            return None if tgt is None else _gap(av, tgt)
+        x, y = int(args[0]), int(args[1])
+        point = Ent(-1, av.color, x, y, 1, 1, 1, None)
+        return _gap(av, point)
+    return None
+
+
+def goal_predicate(kind: str, args: tuple, *, avatar_id: Optional[int] = None) -> Optional[Callable[[Frame], bool]]:
+    """The exact predicate of a dict goal (the sandbox's plan_rules goals), for falsification checks."""
+    if kind in ("reach", "reach_entity") and avatar_id is None:
+        return None
+    if kind == "aligned":
+        return lambda f: _aligned([e for e in f if e.color == args[0]])
+    if kind == "all_same_colour_as":
+        return lambda f: len({e.color for e in f}) == 1 and all(e.color == args[0] for e in f)
+    if kind in ("none_left", "count", "overlap", "touch", "same_box", "same_columns", "same_rows", "inside"):
+        d = goal_distance
+        return lambda f: d(kind, args, f) == 0
+    if kind == "reach_entity":
+        return lambda f: any(e.id == avatar_id and any(o.id == int(args[0]) and e.overlaps(o, 1) for o in f) for e in f)
+    if kind == "reach":
+        return lambda f: any(e.id == avatar_id and e.contains(int(args[0]), int(args[1])) for e in f)
+    return None
+
+
+def goal_progress(goals: list[Any], frames: list[Frame], *, avatar_id: Optional[int] = None, last_n: int = 6,
+                  history: Optional[list[Frame]] = None, falsified: Optional[dict[str, int]] = None,
+                  history_offset: int = 0) -> list[dict[str, Any]]:
+    """Rank goal hypotheses on the current (unfinished) level: distance at the last frame, its change over the last
+    ``last_n`` actions, and whether the level has already falsified the hypothesis (its predicate came true at some
+    frame of this level without the level completing: a goal that is satisfied and does not win is not the goal).
+    ``history`` is the frame range to check for falsification (default: all of ``frames``; a caller that checks
+    every turn passes only the frames since its last check, their index offset, and the ``falsified`` dict it keeps,
+    which is updated with absolute frame indices).
+    Live hypotheses first, nearest first; falsified ones last."""
+    if not frames:
+        return []
+    history = frames if history is None else history
+    known = falsified if falsified is not None else {}
+    out = []
+    for g in goals:
+        ka = goal_kind(g)
+        if ka is None:
+            continue
+        kind, args = ka
+        name = g["goal"] if isinstance(g, dict) and "goal" in g else (g if isinstance(g, str) else f"{kind}({', '.join(map(str, args))})")
+        pred = g.get("predicate") if isinstance(g, dict) else None
+        pred = pred or goal_predicate(kind, args, avatar_id=avatar_id)
+        ds = [goal_distance(kind, args, f, avatar_id=avatar_id) for f in frames]
+        cur = ds[-1]
+        window = [d for d in ds[-(last_n + 1):] if d is not None]
+        delta = (cur - window[0]) if (cur is not None and window) else None
+        falsified_at = known.get(name)
+        if falsified_at is None and pred is not None:
+            for i, f in enumerate(history):
+                if _holds(pred, f):
+                    falsified_at = history_offset + i
+                    known[name] = falsified_at
+                    break
+        out.append({"goal": name, "kind": kind, "args": tuple(args), "dist": cur, "delta": delta,
+                    "satisfied": cur == 0 if cur is not None else None, "falsified": falsified_at is not None,
+                    "falsified_at": falsified_at})
+    out.sort(key=lambda r: (r["falsified"], r["dist"] is None, r["dist"] if r["dist"] is not None else 0))
+    return out
+
+
+def _holds(pred: Callable[[Frame], bool], frame: Frame) -> bool:
+    try:
+        return bool(pred(frame))
+    except Exception:  # noqa: BLE001  (a predicate over an odd frame must not cost the ranking)
+        return False
+
+
+def render_goal_progress(rows: list[dict[str, Any]], *, live: int = 3, falsified: int = 3) -> str:
+    """One observation line: the nearest live hypotheses with their trend, then the falsified ones."""
+    alive = [r for r in rows if not r["falsified"]]
+    dead = [r for r in rows if r["falsified"]]
+    if not rows:
+        return ""
+    parts = []
+    for r in alive[:live]:
+        d = "?" if r["dist"] is None else str(r["dist"])
+        trend = "" if r["delta"] is None or r["delta"] == 0 else f" ({r['delta']:+d} over the last actions)"
+        parts.append(f"{r['goal']} dist {d}{trend}")
+    txt = f"Goal hypotheses (code-computed; {len(alive)} live, {len(dead)} falsified): " + ("; ".join(parts) if parts else "none live")
+    if dead:
+        txt += ". Falsified this level (came true without completing it): " + "; ".join(r["goal"] for r in dead[:falsified])
+    return txt + "."
 
 
 def _aligned(ents: list[Ent]) -> bool:

@@ -676,3 +676,38 @@ def test_explore_first_sweep_precedes_the_first_model_turn_on_a_real_game():
     finally:
         agent.close()
         env.close()
+
+
+def test_goal_hypotheses_line_ranks_and_falsifies_from_level_two():
+    import numpy as np
+
+    mock = MockClient([MockClient.say("ok")])
+    agent = get("repl")(AgentContext(game_id="fake", deadline=time.time() + 300, config={"client": mock, "image": False}))
+    try:
+        g = np.zeros((64, 64), dtype=np.int16)
+        g[10:14, 10:14] = 9
+        g[30:32, 40:42] = 3
+        f0 = _frame(g, levels=1, level_step=0)
+        agent.frame = f0
+        agent.tracker.reset(g)
+        agent.tracker_level = 1  # what act() records; observe() then updates the tracker instead of resetting it
+        assert "Goal hypotheses" not in agent._observation_text()  # nothing known before a level is completed
+        from arc3 import dsl
+        agent.goal_info = [{"goal": "none_left(colour 9)", "kind": "none_left", "args": (9,), "predicate": lambda f: not any(e.color == 9 for e in f)},
+                           {"goal": "none_left(colour 3)", "kind": "none_left", "args": (3,), "predicate": lambda f: not any(e.color == 3 for e in f)}]
+        assert dsl.goal_kind(agent.goal_info[0]) == ("none_left", (9,))
+        text = agent._observation_text()
+        assert "Goal hypotheses (code-computed; 2 live, 0 falsified): none_left(colour 9) dist 1" in text, text
+        # the colour-3 entity vanishes without the level completing: that hypothesis is falsified, the other stays live
+        g1 = g.copy()
+        g1[30:32, 40:42] = 0
+        f1 = _frame(g1, levels=1, level_step=1)
+        agent.observe(Action.simple(1), f0, f1)
+        text = agent._observation_text()
+        assert "1 live, 1 falsified" in text and "Falsified this level (came true without completing it): none_left(colour 3)" in text, text
+        assert agent._goal_falsified == {"none_left(colour 3)": 1} and agent._goal_checked == 2
+        # config knob off: no line
+        agent.goal_progress_in_prompt = False
+        assert "Goal hypotheses" not in agent._observation_text()
+    finally:
+        agent.close()

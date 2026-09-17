@@ -620,3 +620,26 @@ Plan:     after the 2026-09-19 reset and the exp-019/020/022 runs: push scratchp
           ls20 + vc33 smoke not worse than the 27B's; then one dev run for the winner (needs the eval builder to take a
           model source and the text-only config).
 Measured: not run.
+
+## 2026-09-17 · exp-022 (bundle addition) · goal-hypothesis discrimination: distances, falsification, goal_probe() · BUILT (code-only)
+Why:      road-to-100 item 4 and Tycho's residual failure: the harness lists win conditions consistent with completed
+          levels (exp-021: 9 of 17 solved levels have one) but nothing ranks them, nothing says which the current level
+          has already ruled out, and the model commits to one (dc22, g50t, tn36 post-mortems). The cheapest test of a
+          goal hypothesis is to satisfy it: the level either completes or the hypothesis is falsified.
+Change:   dsl: goal_predicates() entries carry kind/args; goal_kind() parses candidate names and plan_rules dict goals;
+          goal_distance() is a cheap geometric distance per kind (counts, bbox gaps, box/column/row offsets, stick-out
+          for inside, avatar gap for reach); goal_progress() ranks hypotheses (live nearest first, falsified last) with
+          the change over the last actions and an incremental falsification check; render_goal_progress() is the line.
+          sandbox: goal_progress() (candidates + goal_hints goals) and goal_probe() (the cheapest live hypothesis with
+          its plan under the fitted rules, plan_rules with a small node budget; act(plan) wins or falsifies). REPL
+          agent: from level 2 on the observation carries "Goal hypotheses (code-computed; N live, M falsified): ...";
+          config goal_progress_in_prompt (default on: geometry only, no action, no model call); the falsification
+          cache resets with the tracker. Prompt: Method step 2 and the helper listing. Tests: test_dsl
+          (kinds, distances, progress, incremental falsification), test_sandbox (GridWorld level 2: ranked live
+          hypotheses, goal_probe plan), test_repl_agent (line appears from level 2, falsifies on evidence, knob off).
+Expected: on levels 2+, fewer actions spent on a goal the level has already ruled out; the model reaches for
+          goal_probe() instead of guessing. Cost: a few ms per turn.
+Plan:     rides in the exp-022 bundle (exploration sweep + goal hypotheses) against exp-020, three runs; ablation knobs
+          explore_first and goal_progress_in_prompt. Code-only gate next: extend scripts/goal_probe.py to report, on
+          the recorded solved levels, whether the winning predicate was the cheapest live hypothesis before the win.
+Measured: not run (GPU quota exhausted until 2026-09-19 00:00 UTC).
