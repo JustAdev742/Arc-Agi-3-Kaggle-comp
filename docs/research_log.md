@@ -640,9 +640,14 @@ Change:   dsl: goal_predicates() entries carry kind/args; goal_kind() parses can
 Expected: on levels 2+, fewer actions spent on a goal the level has already ruled out; the model reaches for
           goal_probe() instead of guessing. Cost: a few ms per turn.
 Plan:     rides in the exp-022 bundle (exploration sweep + goal hypotheses) against exp-020, three runs; ablation knobs
-          explore_first and goal_progress_in_prompt. Code-only gate next: extend scripts/goal_probe.py to report, on
-          the recorded solved levels, whether the winning predicate was the cheapest live hypothesis before the win.
-Measured: not run (GPU quota exhausted until 2026-09-19 00:00 UTC).
+          explore_first and goal_progress_in_prompt.
+Measured: code-only gate (scripts/goal_probe.py --max-levels 3, 2026-09-17, the latest recorded winning run per game
+          in skills.json): 13 solved levels replayed, 7 with at least one consistent predicate after the level. Levels
+          >= 2 that had level-1 candidates: 2 (ar25 L2: 4 candidates, su15 L2: 9); in both the eventual winner was
+          ranked first among the live hypotheses one frame before the win (goal_probe() would have planned the right
+          goal first); no candidate was falsified on these replays, as expected of winning runs that go straight to
+          the goal (falsification only pays on the exploring runs the model actually produces). n = 2: a sanity check,
+          not evidence of a gain. Model run: not yet (GPU quota exhausted until 2026-09-19 00:00 UTC).
 
 ## 2026-09-17 · human replay summariser (road-to-100 item 7, data still blocked) · BUILT (code-only)
 Change:   scripts/human_replays.py parses the documented recording JSONL (docs.arcprize.org/recordings: one line per

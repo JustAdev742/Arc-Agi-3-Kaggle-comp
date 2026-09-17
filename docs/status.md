@@ -187,7 +187,8 @@ research log exp-006a.
   turn on a level and shows the effect table once. Measured after the quota reset, after exp-019/020.
 - **Goal-hypothesis discrimination built (road-to-100 item 4, in the exp-022 bundle):** candidates ranked by
   code-computed distance, the ones the current level already falsified marked, `goal_probe()` plans the cheapest
-  live one (win or rule it out). Observation line from level 2 on (`goal_progress_in_prompt`).
+  live one (win or rule it out). Observation line from level 2 on (`goal_progress_in_prompt`). Code-only gate:
+  on the two recorded replays with level-1 candidates and a solved level 2, the winner ranked first both times.
 - **Serving checks prepared for two candidate models** (road-to-100 item 1): gpt-oss-120b MXFP4 and Nemotron 3 Super
   120B-A12B NVFP4, both with Kaggle-hub copies and public RTX PRO 6000 recipes; diag kernels built
   (`scratchpad/nb/diag-gptoss`, `scratchpad/nb/diag-nemotron`), notes in `docs/models/`, research log entry. Nemotron's
