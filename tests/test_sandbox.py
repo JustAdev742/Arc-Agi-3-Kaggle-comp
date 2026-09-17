@@ -3,6 +3,7 @@ import time
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from arc3.sandbox import PersistentSandbox
 
