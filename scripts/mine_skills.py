@@ -12,6 +12,12 @@ At play time ``arc3.memory.match_skills`` retrieves the cards whose signature ag
 the same game: on the dev split that would be leakage, on the hidden set the game is unknown anyway) and the
 agent shows them as hints. The cards are text; nothing in them is executed.
 
+Each card also carries its evidence and a status (brief item 16): ``wins`` (transcripts that solved the level),
+``failures`` (transcripts of the same game that reached the level and did not solve it), ``confidence`` =
+wins / (wins + failures), ``last_validated`` (the latest winning run) and ``status``: ``validated`` (won at least
+twice), ``candidate`` (won once, failed at most twice since), ``deprecated`` (won once, failed more than twice: a
+one-off that later runs did not reproduce; never shown). A one-off observation is never promoted to a rule.
+
 Usage: .venv/bin/python scripts/mine_skills.py [--runs runs] [--out arc3/data/skills.json] [--min-actions 1]
 """
 from __future__ import annotations
@@ -153,6 +159,28 @@ def mine_transcript(path: Path) -> list[dict[str, Any]]:
     return cards
 
 
+def transcript_outcomes(runs_dir: Path) -> dict[str, list[tuple[str, int]]]:
+    """game -> [(run, levels_completed)] from the meta line of every transcript (the cheap scan that counts failures)."""
+    out: dict[str, list[tuple[str, int]]] = defaultdict(list)
+    for p in sorted(runs_dir.glob("*/*.transcript.jsonl")):
+        try:
+            with open(p) as f:
+                meta = json.loads(f.readline())
+        except (OSError, json.JSONDecodeError, ValueError):
+            continue
+        if meta.get("kind") != "meta":
+            continue
+        game = meta.get("game") or p.name.split(".")[0]
+        out[game].append((p.parent.name, int((meta.get("stats") or {}).get("levels_completed", 0))))
+    return out
+
+
+def status_of(wins: int, failures: int) -> str:
+    if wins >= 2:
+        return "validated"
+    return "candidate" if failures <= 2 else "deprecated"
+
+
 def build_library(runs_dir: Path, *, min_actions: int = 1) -> dict[str, Any]:
     raw: list[dict[str, Any]] = []
     for p in sorted(runs_dir.glob("*/*.transcript.jsonl")):
@@ -160,6 +188,7 @@ def build_library(runs_dir: Path, *, min_actions: int = 1) -> dict[str, Any]:
             raw.extend(mine_transcript(p))
         except Exception as e:
             print(f"[mine_skills] skip {p}: {e}", file=sys.stderr)
+    outcomes = transcript_outcomes(runs_dir)
     by_key: dict[tuple[str, int], list[dict[str, Any]]] = defaultdict(list)
     for c in raw:
         if c["actions"] >= min_actions:
@@ -178,8 +207,14 @@ def build_library(runs_dir: Path, *, min_actions: int = 1) -> dict[str, Any]:
             strategy += f" ({best['sequence']})"
         if learned:
             strategy += f". Learned: {learned}"
-        skills.append({"game": game, "level": level, "wins": len(cards), "actions": best["actions"], "signature": sig,
-                       "strategy": strategy, "runs": sorted({c["run"] for c in cards})})
+        runs = sorted({c["run"] for c in cards})
+        # failures: transcripts of the game that reached this level (completed level - 1) and did not complete it
+        failures = sorted(r for r, done in outcomes.get(game, []) if done == level - 1 and r not in runs)
+        wins = len(cards)
+        skills.append({"game": game, "level": level, "wins": wins, "actions": best["actions"], "signature": sig,
+                       "strategy": strategy, "runs": runs, "failures": len(failures), "failed_runs": failures,
+                       "confidence": round(wins / (wins + len(failures)), 2), "last_validated": runs[-1],
+                       "status": status_of(wins, len(failures))})
     return {"version": 1, "source": str(runs_dir), "n_transcripts_with_wins": len({(c['game'], c['run']) for c in raw}),
             "skills": skills}
 
@@ -196,7 +231,8 @@ def main() -> None:
     out.write_text(json.dumps(lib, indent=1))
     print(f"[mine_skills] {len(lib['skills'])} skill cards from {lib['n_transcripts_with_wins']} winning transcripts -> {out}")
     for s in lib["skills"]:
-        print(f"  {s['game']} L{s['level']} wins={s['wins']} actions={s['actions']}: {s['strategy'][:150]}")
+        print(f"  {s['game']} L{s['level']} {s['status']} wins={s['wins']} failures={s['failures']} conf={s['confidence']} "
+              f"actions={s['actions']}: {s['strategy'][:120]}")
 
 
 if __name__ == "__main__":

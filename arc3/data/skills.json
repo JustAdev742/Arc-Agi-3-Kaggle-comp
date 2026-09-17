@@ -35,7 +35,20 @@
     "kaggle-repl-dev-013b",
     "kaggle-repl-dev-014",
     "kaggle-repl-dev-017"
-   ]
+   ],
+   "failures": 7,
+   "failed_runs": [
+    "kaggle-council-dev-010",
+    "kaggle-repl-dev-005",
+    "kaggle-repl-dev-007",
+    "kaggle-repl-dev-008",
+    "kaggle-repl-dev-009",
+    "kaggle-repl-dev-009b",
+    "kaggle-repl-dev-015"
+   ],
+   "confidence": 0.63,
+   "last_validated": "kaggle-repl-dev-017",
+   "status": "validated"
   },
   {
    "game": "ar25",
@@ -53,7 +66,25 @@
    "strategy": "keys and clicks, no avatar found: goal 'overlap #9 c4 onto yellow #19 at (3,42)'; solved in 26 actions (DOWN, UP, RIGHT, LEFT, DOWN, UP, ..., RIGHTx2, LEFTx5, ACT, UP, DOWNx8). Learned: UP/DOWN now move #9 by 3 in y",
    "runs": [
     "kaggle-repl-dev-011b"
-   ]
+   ],
+   "failures": 12,
+   "failed_runs": [
+    "kaggle-council-dev-010b",
+    "kaggle-council-dev-010c",
+    "kaggle-repl-all-016",
+    "kaggle-repl-dev-004",
+    "kaggle-repl-dev-011",
+    "kaggle-repl-dev-011c",
+    "kaggle-repl-dev-012",
+    "kaggle-repl-dev-012b",
+    "kaggle-repl-dev-013",
+    "kaggle-repl-dev-013b",
+    "kaggle-repl-dev-014",
+    "kaggle-repl-dev-017"
+   ],
+   "confidence": 0.08,
+   "last_validated": "kaggle-repl-dev-011b",
+   "status": "deprecated"
   },
   {
    "game": "bp35",
@@ -76,7 +107,30 @@
     "kaggle-council-dev-010c",
     "kaggle-repl-dev-004",
     "kaggle-repl-dev-012"
-   ]
+   ],
+   "failures": 17,
+   "failed_runs": [
+    "kaggle-council-dev-010",
+    "kaggle-council-dev-010b",
+    "kaggle-repl-all-016",
+    "kaggle-repl-dev-005",
+    "kaggle-repl-dev-007",
+    "kaggle-repl-dev-008",
+    "kaggle-repl-dev-009",
+    "kaggle-repl-dev-009b",
+    "kaggle-repl-dev-011",
+    "kaggle-repl-dev-011b",
+    "kaggle-repl-dev-011c",
+    "kaggle-repl-dev-012b",
+    "kaggle-repl-dev-013",
+    "kaggle-repl-dev-013b",
+    "kaggle-repl-dev-014",
+    "kaggle-repl-dev-015",
+    "kaggle-repl-dev-017"
+   ],
+   "confidence": 0.15,
+   "last_validated": "kaggle-repl-dev-012",
+   "status": "validated"
   },
   {
    "game": "cd82",
@@ -94,7 +148,32 @@
    "strategy": "keys and clicks, no avatar found: goal 'top-white/bottom-purple block'; solved in 46 actions (UP, DOWN, LEFT, RIGHT, ACTx2, UP, ..., ACT, RIGHT, DOWN, RIGHT, CLICK). Learned: ring orbits block (LEFT/RIGHT/UP/DOWN step it around); ACT paints block half on ring side with selected colour",
    "runs": [
     "kaggle-repl-dev-013b"
-   ]
+   ],
+   "failures": 19,
+   "failed_runs": [
+    "kaggle-council-dev-010",
+    "kaggle-council-dev-010b",
+    "kaggle-council-dev-010c",
+    "kaggle-repl-all-016",
+    "kaggle-repl-dev-004",
+    "kaggle-repl-dev-005",
+    "kaggle-repl-dev-007",
+    "kaggle-repl-dev-008",
+    "kaggle-repl-dev-009",
+    "kaggle-repl-dev-009b",
+    "kaggle-repl-dev-011",
+    "kaggle-repl-dev-011b",
+    "kaggle-repl-dev-011c",
+    "kaggle-repl-dev-012",
+    "kaggle-repl-dev-012b",
+    "kaggle-repl-dev-013",
+    "kaggle-repl-dev-014",
+    "kaggle-repl-dev-015",
+    "kaggle-repl-dev-017"
+   ],
+   "confidence": 0.05,
+   "last_validated": "kaggle-repl-dev-013b",
+   "status": "deprecated"
   },
   {
    "game": "ft09",
@@ -112,7 +191,32 @@
    "strategy": "click-only: goal 'make gray-frame answer 3x3 == BL reference'; solved in 7 actions (CLICKx6). Learned: ANS vs BL differ at (1,0),(1,2),(2,0),(2,2)",
    "runs": [
     "kaggle-repl-all-016"
-   ]
+   ],
+   "failures": 19,
+   "failed_runs": [
+    "kaggle-council-dev-010",
+    "kaggle-council-dev-010b",
+    "kaggle-council-dev-010c",
+    "kaggle-repl-dev-004",
+    "kaggle-repl-dev-005",
+    "kaggle-repl-dev-007",
+    "kaggle-repl-dev-008",
+    "kaggle-repl-dev-009",
+    "kaggle-repl-dev-009b",
+    "kaggle-repl-dev-011",
+    "kaggle-repl-dev-011b",
+    "kaggle-repl-dev-011c",
+    "kaggle-repl-dev-012",
+    "kaggle-repl-dev-012b",
+    "kaggle-repl-dev-013",
+    "kaggle-repl-dev-013b",
+    "kaggle-repl-dev-014",
+    "kaggle-repl-dev-015",
+    "kaggle-repl-dev-017"
+   ],
+   "confidence": 0.05,
+   "last_validated": "kaggle-repl-all-016",
+   "status": "deprecated"
   },
   {
    "game": "ka59",
@@ -132,7 +236,32 @@
    "strategy": "avatar with keys RIGHT: goal 'fill BOTH frames; right done, now left frame (12,33) with #7'; solved in 51 actions (UP, DOWN, LEFT, RIGHT, DOWN, LEFTx2, ..., RIGHT, UPx2, DOWN, CLICK, LEFTx4). Learned: right green stuck left of wall; left green in left frame not enough",
    "runs": [
     "kaggle-repl-dev-013b"
-   ]
+   ],
+   "failures": 19,
+   "failed_runs": [
+    "kaggle-council-dev-010",
+    "kaggle-council-dev-010b",
+    "kaggle-council-dev-010c",
+    "kaggle-repl-all-016",
+    "kaggle-repl-dev-004",
+    "kaggle-repl-dev-005",
+    "kaggle-repl-dev-007",
+    "kaggle-repl-dev-008",
+    "kaggle-repl-dev-009",
+    "kaggle-repl-dev-009b",
+    "kaggle-repl-dev-011",
+    "kaggle-repl-dev-011b",
+    "kaggle-repl-dev-011c",
+    "kaggle-repl-dev-012",
+    "kaggle-repl-dev-012b",
+    "kaggle-repl-dev-013",
+    "kaggle-repl-dev-014",
+    "kaggle-repl-dev-015",
+    "kaggle-repl-dev-017"
+   ],
+   "confidence": 0.05,
+   "last_validated": "kaggle-repl-dev-013b",
+   "status": "deprecated"
   },
   {
    "game": "lp85",
@@ -158,7 +287,22 @@
     "kaggle-repl-dev-013b",
     "kaggle-repl-dev-014",
     "kaggle-repl-dev-017"
-   ]
+   ],
+   "failures": 9,
+   "failed_runs": [
+    "kaggle-council-dev-010",
+    "kaggle-council-dev-010c",
+    "kaggle-repl-dev-005",
+    "kaggle-repl-dev-007",
+    "kaggle-repl-dev-008",
+    "kaggle-repl-dev-009",
+    "kaggle-repl-dev-009b",
+    "kaggle-repl-dev-012",
+    "kaggle-repl-dev-013"
+   ],
+   "confidence": 0.5,
+   "last_validated": "kaggle-repl-dev-017",
+   "status": "validated"
   },
   {
    "game": "ls20",
@@ -176,7 +320,33 @@
    "strategy": "avatar, key map not fitted: goal 'collect #4 and #5'; solved in 25 actions (UP, DOWN, LEFT, RIGHT, UPx3, LEFTx3, ..., DOWN, LEFT, UPx4, RIGHTx3, UPx2). Learned: #6 (c0) collected on contact; #13 also moved",
    "runs": [
     "kaggle-repl-dev-012b"
-   ]
+   ],
+   "failures": 20,
+   "failed_runs": [
+    "kaggle-council-dev-010",
+    "kaggle-council-dev-010b",
+    "kaggle-council-dev-010c",
+    "kaggle-repl-all-016",
+    "kaggle-repl-dev-004",
+    "kaggle-repl-dev-005",
+    "kaggle-repl-dev-007",
+    "kaggle-repl-dev-008",
+    "kaggle-repl-dev-009",
+    "kaggle-repl-dev-009b",
+    "kaggle-repl-dev-011",
+    "kaggle-repl-dev-011b",
+    "kaggle-repl-dev-011c",
+    "kaggle-repl-dev-012",
+    "kaggle-repl-dev-013",
+    "kaggle-repl-dev-013b",
+    "kaggle-repl-dev-014",
+    "kaggle-repl-dev-015",
+    "kaggle-repl-dev-017",
+    "kaggle-submission-check-v2"
+   ],
+   "confidence": 0.05,
+   "last_validated": "kaggle-repl-dev-012b",
+   "status": "deprecated"
   },
   {
    "game": "m0r0",
@@ -203,7 +373,28 @@
     "kaggle-repl-dev-011b",
     "kaggle-repl-dev-013",
     "kaggle-repl-dev-017"
-   ]
+   ],
+   "failures": 15,
+   "failed_runs": [
+    "kaggle-council-dev-010",
+    "kaggle-council-dev-010b",
+    "kaggle-council-dev-010c",
+    "kaggle-repl-all-016",
+    "kaggle-repl-dev-005",
+    "kaggle-repl-dev-007",
+    "kaggle-repl-dev-008",
+    "kaggle-repl-dev-009",
+    "kaggle-repl-dev-009b",
+    "kaggle-repl-dev-011c",
+    "kaggle-repl-dev-012",
+    "kaggle-repl-dev-012b",
+    "kaggle-repl-dev-013b",
+    "kaggle-repl-dev-014",
+    "kaggle-repl-dev-015"
+   ],
+   "confidence": 0.25,
+   "last_validated": "kaggle-repl-dev-017",
+   "status": "validated"
   },
   {
    "game": "s5i5",
@@ -229,7 +420,24 @@
     "kaggle-repl-dev-014",
     "kaggle-repl-dev-015",
     "kaggle-repl-dev-017"
-   ]
+   ],
+   "failures": 11,
+   "failed_runs": [
+    "kaggle-council-dev-010",
+    "kaggle-council-dev-010b",
+    "kaggle-council-dev-010c",
+    "kaggle-repl-all-016",
+    "kaggle-repl-dev-005",
+    "kaggle-repl-dev-007",
+    "kaggle-repl-dev-008",
+    "kaggle-repl-dev-009",
+    "kaggle-repl-dev-009b",
+    "kaggle-repl-dev-011c",
+    "kaggle-repl-dev-012b"
+   ],
+   "confidence": 0.45,
+   "last_validated": "kaggle-repl-dev-017",
+   "status": "validated"
   },
   {
    "game": "sb26",
@@ -259,7 +467,18 @@
     "kaggle-repl-dev-014",
     "kaggle-repl-dev-015",
     "kaggle-repl-dev-017"
-   ]
+   ],
+   "failures": 5,
+   "failed_runs": [
+    "kaggle-repl-dev-005",
+    "kaggle-repl-dev-007",
+    "kaggle-repl-dev-008",
+    "kaggle-repl-dev-009",
+    "kaggle-repl-dev-009b"
+   ],
+   "confidence": 0.72,
+   "last_validated": "kaggle-repl-dev-017",
+   "status": "validated"
   },
   {
    "game": "sb26",
@@ -278,7 +497,26 @@
    "runs": [
     "kaggle-repl-all-016",
     "kaggle-repl-dev-011"
-   ]
+   ],
+   "failures": 13,
+   "failed_runs": [
+    "kaggle-council-dev-010",
+    "kaggle-council-dev-010b",
+    "kaggle-council-dev-010c",
+    "kaggle-repl-dev-004",
+    "kaggle-repl-dev-011b",
+    "kaggle-repl-dev-011c",
+    "kaggle-repl-dev-012",
+    "kaggle-repl-dev-012b",
+    "kaggle-repl-dev-013",
+    "kaggle-repl-dev-013b",
+    "kaggle-repl-dev-014",
+    "kaggle-repl-dev-015",
+    "kaggle-repl-dev-017"
+   ],
+   "confidence": 0.13,
+   "last_validated": "kaggle-repl-dev-011",
+   "status": "validated"
   },
   {
    "game": "su15",
@@ -307,7 +545,19 @@
     "kaggle-repl-dev-014",
     "kaggle-repl-dev-015",
     "kaggle-repl-dev-017"
-   ]
+   ],
+   "failures": 6,
+   "failed_runs": [
+    "kaggle-repl-dev-004",
+    "kaggle-repl-dev-005",
+    "kaggle-repl-dev-007",
+    "kaggle-repl-dev-008",
+    "kaggle-repl-dev-009",
+    "kaggle-repl-dev-009b"
+   ],
+   "confidence": 0.67,
+   "last_validated": "kaggle-repl-dev-017",
+   "status": "validated"
   },
   {
    "game": "su15",
@@ -325,7 +575,26 @@
    "strategy": "click-only: goal 'merge #36 into blob'; solved in 55 actions (CLICKx28, RESETx2, CLICKx25). Learned: game over",
    "runs": [
     "kaggle-repl-dev-013"
-   ]
+   ],
+   "failures": 13,
+   "failed_runs": [
+    "kaggle-council-dev-010",
+    "kaggle-council-dev-010b",
+    "kaggle-council-dev-010c",
+    "kaggle-repl-all-016",
+    "kaggle-repl-dev-011",
+    "kaggle-repl-dev-011b",
+    "kaggle-repl-dev-011c",
+    "kaggle-repl-dev-012",
+    "kaggle-repl-dev-012b",
+    "kaggle-repl-dev-013b",
+    "kaggle-repl-dev-014",
+    "kaggle-repl-dev-015",
+    "kaggle-repl-dev-017"
+   ],
+   "confidence": 0.07,
+   "last_validated": "kaggle-repl-dev-013",
+   "status": "deprecated"
   },
   {
    "game": "tn36",
@@ -348,7 +617,25 @@
     "kaggle-repl-dev-013",
     "kaggle-repl-dev-013b",
     "kaggle-repl-dev-017"
-   ]
+   ],
+   "failures": 12,
+   "failed_runs": [
+    "kaggle-council-dev-010c",
+    "kaggle-repl-dev-004",
+    "kaggle-repl-dev-005",
+    "kaggle-repl-dev-007",
+    "kaggle-repl-dev-008",
+    "kaggle-repl-dev-009",
+    "kaggle-repl-dev-009b",
+    "kaggle-repl-dev-011",
+    "kaggle-repl-dev-012",
+    "kaggle-repl-dev-012b",
+    "kaggle-repl-dev-014",
+    "kaggle-repl-dev-015"
+   ],
+   "confidence": 0.33,
+   "last_validated": "kaggle-repl-dev-017",
+   "status": "validated"
   },
   {
    "game": "tu93",
@@ -374,7 +661,27 @@
     "kaggle-repl-dev-013b",
     "kaggle-repl-dev-014",
     "kaggle-repl-dev-017"
-   ]
+   ],
+   "failures": 14,
+   "failed_runs": [
+    "kaggle-council-dev-010",
+    "kaggle-council-dev-010b",
+    "kaggle-repl-all-016",
+    "kaggle-repl-dev-004",
+    "kaggle-repl-dev-005",
+    "kaggle-repl-dev-007",
+    "kaggle-repl-dev-008",
+    "kaggle-repl-dev-009",
+    "kaggle-repl-dev-009b",
+    "kaggle-repl-dev-011b",
+    "kaggle-repl-dev-011c",
+    "kaggle-repl-dev-012",
+    "kaggle-repl-dev-012b",
+    "kaggle-repl-dev-015"
+   ],
+   "confidence": 0.3,
+   "last_validated": "kaggle-repl-dev-017",
+   "status": "validated"
   },
   {
    "game": "vc33",
@@ -400,7 +707,23 @@
     "kaggle-repl-dev-013b",
     "kaggle-repl-dev-014",
     "kaggle-repl-dev-017"
-   ]
+   ],
+   "failures": 10,
+   "failed_runs": [
+    "kaggle-council-dev-010b",
+    "kaggle-council-dev-010c",
+    "kaggle-repl-all-016",
+    "kaggle-repl-dev-004",
+    "kaggle-repl-dev-005",
+    "kaggle-repl-dev-007",
+    "kaggle-repl-dev-008",
+    "kaggle-repl-dev-009",
+    "kaggle-repl-dev-009b",
+    "kaggle-repl-dev-015"
+   ],
+   "confidence": 0.47,
+   "last_validated": "kaggle-repl-dev-017",
+   "status": "validated"
   },
   {
    "game": "vc33",
@@ -420,7 +743,21 @@
     "kaggle-repl-dev-013",
     "kaggle-repl-dev-013b",
     "kaggle-repl-dev-017"
-   ]
+   ],
+   "failures": 8,
+   "failed_runs": [
+    "kaggle-council-dev-010",
+    "kaggle-repl-dev-011",
+    "kaggle-repl-dev-011b",
+    "kaggle-repl-dev-011c",
+    "kaggle-repl-dev-012",
+    "kaggle-repl-dev-012b",
+    "kaggle-repl-dev-014",
+    "kaggle-submission-check-v2"
+   ],
+   "confidence": 0.27,
+   "last_validated": "kaggle-repl-dev-017",
+   "status": "validated"
   }
  ]
 }

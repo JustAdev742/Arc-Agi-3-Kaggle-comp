@@ -771,3 +771,14 @@ Change:   repl agent: with postmortem on and at least postmortem_min_s (20 s) le
           server; never in the champion preset (on in the evaluation bundle). Stat postmortems. Test.
 Use:      the per-game post-mortems feed docs/postmortems and the failure matrix (which assumption was wrong, what
           cheaper test would have caught it) without reading whole transcripts.
+
+## 2026-09-17 · skill memory statuses (brief item 16) · BUILT and re-mined (code-only)
+Change:   scripts/mine_skills.py cards carry evidence and a status: wins, failures (transcripts of the game that reached
+          the level and did not complete it), confidence = wins / (wins + failures), last_validated, status validated
+          (>= 2 wins) / candidate (1 win, <= 2 failures) / deprecated (1 win, > 2 failures: a one-off later runs did not
+          reproduce). memory.match_skills never returns deprecated cards and ranks validated above candidate;
+          render_skills shows the status and counts. Test extended.
+Measured: re-mined arc3/data/skills.json from 88 winning transcripts: 18 cards, 12 validated, 0 candidate, 6 deprecated
+          (ar25 L2, cd82 L1, ft09 L1, ka59 L1, ls20 L1, su15 L2: each won once in 13-21 attempts). The validated cards
+          with the highest confidence: sb26 L1 0.72, su15 L1 0.67, ar25 L1 0.63, lp85 L1 0.50; the lowest: cd82/ft09/ka59/
+          ls20 L1 at 0.05. This is the stable-versus-lucky split the game x run matrix showed, now on the cards.

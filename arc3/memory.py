@@ -251,10 +251,13 @@ def level_signature(*, has_avatar: bool, click_only: bool, keymap: Optional[dict
 def match_skills(skills: list[dict[str, Any]], sig: dict[str, Any], *, limit: int = 3,
                  exclude_game: Optional[str] = None) -> list[dict[str, Any]]:
     """Rank skills by signature agreement; ties by how many times the strategy won and how few actions it took."""
+    rank = {"validated": 2, "candidate": 1}
     scored = []
     for s in skills:
         if exclude_game and s.get("game") == exclude_game:
             continue
+        if s.get("status") == "deprecated":
+            continue  # a one-off that later runs did not reproduce is not a hint
         ss = s.get("signature") or {}
         score = 0
         for k in ("avatar", "click_only", "many_entities", "hud"):
@@ -264,9 +267,9 @@ def match_skills(skills: list[dict[str, Any]], sig: dict[str, Any], *, limit: in
             score += 1 if set(ss["keys"]) & set(sig["keys"]) else 0
         if score <= 0:
             continue
-        scored.append((score, int(s.get("wins", 1)), -float(s.get("actions", 1e9)), s))
-    scored.sort(key=lambda t: (t[0], t[1], t[2]), reverse=True)
-    return [s for _, _, _, s in scored[:limit]]
+        scored.append((score, rank.get(s.get("status", "candidate"), 1), int(s.get("wins", 1)), -float(s.get("actions", 1e9)), s))
+    scored.sort(key=lambda t: (t[0], t[1], t[2], t[3]), reverse=True)
+    return [s for _, _, _, _, s in scored[:limit]]
 
 
 def render_skills(skills: list[dict[str, Any]]) -> str:
@@ -277,7 +280,13 @@ def render_skills(skills: list[dict[str, Any]]) -> str:
         txt = str(s.get("strategy", "")).strip()
         if not txt:
             continue
-        lines.append(f"- {txt}" + (f" (won {s['wins']}x, ~{s['actions']} actions)" if s.get("wins") else ""))
+        tag = ""
+        if s.get("wins"):
+            tag = " (" + (f"{s['status']}: " if s.get("status") else "") + f"won {s['wins']}x"
+            if s.get("failures"):
+                tag += f", failed {s['failures']}x"
+            tag += f", ~{s['actions']} actions)"
+        lines.append(f"- {txt}{tag}")
     if not lines:
         return ""
     return "Strategies that solved levels of similar shape in earlier games (hints, not rules):\n" + "\n".join(lines)

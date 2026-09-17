@@ -105,6 +105,21 @@ def test_mine_skills_extracts_a_card_per_completed_level(tmp_path):
     lib = build_library(tmp_path / "runs")
     assert len(lib["skills"]) == 1 and lib["skills"][0]["wins"] == 1
     assert lib["skills"][0]["strategy"].startswith("avatar with keys RIGHT/UP: goal 'walk #2 onto #3'; solved in 9 actions (UP, DOWN, LEFT, RIGHTx5, UP)")
+    card = lib["skills"][0]
+    assert card["status"] == "candidate" and card["failures"] == 0 and card["confidence"] == 1.0 and card["last_validated"] == "r1"
+    # a later run that played the game and did not solve the level counts as a failure; three of them deprecate a one-off
+    from arc3.memory import match_skills, render_skills
+    for k in (2, 3, 4):
+        r = tmp_path / "runs" / f"r{k}"
+        r.mkdir()
+        (r / "zz99.transcript.jsonl").write_text(json.dumps({"kind": "meta", "game": "zz99", "stats": {"levels_completed": 0}}) + "\n")
+        lib = build_library(tmp_path / "runs")
+        card = lib["skills"][0]
+    assert card["failures"] == 3 and card["failed_runs"] == ["r2", "r3", "r4"] and card["confidence"] == 0.25 and card["status"] == "deprecated"
+    assert match_skills(lib["skills"], card["signature"]) == []  # deprecated cards are never hints
+    assert "deprecated: won 1x, failed 3x" in render_skills(lib["skills"])
+    from mine_skills import status_of
+    assert status_of(2, 10) == "validated" and status_of(1, 2) == "candidate" and status_of(1, 3) == "deprecated"
 
 
 def test_concurrent_adds_and_shared_file_are_safe(tmp_path):
