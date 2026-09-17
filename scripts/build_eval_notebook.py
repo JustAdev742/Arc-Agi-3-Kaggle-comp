@@ -22,6 +22,7 @@ from build_notebook import (
     code_cell,
     md_cell,
     package_tarball,
+    source_lists,
     specialist_refs,
     vllm_setup_source,
 )
@@ -64,7 +65,7 @@ def build(a: argparse.Namespace) -> dict:
         sys.path.insert(0, '/kaggle/working'); os.environ['PYTHONPATH'] = '/kaggle/working'
         import arc3; print('arc3', arc3.__version__)
         """)))
-    cells.append(code_cell(vllm_setup_source(a.model_dataset, a.wheels_dataset, spec)))
+    cells.append(code_cell(vllm_setup_source(a.model_dataset, a.wheels_dataset, spec, attempts_json=getattr(a, "attempts_json", "") or "")))
     cells.append(code_cell(dedent(f"""\
         from arc3.eval import run_eval
         result = {{'agent': os.environ['ARC3_AGENT'], 'split': '{a.split}', 'setup_s': round(time.time() - START, 1)}}
@@ -115,6 +116,8 @@ def main() -> None:
     p.add_argument("--wheels-dataset", default="saltb0x/arc3-vllm-wheelhouse-v0271-cu129")
     p.add_argument("--specialist-dataset", default="scottmahony/qwen3-vl-8b-instruct-fp8,scottmahony/qwen3-vl-8b-instruct-nvfp4",
                    help="comma-separated preference list of specialist checkpoints (council arm only)")
+    p.add_argument("--attempts-json", default="", help="JSON list of start_vllm attempt dicts replacing the coordinator's default ladder "
+                   "({MODEL_DIR} = the checkpoint folder); needed for a candidate model with its own parsers (docs/models/*/NOTES.md)")
     p.add_argument("--username", default="scottmahony")
     p.add_argument("--slug", default="arc3-eval")
     p.add_argument("--out", default=str(OUT_DIR), help="folder for eval.ipynb + kernel-metadata.json (git-ignored; push it with scripts/push_eval.py)")
@@ -123,11 +126,11 @@ def main() -> None:
     out_dir = Path(a.out)
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "eval.ipynb").write_text(json.dumps(build(a), indent=1))
-    ds = [d for d in (a.wheels_dataset, a.model_dataset, *(specialist_refs(a.specialist_dataset) if a.agent == "council" else [])) if d]
+    ds, models = source_lists(a.wheels_dataset, a.model_dataset, *(specialist_refs(a.specialist_dataset) if a.agent == "council" else []))
     meta = {"id": f"{a.username}/{a.slug}", "title": a.slug, "code_file": "eval.ipynb", "language": "python",
             "kernel_type": "notebook", "is_private": True, "enable_gpu": True, "enable_tpu": False, "enable_internet": False,
             "keywords": [], "dataset_sources": ds, "kernel_sources": [], "competition_sources": ["arc-prize-2026-arc-agi-3"],
-            "model_sources": []}
+            "model_sources": models}
     (out_dir / "kernel-metadata.json").write_text(json.dumps(meta, indent=2) + "\n")
     print(f"[build_eval_notebook] wrote {out_dir}/eval.ipynb ({a.agent} on {a.split}, {a.time_per_game}s/game, workers {a.workers}, datasets {ds})")
 

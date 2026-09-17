@@ -175,3 +175,37 @@ def test_driver_resets_after_game_over_and_converts_frames(monkeypatch):
                                 available_actions=[], full_reset=False)) is True
     finally:
         d.close()
+
+
+def test_notebook_model_ref_mount_and_custom_ladder(tmp_path):
+    """A candidate model attached as a Kaggle model (owner/slug/framework/variation/version) mounts under
+    /kaggle/input/models/...; the setup cell resolves it to the folder holding config.json and can start the server
+    with a custom attempt ladder (parsers, MoE backend, no image limit) instead of the 27B defaults."""
+    import json as _json
+    import subprocess
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    from build_notebook import source_lists, vllm_setup_source
+    assert source_lists("o/wheels", "o/m/transformers/default/1", "", "o/spec") == (["o/wheels", "o/spec"], ["o/m/transformers/default/1"])
+    ladder = '[{"label": "x", "mtp_tokens": 0, "images_per_prompt": 0, "extra": "--reasoning-parser-plugin {MODEL_DIR}/p.py"}]'
+    src = vllm_setup_source("o/m/transformers/default/1", "o/wheels", "", attempts_json=ladder)
+    assert "/kaggle/input/models/o/m/transformers/default/1" in src and "config.json" in src and "import glob" in src
+    assert "attempts=attempts" in src and "replace('{MODEL_DIR}', MODEL_DIR)" in src
+    compile(src, "<cell>", "exec")
+    # the default (no ladder) path is unchanged for the 27B datasets
+    src27 = vllm_setup_source("o/m", "o/wheels", "")
+    assert "ATTEMPTS_JSON = ''" in src27 and "/kaggle/input/m'" in src27
+    compile(src27, "<cell>", "exec")
+    # the eval builder files the model ref under model_sources and keeps the wheelhouse under dataset_sources
+    out = tmp_path / "nb"
+    subprocess.check_call([sys.executable, str(ROOT / "scripts" / "build_eval_notebook.py"), "--agent", "repl", "--split", "dev",
+                          "--model-dataset", "o/m/transformers/default/1", "--wheels-dataset", "o/wheels", "--slug", "t",
+                          "--config", '{"image": false, "effort_in_request": true}', "--attempts-json", ladder, "--out", str(out)])
+    meta = _json.loads((out / "kernel-metadata.json").read_text())
+    assert meta["model_sources"] == ["o/m/transformers/default/1"] and meta["dataset_sources"] == ["o/wheels"]
+    nb = _json.loads((out / "eval.ipynb").read_text())
+    for i, cell in enumerate(nb["cells"]):
+        if cell["cell_type"] == "code":
+            compile("".join(cell["source"]), f"<cell {i}>", "exec")
+    assert any("ATTEMPTS_JSON = '[{" in "".join(c["source"]) for c in nb["cells"])

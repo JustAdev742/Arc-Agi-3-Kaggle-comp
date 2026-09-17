@@ -54,11 +54,30 @@ def md_cell(src: str) -> dict:
 
 
 def _mount_expr(ref: str) -> str:
-    """Python expression (as source) resolving a dataset ref to its mount path or None."""
+    """Python expression (as source) resolving a dataset ref (owner/slug) or a Kaggle model ref
+    (owner/slug/framework/variation/version, ``kernels_metadata.md``) to its mount path or None. A model mounts
+    under /kaggle/input/models/<owner>/<slug>/<framework>/<variation>/<version>; the expression falls back to the
+    shallowest config.json below any folder named after the slug, so the checkpoint is found whichever layout
+    Kaggle uses."""
     if not ref:
         return "None"
-    owner, slug = ref.split("/", 1)
+    parts = ref.split("/")
+    owner, slug = parts[0], parts[1]
+    if len(parts) >= 5:
+        tail = "/".join(parts[1:])
+        return (f"next((p for p in ['/kaggle/input/models/{owner}/{tail}', '/kaggle/input/{tail}', '/kaggle/input/models/{owner}/{slug}', "
+                f"'/kaggle/input/{slug}'] if os.path.isfile(p + '/config.json')), "
+                f"next((os.path.dirname(c) for c in sorted(glob.glob('/kaggle/input/**/config.json', recursive=True), key=lambda p: p.count('/')) "
+                f"if '/{slug}/' in c), None))")
     return (f"next((p for p in ['/kaggle/input/{slug}', '/kaggle/input/datasets/{owner}/{slug}'] if os.path.isdir(p)), None)")
+
+
+def source_lists(*refs: str) -> tuple[list[str], list[str]]:
+    """Split attached refs into kernel-metadata ``dataset_sources`` (owner/slug) and ``model_sources``
+    (owner/slug/framework/variation/version)."""
+    datasets = [r for r in refs if r and r.count("/") < 4]
+    models = [r for r in refs if r and r.count("/") >= 4]
+    return datasets, models
 
 
 def specialist_refs(specialist_dataset: str) -> list[str]:
@@ -66,15 +85,20 @@ def specialist_refs(specialist_dataset: str) -> list[str]:
     return [d.strip() for d in (specialist_dataset or "").split(",") if d.strip()]
 
 
-def vllm_setup_source(model_dataset: str, wheels_dataset: str, specialist_dataset: str = "") -> str:
+def vllm_setup_source(model_dataset: str, wheels_dataset: str, specialist_dataset: str = "", attempts_json: str = "") -> str:
     """Notebook cell source: install vLLM from the wheelhouse, start the coordinator server (and, for the
     council arm, the specialist server through ``arc3.serve.specialist_attempts``: each attached specialist
     checkpoint with tuned then conservative flags, sized from the GPU memory the coordinator left), and
-    publish ARC3_AGENT_CONFIG. The council only shares the coordinator model when every attempt failed."""
+    publish ARC3_AGENT_CONFIG. The council only shares the coordinator model when every attempt failed.
+    ``attempts_json`` replaces the coordinator's default start ladder (a JSON list of start_vllm attempt dicts;
+    ``{MODEL_DIR}`` inside it is the checkpoint folder), which is how a candidate model with its own parsers,
+    MoE backend and no image limit is served (docs/models/*/NOTES.md)."""
     spec_exprs = ", ".join(_mount_expr(r) for r in specialist_refs(specialist_dataset)) or ""
     return dedent(f"""\
-        # Local model server(s). Datasets are attached in kernel-metadata.json.
+        # Local model server(s). Datasets and models are attached in kernel-metadata.json.
+        import glob
         MODEL_DIR = {_mount_expr(model_dataset)}
+        ATTEMPTS_JSON = {attempts_json!r}
         WHEELS = {_mount_expr(wheels_dataset)}
         SPECIALIST_DIRS = [d for d in [{spec_exprs}] if d]
         vllm_procs = []
@@ -89,8 +113,9 @@ def vllm_setup_source(model_dataset: str, wheels_dataset: str, specialist_datase
                     print('vllm installed in %.0fs' % (time.time() - t0))
                 from arc3 import serve
                 two = os.environ['ARC3_AGENT'] == 'council' and bool(SPECIALIST_DIRS) and not cfg.get('specialist')
+                attempts = json.loads(ATTEMPTS_JSON.replace('{{MODEL_DIR}}', MODEL_DIR)) if ATTEMPTS_JSON.strip() else None
                 proc, ok = serve.start_vllm_with_fallback(MODEL_DIR, log_path='/kaggle/working/vllm.log', port=8000, served_name='arc3-model',
-                                                          gpu_mem=0.60 if two else 0.90, timeout_s=1500)
+                                                          gpu_mem=0.60 if two else 0.90, timeout_s=1500, attempts=attempts)
                 print('vllm ready:', ok, dict(serve.LAST_START), 'after %.0fs' % (time.time() - START))
                 if not ok:
                     print(open('/kaggle/working/vllm.log').read()[-3000:]); os.environ['ARC3_AGENT'] = 'rules'
@@ -230,9 +255,10 @@ def main() -> None:
     if METADATA_PATH.exists():
         meta = json.loads(METADATA_PATH.read_text())
         meta["enable_gpu"] = _ACCELERATORS[a.accelerator]["gpu"]
-        ds = [d for d in (a.model_dataset, a.wheels_dataset, *specialist_refs(spec)) if d]
+        ds, models = source_lists(a.model_dataset, a.wheels_dataset, *specialist_refs(spec))
         if ds:
             meta["dataset_sources"] = ds
+        meta["model_sources"] = models
         METADATA_PATH.write_text(json.dumps(meta, indent=2) + "\n")
 
 
