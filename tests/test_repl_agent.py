@@ -711,3 +711,55 @@ def test_goal_hypotheses_line_ranks_and_falsifies_from_level_two():
         assert "Goal hypotheses" not in agent._observation_text()
     finally:
         agent.close()
+
+
+def test_noop_memory_records_flags_and_optionally_skips():
+    """exp-023: an action that changed nothing from an exact frame is remembered per frame hash; re-sending it is
+    flagged in the result (and counted), the observation lists the frame's known no-ops, and with noop_skip the
+    harness answers without spending the action unless the model forces it. RESET is never a no-op."""
+    import numpy as np
+
+    from arc3.agents.repl_agent import _Req
+    mock = MockClient([MockClient.say("ok")])
+    agent = get("repl")(AgentContext(game_id="fake", deadline=time.time() + 300, config={"client": mock, "image": False}))
+    try:
+        g = np.zeros((64, 64), dtype=np.int16)
+        g[10:14, 10:14] = 9
+        f0 = _frame(g, level_step=1)
+        f1 = _frame(g, level_step=2)  # same grid: UP changed nothing
+        agent.frame = f0
+        agent.tracker.reset(g)
+        agent.tracker_level = 0
+        agent.observe(Action.simple(1), f0, f1)
+        assert agent._known_noop(Action.simple(1)) and not agent._known_noop(Action.simple(2)) and not agent._known_noop(Action.reset())
+        assert "Known no-ops from this exact frame" in agent._observation_text() and "ACTION1" in agent._observation_text()
+        # a re-send is executed but flagged and counted (soft mode)
+        agent.pending = _Req(Action.simple(1), known_noop=True)
+        agent.observe(Action.simple(1), f1, _frame(g, level_step=3))
+        assert agent.pending is None and agent.st.noop_repeats == 1
+        assert not agent._should_skip(Action.simple(1), True)  # noop_skip off
+        # hard mode: not sent, answered from memory; force and RESET always go through
+        agent.noop_skip = True
+        assert agent._should_skip(Action.simple(1), True) and not agent._should_skip(Action.simple(1), True, force=True)
+        assert not agent._should_skip(Action.reset(), True)
+        results, _state = agent._handle_actions([{"action": "UP"}])
+        assert results[0]["skipped_known_noop"] and results[0]["changed"] == 0 and agent.st.noop_skipped == 1 and agent.action_q.empty()
+        assert "noop_skip" in agent._observation_text()
+        # a changed frame is not a no-op; the memory is per exact frame
+        g2 = g.copy()
+        g2[20:24, 20:24] = 3
+        agent.observe(Action.simple(2), f1, _frame(g2, level_step=4))
+        assert not agent._known_noop(Action.simple(2))
+        # the champion preset keeps the memory off entirely
+        from arc3.presets import CHAMPION
+        agent2 = get("repl")(AgentContext(game_id="fake", deadline=time.time() + 300, config={"client": mock, "image": False, **CHAMPION}))
+        try:
+            agent2.frame = f0
+            agent2.tracker.reset(g)
+            agent2.tracker_level = 0
+            agent2.observe(Action.simple(1), f0, f1)
+            assert not agent2.noops and "Known no-ops" not in agent2._observation_text()
+        finally:
+            agent2.close()
+    finally:
+        agent.close()

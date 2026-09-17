@@ -20,7 +20,8 @@ CHAMPION: dict[str, Any] = {
     "level_action_notice": 0,         # exp-020 arm, unmeasured
     "explore_first": 0,               # exp-022 arm, unmeasured
     "goal_progress_in_prompt": False,  # exp-022 arm, unmeasured
-    "noop_skip": False,               # exp-023 arm, unmeasured
+    "noop_memory": False,             # exp-023 arm, unmeasured (known no-ops shown and flagged)
+    "noop_skip": False,               # exp-023b arm, unmeasured (known no-ops not sent)
 }
 
 BUNDLE: dict[str, Any] = {
@@ -31,6 +32,7 @@ BUNDLE: dict[str, Any] = {
     "explore_first": 8,
     "explore_first_clicks": 4,
     "goal_progress_in_prompt": True,
+    "noop_memory": True,
 }
 
 PRESETS: dict[str, dict[str, Any]] = {"champion": CHAMPION, "bundle": BUNDLE}

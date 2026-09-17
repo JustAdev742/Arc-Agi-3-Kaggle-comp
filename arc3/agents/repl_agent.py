@@ -33,7 +33,7 @@ from ..env import Action, Frame
 from ..llm import ChatClient, ChatResponse
 from ..memory import Lessons, level_signature, load_skills, match_skills, render_skills
 from ..perception import ascii as grid_ascii
-from ..perception import detect_scale, diff, render_png, tile_map
+from ..perception import detect_scale, diff, grid_hash, render_png, tile_map
 from ..prompts import ACTION_NAMES, NAME_TO_ID, SYSTEM_PROMPT, TOOLS
 from ..sandbox import PersistentSandbox
 from . import register
@@ -48,6 +48,7 @@ class _Req:
     action: Action
     auto: bool = False  # substituted by the agent (e.g. RESET after game over)
     sweep: bool = False  # part of the harness's level-start probe sweep (explore_first)
+    known_noop: bool = False  # the model re-sent an action already observed to change nothing from this exact frame
     result: Optional[dict[str, Any]] = None
 
 
@@ -76,6 +77,8 @@ class Stats:
     consolidations: int = 0
     action_budget_notices: int = 0
     sweep_actions: int = 0  # harness-owned probe actions at level starts (explore_first)
+    noop_repeats: int = 0  # known no-ops the model re-sent (executed, flagged)
+    noop_skipped: int = 0  # known no-ops not sent at all (noop_skip)
     rules_fits: int = 0
     rules_time_s: float = 0.0
     rules_coverage: float = 0.0
@@ -147,6 +150,14 @@ class ReplAgent(Agent):
         self._sweep: deque[Action] = deque()
         self._sweep_level = -1
         self.sweep_log: list[str] = []  # "action: effect" lines of the current sweep, shown once
+        # No-op memory (exp-023). The engine is deterministic (a human ls20 recording replayed with 0 of 546 frame
+        # mismatches), so an action that changed nothing from an exact frame changes nothing from it again. exp-017:
+        # 293 of 4634 actions re-sent such a pair. noop_memory shows the known no-ops of the current frame and flags a
+        # repeat in its result; noop_skip returns the known result without spending the action (off by default: a
+        # game with a hidden timer could need the repeats).
+        self.noop_memory = bool(c.get("noop_memory", True))
+        self.noop_skip = bool(c.get("noop_skip", False))
+        self.noops: dict[str, set[str]] = {}  # frame hash -> action labels that changed nothing from that frame
         self.recent_changes: list[int] = []  # cells changed by each of the last actions
         self.recent_actions: list[str] = []
         self.level_notice = ""  # shown once, at the first turn after a level is completed
@@ -284,6 +295,21 @@ class ReplAgent(Agent):
         self.st.actions_fallback += 1
         return a
 
+    def _known_noop(self, action: Action) -> bool:
+        f = self.frame
+        if f is None or action.action is GameAction.RESET:
+            return False
+        return str(action) in self.noops.get(grid_hash(f.grid), ())
+
+    def _should_skip(self, action: Action, known: bool, *, force: bool = False) -> bool:
+        return bool(known and self.noop_skip and not force and action.action is not GameAction.RESET)
+
+    def _known_noops_here(self) -> list[str]:
+        f = self.frame
+        if f is None or not self.noop_memory:
+            return []
+        return sorted(self.noops.get(grid_hash(f.grid), ()))
+
     def _sweep_due(self, frame: Frame) -> bool:
         """A sweep runs once per level, only while the model has not acted on the level yet (level_step counts the
         RESET that starts a game), never on a finished game, a game over or when a turn's worth of time is not left."""
@@ -322,6 +348,12 @@ class ReplAgent(Agent):
                "level_step": int(after.level_step)}
         if d.changed:
             res["changed_bbox"] = d.bbox
+        if self.noop_memory and action.action is not GameAction.RESET:
+            if not d.changed and not res["level_completed"] and not after.game_over and not after.done and len(after.layers) <= 1:
+                self.noops.setdefault(grid_hash(before.grid), set()).add(str(action))
+            if self.pending is not None and self.pending.known_noop:
+                self.st.noop_repeats += 1
+                res["known_noop_repeat"] = True
         self.history.append({"a": str(action), "changed": int(d.changed), "level": int(after.levels_completed) + 1})
         del self.history[:-40]
         self.last_result = res
@@ -486,7 +518,16 @@ class ReplAgent(Agent):
         results: list[dict[str, Any]] = []
         for a in actions:
             act = self._to_action(a)
-            req = _Req(act)
+            known = self.noop_memory and self._known_noop(act)
+            if self._should_skip(act, known, force=bool(a.get("force"))):
+                f = self.frame
+                self.st.noop_skipped += 1
+                results.append({"action": str(act), "changed": 0, "skipped_known_noop": True,
+                                "levels_completed": int(f.levels_completed) if f else 0, "level_completed": False, "game_over": False,
+                                "won": False, "state": f.state.name if f else "NOT_FINISHED", "level_step": int(f.level_step) if f else 0,
+                                "note": "not sent: this action changed nothing from this exact frame before; act(..., force=True) sends it anyway"})
+                continue
+            req = _Req(act, known_noop=bool(known))
             self.action_q.put(req)
             while True:
                 if self.closed:
@@ -700,6 +741,10 @@ class ReplAgent(Agent):
             gl = self._goal_progress_line()
             if gl:
                 parts.append(gl)
+        known = self._known_noops_here()
+        if known:
+            parts.append("Known no-ops from this exact frame (they changed nothing when sent from it before; the engine is deterministic): "
+                         + ", ".join(known) + ". Do not re-send them here" + ("; they are not sent (noop_skip)." if self.noop_skip else "."))
         if getattr(self, "wm_summary", ""):
             parts.append(self.wm_summary)
         rs = self._rules_summary()

@@ -707,3 +707,22 @@ Measured: research_status on 18 dev runs: best kaggle-repl-dev-011b 1.372 / 9 le
           levels the repeats cost score directly (s5i5 L1: 155 actions, 38 known no-ops).
 Next:     exp-024 control (champion preset at HEAD) first in the quota queue, before the exp-019/020/022 arms, so every
           arm compares against a control from the same harness; exp-023 no-op memory (task #44).
+
+## 2026-09-17 · exp-023 · no-op memory: known (frame, action) no-ops shown and flagged; exp-023b hard skip · PLANNED (needs GPU quota)
+Why:      exp-017 action logs: 293 of 4634 actions (6.3 percent) re-sent a (frame hash, action) pair already observed to
+          change nothing (wa30 67, cd82 62, s5i5 38, lp85 34, sk48 33); on a solved level every such action costs
+          score directly. The engine is deterministic (the human ls20 recording replayed with 0 of 546 frame
+          mismatches), so the outcome of such a pair is known.
+Change:   repl agent: per-game map frame hash -> action labels that changed nothing from that frame (recorded in
+          observe(); never RESET, never on a level change, game over or an animated step). noop_memory (default on in
+          code, off in the champion preset): the observation lists the current frame's known no-ops and a re-sent one
+          carries 'known_noop_repeat' in its act() result (stat noop_repeats). noop_skip (default off): the harness
+          answers a known no-op from memory without sending it ('skipped_known_noop', stat noop_skipped); act(...,
+          force=True) sends it anyway, for games whose hidden timers need repeats. Prompt: act() description.
+          Test: test_noop_memory_records_flags_and_optionally_skips.
+Expected: fewer actions on solved levels (s5i5 L1: 155 -> 117 in exp-017 terms), fewer wasted actions on stuck
+          levels; no effect on levels where the model never repeats. Risk (hard skip only): a game that needs the same
+          key repeated from a static frame (hidden counter) stalls; the soft arm has no such risk.
+Plan:     exp-023 = champion preset + noop_memory; exp-023b = + noop_skip; three runs each against the exp-024 control
+          (champion preset at HEAD), dev, 1200 s, 8 workers.
+Measured: not run (GPU quota exhausted until 2026-09-19 00:00 UTC).

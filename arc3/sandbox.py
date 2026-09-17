@@ -764,7 +764,8 @@ def _is_single(a):
             return True  # (x, y) shorthand for a click
     return False
 
-def act(*actions):
+def act(*actions, force=False):
+    """force=True sends an action even when the harness knows it changed nothing from this exact frame (noop_skip)."""
     items = []
     for a in actions:
         if _is_single(a):
@@ -788,6 +789,9 @@ def act(*actions):
             raise TypeError(f"bad action {a!r}: use 'UP'/'DOWN'/'LEFT'/'RIGHT'/'ACT'/'UNDO'/'RESET' or ('CLICK', x, y)")
     if not norm:
         raise ValueError("act() needs at least one action")
+    if force:
+        for a in norm:
+            a["force"] = True
     if WM["predict"] is None:
         results = []
         for a in norm:  # one at a time so every transition is logged with its exact before/after grids
