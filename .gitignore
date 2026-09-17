@@ -40,3 +40,6 @@ wheels/
 
 # Pulled reference notebooks (other teams' code; keep out of our repo)
 reference/
+
+# human play recordings (ARC Prize dataset; large, never committed)
+data/human/

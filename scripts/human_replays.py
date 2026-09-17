@@ -27,6 +27,20 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 KEYS = {"ACTION1": "UP", "ACTION2": "DOWN", "ACTION3": "LEFT", "ACTION4": "RIGHT", "ACTION5": "ACT", "ACTION6": "CLICK",
         "ACTION7": "UNDO", "RESET": "RESET"}
+IDS = {0: "RESET", 1: "UP", 2: "DOWN", 3: "LEFT", 4: "RIGHT", 5: "ACT", 6: "CLICK", 7: "UNDO"}  # the published files use ids
+
+
+def action_name(action_input: dict[str, Any]) -> str | None:
+    """'UP' / 'CLICK(x,y)' / 'RESET' from an action_input; the published recordings carry integer ids (0 = RESET),
+    the docs example the ACTIONn strings. None when there is no action (the trailing scorecard line)."""
+    act = action_input.get("id")
+    if act is None:
+        return None
+    name = IDS.get(act) if isinstance(act, int) else KEYS.get(str(act), str(act))
+    if name == "CLICK":
+        xy = action_input.get("data") or {}
+        return f"CLICK({xy.get('x')},{xy.get('y')})"
+    return name
 
 
 def _short(game_id: str) -> str:
@@ -34,13 +48,15 @@ def _short(game_id: str) -> str:
 
 
 def parse_recording(path: Path) -> dict[str, Any] | None:
-    """One replay: the action sequence per level index (1-based; RESET included, as the scorer counts it)."""
+    """One replay: the action sequence per level index (1-based; RESETs after the opening one included, as the scorer
+    counts them)."""
     per_level: dict[int, list[str]] = defaultdict(list)
     game = None
     last_levels = 0
     won = False
     win_levels = None
     n = 0
+    card_levels: list[int] | None = None  # the scorecard's own per-level cumulative action counts, when present
     with open(path) as f:
         for line in f:
             line = line.strip()
@@ -50,14 +66,21 @@ def parse_recording(path: Path) -> dict[str, Any] | None:
                 d = json.loads(line).get("data") or {}
             except json.JSONDecodeError:
                 continue
-            game = game or _short(d.get("game_id", path.name))
-            act = (d.get("action_input") or {}).get("id")
-            if not act:
+            if "cards" in d and "action_input" not in d:
+                # trailing scorecard line: {'won', 'played', 'total_actions', 'cards': {game_id: {'actions_by_level': [[[lvl, cum], ...]]}}}
+                for card in (d.get("cards") or {}).values():
+                    abl = (card.get("actions_by_level") or [[]])[0]
+                    if abl:
+                        card_levels = [int(c) for _, c in abl]
                 continue
-            name = KEYS.get(str(act), str(act))
-            if name == "CLICK":
-                xy = (d.get("action_input") or {}).get("data") or {}
-                name = f"CLICK({xy.get('x')},{xy.get('y')})"
+            game = game or _short(d.get("game_id", path.name))
+            name = action_name(d.get("action_input") or {})
+            if name is None:
+                continue
+            if n == 0 and name == "RESET" and not per_level:
+                # the game-opening RESET is not billed: the ls20 recording of 2026-09-17 has 547 action lines and its
+                # scorecard says total_actions 546 with level 1 at 21 (later RESETs are billed as level restarts)
+                continue
             # the level the action was taken on = the level index before the action's effect
             per_level[last_levels + 1].append(name)
             n += 1
@@ -66,8 +89,14 @@ def parse_recording(path: Path) -> dict[str, Any] | None:
             won = won or str(d.get("state", "")).upper() == "WIN"
     if game is None or n == 0:
         return None
-    return {"game": game, "file": path.name, "actions": n, "levels_completed": last_levels, "win_levels": win_levels,
-            "won": won, "per_level": {str(k): v for k, v in sorted(per_level.items())}}
+    out = {"game": game, "file": path.name, "actions": n, "levels_completed": last_levels, "win_levels": win_levels,
+           "won": won, "per_level": {str(k): v for k, v in sorted(per_level.items())}}
+    if card_levels:
+        # per-level counts as the scorecard bills them (differences of the cumulative counts); they must agree with ours
+        counts = [c - (card_levels[i - 1] if i else 0) for i, c in enumerate(card_levels)]
+        out["card_actions_per_level"] = counts
+        out["card_agrees"] = counts == [len(out["per_level"].get(str(i + 1), [])) for i in range(len(counts))]
+    return out
 
 
 def summarise(replays: list[dict[str, Any]]) -> dict[str, Any]:
