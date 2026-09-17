@@ -74,7 +74,7 @@ def test_crash_recovery_switches_to_fallback(monkeypatch):
 
 
 def test_deadline_stops_the_game(monkeypatch):
-    a, arc, card = make_framework_agent(monkeypatch, budget_s=1)
+    a, _arc, _card = make_framework_agent(monkeypatch, budget_s=1)
     a.MAX_ACTIONS = 10**6
     t0 = time.time()
     a.main()

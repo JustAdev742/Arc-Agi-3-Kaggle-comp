@@ -38,7 +38,7 @@ class Agent(ABC):
     def act(self, frame: Frame) -> Action:
         """Choose the next action given the latest frame."""
 
-    def observe(self, action: Action, before: Frame, after: Frame) -> None:  # noqa: B027
+    def observe(self, action: Action, before: Frame, after: Frame) -> None:  # noqa: B027  (optional hook)
         """Called after every environment step (optional hook)."""
 
     def is_done(self, frame: Frame) -> bool:
@@ -48,5 +48,5 @@ class Agent(ABC):
         """Extra per-game numbers for the run record (tokens, tool calls, ...)."""
         return {}
 
-    def close(self) -> None:  # noqa: B027
+    def close(self) -> None:  # noqa: B027  (optional hook)
         """Release resources (sandbox processes, sessions). Called once by the harness."""

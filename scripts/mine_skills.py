@@ -22,7 +22,7 @@ import re
 import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -75,7 +75,7 @@ def _compress(actions: list[str]) -> str:
             out.append([name, 1])
     parts = [f"{n}x{c}" if c > 1 else n for n, c in out]
     if len(parts) > 12:
-        parts = parts[:6] + ["..."] + parts[-5:]
+        parts = [*parts[:6], "...", *parts[-5:]]
     return ", ".join(parts)
 
 
@@ -95,18 +95,20 @@ def _level_actions(game_log: Path) -> dict[int, list[str]]:
     per: dict[int, list[str]] = defaultdict(list)
     if not game_log.exists():
         return per
-    for line in open(game_log):
-        try:
-            rec = json.loads(line)
-        except Exception:  # noqa: BLE001
-            continue
-        lvl = int(rec.get("levels", 0)) + 1
-        per[lvl].append(_action_name(rec))
+    with open(game_log) as f:
+        for line in f:
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue  # a truncated last line of a killed run
+            lvl = int(rec.get("levels", 0)) + 1
+            per[lvl].append(_action_name(rec))
     return per
 
 
 def mine_transcript(path: Path) -> list[dict[str, Any]]:
-    recs = [json.loads(l) for l in open(path) if l.strip()]
+    with open(path) as f:
+        recs = [json.loads(line) for line in f if line.strip()]
     if not recs or recs[0].get("kind") != "meta":
         return []
     meta = recs[0]
@@ -156,7 +158,7 @@ def build_library(runs_dir: Path, *, min_actions: int = 1) -> dict[str, Any]:
     for p in sorted(runs_dir.glob("*/*.transcript.jsonl")):
         try:
             raw.extend(mine_transcript(p))
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"[mine_skills] skip {p}: {e}", file=sys.stderr)
     by_key: dict[tuple[str, int], list[dict[str, Any]]] = defaultdict(list)
     for c in raw:

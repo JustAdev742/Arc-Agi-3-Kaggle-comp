@@ -181,7 +181,7 @@ class ExplorerAgent(Agent):
                 for k, nh in n.edges.items():
                     if nh not in seen and nh in self.nodes:
                         seen.add(nh)
-                        q.append((nh, path + [k]))
+                        q.append((nh, [*path, k]))
         return best
 
     # ---------- policy ----------
@@ -232,7 +232,7 @@ class ExplorerAgent(Agent):
                 self.shape_changed[sh] = (c + int(changed), n + 1)
         if action.action.value in (1, 2, 3, 4, 5):
             self.keys_probed.add(action.action.value)
-            avail = set(a for a in (before.available_actions or [1, 2, 3, 4, 5]) if a in (1, 2, 3, 4, 5))
+            avail = {a for a in (before.available_actions or [1, 2, 3, 4, 5]) if a in (1, 2, 3, 4, 5)}
             if avail <= self.keys_probed:
                 self.level_key_probe_done = True
         if after.levels_completed != self.level:

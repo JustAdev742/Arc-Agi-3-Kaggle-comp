@@ -6,6 +6,7 @@ versions; ``VLLM_EXTRA_ARGS`` overrides everything after the model path.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import shlex
@@ -20,7 +21,7 @@ def gpu_info() -> list[dict[str, str]]:
     try:
         out = subprocess.check_output(["nvidia-smi", "--query-gpu=name,compute_cap,memory.total",
                                        "--format=csv,noheader,nounits"], text=True, timeout=20)
-    except Exception:
+    except (OSError, subprocess.SubprocessError):  # no nvidia-smi, or it timed out
         return []
     gpus = []
     for line in out.strip().splitlines():
@@ -37,7 +38,7 @@ def gpu_memory_mib() -> Optional[tuple[int, int]]:
                                        "--format=csv,noheader,nounits"], text=True, timeout=20)
         free, total = [int(float(x.strip())) for x in out.strip().splitlines()[0].split(",")[:2]]
         return free, total
-    except Exception:
+    except (OSError, subprocess.SubprocessError, ValueError, IndexError):
         return None
 
 
@@ -85,7 +86,7 @@ def build_vllm_command(model_dir: str, *, port: int = 8000, served_name: str = "
     cmd = [sys.executable, "-m", "vllm.entrypoints.openai.api_server", "--model", model_dir,
            "--served-model-name", served_name, "--port", str(port), "--host", "127.0.0.1",
            "--max-model-len", str(max_model_len), "--gpu-memory-utilization", str(gpu_mem),
-           "--max-num-seqs", str(max_num_seqs), "--limit-mm-per-prompt", '{"image": %d}' % images_per_prompt,
+           "--max-num-seqs", str(max_num_seqs), "--limit-mm-per-prompt", json.dumps({"image": int(images_per_prompt)}),
            "--enable-prefix-caching", "--trust-remote-code", "--enable-auto-tool-choice",
            "--tool-call-parser", tool_parser]
     if attention_backend and attention_backend.lower() != "auto":
@@ -150,7 +151,7 @@ def wait_for_server(base_url: str = "http://127.0.0.1:8000/v1", *, timeout_s: fl
             r = requests.get(f"{base_url}/models", timeout=5)
             if r.status_code == 200:
                 return True
-        except Exception:
+        except OSError:  # requests' exceptions derive from OSError: not up yet, keep polling
             pass
         time.sleep(5)
     return False
@@ -240,11 +241,9 @@ def _stop(proc: subprocess.Popen) -> None:
     try:
         proc.terminate()
         proc.wait(timeout=30)
-    except Exception:
-        try:
+    except (OSError, subprocess.SubprocessError):
+        with contextlib.suppress(OSError):  # already gone
             proc.kill()
-        except Exception:
-            pass
 
 
 def start_vllm_with_fallback(model_dir: str, *, log_path: str = "vllm.log", timeout_s: float = 1500.0,

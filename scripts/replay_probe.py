@@ -43,12 +43,12 @@ def main() -> None:
         fr = env.step(act)
         g = np.asarray(fr.grid, dtype=np.int16)
         rec = t.update(g, a)
-        print(f"{str(a):18s} {Tracker.describe(rec, t)[:150]}")
+        print(f"{a!s:18s} {Tracker.describe(rec, t)[:150]}")
         av = t.avatar()
         if av and av["alive"]:
             try:
                 m = MoveModel(t)
-                pred = m.predict(g.copy(), "RIGHT")
+                m.predict(g.copy(), "RIGHT")  # exercises the predictor on the current frame
                 print(f"{'':18s} avatar #{av['id']} at {m.pos} keymap {av['keymap']} walkable {sorted(m.walkable)} "
                       f"companions {len(m.companions)} obstacles {int(m.obstacles.sum())} hud {t.hud_ids()}")
             except ValueError as e:

@@ -1,5 +1,10 @@
 """Wall-clock governor: divides the remaining budget across the games still to play.
 
+Status (lesson 0011, 2026-09-16): NOT on the submission path. The Kaggle framework plays every game
+in its own thread at the same time, so the submission uses one shared deadline for all games
+(``arc3.kaggle.global_deadline``) and the local harness a fixed per-game budget (``arc3.eval``).
+This module is kept, tested, for a sequential runner that plays games one after another.
+
 The whole hidden set must finish inside the competition runtime limit and unfinished
 levels score zero, so seconds per action is a first-class metric. The governor is
 deliberately simple and testable:

@@ -18,7 +18,6 @@ import importlib
 import json
 import os
 import pkgutil
-import sys
 import time
 from pathlib import Path
 
@@ -35,7 +34,7 @@ def _find(name: str):
     for mod in pkgutil.walk_packages(kagglesdk.__path__, "kagglesdk."):
         try:
             m = importlib.import_module(mod.name)
-        except Exception:
+        except Exception:  # noqa: S112
             continue
         if hasattr(m, name):
             return getattr(m, name)
@@ -129,7 +128,7 @@ def upload_one(api, blob_type, repo: str, path: str, size: int, log, attempts: i
             if r.status_code in (200, 201):
                 return token
             log(f"    PUT returned {r.status_code}: {r.text[:200]}")
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             log(f"    transfer error ({type(e).__name__}: {str(e)[:160]})")
         off = query_offset(url, size)
         if off == -1:
@@ -218,7 +217,7 @@ def main() -> None:
     req.is_private = True
     req.category_ids = []
     req.files = []
-    for name, token in state["tokens"].items():
+    for token in state["tokens"].values():
         nf = NewFile()
         nf.token = token
         req.files.append(nf)

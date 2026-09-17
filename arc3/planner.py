@@ -9,7 +9,8 @@ The model calls ``plan_to_entity(id)`` or ``plan_to(x, y)`` from the REPL and ex
 from __future__ import annotations
 
 from collections import deque
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any, Optional
 
 import numpy as np
 
@@ -93,7 +94,7 @@ class MoveModel:
                 continue
             dx, dy = self.keymap[k]
             nx, ny = x0 + dx, y0 + dy
-            if 0 <= nx and 0 <= ny and nx + self.w <= n and ny + self.h <= n:
+            if nx >= 0 and ny >= 0 and nx + self.w <= n and ny + self.h <= n:
                 obs[ny:ny + self.h, nx:nx + self.w] |= self.mask
             # bumping the frame edge is handled by bounds in step()
         return obs
@@ -112,7 +113,7 @@ class MoveModel:
                 continue
             dx, dy = self.keymap[k]
             nx, ny = x0 + dx, y0 + dy
-            if 0 <= nx and 0 <= ny and nx + self.w <= n and ny + self.h <= n:
+            if nx >= 0 and ny >= 0 and nx + self.w <= n and ny + self.h <= n:
                 obs[ny:ny + self.h, nx:nx + self.w] |= self.mask
         m.obstacles = obs
         m.optimistic = True
@@ -178,7 +179,7 @@ class MoveModel:
                 return
             g[y0:y0 + h, x0:x0 + w][mask] = colour
 
-        parts = [(0, 0, self.color, self.mask)] + list(getattr(self, "companions", []))
+        parts = [(0, 0, self.color, self.mask), *getattr(self, "companions", [])]
         for dx, dy, _, mask in parts:
             erase(pos[0] + dx, pos[1] + dy, mask)
         for dx, dy, colour, mask in parts:

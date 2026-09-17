@@ -13,8 +13,8 @@ from __future__ import annotations
 
 import random
 from collections import deque
-from typing import Any, Callable, Optional
-
+from collections.abc import Callable
+from typing import Any, Optional
 
 from .. import dsl
 from ..entities import Tracker
@@ -267,7 +267,7 @@ class RulesAgent(Agent):
             except Exception:  # noqa: BLE001
                 final = None
             if final is not None:
-                self.archive.append((list(frames) + [final], True))
+                self.archive.append(([*frames, final], True))
             self.stats_["levels_won"] += 1
             return
         if isinstance(label, tuple):

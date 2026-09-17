@@ -42,7 +42,7 @@ def test_council_injects_specialist_reports_into_coordinator_turn():
         st = agent.stats()
         assert st["council"]["rounds"] == 2 and st["council"]["calls"] == 12  # turns 1 and 3 (every 2nd)
         assert sorted(set(seen_roles)) == ["EXPLORER", "FALSIFIER", "GOAL ANALYST", "MECHANICS", "PERCEPTION", "PLANNER"]
-        first_user = [m for m in coord.calls[0] if m["role"] == "user"][0]["content"]
+        first_user = next(m for m in coord.calls[0] if m["role"] == "user")["content"]
         assert "Specialist reports" in first_user and "PERCEPTION report" in first_user
         assert st["actions_model"] == 3
         assert st["council"]["shared_model"] is False
@@ -112,7 +112,7 @@ def test_council_events_schedule_and_rich_state():
         third_user = [m for m in coord.calls[4] if m["role"] == "user"][-1]["content"]  # the turn-3 observation
         assert "[mechanics] MECHANICS: use plan_to_entity(3)" in third_user, third_user[:400]
         # no round before the first action: the first state the specialists saw already had the four key presses
-        first_user = [m for m in coord.calls[0] if m["role"] == "user"][0]["content"]
+        first_user = next(m for m in coord.calls[0] if m["role"] == "user")["content"]
         assert "Specialist reports" not in first_user and len(seen_states) == 4 and "moved" in seen_states[0]
         # a report is written out once; afterwards the block only says it is unchanged
         again = agent._report_block()

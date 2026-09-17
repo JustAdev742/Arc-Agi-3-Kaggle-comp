@@ -1,8 +1,6 @@
 """The code-only rules agent must probe, fit, plan and complete a level in the synthetic grid world."""
 import time
 
-import numpy as np
-
 from arc3.agents import get
 from arc3.agents.base import AgentContext
 from arc3.env import Action, Frame, GameState

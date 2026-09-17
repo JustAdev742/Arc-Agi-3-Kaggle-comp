@@ -3,7 +3,7 @@
 Architecture (see CLAUDE.md "Architecture stance", item 1-3):
   * exact perception is handed to the model as variables/helpers (arc3.perception);
   * the model keeps its own world model in a persistent REPL (arc3.sandbox);
-  * a time governor stops model calls when the game's deadline nears;
+  * the game's deadline (AgentContext.deadline) stops model calls when too little time is left for a turn;
   * a no-LLM rules agent (or the explorer, config fallback_agent) is the fallback for idle turns and model/server failures.
 
 Threading: the harness (or the Kaggle framework) calls ``act(frame)`` for one action at a
@@ -27,10 +27,10 @@ from typing import Any, Optional
 import numpy as np
 from arcengine import GameAction, GameState
 
+from ..entities import Tracker
 from ..env import Action, Frame
 from ..llm import ChatClient, ChatResponse
 from ..memory import Lessons, level_signature, load_skills, match_skills, render_skills
-from ..entities import Tracker
 from ..perception import ascii as grid_ascii
 from ..perception import detect_scale, diff, render_png, tile_map
 from ..prompts import ACTION_NAMES, NAME_TO_ID, SYSTEM_PROMPT, TOOLS
@@ -194,9 +194,7 @@ class ReplAgent(Agent):
         idle = not self._worker_alive() and self.action_q.empty()
         if idle and not self.use_fallback_only and self.ctx.time_left() < self.min_time_for_turn_s:
             self.stop_requested = True  # too little time for another model turn: stop without spending an action
-        if self.stop_requested and idle:
-            return True
-        return False
+        return bool(self.stop_requested and idle)
 
     def act(self, frame: Frame) -> Action:
         self.frame = frame
@@ -365,7 +363,7 @@ class ReplAgent(Agent):
             self.worker.join(timeout=3.0)  # let a finishing turn record its tool output before the dump
         try:
             self.dump_transcript()
-        except Exception:  # noqa: BLE001
+        except Exception:
             self.log.exception("transcript dump failed")
         self.memory.save()
         self.sandbox.stop()
@@ -470,7 +468,7 @@ class ReplAgent(Agent):
             dsl.set_terrain(rules, t.under, t.bg)
             # with no rule to simulate the winning step, the last observed frame stands in for the final one
             final = dsl.simulate(frames[-1], label, rules) if rules else frames[-1]
-            self.level_archive.append((list(frames) + [final], True))
+            self.level_archive.append(([*frames, final], True))
             return [g["goal"] for g in dsl.goal_predicates(self.level_archive)]
         except Exception as e:  # noqa: BLE001
             self.log.warning("level archive failed: %s", e)
@@ -522,7 +520,7 @@ class ReplAgent(Agent):
                 self.memory.add("mistake", f"Level {lvl}: a batch of {bs.get('planned')} actions stopped after {bs.get('done')}: "
                                 f"{', '.join(map(str, bs.get('idle') or []))} changed nothing, so the plan assumed movement that "
                                 "does not happen there (blocked cell or an action this game ignores)", level=lvl)
-        except Exception:  # noqa: BLE001
+        except Exception:
             self.log.debug("lesson extraction failed", exc_info=True)
         self.st.lessons_auto, self.st.lessons_model = self.memory.auto_lessons, self.memory.model_lessons
 
@@ -533,7 +531,7 @@ class ReplAgent(Agent):
         try:
             f = self.frame
             av = self.tracker.avatar()
-            avail = [a for a in (f.available_actions or [1, 2, 3, 4, 5, 6])]
+            avail = list(f.available_actions or [1, 2, 3, 4, 5, 6])
             ents = self.tracker.entities_summary(64)
             sig = level_signature(has_avatar=bool(av), click_only=(set(avail) <= {0, 6}), keymap=(av or {}).get("keymap"),
                                   n_entities=len(ents), tile=int(self.tracker.tile or 1),
@@ -694,7 +692,7 @@ class ReplAgent(Agent):
             return True
         return False
 
-    def _before_model_call(self) -> None:  # noqa: B027
+    def _before_model_call(self) -> None:
         """Hook run before every model call of a turn (the council injects late specialist reports here)."""
 
     def _effort_for_turn(self) -> Optional[str]:
@@ -912,8 +910,8 @@ class ReplAgent(Agent):
                 self.idle_turns_in_row += 1
                 self.st.idle_turns += 1
             self.last_turn_acted = acted or errored
-        except Exception as e:  # noqa: BLE001
-            self.log.exception("turn crashed: %s", e)
+        except Exception:
+            self.log.exception("turn crashed")
             self.st.model_errors += 1
         finally:
             self.action_q.put(TURN_DONE)

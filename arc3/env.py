@@ -16,12 +16,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
+import arc_agi
 import numpy as np
-
-import arc_agi  # noqa: E402
-from arc_agi import OperationMode  # noqa: E402
-from arcengine import FrameDataRaw, GameAction, GameState  # noqa: E402
-
+from arc_agi import OperationMode
+from arcengine import FrameDataRaw, GameAction, GameState
 
 log = logging.getLogger(__name__)
 

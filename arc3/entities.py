@@ -476,7 +476,7 @@ class Tracker:
             for e in frame:
                 if e.id in movers and e.id not in taken:
                     for p in frame:
-                        if p.id == e.id or p.id in taken or p.id in movers and p.size >= e.size:
+                        if p.id == e.id or p.id in taken or (p.id in movers and p.size >= e.size):
                             continue
                         if e.x0 < p.x0 and p.x1 < e.x1 and e.y0 < p.y0 and p.y1 < e.y1:
                             parts[e.id].append(p)
@@ -535,7 +535,7 @@ class Tracker:
         return out
 
     def _merge(self, head: Ent, parts: list[Ent]) -> Ent:
-        members = [head] + parts
+        members = [head, *parts]
         x0, y0 = min(m.x0 for m in members), min(m.y0 for m in members)
         x1, y1 = max(m.x0 + m.w - 1 for m in members), max(m.y0 + m.h - 1 for m in members)
         patch = np.full((y1 - y0 + 1, x1 - x0 + 1), -1, dtype=np.int16)

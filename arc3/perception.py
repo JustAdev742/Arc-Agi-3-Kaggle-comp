@@ -13,8 +13,9 @@ from __future__ import annotations
 import hashlib
 import io
 from collections import Counter
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Any, Iterable, Sequence
+from typing import Any
 
 import numpy as np
 
@@ -125,7 +126,7 @@ def components(grid: np.ndarray, *, connectivity: int = 4, ignore: Iterable[int]
     g = np.asarray(grid)
     h, w = g.shape
     labels = np.full((h, w), -1, dtype=np.int32)
-    ignore_set = set(int(c) for c in ignore)
+    ignore_set = {int(c) for c in ignore}
     objs: list[Obj] = []
     if connectivity == 4:
         nbrs = ((1, 0), (-1, 0), (0, 1), (0, -1))

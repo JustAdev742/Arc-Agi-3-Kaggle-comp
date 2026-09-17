@@ -26,7 +26,8 @@ from arc3.llm import MockClient  # noqa: E402
 
 
 def replay(game: str, run: str, target_level: int, arc) -> list[dict]:
-    recs = [json.loads(l) for l in open(ROOT / "runs" / run / f"{game}.jsonl")]
+    with open(ROOT / "runs" / run / f"{game}.jsonl") as f:
+        recs = [json.loads(line) for line in f]
     acts = [f"('CLICK', {r['x']}, {r['y']})" if r["action"] == "ACTION6" else repr(r["action"]) for r in recs]
     out: list[dict] = []
 
@@ -58,7 +59,6 @@ def replay(game: str, run: str, target_level: int, arc) -> list[dict]:
             agent.observe(a, before, frame)
             if frame.levels_completed > seen:
                 seen = frame.levels_completed
-                goals = agent._archive_goals_cache if hasattr(agent, "_archive_goals_cache") else None
                 arch = agent.level_archive[-1][0] if agent.level_archive else []
                 from arc3 import dsl
                 preds = dsl.goal_predicates(agent.level_archive)
@@ -89,7 +89,7 @@ def main() -> None:
     for game, (lvl, run) in sorted(by_game.items()):
         try:
             rows.extend(replay(game, run, lvl, arc))
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"{game}: replay failed: {e}")
     hit = sum(1 for r in rows if r["n_goals"])
     print(f"\nsolved levels replayed: {len(rows)}; with >=1 consistent goal predicate: {hit}")

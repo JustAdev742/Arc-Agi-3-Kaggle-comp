@@ -21,6 +21,7 @@ Preloaded names in the child (all from ``arc3.perception``, exact numpy code):
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import queue
@@ -28,7 +29,8 @@ import subprocess
 import sys
 import threading
 import time
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any, Optional
 
 CHILD_SOURCE = r'''
 import json, sys, io, traceback, contextlib, os
@@ -915,17 +917,14 @@ class PersistentSandbox:
         self.proc = None
         if p is None:
             return
+        # Teardown must never raise: the group may already be gone, or the child may have changed session.
         try:
             os.killpg(p.pid, 9)
-        except Exception:
-            try:
+        except OSError:
+            with contextlib.suppress(OSError):
                 p.kill()
-            except Exception:
-                pass
-        try:
+        with contextlib.suppress(OSError, subprocess.TimeoutExpired):
             p.wait(timeout=2)
-        except Exception:
-            pass
 
     def alive(self) -> bool:
         return self.proc is not None and self.proc.poll() is None
@@ -980,10 +979,8 @@ class PersistentSandbox:
                     continue
                 if line is None:
                     err = ""
-                    try:
+                    with contextlib.suppress(OSError, ValueError):  # the pipe may be closed already
                         err = (self.proc.stderr.read() if self.proc and self.proc.stderr else "")[-1500:]
-                    except Exception:
-                        pass
                     self.restart()
                     return {"stdout": "", "error": f"REPL process died and was restarted (variables lost).\n{err}",
                             "result": None, "notes": [], "actions": n_actions, "timed_out": False, "restarted": True}
@@ -1015,7 +1012,5 @@ class PersistentSandbox:
                             "lessons": list(msg.get("lessons") or []), "flags": dict(msg.get("flags") or {})}
 
     def __del__(self):  # pragma: no cover
-        try:
+        with contextlib.suppress(Exception):  # interpreter shutdown: modules may be half torn down
             self.stop()
-        except Exception:
-            pass

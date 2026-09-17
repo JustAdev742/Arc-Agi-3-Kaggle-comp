@@ -14,9 +14,10 @@ The model only chooses rule types and reads counter-examples; it never has to wr
 from __future__ import annotations
 
 from collections import Counter, defaultdict, deque
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from itertools import combinations
-from typing import Any, Callable, Iterable, Optional
+from typing import Any, Optional
 
 import numpy as np
 
@@ -700,10 +701,9 @@ class OnClick(Rule):
             return {}  # a click elsewhere may trigger another button's rule: no opinion
         out = {}
         targets = self.target.select(tr.before)
-        if self.effect == "swap" and on and b is not None and b.id >= 0:
+        if self.effect == "swap" and on and b is not None and b.id >= 0 and len(targets) == 1:
             # the clicked entity takes the target's place (centre to centre); one target only
-            if len(targets) == 1:
-                out[b.id] = Claim(moved=self._goto(b, targets[0]))
+            out[b.id] = Claim(moved=self._goto(b, targets[0]))
         for e in targets:
             if self.effect == "vanish":
                 out[e.id] = Claim(gone=on)
@@ -1225,7 +1225,7 @@ def fit_drift(log: list[Transition], max_rules: int = 4) -> list[tuple[Drift, Sc
 
 def _triggers(log: list[Transition]) -> list[str]:
     kinds = sorted({action_kind(tr.action) for tr in log})
-    return kinds + ["CLICK@self", "any"]
+    return [*kinds, "CLICK@self", "any"]
 
 
 def fit_vanish(log: list[Transition], max_rules: int = 6) -> list[tuple[Vanish, Score]]:
@@ -1364,7 +1364,7 @@ FITTERS: dict[str, Callable[..., list[tuple[Rule, Score]]]] = {
 
 def fit(kind: Optional[str], log: list[Transition]) -> dict[str, list[tuple[Rule, Score]]]:
     """Consistent parameterisations per rule type (push needs the fitted moves, so it is derived here)."""
-    kinds = [kind] if kind else list(FITTERS) + ["push"]
+    kinds = [kind] if kind else [*FITTERS, "push"]
     out: dict[str, list[tuple[Rule, Score]]] = {}
     for k in kinds:
         if k == "push":
@@ -1373,7 +1373,7 @@ def fit(kind: Optional[str], log: list[Transition]) -> dict[str, list[tuple[Rule
         elif k in FITTERS:
             out[k] = FITTERS[k](log)
         else:
-            raise ValueError(f"unknown rule kind {k!r}; choose from {list(FITTERS) + ['push']}")
+            raise ValueError(f"unknown rule kind {k!r}; choose from {[*FITTERS, 'push']}")
     return out
 
 

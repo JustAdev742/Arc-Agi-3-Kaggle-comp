@@ -33,7 +33,7 @@ def probe_policy(frame, tracker: Tracker, i: int, clicked: set[tuple[int, int]])
     avail = [ACTION_NAMES[a] for a in (frame.available_actions or []) if a in ACTION_NAMES]
     keys = [k for k in ("UP", "DOWN", "LEFT", "RIGHT") if k in avail]
     order: list = []
-    for rep in range(3):
+    for _ in range(3):
         for k in keys:
             order.append(k)
             order.append(k)
@@ -119,7 +119,7 @@ def main() -> None:
     for g in games:
         try:
             r = run_game(arc, g, a.actions)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             r = {"game": g, "error": f"{type(e).__name__}: {e}"[:200]}
         results.append(r)
         cov = r.get("coverage")

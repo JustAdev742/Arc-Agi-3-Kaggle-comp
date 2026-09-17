@@ -19,7 +19,7 @@ from pathlib import Path
 from textwrap import dedent
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from build_notebook import COMP_DIR, code_cell, md_cell, package_tarball  # noqa: E402
+from build_notebook import COMP_DIR, code_cell, md_cell, package_tarball
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR = ROOT / "notebooks" / "diag"

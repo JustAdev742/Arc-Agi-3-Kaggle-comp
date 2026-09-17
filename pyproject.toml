@@ -26,3 +26,17 @@ addopts = "-q"
 [tool.ruff]
 line-length = 120
 target-version = "py312"
+
+[tool.ruff.lint]
+# Pinned so `make lint` means the same thing on every machine (ruff's defaults change between releases).
+select = ["E4", "E7", "E9", "F", "I", "UP", "B", "SIM", "RUF", "BLE", "S110", "S112", "TRY401", "C4"]
+ignore = [
+    "UP045", "UP037",  # Optional[X] / quoted annotations: the codebase's style, not worth a 150-site churn
+    "SIM115",          # open() without a context manager: Popen log files and per-line readers are intentional
+    "RUF012",          # mutable class attributes are used as registries on purpose
+    "B905",            # zip(strict=) on equal-length grids adds noise
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["BLE001", "S110", "RUF005"]  # list concatenation in fixtures reads fine
+"scripts/*" = ["BLE001"]

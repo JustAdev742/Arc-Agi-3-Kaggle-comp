@@ -15,7 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from arc3.eval import run_eval  # noqa: E402
+from arc3.eval import run_eval
 
 
 def main() -> None:

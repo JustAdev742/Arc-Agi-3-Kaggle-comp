@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from typing import Any
 
 from arcengine import FrameData, GameAction
@@ -26,13 +27,13 @@ log = logging.getLogger("arc3.my_agent")
 
 
 class MyAgent(Agent):
-    MAX_ACTIONS = 10**9  # the governor, not the framework, decides when to stop
+    MAX_ACTIONS = 10**9  # the shared deadline (arc3.kaggle.global_deadline), not the framework, decides when to stop
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         name = os.environ.get("ARC3_AGENT", "rules")
         self.driver = Driver(self.game_id, name, config=agent_config())
-        log.info("%s: agent=%s deadline in %.0fs", self.game_id, name, self.driver.deadline - __import__("time").time())
+        log.info("%s: agent=%s deadline in %.0fs", self.game_id, name, self.driver.deadline - time.time())
 
     @property
     def name(self) -> str:

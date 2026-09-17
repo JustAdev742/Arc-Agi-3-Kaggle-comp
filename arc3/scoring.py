@@ -2,7 +2,7 @@
 
 Ground truth is ``arc_agi.scorecard.EnvironmentScoreCalculator`` (arc-agi 0.9.9);
 ``tests/test_scoring.py`` checks parity against it. This module exists so agents
-and the governor can ask "what is this level worth?" without touching the toolkit.
+and the harness can ask "what is this level worth?" without touching the toolkit.
 
 Per level:   S = min((baseline / actions) ** 2 * 100, 115)     (0 if not completed)
 Per game:    E = min(sum(w_l * S_l) / sum(w_l),  sum(w_l for completed) / sum(w_l) * 100)
@@ -13,7 +13,7 @@ count is the number of actions between the previous level completion and this on
 """
 from __future__ import annotations
 
-from typing import Iterable, Sequence
+from collections.abc import Iterable, Sequence
 
 LEVEL_CAP = 115.0
 
@@ -61,4 +61,4 @@ def actions_for_score(baseline: int, target_pct: float) -> int:
         return 10**9
     import math
 
-    return int(math.floor(baseline / math.sqrt(target_pct / 100.0)))
+    return math.floor(baseline / math.sqrt(target_pct / 100.0))

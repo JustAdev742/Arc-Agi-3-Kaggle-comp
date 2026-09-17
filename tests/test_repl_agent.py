@@ -3,8 +3,8 @@ import json
 import time
 
 from arc3.agents import get
-from arc3.agents.repl_agent import TURN_DONE
 from arc3.agents.base import AgentContext
+from arc3.agents.repl_agent import TURN_DONE
 from arc3.env import Action, Frame, GameState, LocalEnv, make_arcade
 from arc3.llm import MockClient
 
@@ -233,9 +233,9 @@ def test_transcript_is_written_on_close(tmp_path):
     with open(tmp_path / "ls20.transcript.jsonl") as f:
         lines = [_json.loads(line) for line in f]
     assert lines[0]["kind"] == "meta" and lines[0]["stats"]["actions_model"] == 1
-    kinds = [l["kind"] for l in lines[1:]]
+    kinds = [rec["kind"] for rec in lines[1:]]
     assert "assistant" in kinds and "tool" in kinds
-    assert any("act('UP')" in c for l in lines if l["kind"] == "assistant" for c in l["code"])
+    assert any("act('UP')" in c for rec in lines if rec["kind"] == "assistant" for c in rec["code"])
 
 
 def test_stop_near_deadline_spends_no_action():
@@ -341,7 +341,7 @@ def test_image_cap_keeps_prompt_under_the_server_limit():
         # Old observations keep their text; only the image part is replaced by a note.
         stripped = [m for m in users if any("image dropped" in str(p.get("text", "")) for p in m["content"])]
         assert stripped, [[p.get("type") for p in m["content"]] for m in users]
-        assert all(any(p.get("type") == "text" and "act(" in str(p.get("text", "")) or "board" in str(p.get("text", "")).lower()
+        assert all(any((p.get("type") == "text" and "act(" in str(p.get("text", ""))) or "board" in str(p.get("text", "")).lower()
                        for p in m["content"]) for m in stripped)
         # The newest observation still carries its image.
         assert any(p.get("type") == "image_url" for p in users[-1]["content"])

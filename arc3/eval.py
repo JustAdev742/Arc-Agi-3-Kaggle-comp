@@ -7,6 +7,11 @@ self-describing run record to ``runs/<run_name>/``:
     summary.json          run metadata + per-game results + aggregate scores
     <game>.jsonl          one line per action (step, action, state, levels, diff size)
 
+``summary.json`` is rewritten after every finished game with ``"partial": true`` (exp-017, 2026-09-16: a run
+killed by the GPU quota left nothing on disk), and once more at the end with ``"partial": false``. A worker
+that dies outside ``play_game`` (killed process, pickling error) is recorded as a crash for its game and the
+other games continue.
+
 Every number in docs/research_log.md must point at one of these directories.
 """
 from __future__ import annotations
@@ -22,7 +27,6 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Optional
-
 
 from . import __version__
 from .env import Action, LocalEnv, make_arcade
@@ -60,7 +64,7 @@ class GameResult:
 def git_commit() -> str:
     try:
         return subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], text=True, stderr=subprocess.DEVNULL).strip()
-    except Exception:
+    except (OSError, subprocess.SubprocessError):  # no git, or not a checkout (the Kaggle notebook)
         return "unknown"
 
 
@@ -159,21 +163,29 @@ def play_game(
         try:
             card = env.close()
             res.__dict__.update({k: v for k, v in _score_from_card(card, game_id).items() if k != "message"})
-        except Exception as e:  # pragma: no cover
-            log.exception("scorecard failed for %s: %s", game_id, e)
+        except Exception:
+            log.exception("scorecard failed for %s", game_id)
         if agent is not None:
             try:
                 res.agent_stats = agent.stats()
-            except Exception:  # pragma: no cover
-                pass
+            except Exception:
+                log.warning("%s: agent.stats() failed", game_id, exc_info=True)
             try:
                 agent.close()
-            except Exception:  # pragma: no cover
-                pass
+            except Exception:
+                log.warning("%s: agent.close() failed", game_id, exc_info=True)
         res.seconds_per_action = round(res.wall_s / res.actions, 4) if res.actions else 0.0
         if res.failure == "" and res.state != "WIN":
             res.failure = "no_progress"
     return res
+
+
+def _crash_result(game_id: str, seed: int, time_budget_s: float, error: str) -> dict[str, Any]:
+    """Run record for a game whose worker failed outside play_game (the process died or the result could not be
+    returned), so the run keeps going and the failure is visible in summary.json."""
+    r = GameResult(game_id=game_id, version="unknown", seed=seed, time_budget_s=time_budget_s, failure="crash",
+                   error=error[-4000:], state="NOT_PLAYED")
+    return asdict(r)
 
 
 def _worker(args: dict[str, Any]) -> dict[str, Any]:
@@ -206,26 +218,11 @@ def run_eval(
     run_name = run_name or f"{stamp}-{agent_name}-{split}-s{seed}"
     out_dir = Path(runs_dir) / run_name
     out_dir.mkdir(parents=True, exist_ok=True)
-    jobs = [dict(agent=agent_name, game_id=g, seed=seed, time_budget_s=time_budget_s, max_actions=max_actions,
-                 out_dir=str(out_dir), config=config or {}, environments_dir=environments_dir,
-                 record_frames=record_frames) for g in games]
+    jobs = [{"agent": agent_name, "game_id": g, "seed": seed, "time_budget_s": time_budget_s, "max_actions": max_actions,
+             "out_dir": str(out_dir), "config": config or {}, "environments_dir": environments_dir,
+             "record_frames": record_frames} for g in games]
     t0 = time.time()
-    results: list[dict[str, Any]] = []
-    if workers <= 1:
-        for j in jobs:
-            results.append(_worker(j))
-            _print_result(results[-1])
-    else:
-        with ProcessPoolExecutor(max_workers=workers) as ex:
-            futs = {ex.submit(_worker, j): j["game_id"] for j in jobs}
-            for f in as_completed(futs):
-                results.append(f.result())
-                _print_result(results[-1])
-    results.sort(key=lambda r: games.index(r["game_id"]))
-    by_game = {r["game_id"]: r["score"] for r in results}
-    dev = [by_game[g] for g in games if g in DEV_GAMES]
-    val = [by_game[g] for g in games if g in VAL_GAMES]
-    summary = {
+    meta = {
         "run_name": run_name,
         "agent": agent_name,
         "split": split,
@@ -240,19 +237,63 @@ def run_eval(
         "python": sys.version.split()[0],
         "platform": platform.platform(),
         "started": stamp,
-        "wall_s": round(time.time() - t0, 1),
+    }
+    results: list[dict[str, Any]] = []
+
+    def _finished(r: dict[str, Any]) -> None:
+        results.append(r)
+        _print_result(r)
+        write_summary(out_dir, meta, results, wall_s=time.time() - t0, partial=True)
+
+    if workers <= 1:
+        for j in jobs:
+            _finished(_worker(j))
+    else:
+        with ProcessPoolExecutor(max_workers=workers) as ex:
+            futs = {ex.submit(_worker, j): j for j in jobs}
+            for f in as_completed(futs):
+                j = futs[f]
+                try:
+                    _finished(f.result())
+                except Exception as e:  # noqa: BLE001
+                    log.error("%s: worker failed: %s", j["game_id"], e)
+                    _finished(_crash_result(j["game_id"], seed, time_budget_s, f"worker failed: {e!r}"))
+    summary = write_summary(out_dir, meta, results, wall_s=time.time() - t0, partial=False)
+    print(format_summary(summary))
+    return summary
+
+
+def summarize(meta: dict[str, Any], results: list[dict[str, Any]], *, wall_s: float, partial: bool) -> dict[str, Any]:
+    """Aggregate per-game results into the run summary (scores over the games finished so far)."""
+    games = list(meta["games"])
+    ordered = sorted(results, key=lambda r: games.index(r["game_id"]) if r["game_id"] in games else len(games))
+    by_game = {r["game_id"]: r["score"] for r in ordered}
+    dev = [by_game[g] for g in games if g in DEV_GAMES and g in by_game]
+    val = [by_game[g] for g in games if g in VAL_GAMES and g in by_game]
+    return {
+        **meta,
+        "partial": partial,
+        "games_finished": len(ordered),
+        "wall_s": round(wall_s, 1),
         "score": total_score(by_game.values()),
         "score_dev": total_score(dev) if dev else None,
         "score_val": total_score(val) if val else None,
-        "levels_completed": sum(r["levels_completed"] for r in results),
-        "levels_total": sum(r["win_levels"] for r in results),
-        "games_solved": sum(1 for r in results if r["state"] == "WIN"),
-        "actions": sum(r["actions"] for r in results),
-        "failures": _count([r["failure"] for r in results]),
-        "results": results,
+        "levels_completed": sum(r["levels_completed"] for r in ordered),
+        "levels_total": sum(r["win_levels"] for r in ordered),
+        "games_solved": sum(1 for r in ordered if r["state"] == "WIN"),
+        "actions": sum(r["actions"] for r in ordered),
+        "failures": _count([r["failure"] for r in ordered]),
+        "results": ordered,
     }
-    (out_dir / "summary.json").write_text(json.dumps(summary, indent=1))
-    print(format_summary(summary))
+
+
+def write_summary(out_dir: Path, meta: dict[str, Any], results: list[dict[str, Any]], *, wall_s: float,
+                  partial: bool) -> dict[str, Any]:
+    """Write ``summary.json`` atomically (a kill between two games never leaves a truncated file)."""
+    summary = summarize(meta, results, wall_s=wall_s, partial=partial)
+    tmp = out_dir / "summary.json.tmp"
+    tmp.write_text(json.dumps(summary, indent=1))
+    tmp.replace(out_dir / "summary.json")
     return summary
 
 
@@ -269,7 +310,8 @@ def _print_result(r: dict[str, Any]) -> None:
 
 
 def format_summary(s: dict[str, Any]) -> str:
-    lines = [f"== {s['run_name']}  agent={s['agent']} split={s['split']} seed={s['seed']} commit={s['harness_commit']}",
+    tag = f"  PARTIAL ({s.get('games_finished', len(s['results']))}/{len(s['games'])} games)" if s.get("partial") else ""
+    lines = [f"== {s['run_name']}  agent={s['agent']} split={s['split']} seed={s['seed']} commit={s['harness_commit']}{tag}",
              f"   score={s['score']:.3f}  dev={s['score_dev']}  val={s['score_val']}  "
              f"levels={s['levels_completed']}/{s['levels_total']}  solved={s['games_solved']}/{len(s['games'])}  "
              f"actions={s['actions']}  wall={s['wall_s']}s  failures={s['failures']}"]

@@ -17,7 +17,6 @@ import threading
 import time
 from typing import Any, Optional
 
-import numpy as np
 from arcengine import FrameData, GameAction, GameState
 
 from .agents import get as get_agent
@@ -54,10 +53,8 @@ def agent_config() -> dict[str, Any]:
 
 
 def to_frame(fd: FrameData, *, step: int, level_step: int) -> Frame:
-    layers = [np.asarray(layer, dtype=np.int16) for layer in (fd.frame or [])] or [np.zeros((64, 64), np.int16)]
-    return Frame(grid=layers[-1], layers=layers, state=fd.state, levels_completed=int(fd.levels_completed),
-                 win_levels=int(fd.win_levels), available_actions=list(fd.available_actions or []),
-                 full_reset=bool(fd.full_reset), game_id=fd.game_id or "", step=step, level_step=level_step)
+    """The framework's ``FrameData`` carries the same fields as the toolkit's raw frame."""
+    return Frame.from_raw(fd, step=step, level_step=level_step)
 
 
 class Driver:
@@ -127,8 +124,8 @@ class Driver:
                       self.crashes, self.fallback_name)
         try:
             self.agent.close()
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception:
+            log.debug("%s: closing the crashed agent failed", self.game_id, exc_info=True)
         self.agent = self._make(self.fallback_name)
         self.agent_name = self.fallback_name
 
@@ -145,5 +142,5 @@ class Driver:
     def close(self) -> None:
         try:
             self.agent.close()
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception:
+            log.debug("%s: agent close failed", self.game_id, exc_info=True)

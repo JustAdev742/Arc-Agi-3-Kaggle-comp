@@ -22,17 +22,21 @@ normalised text, caps its size and never raises into the agent (a memory failure
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import threading
 import time
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any, Optional
 
 try:  # POSIX only; Kaggle and the dev box are Linux, tests run there too
     import fcntl
 except ImportError:  # pragma: no cover
     fcntl = None  # type: ignore[assignment]
+
+log = logging.getLogger("arc3.memory")
 
 KINDS = ("recipe", "hazard", "mistake", "mechanic", "goal", "strategy")
 SHARED_KINDS = ("mechanic", "hazard", "recipe", "strategy")  # what other games may benefit from
@@ -69,6 +73,7 @@ class Lessons:
         self._others_read_at = 0.0
         self._others_refresh_s = float(others_refresh_s)
         self._shared_offset = 0
+        self._shared_warned = False  # a broken shared file is reported once, then ignored (it must not cost a game)
 
     # ----------------------------------------------------------------------------------- this game
     def add(self, kind: str, text: str, *, level: Optional[int] = None, source: str = "auto",
@@ -114,8 +119,8 @@ class Lessons:
                 kind, text = "mistake", str(entry)
             try:
                 n += int(self.add(kind, text, level=level, source=source))
-            except Exception:  # noqa: BLE001
-                continue
+            except Exception:
+                log.debug("skipping malformed lesson %r", entry, exc_info=True)
         return n
 
     def render(self, limit: int = 14) -> str:
@@ -143,10 +148,17 @@ class Lessons:
             p.write_text(json.dumps({"game": self.game_id, "lessons": self.to_list(),
                                      "model_lessons": self.model_lessons, "auto_lessons": self.auto_lessons}, indent=1))
             return str(p)
-        except Exception:  # noqa: BLE001
+        except OSError as e:
+            log.warning("%s: could not save lessons: %s", self.game_id, e)
             return None
 
     # --------------------------------------------------------------------------------- shared file
+    def _shared_failed(self, what: str, e: Exception) -> None:
+        if not self._shared_warned:
+            self._shared_warned = True
+            log.warning("%s: shared lessons file %s unusable (%s: %s); continuing without cross-game memory",
+                        self.game_id, self.shared_path, what, e)
+
     def _share(self, item: dict[str, Any]) -> None:
         if not self.shared_path:
             return
@@ -163,8 +175,8 @@ class Lessons:
                 finally:
                     if fcntl is not None:
                         fcntl.flock(f, fcntl.LOCK_UN)
-        except Exception:  # noqa: BLE001
-            return
+        except OSError as e:
+            self._shared_failed("write", e)
 
     def others(self, limit: int = 8, *, force: bool = False) -> list[dict[str, Any]]:
         """Most recent lessons other games shared (one per text; newest first), read at most every few seconds."""
@@ -188,14 +200,14 @@ class Lessons:
                     for line in chunk.splitlines():
                         try:
                             rec = json.loads(line)
-                        except Exception:  # noqa: BLE001
-                            continue
-                        if rec.get("game") == self.game_id or not rec.get("text"):
+                        except json.JSONDecodeError:
+                            continue  # a line another game is still writing; it is complete on the next read
+                        if not isinstance(rec, dict) or rec.get("game") == self.game_id or not rec.get("text"):
                             continue
                         self._others.append(rec)
                     del self._others[:-200]
-            except Exception:  # noqa: BLE001
-                pass
+            except OSError as e:
+                self._shared_failed("read", e)
         seen: set[str] = set()
         out: list[dict[str, Any]] = []
         for rec in reversed(self._others):
