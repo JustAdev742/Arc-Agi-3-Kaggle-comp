@@ -256,7 +256,9 @@ def main() -> None:
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
     Path(a.out).write_text(json.dumps(nb, indent=1))
     print(f"[build_notebook] wrote {a.out} (accelerator={a.accelerator}, agent={a.agent}, {len(json.dumps(nb)) // 1024} KB)")
-    if METADATA_PATH.exists():
+    if METADATA_PATH.exists() and Path(a.out).resolve() == NOTEBOOK_PATH.resolve():
+        # the tracked kernel metadata follows only the tracked notebook; a variant built elsewhere (a CPU check, a
+        # scratchpad copy) must not flip the submission kernel's accelerator or sources
         meta = json.loads(METADATA_PATH.read_text())
         meta["enable_gpu"] = _ACCELERATORS[a.accelerator]["gpu"]
         ds, models = source_lists(a.model_dataset, a.wheels_dataset, *specialist_refs(spec))
