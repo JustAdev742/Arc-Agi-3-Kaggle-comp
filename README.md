@@ -40,11 +40,13 @@ scripts/
   push_eval.py, pull_run.py   push a kernel folder to the RTX PRO 6000; file its output under runs/
   transcript_report.py   summarise a run's transcripts for post-mortems
   mine_skills.py, goal_probe.py, rule_coverage.py, replay_probe.py   code-only analyses of recorded runs
+  human_replays.py      summarise ARC Prize human recordings into priors (data/human/, once downloaded)
   stream_hf_to_kaggle.py   stream a Hugging Face repo into a Kaggle dataset without local disk
   download_games.py, slim_framework.py   setup helpers
 tests/                scorer parity, env semantics, perception, tracker, DSL, planner, sandbox, REPL
                       plumbing, memory, council, evaluation records, submission path
-docs/                 status, research log, lessons, post-mortems, model notes, the 100-percent design
+docs/                 status, research log, lessons, post-mortems, model notes, the 100-percent design and
+                      the road-to-100 evidence survey (docs/research/)
 runs/                 run records; summary.json files are committed, per-action logs are not
 ```
 

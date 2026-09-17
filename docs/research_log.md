@@ -643,3 +643,12 @@ Plan:     rides in the exp-022 bundle (exploration sweep + goal hypotheses) agai
           explore_first and goal_progress_in_prompt. Code-only gate next: extend scripts/goal_probe.py to report, on
           the recorded solved levels, whether the winning predicate was the cheapest live hypothesis before the win.
 Measured: not run (GPU quota exhausted until 2026-09-19 00:00 UTC).
+
+## 2026-09-17 · human replay summariser (road-to-100 item 7, data still blocked) · BUILT (code-only)
+Change:   scripts/human_replays.py parses the documented recording JSONL (docs.arcprize.org/recordings: one line per
+          action with levels_completed and action_input) into per-level action sequences (RESET billed on level 1, the
+          level-completing action on the level it completes) and writes arc3/data/human_priors.json: per game the
+          replays, wins, median actions per completed level over winning replays, the first three actions and the
+          click fraction; cross-game aggregates for hidden-game priors (per-game figures are for dev-split analysis only:
+          using them in play on dev games would be leakage). Test on a synthetic recording (tests/test_human_replays.py).
+Blocked:  the dataset itself (docs/status.md follow-ups: browser download by the owner).

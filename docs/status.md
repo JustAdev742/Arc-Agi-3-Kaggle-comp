@@ -144,7 +144,8 @@ research log exp-006a.
   (`arcprize.org/replay/<guid>`) load their data client-side, and the recordings, REST and scorecard docs name no
   download endpoint (checked 2026-09-17). If you can download the "full Public Demo dataset" archive from that blog
   post and drop it into `data/human/` (or a private Kaggle dataset), plan-100 §4.1 (goal priors from winning steps)
-  and road-to-100 item 7 (replay priors) become CPU-only jobs.
+  and road-to-100 item 7 (replay priors) become CPU-only jobs: `scripts/human_replays.py` already parses the
+  documented recording format and writes `arc3/data/human_priors.json` (tested on a synthetic file).
 
 - `arc_agi` logs at INFO through the root logger; the harness silences it with a level filter.
 - The starter's `build_notebook.py` writes the agent to `/tmp/my_agent.py`; ours bundles a
