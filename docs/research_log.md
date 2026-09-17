@@ -557,3 +557,40 @@ Measured: goal-predicate recall 5 -> 9 of 17 solved levels (ar25 L1/L2 same_box(
           relations as dict goals ({'same_box': (a, b)}, {'same_columns': ...}, {'same_rows': ...}, {'inside': ...}).
 Kept:     yes (code-only; no model run). Follow-up: vc33-style alignment of a sub-part with a marker needs
           part-level entities.
+
+## 2026-09-17 · research · road to 100 percent: evidence survey and ranked plan · DOCUMENT (no run)
+Why:      the owner asked for research toward 100 percent. Gathered: ARC Prize verified leaderboard (2026-09-14: GPT-6
+          Astra 62.7, Opus 5 30.2, GPT-5.6 Sol 7.8 on hidden games), ARC Prize's semi-private failure analysis (three
+          inference failure modes), Tycho (100.00 on the public set with frontier models at 600-1,800 calls per game;
+          +9.4 RHAE from harness structure), arXiv 2605.05138 (executable world models, 58.12 public, "premature
+          commitment"), 2607.15439 (capability and effort dominate architecture), 2605.25931 (24 of 25 public games
+          solvable by exploration alone), the Kaggle public leaderboard (18.81), candidate open models that fit one
+          RTX PRO 6000 with their SM120 serving recipes and Kaggle-hub copies, the compute budget at the real operating
+          point, and the state of the human replay data (blocked: rate-limited download link, no API endpoint).
+Result:   docs/research/road-to-100.md. Ranked plan: (1) model swap A/B (gpt-oss-120b MXFP4, Nemotron 3 Super NVFP4,
+          Devstral Small 2), (2) effort and action-budget arm at 9 h, (3) exploration-first probe sweep (built below as
+          exp-022), (4) goal-hypothesis discrimination, (5) exp-019/020 as queued, (6) builder role, (7) replay priors
+          (blocked), (8) fine-tune (October at the earliest). Honest reading: no system reaches 100 on hidden games; the
+          November bar is the public leader (about 19), 10-15x our base.
+
+## 2026-09-17 · exp-022 · exploration-first probe sweep at level start (config explore_first, off by default) · PLANNED (needs GPU quota)
+Why:      arXiv 2605.25931 found 24 of 25 public games solvable by systematic exploration; the post-mortems (dc22, g50t,
+          tn36) and Tycho's residual failure are a model committing to a goal before it has pressed every key or clicked
+          every class of entity. The prompt's Method step 1 asks the model to do this itself, but the transcripts show it
+          skipped or half-done (exp-017: tn36 431-action loop with no untested key). The harness can do it for free in
+          calls: no model turn until the sweep is over.
+Change:   repl agent: at each level start (once per level index, only while the model has not acted on the level, never
+          on a game over, a finished game or with less than a turn of time left) the harness takes at most explore_first
+          actions itself: each legal key once, ACT once, then one click per entity class (colour, shape) largest first,
+          skipping HUD entities and anything larger than a quarter of the board, up to explore_first_clicks. The effects
+          go to a PROBE SWEEP line in the next observation (shown once), not the turn log; a level completed or a game
+          over under the sweep drops the rest of it. Stats: sweep_actions. Tests:
+          test_explore_first_sweep_is_built_once_per_level_and_reported_once,
+          test_explore_first_sweep_precedes_the_first_model_turn_on_a_real_game.
+Expected: fewer actions before the first goal-directed sequence, no untested keys on stuck levels; cost 5-12 actions per
+          level (every public level's human baseline is above that except a few click levels, where the cap should be
+          low). Risk: a click on a hazard ends a level early (the rules agent's identical sweep has not shown this on the
+          public games), and a level whose baseline is under 10 loses efficiency.
+Plan:     dev, 1200 s, 8 workers, three runs, config explore_first 8, explore_first_clicks 4, on top of the exp-020
+          bundle (level_consolidation on, level_action_notice 120), against the six-run base and the exp-020 arm.
+Measured: not run (GPU quota exhausted until 2026-09-19 00:00 UTC).

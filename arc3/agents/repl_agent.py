@@ -20,6 +20,7 @@ import queue
 import sys
 import threading
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
@@ -46,6 +47,7 @@ TURN_DONE = object()
 class _Req:
     action: Action
     auto: bool = False  # substituted by the agent (e.g. RESET after game over)
+    sweep: bool = False  # part of the harness's level-start probe sweep (explore_first)
     result: Optional[dict[str, Any]] = None
 
 
@@ -73,6 +75,7 @@ class Stats:
     lessons_model: int = 0
     consolidations: int = 0
     action_budget_notices: int = 0
+    sweep_actions: int = 0  # harness-owned probe actions at level starts (explore_first)
     rules_fits: int = 0
     rules_time_s: float = 0.0
     rules_coverage: float = 0.0
@@ -133,6 +136,16 @@ class ReplAgent(Agent):
         # remaining value is in the levels after it. 0 disables the notice; it repeats at each doubling.
         self.level_action_notice = int(c.get("level_action_notice", 0))
         self._action_notice_next = self.level_action_notice
+        # Exploration-first sweep (docs/research/road-to-100.md item 3; arXiv 2605.25931 found 24 of 25 public games
+        # solvable by systematic exploration, and our post-mortems show the model committing to a goal before it has
+        # pressed every key): at each level start the harness itself spends at most explore_first actions (each legal
+        # key once, ACT once, one click per entity class up to explore_first_clicks) before the first model turn on the
+        # level, and the observation shows the effect table. 0 disables it (default until measured: exp-022 arm).
+        self.explore_first = int(c.get("explore_first", 0))
+        self.explore_first_clicks = int(c.get("explore_first_clicks", 6))
+        self._sweep: deque[Action] = deque()
+        self._sweep_level = -1
+        self.sweep_log: list[str] = []  # "action: effect" lines of the current sweep, shown once
         self.recent_changes: list[int] = []  # cells changed by each of the last actions
         self.recent_actions: list[str] = []
         self.level_notice = ""  # shown once, at the first turn after a level is completed
@@ -247,6 +260,13 @@ class ReplAgent(Agent):
                 self.consecutive_idle = 0
                 self._fallback_burst_left = max(0, self.fallback_burst - 1)
                 return self._fallback_action(frame)
+            if self._sweep_due(frame):
+                self._sweep = deque(self._build_sweep(frame))
+                self._sweep_level = frame.levels_completed
+            if self._sweep:
+                self.pending = _Req(self._sweep.popleft(), auto=True, sweep=True)
+                self.st.sweep_actions += 1
+                return self.pending.action
             self._start_turn()
 
     def _fallback_action(self, frame: Frame) -> Action:
@@ -254,6 +274,33 @@ class ReplAgent(Agent):
         self.pending = _Req(a, auto=True)
         self.st.actions_fallback += 1
         return a
+
+    def _sweep_due(self, frame: Frame) -> bool:
+        """A sweep runs once per level, only while the model has not acted on the level yet (level_step counts the
+        RESET that starts a game), never on a finished game, a game over or when a turn's worth of time is not left."""
+        return (self.explore_first > 0 and frame.levels_completed != self._sweep_level and frame.level_step <= 1
+                and not frame.game_over and not frame.done and frame.state is not GameState.NOT_PLAYED
+                and self.ctx.time_left() >= self.min_time_for_turn_s)
+
+    def _build_sweep(self, frame: Frame) -> list[Action]:
+        """Each legal key once, ACT once, then one click per entity class (colour, shape) largest first, skipping HUD
+        entities and anything larger than a quarter of the board (a background is not a target); explore_first caps it."""
+        avail = set(frame.available_actions or [])
+        out = [Action.simple(k) for k in (1, 2, 3, 4) if k in avail]
+        if 5 in avail:
+            out.append(Action.simple(5))
+        if 6 in avail and self.explore_first_clicks > 0 and self.tracker.frames:
+            roles = self.tracker.roles()
+            seen: set[tuple[int, Any]] = set()
+            for e in sorted(self.tracker.compound_frames()[-1], key=lambda e: -e.size):
+                key = (e.color, e.shape)
+                if key in seen or roles.get(e.id) == "hud" or e.size > 1024:
+                    continue
+                seen.add(key)
+                out.append(Action.click((e.x0 + e.x1) // 2, (e.y0 + e.y1) // 2))
+                if len(seen) >= self.explore_first_clicks:
+                    break
+        return out[: self.explore_first]
 
     def observe(self, action: Action, before: Frame, after: Frame) -> None:
         self.frame = after
@@ -322,7 +369,13 @@ class ReplAgent(Agent):
                 # Transient animation frames (Tycho's frame roles): the actor sees a one-line note, code can read
                 # frames; the tracker and the rule fitter only ever see the decision frame.
                 summary += f" [animation: {len(after.layers)} frames]"
-        self.turn_log.append(summary + (" LEVEL COMPLETED" if res["level_completed"] else "") + (" GAME OVER" if after.game_over else ""))
+        line = summary + (" LEVEL COMPLETED" if res["level_completed"] else "") + (" GAME OVER" if after.game_over else "")
+        if self.pending is not None and self.pending.sweep:
+            self.sweep_log.append(line)  # the effect table of the sweep, shown once in the next observation
+            if res["level_completed"] or after.game_over or after.done:
+                self._sweep.clear()  # the level ended under the sweep: whatever is left would probe the wrong board
+        else:
+            self.turn_log.append(line)
         self.fallback.observe(action, before, after)
         req = self.pending
         self.pending = None
@@ -564,6 +617,13 @@ class ReplAgent(Agent):
             parts.append(self.level_notice)
             if include_nudges:
                 self.level_notice = ""
+        if self.sweep_log:
+            parts.append(f"PROBE SWEEP: the harness spent {len(self.sweep_log)} actions at the start of this level so you need not "
+                         "(each legal key once, ACT once, one click per entity class): " + "; ".join(self.sweep_log)
+                         + ". Their events are in the entity log (describe_events(n)) and the Rules line is fitted from them: "
+                         "state the mechanics and the goal hypotheses, then go for the goal instead of re-probing.")
+            if include_nudges:
+                self.sweep_log.clear()
         if self.turn_log:
             parts.append("Since your last turn: " + "; ".join(self.turn_log[-12:]))
             if include_nudges:

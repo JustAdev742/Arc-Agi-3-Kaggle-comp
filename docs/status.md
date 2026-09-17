@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-09-16 (session 1, remote CPU container: 4 vCPU, 15 GB RAM, no GPU; Kaggle CLI authenticated as `scottmahony`).
+Last updated: 2026-09-17 (session 4, remote CPU container: 4 vCPU, 15 GB RAM, no GPU; Kaggle CLI authenticated as `scottmahony`).
 
 ## Competition facts: verified vs. unconfirmed
 
@@ -118,7 +118,9 @@ research log exp-006a.
    is one of the daily allowance and about 9 h of the hidden-set run). I will not publish or submit without that OK.
 2. **GPU quota is exhausted for the week** (30 h; resets 2026-09-19 00:00 UTC). Ready to push, in this order, when
    it resets: exp-019 (memory only) and exp-020 (memory + level boundary + the per-level action-budget notice added
-   after exp-017's 355-796-action levels), three runs each against the six-run base
+   after exp-017's 355-796-action levels), three runs each against the six-run base; then exp-022 (the probe sweep,
+   `explore_first` 8) on top of exp-020, and the serving checks of `docs/research/road-to-100.md` section 5
+   (gpt-oss-120b first, about 15 min of quota each)
    (`scratchpad/nb/exp019`, `scratchpad/nb/exp020`; rebuild from HEAD with `scripts/build_eval_notebook.py`); the
    exp-018 repeat with the image-limit fix; the Flash-Next serving check (`scratchpad/nb/flashnext-diag`; the dataset
    `scottmahony/qwen3-8-flash-next-nvfp4`, all 25 files, 132.7 GB, and the vLLM 0.29.0 wheelhouse
@@ -138,10 +140,11 @@ research log exp-006a.
   measure run-to-run spread, then require a difference larger than that spread before keeping a change.
 
 - Human play data (342 replays for the 25 public games, arcprize.org/blog/arc-agi-3-human-dataset): the download short
-  link (dub.link/vfwCqvb) answers 429 from this container and the replay pages load their data through an endpoint I
-  could not find in 15 minutes. If you can download the "full Public Demo dataset" archive from that blog post and
-  drop it into `data/human/` (or a private Kaggle dataset), plan-100 §4.1 (goal priors from winning steps) becomes
-  a CPU-only job.
+  link (dub.link/vfwCqvb) answers 429 from this container (retried 2026-09-17), the replay pages
+  (`arcprize.org/replay/<guid>`) load their data client-side, and the recordings, REST and scorecard docs name no
+  download endpoint (checked 2026-09-17). If you can download the "full Public Demo dataset" archive from that blog
+  post and drop it into `data/human/` (or a private Kaggle dataset), plan-100 §4.1 (goal priors from winning steps)
+  and road-to-100 item 7 (replay priors) become CPU-only jobs.
 
 - `arc_agi` logs at INFO through the root logger; the harness silences it with a level filter.
 - The starter's `build_notebook.py` writes the agent to `/tmp/my_agent.py`; ours bundles a
@@ -154,6 +157,21 @@ research log exp-006a.
   README and this file were brought up to date. Left as is on purpose: `governor.py` (tested, off the submission
   path since lesson 0011); the council arm (parked); the `notebooks/eval` watchdog's `os._exit(0)`, which skips the
   final summary but no longer loses the per-game results.
+
+## Session 4 outcome (2026-09-17, no GPU quota)
+
+- **Research toward 100 percent (owner's request):** `docs/research/road-to-100.md`. Verified leaderboards, three
+  ARC-AGI-3 papers, Tycho, the Kaggle leaderboard, candidate open models that fit the RTX PRO 6000 (gpt-oss-120b
+  MXFP4, Nemotron 3 Super 120B-A12B NVFP4, Devstral Small 2) with their SM120 serving recipes and Kaggle-hub copies,
+  and the compute budget at the real operating point. Reading: no system reaches 100 on hidden games (best verified
+  62.7 with GPT-6 Astra; Kaggle leader 18.81); the gap from our 1.3 is first the model, then calls per game, then
+  harness structure. Ranked plan with gates in the document; research log entry dated 2026-09-17.
+- **exp-022 built (code-only, tests pass): exploration-first probe sweep** at level start (`explore_first`, off by
+  default): the harness presses each legal key once, ACT once and clicks one entity per class before the first model
+  turn on a level and shows the effect table once. Measured after the quota reset, after exp-019/020.
+- Human replay data still blocked (see follow-ups).
+- Improvement pass (task #37) closed on 2026-09-17 morning: see the follow-ups entry and commits 08076e9, 4bedddf,
+  98dffb6, 96c7d94, 4f78ad1.
 
 ## Session 3 outcome (2026-09-16, midday; in progress)
 

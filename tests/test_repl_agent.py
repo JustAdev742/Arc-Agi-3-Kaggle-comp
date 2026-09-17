@@ -570,3 +570,109 @@ def test_action_budget_notice_fires_at_the_threshold_and_doubles():
             agent2.close()
     finally:
         agent.close()
+
+
+def test_explore_first_sweep_is_built_once_per_level_and_reported_once():
+    import numpy as np
+
+    mock = MockClient([MockClient.tool("act('UP')"), MockClient.say("ok")] * 4)
+    ctx = AgentContext(game_id="fake", deadline=time.time() + 300,
+                       config={"client": mock, "image": False, "explore_first": 8, "explore_first_clicks": 2})
+    agent = get("repl")(ctx)
+    try:
+        g = np.zeros((64, 64), dtype=np.int16)
+        g[10:14, 10:14] = 9   # two entity classes: a 4x4 colour-9 square and a 2x2 colour-3 square
+        g[30:32, 40:42] = 3
+        g[0:64, 0:64][g == 0] = 0
+        f0 = Frame(grid=g, layers=[g], state=GameState.NOT_FINISHED, levels_completed=0, win_levels=3,
+                   available_actions=[1, 2, 3, 4, 5, 6], game_id="fake", step=1, level_step=1)
+        agent.frame = f0
+        agent.tracker.reset(g)
+        assert agent._sweep_due(f0)
+        sweep = agent._build_sweep(f0)
+        names = [a.action.name for a in sweep]
+        # four keys, ACT, then one click per entity class (2), capped at explore_first (8) -> 7 actions
+        assert names[:5] == ["ACTION1", "ACTION2", "ACTION3", "ACTION4", "ACTION5"] and len(sweep) == 7, names
+        clicks = [(a.x, a.y) for a in sweep[5:]]
+        assert (11, 11) in clicks and (40, 30) in clicks, clicks  # centres of the two squares, largest first
+        # a lower cap truncates; a level already played by the model gets no sweep; a game over gets none
+        agent.explore_first = 3
+        assert len(agent._build_sweep(f0)) == 3
+        assert not agent._sweep_due(Frame(grid=g, layers=[g], state=GameState.NOT_FINISHED, levels_completed=0, win_levels=3,
+                                          available_actions=[1], game_id="fake", step=5, level_step=5))
+        assert not agent._sweep_due(Frame(grid=g, layers=[g], state=GameState.GAME_OVER, levels_completed=0, win_levels=3,
+                                          available_actions=[1], game_id="fake", step=1, level_step=1))
+        # act() serves the sweep before any model turn; observe() files the effects in the sweep log, not the turn log
+        agent.explore_first = 8
+        a1 = agent.act(f0)
+        assert agent.pending is not None and agent.pending.sweep and a1.action.name == "ACTION1"
+        g1 = g.copy()
+        g1[10:14, 10:14] = 0
+        g1[9:13, 10:14] = 9  # the square moved up
+        f1 = Frame(grid=g1, layers=[g1], state=GameState.NOT_FINISHED, levels_completed=0, win_levels=3,
+                   available_actions=[1, 2, 3, 4, 5, 6], game_id="fake", step=2, level_step=2)
+        agent.observe(a1, f0, f1)
+        assert agent.sweep_log and "moved" in agent.sweep_log[0] and not agent.turn_log
+        assert agent.stats()["sweep_actions"] == 1 and agent.stats()["actions_model"] == 0
+        # the remaining sweep actions are served without a model turn, once each
+        served = 1
+        while agent._sweep:
+            a = agent.act(f1)
+            assert agent.pending.sweep
+            agent.observe(a, f1, f1)
+            served += 1
+        assert served == 7 and agent.stats()["sweep_actions"] == 7 and mock.calls == []
+        text = agent._observation_text()
+        assert "PROBE SWEEP: the harness spent 7 actions" in text and "moved" in text
+        assert not agent.sweep_log and "PROBE SWEEP" not in agent._observation_text()  # shown once
+        # a level completed by a sweep action drops the rest of the sweep; the next level gets its own sweep
+        agent._sweep = deque_of(agent, [Action.simple(1), Action.simple(2)])
+        agent.pending = agent_req(agent, Action.simple(1))
+        g2 = np.zeros((64, 64), dtype=np.int16)
+        g2[20:24, 20:24] = 9
+        f2 = Frame(grid=g2, layers=[g, g2], state=GameState.NOT_FINISHED, levels_completed=1, win_levels=3,
+                   available_actions=[1, 2, 3, 4], game_id="fake", step=9, level_step=0)
+        agent.observe(Action.simple(1), f1, f2)
+        assert not agent._sweep and "LEVEL COMPLETED" in agent.sweep_log[-1]
+        assert agent._sweep_due(f2) and len(agent._build_sweep(f2)) == 4
+    finally:
+        agent.close()
+
+
+def deque_of(agent, actions):
+    from collections import deque
+    return deque(actions)
+
+
+def agent_req(agent, action):
+    from arc3.agents.repl_agent import _Req
+    return _Req(action, auto=True, sweep=True)
+
+
+def test_explore_first_sweep_precedes_the_first_model_turn_on_a_real_game():
+    mock = MockClient([MockClient.tool("act('UP')"), MockClient.say("ok")] * 6)
+    arc = make_arcade("environment_files")
+    env = LocalEnv(arc, "ls20")
+    ctx = AgentContext(game_id="ls20", deadline=time.time() + 120,
+                       config={"client": mock, "image": False, "explore_first": 6, "explore_first_clicks": 1})
+    agent = get("repl")(ctx)
+    try:
+        run(agent, env, 10)
+        st = agent.stats()
+        assert 1 <= st["sweep_actions"] <= 6, st
+        assert env.step_count == 10 and st["actions_model"] + st["sweep_actions"] + st["actions_fallback"] == 10, st
+        first_user = next(m for m in mock.calls[0] if m.get("role") == "user")
+        text = first_user["content"] if isinstance(first_user["content"], str) else first_user["content"][0]["text"]
+        assert "PROBE SWEEP" in text, text[:300]
+        # shown once: the last call's history holds the first observation and nothing later repeats the line
+        users = [m["content"] if isinstance(m["content"], str) else m["content"][0]["text"] for m in mock.calls[-1] if m.get("role") == "user"]
+        assert len(users) >= 2 and sum("PROBE SWEEP" in u for u in users) == 1, users
+        # off by default
+        agent2 = get("repl")(AgentContext(game_id="ls20", deadline=time.time() + 120, config={"client": MockClient([MockClient.say("ok")]), "image": False}))
+        try:
+            assert agent2.explore_first == 0 and not agent2._sweep_due(env.frame)
+        finally:
+            agent2.close()
+    finally:
+        agent.close()
+        env.close()

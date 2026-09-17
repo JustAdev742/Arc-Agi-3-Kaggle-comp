@@ -7,6 +7,7 @@ mechanism below is a hypothesis to be measured with the discipline in CLAUDE.md,
 section 6. Items 1-4 of section 6 have been built in some form (perception, entity tracker, rule DSL,
 verified execution, learning memory, level-boundary consolidation); see lesson 0013 for the external
 reference point (Tycho) and what was ported from it.
+`docs/research/road-to-100.md` (2026-09-17) is the evidence survey that ranks the next steps.
 
 ## 1. What 100% means, exactly
 
