@@ -134,7 +134,10 @@ research log exp-006a.
    it resets: (0) the submission notebook's private Save & Run All at the current HEAD (about 20 min; the Milestone 2
    gate; the push on 2026-09-17 03:20 UTC answered "Maximum weekly GPU quota of 30.00 hours reached"); (1) exp-024,
    the champion preset at HEAD as the control every arm compares with (`scratchpad/nb/exp024`); then exp-023
-   (no-op memory) and exp-023b (hard skip) against it; then exp-019 (memory only) and exp-020 (memory + level boundary + the per-level action-budget notice added
+   (no-op memory) and exp-023b (hard skip) against it; exp-025 (arm B: Qwen3.8-27B NVFP4, `scratchpad/nb/exp025`,
+   champion preset, Marlin NVFP4 ladder) and the Flash-Next serving check (arm D, `scratchpad/nb/flashnext-diag`) for the
+   model-challenger set of the research brief (arm C = FP8 at medium effort is exp-013/013b, already measured: 1.251 / 0.866);
+   then exp-019 (memory only) and exp-020 (memory + level boundary + the per-level action-budget notice added
    after exp-017's 355-796-action levels), three runs each against the six-run base; then exp-022 (the probe sweep,
    `explore_first` 8, plus the goal-hypothesis line) on top of exp-020, and the gpt-oss-120b serving check of
    `docs/research/road-to-100.md` section 5 (about 50 min of quota; Nemotron dropped, see item 1). Exact commands
