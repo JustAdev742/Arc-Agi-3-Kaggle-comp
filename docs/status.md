@@ -119,8 +119,23 @@ research log exp-006a.
 2. **GPU quota is exhausted for the week** (30 h; resets 2026-09-19 00:00 UTC). Ready to push, in this order, when
    it resets: exp-019 (memory only) and exp-020 (memory + level boundary + the per-level action-budget notice added
    after exp-017's 355-796-action levels), three runs each against the six-run base; then exp-022 (the probe sweep,
-   `explore_first` 8) on top of exp-020, and the serving checks of `docs/research/road-to-100.md` section 5
-   (gpt-oss-120b first, about 15 min of quota each)
+   `explore_first` 8, plus the goal-hypothesis line) on top of exp-020, and the serving checks of
+   `docs/research/road-to-100.md` section 5 (gpt-oss-120b first, about 50 min of quota each). Exact commands
+   (rebuild from HEAD first so the tarball carries the current harness; `S` is the session scratchpad or any folder):
+
+   ```bash
+   B=".venv/bin/python scripts/build_eval_notebook.py --agent repl --split dev --time-per-game 1200 --workers 8"
+   $B --config '{"context_tokens": 32768, "reasoning_effort": "low", "max_output_tokens": 3072, "level_consolidation": false}' \
+      --slug arc3-eval-dev-m --run-name kaggle-repl-dev-019 --note "exp-019 memory arm" --out $S/nb/exp019
+   $B --config '{"context_tokens": 32768, "reasoning_effort": "low", "max_output_tokens": 3072, "level_action_notice": 120}' \
+      --slug arc3-eval-dev-n --run-name kaggle-repl-dev-020 --note "exp-020 level boundary + action notice" --out $S/nb/exp020
+   $B --config '{"context_tokens": 32768, "reasoning_effort": "low", "max_output_tokens": 3072, "level_action_notice": 120, "explore_first": 8, "explore_first_clicks": 4}' \
+      --slug arc3-eval-dev-o --run-name kaggle-repl-dev-022 --note "exp-022 sweep + goal hypotheses" --out $S/nb/exp022
+   .venv/bin/python scripts/push_eval.py $S/nb/exp019      # one kernel at a time (one RTX slot); repeat each arm three times
+   .venv/bin/python scripts/pull_run.py scottmahony/arc3-eval-dev-m kaggle-repl-dev-019
+   # serving checks (docs/models/*/NOTES.md hold the attempt ladders used to build these; rebuild the same way):
+   .venv/bin/python scripts/push_eval.py $S/nb/diag-gptoss && .venv/bin/python scripts/push_eval.py $S/nb/diag-nemotron
+   ```
    (`scratchpad/nb/exp019`, `scratchpad/nb/exp020`; rebuild from HEAD with `scripts/build_eval_notebook.py`); the
    exp-018 repeat with the image-limit fix; the Flash-Next serving check (`scratchpad/nb/flashnext-diag`; the dataset
    `scottmahony/qwen3-8-flash-next-nvfp4`, all 25 files, 132.7 GB, and the vLLM 0.29.0 wheelhouse
