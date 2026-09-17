@@ -32,6 +32,13 @@ Diag ladder (`scratchpad/nb/diag-nemotron`, slug `arc3-diag-nemotron`): (1) defa
 NVFP4 GEMM env, FP8 KV; (3) Marlin env, auto KV, eager, 8 seqs. REPL smoke on ls20 + vc33 without images, temperature
 1.0 / top_p 0.95.
 
+## Decision (2026-09-17, owner delegated the call)
+
+Not used for the submission: the NVIDIA Open Model License is not an OSI open-source license and the prize rules ask
+for open-sourced solutions, and on 96 GB the model leaves about 16 GB for KV cache, which caps the concurrency the
+9-hour budget needs most (road-to-100 section 4). The serving check is dropped from the quota queue; the built kernel
+(`scratchpad/nb/diag-nemotron`) and these notes stay as the record. gpt-oss-120b (Apache-2.0) is the candidate.
+
 ## Risks
 
 - KV headroom (about 16 GB) caps concurrency; the aggregate tok/s at 8 concurrent decides.

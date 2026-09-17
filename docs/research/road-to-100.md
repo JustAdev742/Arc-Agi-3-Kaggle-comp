@@ -153,3 +153,6 @@ Each item is a hypothesis with a gate; the six-run dev base and the noise rule (
 - Serving checks (task #40) need the 2026-09-19 quota reset; exp-019/020 go first (six runs, about 18 h of the 30). The
   two diag kernels are built (`scratchpad/nb/diag-gptoss`, `scratchpad/nb/diag-nemotron`; research log 2026-09-17).
 - The NVFP4 27B A/B remains unrun (dataset uploaded 2026-09-16).
+- Decisions 2026-09-17 (owner delegated): code license Apache-2.0; Nemotron 3 Super not used for the submission (license,
+  KV headroom); gpt-oss-120b is the candidate model; no competition submission unless the code is verified end to end,
+  and the owner's "over 50" condition cannot be met by any run of ours (section 0), which is stated in `docs/status.md`.

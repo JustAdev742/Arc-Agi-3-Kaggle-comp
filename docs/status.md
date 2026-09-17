@@ -111,16 +111,25 @@ research log exp-006a.
 
 ## Open items (need you)
 
-1. **Milestone 2 (closes 2026-09-30):** the submission notebook (single 27B REPL agent, exp-011 harness plus the
-   fixes since) passed its private Save & Run All on the RTX on 2026-09-16. Two decisions are yours: (a) the
-   open-source license for the public copy (MIT or Apache-2.0 for the code; the model weights are Apache-2.0
-   already); (b) the go-ahead to make the notebook public and to press Submit to Competition (each real submission
-   is one of the daily allowance and about 9 h of the hidden-set run). I will not publish or submit without that OK.
+1. **Milestone 2 (closes 2026-09-30) — decisions received 2026-09-17.** License: **Apache-2.0** (`LICENSE` at the
+   root, packed into the notebook bundle, named in the notebook header). Publication: allowed; my decision is to
+   publish the notebook together with a submission, not before (a public copy without an entry only gives the code
+   away). Submission: the owner's condition is "fully verify it will get over 50 or 100 percent and the code works".
+   The first part cannot be met: the score is percent of human-level RHAE, our dev base is 0.6-1.4, exp-017 is 1.29,
+   the public leader is 18.81 (`docs/research/road-to-100.md`); no run of ours can be verified above 50. So **no
+   submission is made under that condition**. What I will do: keep the notebook in a state that passes a private
+   Save & Run All on the RTX at every harness change (the last pass was harness 699825b on 2026-09-16; a re-run at the
+   current HEAD is first in the quota queue below), so that a Milestone 2 entry is one click away if the owner
+   decides an entry at the expected 1-3 is worth having for the leaderboard position and the end-to-end validation.
+   Nemotron 3 Super: **not for the submission** (NVIDIA Open Model License, not OSI; and its KV headroom on 96 GB
+   caps the concurrency we need most); its serving check is dropped from the queue, the built kernel and notes stay.
+   gpt-oss-120b (Apache-2.0) remains the candidate model.
 2. **GPU quota is exhausted for the week** (30 h; resets 2026-09-19 00:00 UTC). Ready to push, in this order, when
-   it resets: exp-019 (memory only) and exp-020 (memory + level boundary + the per-level action-budget notice added
+   it resets: (0) the submission notebook's private Save & Run All at the current HEAD (about 20 min; the Milestone 2
+   gate); then exp-019 (memory only) and exp-020 (memory + level boundary + the per-level action-budget notice added
    after exp-017's 355-796-action levels), three runs each against the six-run base; then exp-022 (the probe sweep,
-   `explore_first` 8, plus the goal-hypothesis line) on top of exp-020, and the serving checks of
-   `docs/research/road-to-100.md` section 5 (gpt-oss-120b first, about 50 min of quota each). Exact commands
+   `explore_first` 8, plus the goal-hypothesis line) on top of exp-020, and the gpt-oss-120b serving check of
+   `docs/research/road-to-100.md` section 5 (about 50 min of quota; Nemotron dropped, see item 1). Exact commands
    (rebuild from HEAD first so the tarball carries the current harness; `S` is the session scratchpad or any folder):
 
    ```bash
@@ -133,8 +142,9 @@ research log exp-006a.
       --slug arc3-eval-dev-o --run-name kaggle-repl-dev-022 --note "exp-022 sweep + goal hypotheses" --out $S/nb/exp022
    .venv/bin/python scripts/push_eval.py $S/nb/exp019      # one kernel at a time (one RTX slot); repeat each arm three times
    .venv/bin/python scripts/pull_run.py scottmahony/arc3-eval-dev-m kaggle-repl-dev-019
-   # serving checks (docs/models/*/NOTES.md hold the attempt ladders used to build these; rebuild the same way):
-   .venv/bin/python scripts/push_eval.py $S/nb/diag-gptoss && .venv/bin/python scripts/push_eval.py $S/nb/diag-nemotron
+   # Milestone 2 gate first: make notebook && .venv/bin/python scripts/push_eval.py notebooks  (private Save & Run All)
+   # serving check (docs/models/gpt-oss-120b-mxfp4/NOTES.md holds the attempt ladder used to build it; rebuild the same way):
+   .venv/bin/python scripts/push_eval.py $S/nb/diag-gptoss
    ```
    (`scratchpad/nb/exp019`, `scratchpad/nb/exp020`; rebuild from HEAD with `scripts/build_eval_notebook.py`); the
    exp-018 repeat with the image-limit fix; the Flash-Next serving check (`scratchpad/nb/flashnext-diag`; the dataset

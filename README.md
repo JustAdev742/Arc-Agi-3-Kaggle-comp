@@ -91,6 +91,11 @@ and the vLLM wheelhouse are attached as private datasets named in `notebooks/ker
 Without a model dataset the notebook falls back to the rules agent, so the pipeline can be validated
 end-to-end before any GPU quota is spent.
 
+## License
+
+Apache License 2.0 (`LICENSE`; the owner's decision of 2026-09-17). The submission notebook embeds the file with the
+code bundle so the public copy carries it. Model weights are the vendors' own licenses (Qwen3.8-27B: Apache-2.0).
+
 ## Research discipline
 
 Hypothesis, fixed dev evaluation with the same seed and settings as the current best, keep or revert,

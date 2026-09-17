@@ -657,3 +657,15 @@ Change:   scripts/human_replays.py parses the documented recording JSONL (docs.a
           click fraction; cross-game aggregates for hidden-game priors (per-game figures are for dev-split analysis only:
           using them in play on dev games would be leakage). Test on a synthetic recording (tests/test_human_replays.py).
 Blocked:  the dataset itself (docs/status.md follow-ups: browser download by the owner).
+
+## 2026-09-17 · decisions from the owner: Apache-2.0, publication, submission condition, Nemotron · RECORDED
+Owner:    license Apache-2.0 (LICENSE at the root, packed into the notebook bundle, named in the notebook header,
+          pyproject license field); the notebook may be made public; "you decide" on submitting, with the condition
+          "fully verify it will get over 50 or 100 percent and the code works"; "decide if you want to use nemotron".
+Decided:  publish together with a submission, not before. No submission under the "over 50" condition: the metric is
+          percent of human-level RHAE, our dev base is 0.6-1.4 and the public leader 18.81, so no run of ours can be
+          verified above 50; said plainly in docs/status.md with the alternative (an entry at the expected 1-3 for the
+          leaderboard position and the end-to-end validation) left to the owner. Nemotron 3 Super not used for the
+          submission (NVIDIA Open Model License, not OSI; about 16 GB of KV headroom on 96 GB); its serving check is
+          dropped from the queue; gpt-oss-120b (Apache-2.0) stays the candidate. The private Save & Run All of the
+          submission notebook at HEAD moves to the front of the quota queue as the Milestone 2 gate.
