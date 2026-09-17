@@ -103,8 +103,8 @@ or dataset copy already exists (no upload needed).
 Reading: the two MoE models trade the image for 5 to 10x more tokens per second, which per section 4 is the
 lever we are shortest on; Tycho found the text grid sufficient with a frontier model, the Duck found the image
 helped a 27B. Both are A/B questions, not decisions. Order of the serving checks (task #40): gpt-oss-120b (recipe
-and hub copy both exist; the offline FlashInfer JIT is the one thing to confirm), then Nemotron 3 Super (needs a
-newer vLLM wheelhouse), then Devstral (needs an upload and a quant). A serving check is one diag kernel (about
+and hub copy both exist; the MoE backend on SM120 is the thing to confirm), then Devstral (needs an upload and a
+quant); Nemotron 3 Super was dropped on 2026-09-17 (section 8: license and KV headroom). A serving check is one diag kernel (about
 15 min of quota); a dev run is 3 h. Decision rule: a model earns a dev run only if its aggregate tok/s at 8
 concurrent is at or above the 27B's 308 and its two-game REPL smoke solves at least what the 27B did.
 
