@@ -1602,6 +1602,17 @@ def goal_predicates(frames_by_level: list[tuple[list[Frame], bool]]) -> list[dic
         return []
     colors = sorted({e.color for fr in won for e in fr[-1]} | {e.color for fr in won for e in fr[0]})
     preds: list[tuple[str, str, tuple, Callable[[Frame], bool]]] = []
+    # Shape-keyed classes: a specific (colour, shape) present at the start of every won level, at most a few of them
+    # (the human ls20 recording, 2026-09-17: the win is a colour-3 9x9 ring vanishing while other colour-3 entities
+    # stay, which no colour-only predicate can say).
+    shape_classes: Optional[set[tuple[int, str]]] = None
+    for fr in won:
+        here = {(e.color, e.shape) for e in fr[0] if e.size <= 400 and e.shape}
+        here = {cs for cs in here if sum(1 for e in fr[0] if (e.color, e.shape) == cs) <= 4}
+        shape_classes = here if shape_classes is None else shape_classes & here
+    for c, sh in sorted(shape_classes or ()):
+        preds.append((f"vanish(colour {c}, shape {sh[:8]})", "vanish_shape", (c, sh),
+                      lambda f, c=c, sh=sh: not any(e.color == c and e.shape == sh for e in f)))
     for c in colors:
         preds.append((f"none_left(colour {c})", "none_left", (c,), lambda f, c=c: not any(e.color == c for e in f)))
         for n in range(1, 5):
@@ -1633,6 +1644,10 @@ def goal_predicates(frames_by_level: list[tuple[list[Frame], bool]]) -> list[dic
                               lambda f, a=a, b=b: any(x is not y and y.x0 <= x.x0 and x.x1 <= y.x1 and y.y0 <= x.y0 and x.y1 <= y.y1
                                                       and (x.x1 - x.x0 + 1) * (x.y1 - x.y0 + 1) < (y.x1 - y.x0 + 1) * (y.y1 - y.y0 + 1)
                                                       for x in f if x.color == a for y in f if y.color == b)))
+            # A moved or built shape equals a reference shape (masks equal up to translation, colours may differ):
+            # the human ls20 recording (2026-09-17) had no consistent predicate from level 3 on without this kind.
+            preds.append((f"shape_matches(colour {a}, colour {b})", "shape_matches", (a, b),
+                          lambda f, a=a, b=b: any(x is not y and same_mask(x, y) for x in f if x.color == a for y in f if y.color == b)))
     out = []
     for name, kind, args, p in preds:
         ok = True
@@ -1645,10 +1660,20 @@ def goal_predicates(frames_by_level: list[tuple[list[Frame], bool]]) -> list[dic
     return out
 
 
+def same_mask(x: Ent, y: Ent) -> bool:
+    """Equal pixel masks up to translation (colour ignored); with unknown or solid masks, equal boxes and sizes."""
+    if (x.w, x.h, x.size) != (y.w, y.h, y.size):
+        return False
+    mx, my = x._mask(), y._mask()
+    if mx is None or my is None:
+        return mx is my  # both solid / unknown with the same box and size
+    return bool(np.array_equal(mx, my))
+
+
 # ------------------------------------------------------------------------------ goal hypotheses: distance, falsification
 _GOAL_NAME = re.compile(r"^(\w+)\((?:colour )?(\d+)(?:, colour (\d+))?\)(?: == (\d+))?$")
 GOAL_KINDS = ("none_left", "count", "aligned", "all_same_colour_as", "overlap", "touch", "same_box", "same_columns", "same_rows",
-              "inside", "reach", "reach_entity")
+              "inside", "shape_matches", "vanish_shape", "reach", "reach_entity")
 
 
 def goal_kind(goal: Any) -> Optional[tuple[str, tuple]]:
@@ -1660,6 +1685,8 @@ def goal_kind(goal: Any) -> Optional[tuple[str, tuple]]:
         (k, v), = goal.items()
         if k not in GOAL_KINDS:
             return None
+        if k == "vanish_shape":
+            return k, (int(v[0]), str(v[1]))
         args = tuple(int(x) for x in v) if isinstance(v, (tuple, list)) else (int(v),)
         return k, args
     if isinstance(goal, str):
@@ -1688,6 +1715,8 @@ def goal_distance(kind: str, args: tuple, frame: Frame, *, avatar_id: Optional[i
     ents = list(frame)
     if kind == "none_left":
         return sum(1 for e in ents if e.color == args[0])
+    if kind == "vanish_shape":
+        return sum(1 for e in ents if e.color == int(args[0]) and e.shape == str(args[1]))
     if kind == "count":
         return abs(sum(1 for e in ents if e.color == args[0]) - int(args[1]))
     if kind == "all_same_colour_as":
@@ -1697,7 +1726,7 @@ def goal_distance(kind: str, args: tuple, frame: Frame, *, avatar_id: Optional[i
         if len(same) < 2:
             return None
         return min(len({e.x0 for e in same}), len({e.y0 for e in same})) - 1
-    if kind in ("overlap", "touch", "same_box", "same_columns", "same_rows", "inside"):
+    if kind in ("overlap", "touch", "same_box", "same_columns", "same_rows", "inside", "shape_matches"):
         a, b = int(args[0]), int(args[1])
         best: Optional[int] = None
         for x in ents:
@@ -1706,7 +1735,9 @@ def goal_distance(kind: str, args: tuple, frame: Frame, *, avatar_id: Optional[i
             for y in ents:
                 if y.color != b or x is y:
                     continue
-                if kind == "overlap":
+                if kind == "shape_matches":
+                    d = 0 if same_mask(x, y) else abs(x.w - y.w) + abs(x.h - y.h) + abs(x.size - y.size)
+                elif kind == "overlap":
                     d = _gap(x, y)
                 elif kind == "touch":
                     d = max(0, _gap(x, y) - 1)
@@ -1745,7 +1776,7 @@ def goal_predicate(kind: str, args: tuple, *, avatar_id: Optional[int] = None) -
         return lambda f: _aligned([e for e in f if e.color == args[0]])
     if kind == "all_same_colour_as":
         return lambda f: len({e.color for e in f}) == 1 and all(e.color == args[0] for e in f)
-    if kind in ("none_left", "count", "overlap", "touch", "same_box", "same_columns", "same_rows", "inside"):
+    if kind in ("none_left", "count", "overlap", "touch", "same_box", "same_columns", "same_rows", "inside", "shape_matches", "vanish_shape"):
         d = goal_distance
         return lambda f: d(kind, args, f) == 0
     if kind == "reach_entity":

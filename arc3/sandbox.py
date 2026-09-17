@@ -236,6 +236,9 @@ def _goal_fn(goal):
         (k, v), = goal.items()
         if k == "none_left":
             return lambda f: not any(e.color == int(v) for e in f)
+        if k == "vanish_shape":
+            c, sh = int(v[0]), str(v[1])
+            return lambda f: not any(e.color == c and e.shape == sh for e in f)
         if k == "count":
             c, n = v
             return lambda f: sum(1 for e in f if e.color == int(c)) == int(n)
@@ -243,11 +246,13 @@ def _goal_fn(goal):
             a, b = v
             pad = 1 if k == "touch" else 0
             return lambda f: any(x.overlaps(y, pad) for x in f if x.color == int(a) for y in f if y.color == int(b))
-        if k in ("same_box", "same_columns", "same_rows", "inside"):
+        if k in ("same_box", "same_columns", "same_rows", "inside", "shape_matches"):
             a, b = int(v[0]), int(v[1])
             def _rel(x, y, k=k):
                 if x is y:
                     return False
+                if k == "shape_matches":
+                    return _dsl.same_mask(x, y)
                 if k == "same_box":
                     return (x.x0, x.y0, x.x1, x.y1) == (y.x0, y.y0, y.x1, y.y1)
                 if k == "same_columns":
@@ -273,7 +278,8 @@ def _goal_fn(goal):
             return lambda f: any(e.id == aid and e.overlaps(box, 1) for e in f)
     raise ValueError("goal must be a callable(frame)->bool, a goal_candidates() name, or one of "
                      "{'none_left': colour}, {'count': (colour, n)}, {'overlap': (a, b)}, {'touch': (a, b)}, {'same_box': (a, b)}, "
-                     "{'same_columns': (a, b)}, {'same_rows': (a, b)}, {'inside': (a, b)}, {'reach': (x, y)}, {'reach_entity': id}")
+                     "{'same_columns': (a, b)}, {'same_rows': (a, b)}, {'inside': (a, b)}, {'shape_matches': (a, b)}, "
+                     "{'vanish_shape': (colour, shape_hash)}, {'reach': (x, y)}, {'reach_entity': id}")
 
 def plan_rules(goal, rules=None, max_depth=200, max_nodes=40000, optimistic=True):
     """Shortest action list reaching `goal` in the rule-set simulation from the current frame (BFS), or None.

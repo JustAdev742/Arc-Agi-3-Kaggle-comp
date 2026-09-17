@@ -246,3 +246,30 @@ def test_goal_kinds_distances_progress_and_falsification():
     r2 = goal_progress(["same_box(colour 1, colour 4)"], [f0, f1, f2], avatar_id=1, history=[f2], falsified=known, history_offset=2)
     assert r2[0]["falsified"] and r2[0]["falsified_at"] == 2 and known == {"same_box(colour 1, colour 4)": 2}
     assert goal_progress([], [f0]) == [] and goal_progress(["none_left(colour 4)"], []) == []
+
+
+def test_shape_matches_goal_kind():
+    from arc3.dsl import goal_distance, goal_kind, goal_predicates, same_mask
+    a, b = E(1, 1, 2, 2, w=2, h=3), E(2, 4, 10, 10, w=2, h=3)  # equal boxes and sizes, unknown masks: match
+    c = E(3, 4, 20, 20, w=3, h=3)
+    assert same_mask(a, b) and not same_mask(a, c)
+    assert goal_kind("shape_matches(colour 1, colour 4)") == ("shape_matches", (1, 4))
+    assert goal_distance("shape_matches", (1, 4), (a, c)) == 1 + 0 + 3 and goal_distance("shape_matches", (1, 4), (a, b)) == 0
+    fr = [(a, c), (E(1, 1, 3, 2, w=2, h=3), c), (E(1, 1, 3, 2, w=3, h=3), c)]  # the colour-1 shape grows into the reference shape
+    names = {g["goal"] for g in goal_predicates([(fr, True)])}
+    assert "shape_matches(colour 1, colour 4)" in names and "shape_matches(colour 4, colour 1)" in names
+
+
+def test_vanish_shape_goal_kind_survives_other_entities_of_the_colour():
+    from arc3.dsl import goal_distance, goal_kind, goal_predicates
+    ring = E(5, 3, 20, 20, w=9, h=9, shape="ring9")
+    wall = E(6, 3, 0, 0, w=64, h=2, shape="wall")
+    av = E(1, 5, 2, 2, w=7, h=7, shape="av")
+    fr = [(ring, wall, av), (ring, wall, E(1, 5, 10, 10, w=7, h=7, shape="av")), (wall, E(1, 5, 20, 20, w=7, h=7, shape="av"))]
+    goals = goal_predicates([(fr, True)])
+    by = {g["goal"]: g for g in goals}
+    name = "vanish(colour 3, shape ring9)"
+    assert name in by and by[name]["kind"] == "vanish_shape" and by[name]["args"] == (3, "ring9")
+    assert "none_left(colour 3)" not in by  # the wall stays, so colour-only vanishing is wrong here
+    assert goal_kind({"vanish_shape": (3, "ring9")}) == ("vanish_shape", (3, "ring9"))
+    assert goal_distance("vanish_shape", (3, "ring9"), fr[0]) == 1 and goal_distance("vanish_shape", (3, "ring9"), fr[-1]) == 0
