@@ -564,3 +564,40 @@ def test_child_source_passes_pyflakes():
     r = subprocess.run([ruff, "check", "--isolated", "--select", "F,E9,B006,B007", "--ignore", "E731", "--quiet", str(src)],
                        capture_output=True, text=True, check=False)
     assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_disagreement_probe_ranks_actions_that_separate_alive_hypotheses():
+    sb = PersistentSandbox(sys_path=[ROOT] + sys.path)
+    g = np.zeros((64, 64), dtype=int)
+    g[10:12, 10:12] = 3
+    st = state(g, [g])
+    st["available"] = ["UP", "DOWN", "CLICK"]
+    code = """
+import numpy as np
+def up(grid, a):
+    g = np.array(grid)
+    if a == 'UP':
+        g = np.roll(g, -1, axis=0)
+    return g
+def still(grid, a):
+    return np.array(grid)
+def up_or_down(grid, a):
+    g = np.array(grid)
+    if a in ('UP', 'DOWN'):
+        g = np.roll(g, -1 if a == 'UP' else 1, axis=0)
+    return g
+print(disagreement_probe())  # fewer than two hypotheses: nothing to separate
+set_models({'up': up, 'still': still, 'ud': up_or_down})
+r = disagreement_probe()
+print([(x['action'], x['distinct']) for x in r])
+print(disagreement_probe(['DOWN'])[0]['groups'])
+"""
+    r = sb.run(code, st, timeout_s=30)
+    assert r["error"] == "", r
+    lines = r["stdout"].strip().splitlines()
+    assert lines[0] == "[]"
+    ranked = eval(lines[1])  # test output
+    assert ranked[0] == ("DOWN", 2) or ranked[0] == ("UP", 2)  # UP: up+ud vs still (2 outcomes); DOWN: ud vs up+still (2)
+    assert dict(ranked)["UP"] == 2 and dict(ranked)["DOWN"] == 2
+    assert eval(lines[2]) == [["still", "up"], ["ud"]]  # names in alive_models() order
+    sb.stop()

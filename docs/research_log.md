@@ -754,3 +754,12 @@ Change:   entities.segments(grid, bg, bg_holes): with the knob, background-colou
 Expected: goal_hints and rules see slots on games that draw them in the background colour; risk: extra entities on
           games with decorative background pockets (the 400-cell and border filters bound it).
 Measured: not run (rides in the exp-022 bundle).
+
+## 2026-09-17 · disagreement_probe() · experiment selection over alive hypotheses (brief item 12) · BUILT (code-only)
+Why:      the sandbox keeps competing world models (set_models) and kills them on real actions, but nothing told the
+          model which action would separate the survivors; probe_suggestions() only lists untested actions.
+Change:   sandbox disagreement_probe(actions=None): for each candidate action (legal keys and ACT plus the clicks
+          probe_suggestions() proposes, or the model's own list) the number of distinct next grids the alive
+          hypotheses predict, best first, with the hypothesis names per outcome; [] with fewer than two alive. Prompt:
+          the set_models line points at it. Test: test_disagreement_probe_ranks_actions_that_separate_alive_hypotheses.
+Measured: not run (a helper the model may call; part of the exp-022 bundle's prompt).

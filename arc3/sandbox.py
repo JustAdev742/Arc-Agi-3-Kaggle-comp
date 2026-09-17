@@ -603,6 +603,36 @@ def set_models(models):
 def alive_models():
     return sorted(HYP["alive"])
 
+def disagreement_probe(actions=None, limit=8):
+    """Experiment selection over the alive hypotheses (set_models): for each candidate action, how many distinct next
+    grids the alive hypotheses predict from the current grid. An action they all agree on teaches nothing about which
+    is right; the top entry is the cheapest probe that separates them. Candidates: the legal keys and ACT plus the
+    clicks probe_suggestions() proposes, or your own list. Returns [{'action', 'distinct', 'groups'}] best first
+    (groups = hypothesis names per predicted outcome); [] with fewer than two alive hypotheses."""
+    names = alive_models()
+    if len(names) < 2:
+        return []
+    if actions is None:
+        avail = list(G.get("available") or [])
+        cands = [k for k in ("UP", "DOWN", "LEFT", "RIGHT", "ACT") if k in avail]
+        cands += [p["action"] for p in probe_suggestions() if isinstance(p.get("action"), tuple)]
+    else:
+        cands = list(actions)
+    grid = G["grid"]
+    out = []
+    for a in cands:
+        label = _action_label(a) if isinstance(a, dict) else (tuple(a) if isinstance(a, (list, tuple)) else str(a).upper())
+        outcomes = {}
+        for name in names:
+            try:
+                h = _P.grid_hash(_to_grid(HYP["models"][name](grid.copy(), label)))
+            except Exception as e:  # noqa: BLE001  (a hypothesis that errors is its own outcome)
+                h = f"error:{type(e).__name__}"
+            outcomes.setdefault(h, []).append(name)
+        out.append({"action": label, "distinct": len(outcomes), "groups": list(outcomes.values())})
+    out.sort(key=lambda r: -r["distinct"])
+    return out[:limit]
+
 def _check_hypotheses(before, action, after):
     if not HYP["models"]:
         return None
@@ -902,7 +932,7 @@ HELPER_NAMES = ("objects", "components", "diff", "ascii", "tilemap", "downscale"
                 "ents", "events", "event_log", "describe_events", "avatar", "roles", "entity",
                 "move_model", "plan_to", "plan_to_entity",
                 "symlog", "fit_rules", "auto_rules", "rules", "explain_rules", "rules_predictor", "plan_rules", "goal_candidates", "goal_hints",
-                "goal_progress", "goal_probe", "probe_suggestions", "PLAN")
+                "goal_progress", "goal_probe", "probe_suggestions", "disagreement_probe", "PLAN")
 HELPERS = {_n: globals()[_n] for _n in HELPER_NAMES}
 G.update(HELPERS)
 
