@@ -534,3 +534,39 @@ def test_consolidation_is_skipped_when_disabled_or_out_of_time():
         assert agent.stats()["model_calls"] == calls_before and [m["role"] for m in agent.messages] == ["system"]
     finally:
         agent.close()
+
+
+def test_action_budget_notice_fires_at_the_threshold_and_doubles():
+    import numpy as np
+
+    mock = MockClient([MockClient.tool("act('UP')"), MockClient.say("ok")] * 6)
+    ctx = AgentContext(game_id="fake", deadline=time.time() + 300, config={"client": mock, "image": False, "level_action_notice": 4})
+    agent = get("repl")(ctx)
+    try:
+        g = np.zeros((64, 64), dtype=np.int16)
+        g[10:14, 10:14] = 9
+        agent.frame = _frame(g, level_step=3)
+        agent.tracker.reset(g)
+        assert "ACTION BUDGET" not in agent._observation_text()
+        agent.frame = _frame(g, level_step=4)
+        text = agent._observation_text()
+        assert "ACTION BUDGET: 4 actions spent on level 1" in text and agent.stats()["action_budget_notices"] == 1
+        agent.frame = _frame(g, level_step=6)
+        assert "ACTION BUDGET" not in agent._observation_text()  # next notice at the doubling (8)
+        agent.frame = _frame(g, level_step=9)
+        assert "ACTION BUDGET: 9 actions" in agent._observation_text()
+        # a completed level resets the threshold for the next level
+        g2 = np.zeros((64, 64), dtype=np.int16)
+        g2[30:34, 30:34] = 9
+        agent.observe(Action.simple(1), _frame(g, level_step=9), _frame(g2, levels=1, level_step=0))
+        assert agent._action_notice_next == 4
+        # off by default
+        agent2 = get("repl")(AgentContext(game_id="fake", deadline=time.time() + 300, config={"client": mock, "image": False}))
+        try:
+            agent2.frame = _frame(g, level_step=500)
+            agent2.tracker.reset(g)
+            assert "ACTION BUDGET" not in agent2._observation_text()
+        finally:
+            agent2.close()
+    finally:
+        agent.close()

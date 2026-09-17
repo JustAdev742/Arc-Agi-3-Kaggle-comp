@@ -117,7 +117,8 @@ research log exp-006a.
    already); (b) the go-ahead to make the notebook public and to press Submit to Competition (each real submission
    is one of the daily allowance and about 9 h of the hidden-set run). I will not publish or submit without that OK.
 2. **GPU quota is exhausted for the week** (30 h; resets 2026-09-19 00:00 UTC). Ready to push, in this order, when
-   it resets: exp-019 (memory only) and exp-020 (memory + level boundary), three runs each against the six-run base
+   it resets: exp-019 (memory only) and exp-020 (memory + level boundary + the per-level action-budget notice added
+   after exp-017's 355-796-action levels), three runs each against the six-run base
    (`scratchpad/nb/exp019`, `scratchpad/nb/exp020`; rebuild from HEAD with `scripts/build_eval_notebook.py`); the
    exp-018 repeat with the image-limit fix; the Flash-Next serving check (`scratchpad/nb/flashnext-diag`; the dataset
    `scottmahony/qwen3-8-flash-next-nvfp4`, all 25 files, 132.7 GB, and the vLLM 0.29.0 wheelhouse

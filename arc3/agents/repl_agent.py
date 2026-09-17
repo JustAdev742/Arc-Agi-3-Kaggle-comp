@@ -72,6 +72,7 @@ class Stats:
     lessons_auto: int = 0
     lessons_model: int = 0
     consolidations: int = 0
+    action_budget_notices: int = 0
     rules_fits: int = 0
     rules_time_s: float = 0.0
     rules_coverage: float = 0.0
@@ -126,6 +127,12 @@ class ReplAgent(Agent):
         self.effort_policy = str(c.get("effort_policy", "adaptive"))
         self.effort_raised = str(c.get("effort_raised", "medium"))
         self.stagnation_actions = int(c.get("stagnation_actions", 6))
+        # exp-017 (2026-09-17): tn36, wa30 and tr87 spent 355-796 actions on one level with 85-98 percent of them
+        # changing the board: correct mechanics, wrong or untested goal, no stagnation notice ever fired. Every public
+        # level's human baseline is under 200 actions, so past this many actions a level is worth little and the
+        # remaining value is in the levels after it. 0 disables the notice; it repeats at each doubling.
+        self.level_action_notice = int(c.get("level_action_notice", 0))
+        self._action_notice_next = self.level_action_notice
         self.recent_changes: list[int] = []  # cells changed by each of the last actions
         self.recent_actions: list[str] = []
         self.level_notice = ""  # shown once, at the first turn after a level is completed
@@ -291,6 +298,7 @@ class ReplAgent(Agent):
                                  f"{goal_txt} You are now on level {after.level}: the layout changed, so re-read ents(); "
                                  "keep the key map and rules that worked.")
             self.recent_changes.clear()
+            self._action_notice_next = self.level_action_notice
             self.memory.add("recipe", f"Level {before.level} completed in {n_level} actions; the last actions were {last}"
                             + (f"; win condition consistent with every level so far: {goals[0]}" if goals else ""),
                             level=before.level, evidence=f"actions={n_level}")
@@ -573,6 +581,14 @@ class ReplAgent(Agent):
         if include_nudges and self.learn_nudge and self.memory_on:
             parts.append(self.learn_nudge)
             self.learn_nudge = ""
+        if include_nudges and self.level_action_notice > 0 and f.level_step >= self._action_notice_next:
+            self.st.action_budget_notices += 1
+            self._action_notice_next *= 2
+            parts.append(f"ACTION BUDGET: {f.level_step} actions spent on level {f.level}. Every public level's human baseline is "
+                         "under 200 actions and the level's score is (baseline / your actions)^2, so this level is already worth "
+                         "little; the levels after it are worth more. Do not keep executing the same idea: either finish this "
+                         "level now with a verified plan, or write down the goal hypotheses you have NOT tested (learn(..., "
+                         "kind='goal')) and test the cheapest one with a few actions. RESET costs an action and restarts the level.")
         if self.objects_in_prompt > 0:
             ents = self.tracker.entities_summary(self.objects_in_prompt)
             av = self.tracker.avatar()

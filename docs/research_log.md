@@ -528,8 +528,15 @@ Change:   repl agent: after a completed level, one or two "consolidation" model 
           test_consolidation_is_skipped_when_disabled_or_out_of_time.
 Expected: fewer wasted actions on levels 2+ (no re-probing of a known key map, no stale plans), at most 2 extra calls
           per completed level. Risk: a level solved late leaves no time for the pass (skipped under 3 turns of time).
-Plan:     two arms against the six-run base: exp-019 (memory on, level_consolidation off) and exp-020 (both on), dev,
-          1200 s, 8 workers, three runs each. Notebooks built from HEAD in the scratchpad.
+          Added after exp-017 (2026-09-17): a per-level ACTION BUDGET notice (config level_action_notice = N, off by
+          default; shown at N actions on a level and at every doubling). Evidence: tn36, wa30 and tr87 spent 796, 498
+          and 355 actions on one level with 85-98 percent of them changing the board, so the stagnation notice never
+          fired; the model's own note on tn36 says "431-action loop was a waste". Every public level's human baseline is
+          under 200, so past that a level is worth little and the notice points the model at the untested goal
+          hypotheses instead (Tycho caps at 5x the baseline per level; the hidden set has no baselines, hence a fixed N).
+Plan:     two arms against the six-run base: exp-019 (memory on, level_consolidation off, no action notice) and exp-020
+          (memory + level boundary + level_action_notice 120), dev, 1200 s, 8 workers, three runs each. Notebooks built
+          from HEAD in the scratchpad.
 Measured: not run (GPU quota exhausted until 2026-09-19 00:00 UTC).
 
 ## 2026-09-16 · exp-021 · goal predicates over entity pairs (same_box, same_columns, same_rows, inside) · KEPT (code-only gate)
