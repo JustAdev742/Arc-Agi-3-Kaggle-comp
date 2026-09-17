@@ -1,12 +1,12 @@
 {
  "version": 1,
  "source": "/home/user/Arc-Agi-3-Kaggle-comp/runs",
- "n_transcripts_with_wins": 79,
+ "n_transcripts_with_wins": 88,
  "skills": [
   {
    "game": "ar25",
    "level": 1,
-   "wins": 11,
+   "wins": 12,
    "actions": 19,
    "signature": {
     "avatar": true,
@@ -33,7 +33,8 @@
     "kaggle-repl-dev-012b",
     "kaggle-repl-dev-013",
     "kaggle-repl-dev-013b",
-    "kaggle-repl-dev-014"
+    "kaggle-repl-dev-014",
+    "kaggle-repl-dev-017"
    ]
   },
   {
@@ -136,7 +137,7 @@
   {
    "game": "lp85",
    "level": 1,
-   "wins": 8,
+   "wins": 9,
    "actions": 8,
    "signature": {
     "avatar": false,
@@ -155,7 +156,8 @@
     "kaggle-repl-dev-011c",
     "kaggle-repl-dev-012b",
     "kaggle-repl-dev-013b",
-    "kaggle-repl-dev-014"
+    "kaggle-repl-dev-014",
+    "kaggle-repl-dev-017"
    ]
   },
   {
@@ -179,7 +181,7 @@
   {
    "game": "m0r0",
    "level": 1,
-   "wins": 4,
+   "wins": 5,
    "actions": 25,
    "signature": {
     "avatar": true,
@@ -199,13 +201,14 @@
     "kaggle-repl-dev-004",
     "kaggle-repl-dev-011",
     "kaggle-repl-dev-011b",
-    "kaggle-repl-dev-013"
+    "kaggle-repl-dev-013",
+    "kaggle-repl-dev-017"
    ]
   },
   {
    "game": "s5i5",
    "level": 1,
-   "wins": 8,
+   "wins": 9,
    "actions": 19,
    "signature": {
     "avatar": false,
@@ -224,13 +227,14 @@
     "kaggle-repl-dev-013",
     "kaggle-repl-dev-013b",
     "kaggle-repl-dev-014",
-    "kaggle-repl-dev-015"
+    "kaggle-repl-dev-015",
+    "kaggle-repl-dev-017"
    ]
   },
   {
    "game": "sb26",
    "level": 1,
-   "wins": 12,
+   "wins": 13,
    "actions": 13,
    "signature": {
     "avatar": false,
@@ -253,7 +257,8 @@
     "kaggle-repl-dev-013",
     "kaggle-repl-dev-013b",
     "kaggle-repl-dev-014",
-    "kaggle-repl-dev-015"
+    "kaggle-repl-dev-015",
+    "kaggle-repl-dev-017"
    ]
   },
   {
@@ -278,7 +283,7 @@
   {
    "game": "su15",
    "level": 1,
-   "wins": 11,
+   "wins": 12,
    "actions": 18,
    "signature": {
     "avatar": false,
@@ -300,7 +305,8 @@
     "kaggle-repl-dev-013",
     "kaggle-repl-dev-013b",
     "kaggle-repl-dev-014",
-    "kaggle-repl-dev-015"
+    "kaggle-repl-dev-015",
+    "kaggle-repl-dev-017"
    ]
   },
   {
@@ -324,7 +330,7 @@
   {
    "game": "tn36",
    "level": 1,
-   "wins": 5,
+   "wins": 6,
    "actions": 14,
    "signature": {
     "avatar": false,
@@ -340,13 +346,14 @@
     "kaggle-repl-dev-011b",
     "kaggle-repl-dev-011c",
     "kaggle-repl-dev-013",
-    "kaggle-repl-dev-013b"
+    "kaggle-repl-dev-013b",
+    "kaggle-repl-dev-017"
    ]
   },
   {
    "game": "tu93",
    "level": 1,
-   "wins": 5,
+   "wins": 6,
    "actions": 27,
    "signature": {
     "avatar": true,
@@ -365,13 +372,14 @@
     "kaggle-repl-dev-011",
     "kaggle-repl-dev-013",
     "kaggle-repl-dev-013b",
-    "kaggle-repl-dev-014"
+    "kaggle-repl-dev-014",
+    "kaggle-repl-dev-017"
    ]
   },
   {
    "game": "vc33",
    "level": 1,
-   "wins": 8,
+   "wins": 9,
    "actions": 6,
    "signature": {
     "avatar": false,
@@ -390,14 +398,15 @@
     "kaggle-repl-dev-012b",
     "kaggle-repl-dev-013",
     "kaggle-repl-dev-013b",
-    "kaggle-repl-dev-014"
+    "kaggle-repl-dev-014",
+    "kaggle-repl-dev-017"
    ]
   },
   {
    "game": "vc33",
    "level": 2,
-   "wins": 2,
-   "actions": 19,
+   "wins": 3,
+   "actions": 16,
    "signature": {
     "avatar": false,
     "click_only": true,
@@ -406,10 +415,11 @@
     "tile": 4,
     "hud": true
    },
-   "strategy": "click-only: goal 'overlap knob dark c14 with marker #9'; solved in 19 actions (CLICKx19). Learned: knob stuck at x20; btn2(y26) grows #12 right",
+   "strategy": "click-only: goal 'move cyan #14 to green marker #9 at x=28'; solved in 16 actions (CLICKx16). Learned: white alignment alone not win; #11 moves cyan right +4 & shifts white mid->bottom",
    "runs": [
     "kaggle-repl-dev-013",
-    "kaggle-repl-dev-013b"
+    "kaggle-repl-dev-013b",
+    "kaggle-repl-dev-017"
    ]
   }
  ]
