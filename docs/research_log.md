@@ -669,3 +669,20 @@ Decided:  publish together with a submission, not before. No submission under th
           submission (NVIDIA Open Model License, not OSI; about 16 GB of KV headroom on 96 GB); its serving check is
           dropped from the queue; gpt-oss-120b (Apache-2.0) stays the candidate. The private Save & Run All of the
           submission notebook at HEAD moves to the front of the quota queue as the Milestone 2 gate.
+
+## 2026-09-17 · human recording replay (ls20, 546 actions, 7 levels) through the agent · MEASURED (code-only)
+Why:      the owner uploaded one file of the ARC Prize human dataset (ls20-9607627b, guid 8aed7120, a WIN in 546
+          actions; per level 21/123/39/92/54/108/109 against the published baselines 22/123/73/84/96/192/186).
+          scripts/goal_probe.py --recordings replays it through the real REPL agent (mock model feeding the recorded
+          actions one per call; a batch of six lost the actions after a level completion, fixed) and runs the goal gates.
+Measured: engine determinism: 0 of 546 engine frames differ from the recorded ones (the local engine reproduces the
+          site's play exactly). Goal predicates: after L1 and L2 the only consistent candidate is count(colour 9) == 4;
+          on L3 it came true without completing the level, so the per-level falsification removed it (the mechanism
+          works on a real trajectory), and from L3 on NO predicate in the library is consistent with all completed
+          levels: ls20's win condition is outside dsl.goal_predicates (the level ends when the moved shape matches the
+          reference; a shape-equality relation between two entities is the missing kind). Winner rank: L2 1 of 1,
+          L3 none (no candidate survives). Human priors from the same file (scripts/human_replays.py): first actions
+          UP x8 then DOWN x2 (a human probes each key several times), click fraction 0.
+Follow-up: add "shape_matches(a, b)" (equal masks up to translation) and "count(colour) == count(colour)" style
+          relations to goal_predicates and re-run this gate; the rest of the human dataset (341 files) turns this into
+          a real recall measurement across games.

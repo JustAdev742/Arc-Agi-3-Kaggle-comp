@@ -212,7 +212,10 @@ research log exp-006a.
 - **Decisions received and recorded** (open item 1): Apache-2.0, publication with a submission, no submission under
   the "over 50" condition, Nemotron not used. **CPU Save & Run All of the submission notebook at HEAD passed**
   (run 14): packaging, LICENSE in the bundle, rules fallback, submission.parquet.
-- Human replay data still blocked (see follow-ups).
+- **First human recording received** (ls20, 7 levels won in 546 actions): the local engine reproduces all 546 recorded
+  frames exactly; the goal-predicate library misses ls20's win condition from level 3 on (shape matching; follow-up
+  in the research log); the per-level falsification removed the spurious candidate on a real trajectory. The
+  remaining 341 files of the dataset would make this a recall measurement across all games.
 - Improvement pass (task #37) closed on 2026-09-17 morning: see the follow-ups entry and commits 08076e9, 4bedddf,
   98dffb6, 96c7d94, 4f78ad1.
 

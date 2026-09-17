@@ -82,8 +82,9 @@ def replay_actions(game: str, acts: list[str], target_level: int, arc, recorded_
         if "Consolidation step" in text or last.get("role") == "tool":
             return MockClient.say("done")
         if acts:
-            batch = [acts.pop(0) for _ in range(min(6, len(acts)))]
-            return MockClient.tool("act(" + ", ".join(batch) + ")")
+            # one action per call: act() stops a batch at a level completion and drops the rest, which would lose
+            # the first actions of the next level (the human ls20 recording replayed only level 1 with batches of 6)
+            return MockClient.tool("act(" + acts.pop(0) + ")")
         return MockClient.say("nothing left")
 
     env = LocalEnv(arc, game)
