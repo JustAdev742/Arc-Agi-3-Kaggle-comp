@@ -705,6 +705,28 @@ class ReplAgent(Agent):
             return self.effort_raised
         return self.reasoning_effort
 
+    def _chat(self, effort: Optional[str], *, kind: str, **record: Any) -> ChatResponse:
+        """One model call over ``self.messages`` with the agent's sampling settings and a timeout bounded by the
+        time left; accounts the call (stats, latency, tokens), appends the assistant message and records the
+        transcript entry. Exceptions propagate: the callers decide between retry, eviction and giving up."""
+        self._evict()
+        t0 = time.time()
+        resp: ChatResponse = self.client.chat(
+            self.messages, tools=TOOLS, max_tokens=self.max_output_tokens, temperature=self.temperature,
+            top_p=self.top_p, thinking=self.thinking, reasoning_effort=effort, preserve_thinking=self.preserve_thinking,
+            timeout_s=max(self.min_call_timeout_s, min(self.model_timeout_s, self.ctx.time_left() - 5)))
+        dt = time.time() - t0
+        self.st.model_calls += 1
+        self.st.model_time_s += dt
+        self.st.latencies.append(dt)
+        self.st.prompt_tokens += resp.prompt_tokens
+        self.st.completion_tokens += resp.completion_tokens
+        self.messages.append(resp.assistant_message(with_reasoning=bool(self.preserve_thinking)))
+        self._record(kind, turn=self.st.turns, reasoning=resp.reasoning[:1500], content=resp.content[:1500],
+                     code=[tc.arguments.get("code", "")[:3000] for tc in resp.tool_calls], latency_s=round(dt, 1),
+                     prompt_tokens=resp.prompt_tokens, completion_tokens=resp.completion_tokens, **record)
+        return resp
+
     def _consolidate_level(self) -> None:
         """Tycho-style scribe pass at a level boundary: one or two model calls that record what the completed level
         taught (learn()/note(), no actions), then the conversation is cleared. Skipped when time is short."""
@@ -731,26 +753,11 @@ class ReplAgent(Agent):
             for _ in range(max(1, self.consolidation_calls)):
                 if self.closed or self.ctx.time_left() < 2 * self.min_time_for_turn_s:
                     break
-                self._evict()
-                t0 = time.time()
                 try:
-                    resp: ChatResponse = self.client.chat(
-                        self.messages, tools=TOOLS, max_tokens=self.max_output_tokens, temperature=self.temperature,
-                        top_p=self.top_p, thinking=self.thinking, reasoning_effort=self.reasoning_effort,
-                        preserve_thinking=self.preserve_thinking,
-                        timeout_s=max(self.min_call_timeout_s, min(self.model_timeout_s, self.ctx.time_left() - 5)))
-                except Exception as e:  # noqa: BLE001
+                    resp = self._chat(self.reasoning_effort, kind="consolidation", level=info["level"])
+                except Exception as e:  # noqa: BLE001  (a failed consolidation call costs nothing but the pass)
                     self.log.warning("consolidation call failed: %s", e)
                     break
-                dt = time.time() - t0
-                self.st.model_calls += 1
-                self.st.model_time_s += dt
-                self.st.latencies.append(dt)
-                self.st.prompt_tokens += resp.prompt_tokens
-                self.st.completion_tokens += resp.completion_tokens
-                self.messages.append(resp.assistant_message(with_reasoning=bool(self.preserve_thinking)))
-                self._record("consolidation", turn=self.st.turns, level=info["level"], content=resp.content[:1500],
-                             code=[tc.arguments.get("code", "")[:3000] for tc in resp.tool_calls], latency_s=round(dt, 1))
                 for line in (resp.content or "").splitlines():
                     if line.strip().upper().startswith("FRICTION:"):
                         self.friction.append(line.strip()[9:].strip()[:300])
@@ -800,14 +807,10 @@ class ReplAgent(Agent):
                         f"{calls_left} calls remain for this game. The entity list, events and rules summary above already describe "
                         "the board: call act(...) in your next python call (a single probe is fine), then re-inspect.")})
                 self._evict()
-                t0 = time.time()
                 raw_before = self._raw_tokens(self.messages)
                 try:
-                    resp: ChatResponse = self.client.chat(
-                        self.messages, tools=TOOLS, max_tokens=self.max_output_tokens, temperature=self.temperature,
-                        top_p=self.top_p, thinking=self.thinking, reasoning_effort=effort, preserve_thinking=self.preserve_thinking,
-                        timeout_s=max(self.min_call_timeout_s, min(self.model_timeout_s, self.ctx.time_left() - 5)))
-                except Exception as e:  # noqa: BLE001
+                    resp = self._chat(effort, kind="assistant")
+                except Exception as e:  # noqa: BLE001  (every failure mode is classified below)
                     msg = str(e).lower()
                     if "image" in msg and ("at most" in msg or "limit" in msg) and self._image_count() > 1:
                         # The server's image limit is lower than max_images: halve our cap, strip the oldest images
@@ -846,16 +849,6 @@ class ReplAgent(Agent):
                 if resp.prompt_tokens and raw_before:
                     # Exponential moving average of the server's own count over our estimate.
                     self.token_ratio = 0.7 * self.token_ratio + 0.3 * max(0.5, min(3.0, resp.prompt_tokens / raw_before))
-                dt = time.time() - t0
-                self.st.model_calls += 1
-                self.st.model_time_s += dt
-                self.st.latencies.append(dt)
-                self.st.prompt_tokens += resp.prompt_tokens
-                self.st.completion_tokens += resp.completion_tokens
-                self.messages.append(resp.assistant_message(with_reasoning=bool(self.preserve_thinking)))
-                self._record("assistant", turn=self.st.turns, reasoning=resp.reasoning[:1500], content=resp.content[:1500],
-                             code=[tc.arguments.get("code", "")[:3000] for tc in resp.tool_calls], latency_s=round(dt, 1),
-                             prompt_tokens=resp.prompt_tokens, completion_tokens=resp.completion_tokens)
                 if not resp.tool_calls:
                     if not acted and not nudged:
                         nudged = True

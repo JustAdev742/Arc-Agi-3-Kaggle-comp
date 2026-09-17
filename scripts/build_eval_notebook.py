@@ -109,17 +109,19 @@ def main() -> None:
                    help="comma-separated preference list of specialist checkpoints (council arm only)")
     p.add_argument("--username", default="scottmahony")
     p.add_argument("--slug", default="arc3-eval")
+    p.add_argument("--out", default=str(OUT_DIR), help="folder for eval.ipynb + kernel-metadata.json (git-ignored; push it with scripts/push_eval.py)")
     a = p.parse_args()
     a.run_name = a.run_name or f"kaggle-{a.agent}-{a.split}-s{a.seed}"
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    (OUT_DIR / "eval.ipynb").write_text(json.dumps(build(a), indent=1))
+    out_dir = Path(a.out)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "eval.ipynb").write_text(json.dumps(build(a), indent=1))
     ds = [d for d in (a.wheels_dataset, a.model_dataset, *(specialist_refs(a.specialist_dataset) if a.agent == "council" else [])) if d]
     meta = {"id": f"{a.username}/{a.slug}", "title": a.slug, "code_file": "eval.ipynb", "language": "python",
             "kernel_type": "notebook", "is_private": True, "enable_gpu": True, "enable_tpu": False, "enable_internet": False,
             "keywords": [], "dataset_sources": ds, "kernel_sources": [], "competition_sources": ["arc-prize-2026-arc-agi-3"],
             "model_sources": []}
-    (OUT_DIR / "kernel-metadata.json").write_text(json.dumps(meta, indent=2) + "\n")
-    print(f"[build_eval_notebook] wrote {OUT_DIR}/eval.ipynb ({a.agent} on {a.split}, {a.time_per_game}s/game, workers {a.workers}, datasets {ds})")
+    (out_dir / "kernel-metadata.json").write_text(json.dumps(meta, indent=2) + "\n")
+    print(f"[build_eval_notebook] wrote {out_dir}/eval.ipynb ({a.agent} on {a.split}, {a.time_per_game}s/game, workers {a.workers}, datasets {ds})")
 
 
 if __name__ == "__main__":

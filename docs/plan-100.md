@@ -1,9 +1,12 @@
 # Plan for 100% RHAE (design only; not implemented; written 2026-09-16)
 
 Status: a design, requested by the owner, for how this system could in principle reach 100% on the
-hidden set. Nothing here is validated. The public leaderboard leader is at 18.81; this repo has not yet
-produced a model-driven action. Every mechanism below is a hypothesis to be measured with the discipline
-in CLAUDE.md, in the order given in section 6. Nothing in this file changes what is being built today.
+hidden set. Written before the first model run; the measured state since then is in `docs/research_log.md`
+and `docs/status.md` (best dev run 1.37 RHAE on 2026-09-16, public leaderboard leader 18.81). Every
+mechanism below is a hypothesis to be measured with the discipline in CLAUDE.md, in the order given in
+section 6. Items 1-4 of section 6 have been built in some form (perception, entity tracker, rule DSL,
+verified execution, learning memory, level-boundary consolidation); see lesson 0013 for the external
+reference point (Tycho) and what was ported from it.
 
 ## 1. What 100% means, exactly
 

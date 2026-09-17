@@ -17,9 +17,8 @@ import os
 import time
 from typing import Any
 
-from arcengine import FrameData, GameAction
-
 from agents.agent import Agent
+from arcengine import FrameData, GameAction
 
 from arc3.kaggle import Driver, agent_config
 
@@ -48,8 +47,8 @@ class MyAgent(Agent):
     def choose_action(self, frames: list[FrameData], latest_frame: FrameData) -> GameAction:
         try:
             return self.driver.choose(latest_frame)
-        except Exception as e:  # last line of defence: never kill the game thread
-            log.exception("%s: driver failed (%s); sending RESET", self.game_id, e)
+        except Exception:  # last line of defence: never kill the game thread
+            log.exception("%s: driver failed; sending RESET", self.game_id)
             self.driver.last_data, self.driver.last_reasoning = {}, None
             return GameAction.RESET
 

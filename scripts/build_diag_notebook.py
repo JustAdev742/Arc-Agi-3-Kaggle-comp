@@ -179,15 +179,17 @@ def main() -> None:
     p.add_argument("--slug", default="arc3-gpu-diag")
     p.add_argument("--attempts-json", default="", help="JSON list of start_vllm attempt dicts (model_dir/label/env_extra allowed) replacing the default ladder")
     p.add_argument("--title", default="rtx6000")
+    p.add_argument("--out", default=str(OUT_DIR), help="folder for diag.ipynb + kernel-metadata.json (git-ignored; push it with scripts/push_eval.py)")
     a = p.parse_args()
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    (OUT_DIR / "diag.ipynb").write_text(json.dumps(build(a.model_dataset, a.wheels_dataset, a.budget_min, a.smoke_s, a.attempts_json, a.title), indent=1))
+    out_dir = Path(a.out)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "diag.ipynb").write_text(json.dumps(build(a.model_dataset, a.wheels_dataset, a.budget_min, a.smoke_s, a.attempts_json, a.title), indent=1))
     meta = {"id": f"{a.username}/{a.slug}", "title": a.slug, "code_file": "diag.ipynb", "language": "python",
             "kernel_type": "notebook", "is_private": True, "enable_gpu": True, "enable_tpu": False, "enable_internet": False,
             "keywords": [], "dataset_sources": [a.wheels_dataset, a.model_dataset], "kernel_sources": [],
             "competition_sources": ["arc-prize-2026-arc-agi-3"], "model_sources": []}
-    (OUT_DIR / "kernel-metadata.json").write_text(json.dumps(meta, indent=2) + "\n")
-    print(f"[build_diag_notebook] wrote {OUT_DIR}/diag.ipynb + kernel-metadata.json ({a.model_dataset}, {a.wheels_dataset})")
+    (out_dir / "kernel-metadata.json").write_text(json.dumps(meta, indent=2) + "\n")
+    print(f"[build_diag_notebook] wrote {out_dir}/diag.ipynb + kernel-metadata.json ({a.model_dataset}, {a.wheels_dataset})")
 
 
 if __name__ == "__main__":

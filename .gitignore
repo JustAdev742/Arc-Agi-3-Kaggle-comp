@@ -25,8 +25,11 @@ server_recording/
 # Vendored frameworks (cloned by `make setup`)
 vendor/
 
-# Generated notebook
+# Generated notebooks: the submission notebook, and the evaluation / diagnostic kernels built by
+# scripts/build_eval_notebook.py and scripts/build_diag_notebook.py (push a folder with scripts/push_eval.py)
 notebooks/submission.ipynb
+notebooks/eval/
+notebooks/diag/
 
 # Model weights / wheels
 weights/
@@ -37,5 +40,3 @@ wheels/
 
 # Pulled reference notebooks (other teams' code; keep out of our repo)
 reference/
-notebooks/diag/diag.ipynb
-notebooks/eval/eval.ipynb
