@@ -470,6 +470,7 @@ def test_level_consolidation_records_lessons_refuses_actions_and_clears_history(
         agent.observe(Action.simple(1), f1, f2)
         assert agent.consolidate_pending and agent.consolidate_pending["level"] == 1
         assert "moved" in agent.consolidate_pending["winning_move"]  # the winning move was tracked on the terminal frame
+        assert "terminal" not in agent.last_result and "terminal" not in json.dumps(agent._state_payload()["last"])
         assert len(agent.level_archive) == 1 and len(agent.level_archive[0][0]) == 3  # start, after UP, terminal (observed)
         n_msgs = len(agent.messages)
         agent.frame = f2

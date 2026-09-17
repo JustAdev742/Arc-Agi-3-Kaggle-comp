@@ -318,10 +318,12 @@ class ReplAgent(Agent):
         self.fallback.observe(action, before, after)
         req = self.pending
         self.pending = None
-        if res["level_completed"] and len(after.layers) > 1 and after.layers[0].shape == after.grid.shape:
-            res["terminal"] = after.layers[0].tolist()  # the completed level's observed winning frame (sandbox archive)
         if req is not None and not req.auto:
             req.result = {**res, **(req.result or {})}
+            if res["level_completed"] and len(after.layers) > 1 and after.layers[0].shape == after.grid.shape:
+                # The completed level's observed winning frame rides on this request only (the sandbox pops it into its
+                # level archive); it must not enter last_result, which every cell receives as `last`.
+                req.result["terminal"] = after.layers[0].tolist()
             self.result_q.put(req)
         elif req is not None and req.auto and getattr(self, "_unblocked_request", None) is not None:
             # The model asked for X during game over; we sent RESET instead. Unblock it with the RESET outcome.

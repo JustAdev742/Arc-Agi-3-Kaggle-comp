@@ -525,3 +525,18 @@ except ValueError as e:
     assert lines[2] == "True True", lines
     assert lines[3] == "True", lines
     sb.stop()
+
+
+def test_stopped_sandbox_does_not_respawn_its_child():
+    """close() during a running cell used to restart the child; after stop() a run() reports the sandbox closed."""
+    sb = PersistentSandbox(sys_path=[ROOT] + sys.path)
+    r = sb.run("x = 1", state(), timeout_s=20)
+    assert r["error"] == "" and sb.alive()
+    sb.stop()
+    assert sb.closed and not sb.alive()
+    r = sb.run("print(x)", state(), timeout_s=20)
+    assert "sandbox closed" in r["error"] and not sb.alive() and sb.restarts == 0
+    sb.start()  # an explicit start reopens it
+    r = sb.run("print('again')", state(), timeout_s=20)
+    assert r["stdout"].strip() == "again"
+    sb.stop()

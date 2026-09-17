@@ -890,11 +890,13 @@ class PersistentSandbox:
         self.restarts = 0
         self.runs = 0
         self.timeouts = 0
+        self.closed = False  # set by stop(): a cell still running in another thread must not respawn the child
         self._lock = threading.Lock()
 
     # ---------- process management ----------
     def start(self) -> None:
         self.stop()
+        self.closed = False
         env = dict(os.environ if self.env is None else self.env)
         env["PYTHONPATH"] = os.pathsep.join(p for p in self.sys_path if p)
         env.setdefault("PYTHONUNBUFFERED", "1")
@@ -913,6 +915,10 @@ class PersistentSandbox:
             self._q.put(None)
 
     def stop(self) -> None:
+        """Kill the child. The sandbox stays closed until start() is called again explicitly: run() then returns an
+        error instead of spawning a new process (the REPL agent's close() used to leave one behind when a cell was
+        still executing on the worker thread)."""
+        self.closed = True
         p = self.proc
         self.proc = None
         if p is None:
@@ -930,6 +936,8 @@ class PersistentSandbox:
         return self.proc is not None and self.proc.poll() is None
 
     def restart(self) -> None:
+        if self.closed:
+            return
         self.restarts += 1
         self.start()
 
@@ -959,6 +967,8 @@ class PersistentSandbox:
         if True:
             restarted = False
             if not self.alive():
+                if self.closed and self.runs > 0:
+                    raise RuntimeError("sandbox closed")
                 self.start()
                 restarted = self.runs > 0
             self.runs += 1
