@@ -743,3 +743,14 @@ Measured: human ls20 recording (7 levels): a consistent predicate on 7 of 7 leve
           recording: 0 of 546 frames differ. Recall on our own recorded runs (goal_probe --max-levels 3): see the next
           entry once the run finishes.
 Kept:     yes (code-only; the model-facing change is the goal line and goal_probe() output, part of the exp-022 bundle).
+
+## 2026-09-17 · bg_holes · tracker knob: small enclosed background-coloured islands are entities · BUILT (in the bundle, off in the champion)
+Why:      lesson 0015 fault 2: the tracker ignores every background-coloured cell, so a socket or slot drawn in the
+          background colour is invisible to ents(), the rule fitter and goal_hints() (ls20 level 7).
+Change:   entities.segments(grid, bg, bg_holes): with the knob, background-coloured components that are small (<= 400
+          cells) and enclosed (not touching the border) stay; Tracker(bg_holes=...) applies it in reset() and update();
+          the REPL agent sets ARC3_BG_HOLES from config so the sandbox child's tracker agrees. Presets: champion off,
+          bundle on. Test: test_bg_holes_knob_makes_enclosed_background_islands_entities.
+Expected: goal_hints and rules see slots on games that draw them in the background colour; risk: extra entities on
+          games with decorative background pockets (the 400-cell and border filters bound it).
+Measured: not run (rides in the exp-022 bundle).

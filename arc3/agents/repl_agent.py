@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import queue
 import sys
 import threading
@@ -182,6 +183,10 @@ class ReplAgent(Agent):
         self.min_time_for_turn_s = float(c.get("min_time_for_turn_s", 45))
         self.min_call_timeout_s = float(c.get("min_call_timeout_s", 120))
         root = str(Path(__file__).resolve().parents[2])
+        # Exact perception knob (lesson 0015): small enclosed background-coloured components are entities. The sandbox
+        # child's tracker reads the same setting from the environment it inherits at spawn.
+        self.bg_holes = bool(c.get("bg_holes", False))
+        os.environ["ARC3_BG_HOLES"] = "1" if self.bg_holes else "0"
         self.sandbox = PersistentSandbox(sys_path=[root] + [p for p in sys.path if p], max_output_chars=int(c.get("tool_output_chars", 2500)))
         fb = str(c.get("fallback_agent", "rules"))
         if fb == "rules":
@@ -206,7 +211,7 @@ class ReplAgent(Agent):
         self.consolidate_pending: Optional[dict[str, Any]] = None
         self.no_actions = False  # set during the consolidation step: act() is refused
         self.friction: list[str] = []  # the model's own harness-friction notes (read after the run, never in-prompt)
-        self.tracker = Tracker()
+        self.tracker = Tracker(bg_holes=self.bg_holes)
         self.tracker_level = -1
         self.turn_log: list[str] = []  # compact action summaries for the next user message
         self.frame: Optional[Frame] = None

@@ -178,3 +178,30 @@ def test_plain_frames_keep_small_enclosed_background_holes():
     plain = t.plain_frames()[0]
     holes = [e for e in plain if e.color == 5]
     assert len(holes) == 1 and (holes[0].x0, holes[0].y0, holes[0].w, holes[0].h) == (20, 20, 7, 7)
+
+
+def test_bg_holes_knob_makes_enclosed_background_islands_entities(monkeypatch):
+    import numpy as np
+
+    from arc3.entities import Tracker, default_bg_holes, segments
+    g = np.full((64, 64), 5, dtype=np.int16)
+    g[10:40, 10:50] = 3
+    g[20:27, 20:27] = 5   # enclosed island of the background colour
+    g[0:3, 30:33] = 5     # background touching the border (already part of it here, but a separate blob would be dropped too)
+    assert not any(o.color == 5 for o in segments(g, 5))
+    holes = [o for o in segments(g, 5, bg_holes=True) if o.color == 5]
+    assert len(holes) == 1 and (holes[0].x0, holes[0].y0, holes[0].w, holes[0].h) == (20, 20, 7, 7)
+    t = Tracker(bg_holes=True)
+    t.reset(g)
+    assert any(e.color == 5 and e.w == 7 for e in t.frames[0])
+    t2 = Tracker()
+    t2.reset(g)
+    assert not any(e.color == 5 for e in t2.frames[0])
+    monkeypatch.setenv("ARC3_BG_HOLES", "1")
+    assert default_bg_holes() and Tracker().bg_holes
+    t3 = Tracker(bg_holes=True)
+    t3.reset(g)
+    g2 = g.copy()
+    g2[0:3, 0:3] = 9
+    t3.update(g2, "UP")
+    assert any(e.color == 5 and e.w == 7 for e in t3.frames[-1])  # the knob survives reset() and update()

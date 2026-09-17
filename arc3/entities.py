@@ -7,6 +7,7 @@ plus roles: static (never changes), HUD (edge strips that shrink/grow), avatar (
 from __future__ import annotations
 
 import hashlib
+import os
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Optional
@@ -84,10 +85,28 @@ def _bbox_iou(a: Entity, b: Entity) -> float:
     return inter / float(a.w * a.h + b.w * b.h - inter)
 
 
+def segments(grid: np.ndarray, bg: Optional[int], *, bg_holes: bool = False) -> list[Obj]:
+    """The entities of a grid: every non-background component and, with ``bg_holes``, the background-coloured
+    components that are small (<= 400 cells) and enclosed (not touching the border): a socket or slot drawn in the
+    background colour is an object (ls20 level 7, lesson 0015), the background itself is not."""
+    if not bg_holes:
+        return components(grid, ignore=(bg,))
+    h, w = np.asarray(grid).shape
+    return [o for o in components(grid)
+            if o.color != bg or (o.size <= 400 and o.x0 > 0 and o.y0 > 0 and o.x0 + o.w < w and o.y0 + o.h < h)]
+
+
+def default_bg_holes() -> bool:
+    """The tracker's default for background holes: ARC3_BG_HOLES=1 (the REPL agent sets it from its config so the
+    sandbox child's tracker agrees with the harness's)."""
+    return os.environ.get("ARC3_BG_HOLES", "0") in ("1", "true", "True")
+
+
 class Tracker:
     """Assigns persistent ids to entities across the frames of one level and records events per action."""
 
-    def __init__(self, max_log: int = 5000):
+    def __init__(self, max_log: int = 5000, *, bg_holes: Optional[bool] = None):
+        self.bg_holes = default_bg_holes() if bg_holes is None else bool(bg_holes)
         self.next_id = 1
         self.current: list[Entity] = []
         self.bg: Optional[int] = None
@@ -116,10 +135,10 @@ class Tracker:
 
     # ---------------------------------------------------------------- core
     def reset(self, grid: np.ndarray) -> list[Entity]:
-        self.__init__(self.max_log)
+        self.__init__(self.max_log, bg_holes=self.bg_holes)
         self.bg = background_color(grid)
         self.tile = tile_size(grid)
-        self.current = [_obj_to_entity(o, self._new_id()) for o in components(grid, ignore=(self.bg,))]
+        self.current = [_obj_to_entity(o, self._new_id()) for o in segments(grid, self.bg, bg_holes=self.bg_holes)]
         for e in self.current:
             self.pos_hist[e.id].append((e.x0, e.y0))
         self.under = np.asarray(grid).copy()
@@ -200,7 +219,7 @@ class Tracker:
         if self.bg is None:
             self.reset(grid)
             return {"action": action, "moved": [], "appeared": [], "disappeared": [], "recolored": [], "reshaped": [], "same": len(self.current)}
-        new_objs = components(grid, ignore=(self.bg,))
+        new_objs = segments(grid, self.bg, bg_holes=self.bg_holes)
         new: list[Entity] = [_obj_to_entity(o, 0) for o in new_objs]
         prev = self.current
         matched_prev: set[int] = set()
