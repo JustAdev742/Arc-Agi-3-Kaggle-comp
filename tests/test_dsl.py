@@ -273,3 +273,41 @@ def test_vanish_shape_goal_kind_survives_other_entities_of_the_colour():
     assert "none_left(colour 3)" not in by  # the wall stays, so colour-only vanishing is wrong here
     assert goal_kind({"vanish_shape": (3, "ring9")}) == ("vanish_shape", (3, "ring9"))
     assert goal_distance("vanish_shape", (3, "ring9"), fr[0]) == 1 and goal_distance("vanish_shape", (3, "ring9"), fr[-1]) == 0
+
+
+def test_avatar_relative_goal_kinds_need_the_level_avatar():
+    from arc3.dsl import goal_distance, goal_predicate, goal_predicates
+    sock = E(9, 5, 20, 20, w=7, h=7, shape="sock")
+    hud_block = E(7, 5, 0, 50, w=10, h=10, shape="hud")
+    hud_piece = E(8, 9, 2, 52, w=3, h=3, shape="piece")  # a legend: colour 9 inside colour 5 from the start
+    key = lambda x, y: E(1, 9, x, y, w=5, h=5, shape="key")  # noqa: E731
+    fr = [(sock, hud_block, hud_piece, key(2, 2)), (sock, hud_block, hud_piece, key(10, 10)), (sock, hud_block, hud_piece, key(21, 21))]
+    plain = {g["goal"] for g in goal_predicates([(fr, True)])}
+    assert "inside(colour 9, colour 5)" not in plain  # true from the start because of the legend
+    goals = goal_predicates([(fr, True)], avatar_ids=[1])
+    by = {g["goal"]: g for g in goals}
+    assert "avatar_inside(colour 5)" in by and by["avatar_inside(colour 5)"]["predicate"] is None
+    assert "avatar_touch(colour 5)" in by
+    p = goal_predicate("avatar_inside", (5,), avatar_id=1)
+    assert p(fr[-1]) and not p(fr[0]) and goal_predicate("avatar_inside", (5,)) is None
+    assert goal_distance("avatar_inside", (5,), fr[0], avatar_id=1) == 18 + 18 and goal_distance("avatar_inside", (5,), fr[-1], avatar_id=1) == 0
+    assert goal_distance("avatar_touch", (5,), fr[0], avatar_id=1) == 13 and goal_distance("avatar_touch", (5,), fr[-1], avatar_id=1) == 0  # gap 14 - 1
+    assert goal_predicates([(fr, True)], avatar_ids=[None]) == goal_predicates([(fr, True)])  # unknown avatar: no avatar kinds
+
+
+def test_goal_candidates_dual_adds_raw_only_predicates():
+    from arc3.dsl import goal_candidates_dual, goal_progress_dual
+    # compound view: the socket got absorbed at the terminal; raw view: key (avatar 1) ends inside the colour-5 socket
+    sock = E(9, 5, 20, 20, w=7, h=7, shape="sock")
+    key = lambda x, y: E(1, 9, x, y, w=5, h=5, shape="key")  # noqa: E731
+    comp = [(sock, key(2, 2)), (sock, key(10, 10)), (E(1, 9, 20, 20, w=7, h=7, shape="merged"),)]
+    raw = [(sock, key(2, 2)), (sock, key(10, 10)), (sock, key(21, 21))]
+    goals = goal_candidates_dual([(comp, True)], [(raw, True)], avatar_ids=[1])
+    by = {g["goal"]: g for g in goals}
+    assert "avatar_inside(colour 5)" in by and by["avatar_inside(colour 5)"]["rep"] == "raw"
+    assert all(g["rep"] in ("compound", "raw") for g in goals)
+    # a missing raw level (simulated terminal) disables the raw candidates
+    assert all(g["rep"] == "compound" for g in goal_candidates_dual([(comp, True)], [None], avatar_ids=[1]))
+    rows = goal_progress_dual(goals, comp[:2], raw[:2], avatar_id=1)
+    r = next(r for r in rows if r["goal"] == "avatar_inside(colour 5)")
+    assert r["dist"] == (20 - 10) * 2 and not r["falsified"]

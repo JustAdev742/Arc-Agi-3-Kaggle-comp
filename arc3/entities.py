@@ -110,6 +110,8 @@ class Tracker:
         self._art_changed: set[int] = set()  # entities whose current raw box/size is an occlusion artefact
         self._hud_seen: set[int] = set()
         self.unders: list[np.ndarray] = []  # static layer snapshot per frame (aligned with frames)
+        self.grids: list[np.ndarray] = []  # the observed grids (aligned with frames), for plain_frames()
+        self._plain: list[tuple[Ent, ...]] = []  # cache for plain_frames(), aligned with grids
         self.occluded_events = 0  # changes attributed to occlusion by movers and therefore not reported
 
     # ---------------------------------------------------------------- core
@@ -141,6 +143,7 @@ class Tracker:
                 frame.append(self._canon[eid])
         self.frames.append(tuple(frame))
         self.unders.append(self.under.copy() if self.under is not None else None)
+        self.grids.append(self.prev_grid.copy() if self.prev_grid is not None else None)
         for e in self.current:
             if e.shape_hash not in self.shapes:
                 self.shapes[e.shape_hash] = e.mask
@@ -149,6 +152,9 @@ class Tracker:
             del self.frames[0]
             del self.actions[0]
             del self.unders[0]
+            del self.grids[0]
+            if self._plain:
+                del self._plain[0]
 
     def _cells(self, e: Entity, shape: tuple[int, int]) -> np.ndarray:
         m = np.zeros(shape, dtype=bool)
@@ -449,6 +455,44 @@ class Tracker:
         for e in self.current:
             r.setdefault(e.id, "dynamic" if self.changed_ids[e.id] else "unknown")
         return r
+
+    # ---------------------------------------------------------------- plain components
+    def plain_frames(self) -> list[tuple[Ent, ...]]:
+        """Plain connected components of every observed grid, with no occlusion handling: the board as it is, for
+        goal predicates (the symbolic frames keep canonical shapes for entities a mover covers and hide pieces that
+        split off, which is right for movement and wrong for a goal such as "the key sits in the socket": human ls20
+        recording, 2026-09-17, level 7). Ids: the symbolic entity of the same colour whose box holds the component's
+        centre lends its id (so the avatar id carries over); other components get ids from 100000 up. Background-
+        coloured components are kept when they are small and enclosed (a socket or hole drawn in the background
+        colour is an object: ls20 level 7), and dropped when large or touching the border (the background itself)."""
+        while len(self._plain) < len(self.grids):
+            i = len(self._plain)
+            g = self.grids[i]
+            if g is None:
+                self._plain.append(tuple(self.frames[i]) if i < len(self.frames) else ())
+                continue
+            raw = self.frames[i] if i < len(self.frames) else ()
+            used: set[int] = set()
+            ents: list[Ent] = []
+            new_shapes: dict[str, np.ndarray] = {}
+            h, w = g.shape
+            for k, o in enumerate(components(g)):
+                if o.color == self.bg and (o.size > 400 or o.x0 == 0 or o.y0 == 0 or o.x0 + o.w >= w or o.y0 + o.h >= h):
+                    continue
+                e = ent_from_tracker(_obj_to_entity(o, 100000 + k))
+                if o.shape_hash not in self.shapes and o.shape_hash not in new_shapes:
+                    new_shapes[o.shape_hash] = o.mask
+                cx, cy = o.x0 + o.w // 2, o.y0 + o.h // 2
+                m = next((r for r in raw if r.color == e.color and r.id not in used and r.x0 <= cx <= r.x1 and r.y0 <= cy <= r.y1), None)
+                if m is not None:
+                    used.add(m.id)
+                    e = Ent(m.id, e.color, e.x0, e.y0, e.w, e.h, e.size, e.shape)
+                ents.append(e)
+            if new_shapes:
+                self.shapes.update(new_shapes)
+                register_shapes(new_shapes)
+            self._plain.append(tuple(ents))
+        return list(self._plain)
 
     # ---------------------------------------------------------------- compound sprites
     def compound_frames(self) -> list[tuple[Ent, ...]]:

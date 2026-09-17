@@ -117,7 +117,8 @@ def replay_actions(game: str, acts: list[str], target_level: int, arc, recorded_
             if frame.levels_completed > seen:
                 seen = frame.levels_completed
                 arch = agent.level_archive[-1][0] if agent.level_archive else []
-                preds = dsl.goal_predicates(agent.level_archive)
+                preds = dsl.goal_candidates_dual(agent.level_archive, getattr(agent, "level_archive_raw", None),
+                                                 avatar_ids=getattr(agent, "level_avatars", None))
                 row = {"game": game, "level": seen, "frames": len(arch), "n_goals": len(preds),
                        "goals": [g["goal"] for g in preds[:4]], "actions": before.level_step + 1}
                 if rows_before is not None:

@@ -268,6 +268,11 @@ def _goal_fn(goal):
                 raise ValueError("reach needs a known avatar")
             aid, (x, y) = int(av["id"]), v
             return lambda f: any(e.id == aid and e.contains(int(x), int(y)) for e in f)
+        if k in ("avatar_inside", "avatar_touch"):
+            av = TRK["t"].avatar()
+            if not av:
+                raise ValueError(f"{k} needs a known avatar")
+            return _dsl.goal_predicate(k, (int(v),), avatar_id=int(av["id"]))
         if k == "reach_entity":
             av = TRK["t"].avatar()
             tgt = TRK["t"].get(int(v))
@@ -279,7 +284,8 @@ def _goal_fn(goal):
     raise ValueError("goal must be a callable(frame)->bool, a goal_candidates() name, or one of "
                      "{'none_left': colour}, {'count': (colour, n)}, {'overlap': (a, b)}, {'touch': (a, b)}, {'same_box': (a, b)}, "
                      "{'same_columns': (a, b)}, {'same_rows': (a, b)}, {'inside': (a, b)}, {'shape_matches': (a, b)}, "
-                     "{'vanish_shape': (colour, shape_hash)}, {'reach': (x, y)}, {'reach_entity': id}")
+                     "{'vanish_shape': (colour, shape_hash)}, {'avatar_inside': colour}, {'avatar_touch': colour}, {'reach': (x, y)}, "
+                     "{'reach_entity': id}")
 
 def plan_rules(goal, rules=None, max_depth=200, max_nodes=40000, optimistic=True):
     """Shortest action list reaching `goal` in the rule-set simulation from the current frame (BFS), or None.
@@ -313,14 +319,18 @@ def plan_rules(goal, rules=None, max_depth=200, max_nodes=40000, optimistic=True
 def goal_candidates():
     """Win-condition candidates consistent with every completed level so far: true at the winning frame, false
     before. Names can be passed to plan_rules(). Empty until a level has been completed."""
-    levels = [(list(lv["frames"]) + [lv["final_frame"]], True) for lv in ARCH["levels"] if lv.get("final_frame") is not None]
+    done = [lv for lv in ARCH["levels"] if lv.get("final_frame") is not None]
+    levels = [(list(lv["frames"]) + [lv["final_frame"]], True) for lv in done]
     if not levels:
         return ["(no level completed yet in this game: nothing to infer the win condition from; use goal_hints() and the Goal line of the observation)"]
-    out = _dsl.goal_predicates(levels)
+    raw = [((list(lv["frames_raw"]), True) if lv.get("frames_raw") else None) for lv in done]
+    out = _dsl.goal_candidates_dual(levels, raw, avatar_ids=[lv.get("avatar") for lv in done])
     GOALS.clear()
     GOAL_INFO.clear()
+    av = TRK["t"].avatar()
+    aid = int(av["id"]) if av else None
     for g in out:
-        GOALS[g["goal"]] = g["predicate"]
+        GOALS[g["goal"]] = g["predicate"] or _dsl.goal_predicate(g["kind"], g["args"], avatar_id=aid) or (lambda f: False)
         GOAL_INFO[g["goal"]] = g
     return [g["goal"] for g in out]
 
@@ -343,7 +353,8 @@ def goal_progress(goals=None, last_n=6):
     frames = t.compound_frames()
     av = t.avatar()
     aid = int(av["id"]) if av else None
-    return _dsl.goal_progress(_goal_items(goals), frames, avatar_id=aid, last_n=last_n, history=frames[-400:])
+    return _dsl.goal_progress_dual(_goal_items(goals), frames, t.plain_frames(), avatar_id=aid, last_n=last_n,
+                                   history=frames[-400:], history_offset=max(0, len(frames) - 400))
 
 def goal_probe(goals=None, max_nodes=4000, max_depth=60):
     """The cheapest live goal hypothesis with the plan that satisfies it under the fitted rules: act(plan) either
@@ -453,6 +464,10 @@ def probe_suggestions(limit=8):
             out.append({"action": ("CLICK", (e.x0 + e.x1) // 2, (e.y0 + e.y1) // 2), "why": f"entity #{e.id} colour {e.color} {e.w}x{e.h}: class never clicked"})
     return out[:limit]
 
+def _avatar_id():
+    av = TRK["t"].avatar()
+    return int(av["id"]) if av else None
+
 def _archive_level(final_action, terminal=None):
     """Archive the completed level for goal_candidates(): the observed terminal frame when the harness supplied it
     (the engine returns it as the first layer of the level-completing step), else a simulated winning frame."""
@@ -464,7 +479,7 @@ def _archive_level(final_action, terminal=None):
         try:
             t.update(_to_grid(terminal), final_action)
             frames = t.compound_frames()
-            ARCH["levels"].append({"level": LOG["level"], "frames": list(frames[:-1]), "actions": list(t.actions), "unders": list(t.unders),
+            ARCH["levels"].append({"level": LOG["level"], "frames": list(frames[:-1]), "frames_raw": list(t.plain_frames()), "actions": list(t.actions), "unders": list(t.unders), "avatar": _avatar_id(),
                                    "bg": t.bg, "final_action": final_action, "final_frame": frames[-1], "observed": True})
             return
         except Exception:  # noqa: BLE001
@@ -476,7 +491,7 @@ def _archive_level(final_action, terminal=None):
         final = _dsl.simulate(frames[-1], final_action, rules_) if rules_ else None
     except Exception:  # noqa: BLE001
         final = None
-    ARCH["levels"].append({"level": LOG["level"], "frames": list(frames), "actions": list(t.actions), "unders": list(t.unders),
+    ARCH["levels"].append({"level": LOG["level"], "frames": list(frames), "actions": list(t.actions), "unders": list(t.unders), "avatar": _avatar_id(),
                            "bg": t.bg, "final_action": final_action, "final_frame": final})
 
 def tilemap(g=None, tile=None):

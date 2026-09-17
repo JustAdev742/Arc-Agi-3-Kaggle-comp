@@ -215,9 +215,10 @@ research log exp-006a.
   the "over 50" condition, Nemotron not used. **CPU Save & Run All of the submission notebook at HEAD passed**
   (run 14): packaging, LICENSE in the bundle, rules fallback, submission.parquet.
 - **First human recording received** (ls20, 7 levels won in 546 actions): the local engine reproduces all 546 recorded
-  frames exactly; the goal-predicate library misses ls20's win condition from level 3 on (shape matching; follow-up
-  in the research log); the per-level falsification removed the spurious candidate on a real trajectory. The
-  remaining 341 files of the dataset would make this a recall measurement across all games.
+  frames exactly. Tracing why no win predicate held from level 3 on exposed three perception faults (lesson 0015:
+  occlusion-canonical frames, background-coloured holes, colour-pair goals instead of avatar-relative ones); fixed
+  with plain component frames and avatar-relative goal kinds: a consistent predicate now on 7 of 7 levels, ranked
+  first before every win from level 2 on. The remaining 341 files would make this a recall measurement across games.
 - Improvement pass (task #37) closed on 2026-09-17 morning: see the follow-ups entry and commits 08076e9, 4bedddf,
   98dffb6, 96c7d94, 4f78ad1.
 

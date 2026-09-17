@@ -1594,10 +1594,17 @@ def planning_actions(rules: list[Rule], frame: Frame) -> list[Any]:
 
 
 # ---------------------------------------------------------------------------------------------- goals
-def goal_predicates(frames_by_level: list[tuple[list[Frame], bool]]) -> list[dict[str, Any]]:
+def goal_predicates(frames_by_level: list[tuple[list[Frame], bool]],
+                    avatar_ids: Optional[list[Optional[int]]] = None) -> list[dict[str, Any]]:
     """Goal candidates: predicates true at the final frame of every completed level and false at every earlier
-    frame of those levels. Levels are (frames, won); for a won level the last frame is the simulated winning frame."""
-    won = [fr for fr, w in frames_by_level if w and len(fr) >= 2]
+    frame of those levels. Levels are (frames, won); for a won level the last frame is the simulated winning frame.
+    ``avatar_ids`` (one per level, None when unknown) enables the avatar-relative kinds: the entity the keys move
+    ends up inside / touching an entity of colour c (the human ls20 recording: the key you steer enters the colour-5
+    socket on every level, while a HUD legend shows the same relation from the start, so the colour-pair form fails).
+    Those entries carry ``predicate: None``; the caller builds one for its own avatar with :func:`goal_predicate`."""
+    won_pairs = [(fr, (avatar_ids[i] if avatar_ids and i < len(avatar_ids) else None))
+                 for i, (fr, w) in enumerate(frames_by_level) if w and len(fr) >= 2]
+    won = [fr for fr, _ in won_pairs]
     if not won:
         return []
     colors = sorted({e.color for fr in won for e in fr[-1]} | {e.color for fr in won for e in fr[0]})
@@ -1657,6 +1664,18 @@ def goal_predicates(frames_by_level: list[tuple[list[Frame], bool]]) -> list[dic
                 break
         if ok:
             out.append({"goal": name, "kind": kind, "args": args, "levels": len(won), "predicate": p})
+    # avatar-relative kinds: evaluated per level with that level's avatar id
+    if all(aid is not None for _, aid in won_pairs):
+        for c in colors:
+            for kind in ("avatar_inside", "avatar_touch"):
+                ok = True
+                for fr, aid in won_pairs:
+                    p = goal_predicate(kind, (c,), avatar_id=aid)
+                    if p is None or not p(fr[-1]) or any(p(f) for f in fr[:-1]):
+                        ok = False
+                        break
+                if ok:
+                    out.append({"goal": f"{kind}(colour {c})", "kind": kind, "args": (c,), "levels": len(won), "predicate": None})
     return out
 
 
@@ -1673,7 +1692,7 @@ def same_mask(x: Ent, y: Ent) -> bool:
 # ------------------------------------------------------------------------------ goal hypotheses: distance, falsification
 _GOAL_NAME = re.compile(r"^(\w+)\((?:colour )?(\d+)(?:, colour (\d+))?\)(?: == (\d+))?$")
 GOAL_KINDS = ("none_left", "count", "aligned", "all_same_colour_as", "overlap", "touch", "same_box", "same_columns", "same_rows",
-              "inside", "shape_matches", "vanish_shape", "reach", "reach_entity")
+              "inside", "shape_matches", "vanish_shape", "reach", "reach_entity", "avatar_inside", "avatar_touch")
 
 
 def goal_kind(goal: Any) -> Optional[tuple[str, tuple]]:
@@ -1753,12 +1772,25 @@ def goal_distance(kind: str, args: tuple, frame: Frame, *, avatar_id: Optional[i
                     d = max(0, y.x0 - x.x0) + max(0, x.x1 - y.x1) + max(0, y.y0 - x.y0) + max(0, x.y1 - y.y1)
                 best = d if best is None else min(best, d)
         return best
-    if kind in ("reach", "reach_entity"):
+    if kind in ("reach", "reach_entity", "avatar_inside", "avatar_touch"):
         if avatar_id is None:
             return None
         av = next((e for e in ents if e.id == avatar_id), None)
         if av is None:
             return None
+        if kind in ("avatar_inside", "avatar_touch"):
+            others = [y for y in ents if y.color == int(args[0]) and y is not av and y.id != av.id]
+            if not others:
+                return None
+            if kind == "avatar_touch":
+                return min(max(0, _gap(av, y) - 1) for y in others)
+            best = None
+            for y in others:
+                if y.w * y.h <= av.w * av.h:
+                    continue
+                d = max(0, y.x0 - av.x0) + max(0, av.x1 - y.x1) + max(0, y.y0 - av.y0) + max(0, av.y1 - y.y1)
+                best = d if best is None else min(best, d)
+            return best
         if kind == "reach_entity":
             tgt = next((e for e in ents if e.id == int(args[0])), None)
             return None if tgt is None else _gap(av, tgt)
@@ -1770,7 +1802,7 @@ def goal_distance(kind: str, args: tuple, frame: Frame, *, avatar_id: Optional[i
 
 def goal_predicate(kind: str, args: tuple, *, avatar_id: Optional[int] = None) -> Optional[Callable[[Frame], bool]]:
     """The exact predicate of a dict goal (the sandbox's plan_rules goals), for falsification checks."""
-    if kind in ("reach", "reach_entity") and avatar_id is None:
+    if kind in ("reach", "reach_entity", "avatar_inside", "avatar_touch") and avatar_id is None:
         return None
     if kind == "aligned":
         return lambda f: _aligned([e for e in f if e.color == args[0]])
@@ -1781,6 +1813,13 @@ def goal_predicate(kind: str, args: tuple, *, avatar_id: Optional[int] = None) -
         return lambda f: d(kind, args, f) == 0
     if kind == "reach_entity":
         return lambda f: any(e.id == avatar_id and any(o.id == int(args[0]) and e.overlaps(o, 1) for o in f) for e in f)
+    if kind == "avatar_inside":
+        c = int(args[0])
+        return lambda f: any(e.id == avatar_id and any(o.id != e.id and o.color == c and o.x0 <= e.x0 and e.x1 <= o.x1
+                                                     and o.y0 <= e.y0 and e.y1 <= o.y1 and o.w * o.h > e.w * e.h for o in f) for e in f)
+    if kind == "avatar_touch":
+        c = int(args[0])
+        return lambda f: any(e.id == avatar_id and any(o.id != e.id and o.color == c and e.overlaps(o, 1) for o in f) for e in f)
     if kind == "reach":
         return lambda f: any(e.id == avatar_id and e.contains(int(args[0]), int(args[1])) for e in f)
     return None
@@ -1825,6 +1864,37 @@ def goal_progress(goals: list[Any], frames: list[Frame], *, avatar_id: Optional[
                     "falsified_at": falsified_at})
     out.sort(key=lambda r: (r["falsified"], r["dist"] is None, r["dist"] if r["dist"] is not None else 0))
     return out
+
+
+def goal_candidates_dual(compound_levels: list[tuple[list[Frame], bool]], raw_levels: Optional[list[Optional[tuple[list[Frame], bool]]]],
+                         avatar_ids: Optional[list[Optional[int]]] = None) -> list[dict[str, Any]]:
+    """Candidates over the tracker's compound frames plus, when every won level also has raw component frames, over
+    the raw frames (entries tagged ``rep``: 'compound' or 'raw'; a name consistent in both keeps the compound entry).
+    Exact perception: the compound view merges multi-part sprites, which is right for movement and wrong for some
+    goals (human ls20 recording, 2026-09-17: on the last level the shrunken socket was absorbed into the key's
+    compound, so no compound predicate held; the raw components show the key inside the socket on all 7 levels)."""
+    out = [dict(g, rep="compound") for g in goal_predicates(compound_levels, avatar_ids=avatar_ids)]
+    names = {g["goal"] for g in out}
+    if raw_levels and len(raw_levels) == len(compound_levels) and all(r is not None for r in raw_levels):
+        for g in goal_predicates([r for r in raw_levels if r is not None], avatar_ids=avatar_ids):
+            if g["goal"] not in names:
+                out.append(dict(g, rep="raw"))
+    return out
+
+
+def goal_progress_dual(goals: list[Any], compound_frames: list[Frame], raw_frames: Optional[list[Frame]], **kw: Any) -> list[dict[str, Any]]:
+    """goal_progress over both representations: entries tagged rep='raw' are measured on the raw frames."""
+    comp = [g for g in goals if not (isinstance(g, dict) and g.get("rep") == "raw")]
+    raw = [g for g in goals if isinstance(g, dict) and g.get("rep") == "raw"]
+    rows = goal_progress(comp, compound_frames, **kw)
+    if raw and raw_frames:
+        kw_raw = dict(kw)
+        if kw.get("history") is not None:  # the caller's history slice is over the compound frames; mirror it on the raw ones
+            off = int(kw.get("history_offset", 0))
+            kw_raw["history"] = raw_frames[off:]
+        rows += goal_progress(raw, raw_frames, **kw_raw)
+    rows.sort(key=lambda r: (r["falsified"], r["dist"] is None, r["dist"] if r["dist"] is not None else 0))
+    return rows
 
 
 def _holds(pred: Callable[[Frame], bool], frame: Frame) -> bool:

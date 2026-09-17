@@ -166,6 +166,8 @@ class ReplAgent(Agent):
         # level are ranked by code-computed distance every turn, and a hypothesis that came true on the current level
         # without completing it is shown as falsified. Cheap (geometry only) and off the action path.
         self.goal_info: list[dict[str, Any]] = []
+        self.level_avatars: list[Optional[int]] = []  # the avatar id of each archived level (avatar-relative goal kinds)
+        self.level_archive_raw: list[Optional[tuple[list, bool]]] = []  # raw component frames per archived level (None when simulated)
         self.goal_progress_in_prompt = bool(c.get("goal_progress_in_prompt", True))
         self._goal_falsified: dict[str, int] = {}
         self._goal_checked = 0  # frames of the current level already checked for falsification
@@ -369,10 +371,11 @@ class ReplAgent(Agent):
             n_level = int(before.level_step) + 1
             last = ", ".join(self.recent_actions[-8:])
             observed_terminal = False
-            if len(after.layers) > 1 and after.layers[0].shape == before.grid.shape:
+            if (len(after.layers) > 1 or after.done) and after.layers[0].shape == before.grid.shape:
                 # The engine returns the completed level's terminal frame first and the next level's start last
                 # (checked on vc33/ls20/ar25 replays, 2026-09-16): the winning move is tracked on the real terminal
-                # frame, so the level archive and the goal predicates use observed evidence, not a simulation.
+                # frame, so the level archive and the goal predicates use observed evidence, not a simulation. The
+                # final WIN comes as a single layer that is the terminal itself (human ls20 recording, 2026-09-17).
                 try:
                     rec = self.tracker.update(after.layers[0], label0)
                     win_summary = Tracker.describe({**rec, "action": str(action)}, self.tracker)
@@ -423,7 +426,7 @@ class ReplAgent(Agent):
         self.pending = None
         if req is not None and not req.auto:
             req.result = {**res, **(req.result or {})}
-            if res["level_completed"] and len(after.layers) > 1 and after.layers[0].shape == after.grid.shape:
+            if res["level_completed"] and (len(after.layers) > 1 or after.done) and after.layers[0].shape == after.grid.shape:
                 # The completed level's observed winning frame rides on this request only (the sandbox pops it into its
                 # level archive); it must not enter last_result, which every cell receives as `last`.
                 req.result["terminal"] = after.layers[0].tolist()
@@ -571,8 +574,11 @@ class ReplAgent(Agent):
             frames = t.compound_frames()
             if not frames:
                 return []
+            av0 = t.avatar()
             if observed_terminal and len(frames) >= 2:
                 self.level_archive.append((list(frames), True))
+                self.level_archive_raw.append((list(t.plain_frames()), True))
+                self.level_avatars.append(int(av0["id"]) if av0 else None)
                 return self._refresh_goal_info()
             aid = int(final_action.action.value)
             label: Any = ("CLICK", int(final_action.x or 0), int(final_action.y or 0)) if aid == 6 else ACTION_NAMES.get(aid, str(final_action))
@@ -583,6 +589,8 @@ class ReplAgent(Agent):
             # with no rule to simulate the winning step, the last observed frame stands in for the final one
             final = dsl.simulate(frames[-1], label, rules) if rules else frames[-1]
             self.level_archive.append(([*frames, final], True))
+            self.level_archive_raw.append(None)  # a simulated terminal exists only in the compound representation
+            self.level_avatars.append(int(av0["id"]) if av0 else None)
             return self._refresh_goal_info()
         except Exception as e:  # noqa: BLE001
             self.log.warning("level archive failed: %s", e)
@@ -590,7 +598,7 @@ class ReplAgent(Agent):
 
     def _refresh_goal_info(self) -> list[str]:
         from .. import dsl
-        self.goal_info = dsl.goal_predicates(self.level_archive)
+        self.goal_info = dsl.goal_candidates_dual(self.level_archive, self.level_archive_raw, avatar_ids=self.level_avatars)
         self._goal_falsified = {}
         self._goal_checked = 0
         return [g["goal"] for g in self.goal_info]
@@ -609,8 +617,9 @@ class ReplAgent(Agent):
                 self._goal_falsified, self._goal_checked = {}, 0  # the tracker was reset: a new level or a restart
             av = t.avatar()
             aid = int(av["id"]) if av else None
-            rows = dsl.goal_progress(self.goal_info, frames, avatar_id=aid, history=frames[self._goal_checked:],
-                                     falsified=self._goal_falsified, history_offset=self._goal_checked)
+            raw = t.plain_frames() if any(g.get("rep") == "raw" for g in self.goal_info) else None
+            rows = dsl.goal_progress_dual(self.goal_info, frames, raw, avatar_id=aid, history=frames[self._goal_checked:],
+                                          falsified=self._goal_falsified, history_offset=self._goal_checked)
             self._goal_checked = len(frames)
             return dsl.render_goal_progress(rows)
         except Exception as e:  # noqa: BLE001  (an observation line must never cost a turn)

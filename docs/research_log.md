@@ -726,3 +726,20 @@ Expected: fewer actions on solved levels (s5i5 L1: 155 -> 117 in exp-017 terms),
 Plan:     exp-023 = champion preset + noop_memory; exp-023b = + noop_skip; three runs each against the exp-024 control
           (champion preset at HEAD), dev, 1200 s, 8 workers.
 Measured: not run (GPU quota exhausted until 2026-09-19 00:00 UTC).
+
+## 2026-09-17 · exp-021b · goal library: plain-component frames, background holes, avatar-relative kinds, shape kinds · KEPT (code-only gate)
+Why:      the human ls20 recording had no consistent win predicate from level 3 on (entry above). Tracing it exposed
+          three perception faults, not one predicate gap (lesson 0015).
+Change:   entities.Tracker.plain_frames(): plain connected components per observed grid (grids stored beside the
+          symbolic frames), tracker ids lent by overlap so the avatar id carries over, small enclosed background-
+          coloured components kept. dsl: goal kinds shape_matches, vanish(colour, shape), avatar_inside(colour),
+          avatar_touch(colour) (per-level avatar ids); goal_candidates_dual / goal_progress_dual evaluate candidates on
+          the compound frames and on the plain frames (entries tagged rep). Harness and sandbox archive plain frames
+          and avatar ids per level; the single-layer WIN frame counts as the observed terminal; goal_probe.py replays
+          human recordings with one action per call. Tests in test_entities, test_dsl, test_sandbox, test_repl_agent.
+Measured: human ls20 recording (7 levels): a consistent predicate on 7 of 7 levels (was 2 of 7): avatar_inside(colour 5)
+          on every level; on the 6 levels >= 2 the eventual winner was the cheapest live hypothesis before the win 6
+          times (was 1); the falsification removed 2, 3 and 1 spurious candidates on levels 2, 3 and 5. Engine vs
+          recording: 0 of 546 frames differ. Recall on our own recorded runs (goal_probe --max-levels 3): see the next
+          entry once the run finishes.
+Kept:     yes (code-only; the model-facing change is the goal line and goal_probe() output, part of the exp-022 bundle).
