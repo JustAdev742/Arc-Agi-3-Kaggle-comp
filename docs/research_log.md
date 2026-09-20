@@ -793,3 +793,18 @@ Measured: 18 solved levels replayed (the re-mined library picks the latest winni
           win on ar25 L2 (1 of 5) and su15 L2 (1 of 26 live; the library over-generates on su15), none survives on
           vc33 L2. Engine determinism holds on every replay.
 Kept:     yes. Follow-ups: part-level entities for vc33-style goals; prune the over-generation on colour-0 pairs.
+
+## 2026-09-20 · exp-024 control and exp-026 full bundle, both at HEAD · RUNNING (quota restored)
+Why:      the owner asked whether the submission carries the improvements. It does not: the submission notebook runs
+          arc3/presets.py:CHAMPION (the measured exp-011 configuration, every later knob off). Nine knobs separate it
+          from BUNDLE (memory, level_consolidation, level_action_notice 120, explore_first 8 + 4 clicks,
+          goal_progress_in_prompt, bg_holes, noop_memory, postmortem), none of them measured on a model.
+Change:   nothing new; both arms rebuilt at HEAD 8f3af9e so the embedded package carries the current harness.
+Plan:     exp-024 = champion preset at HEAD (kernel arc3-eval-dev-p, run kaggle-repl-dev-024): confirms HEAD still
+          reproduces the champion and is the control every arm compares with. exp-026 = full bundle (kernel
+          arc3-eval-dev-o, run kaggle-repl-dev-026). dev, 1200 s per game, 8 workers, seed 0, same settings as
+          exp-011..015. Kaggle allows two concurrent batch GPU sessions, so exp-026 pushes when a slot frees.
+Decision rule: the six-run champion base is 0.608-1.372 (median 0.87, band about +-0.3 RHAE and +-2 levels), so a
+          single bundle run only decides if it lands clearly outside that band; otherwise repeat both arms to three
+          runs before changing what the submission notebook ships.
+Measured: pending.

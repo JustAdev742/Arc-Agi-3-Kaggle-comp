@@ -117,6 +117,8 @@ research log exp-006a.
 
 ## Open items (need you)
 
+**Submission runs the champion preset, not the unmeasured bundle** (exp-024 control and exp-026 bundle are measuring that gap now; research log 2026-09-20).
+
 **How to submit: `docs/SUBMITTING.md`** (build and push the notebook here, press Submit in the browser).
 
 1. **Milestone 2 (closes 2026-09-30) — decisions received 2026-09-17.** License: **Apache-2.0** (`LICENSE` at the
