@@ -86,6 +86,10 @@ The GPU work runs on Kaggle's RTX PRO 6000 (the local box has no GPU in the remo
 make notebook && make submit
 ```
 
+Pressing **Submit to Competition** is a browser step: `docs/SUBMITTING.md` has the click path, what Kaggle does
+with the version (a 9-hour rerun against the hidden games through the gateway), the limits and the Milestone 2
+publishing step.
+
 The Kaggle token lives in git-ignored `.kaggle/access_token` (or `KAGGLE_API_TOKEN`). Model weights
 and the vLLM wheelhouse are attached as private datasets named in `notebooks/kernel-metadata.json`.
 Without a model dataset the notebook falls back to the rules agent, so the pipeline can be validated

@@ -117,6 +117,8 @@ research log exp-006a.
 
 ## Open items (need you)
 
+**How to submit: `docs/SUBMITTING.md`** (build and push the notebook here, press Submit in the browser).
+
 1. **Milestone 2 (closes 2026-09-30) — decisions received 2026-09-17.** License: **Apache-2.0** (`LICENSE` at the
    root, packed into the notebook bundle, named in the notebook header). Publication: allowed; my decision is to
    publish the notebook together with a submission, not before (a public copy without an entry only gives the code
