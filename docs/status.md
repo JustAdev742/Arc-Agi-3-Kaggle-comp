@@ -125,6 +125,12 @@ two concurrent batch GPU sessions and exposes no cancel in the API (only `kernel
 observable from here; the notebook page in a browser shows the real reason. Submission notebook **v2 (2026-09-16,
 harness 699825b) remains a passed run and is submittable without waiting**.
 
+Diagnosed 2026-09-21 12:20 UTC: a CPU kernel pushed at that moment was **RUNNING within seconds**
+(`arc3-submission-cpu-check` v2) while the GPU kernel had then been queued 13 hours. The account, the token and
+Kaggle's scheduler are therefore healthy; it is the **rtx6000 batch pool that is not allocating**, which nothing in
+this repo can influence. Practical consequences: GPU experiments are blocked until the pool frees, CPU-only work
+(code gates, replays, notebook builds) is unaffected, and submitting does not depend on either.
+
 **Submission runs the champion preset, not the unmeasured bundle** (exp-024 control and exp-026 bundle are measuring that gap now; research log 2026-09-20).
 
 **How to submit: `docs/SUBMITTING.md`** (build and push the notebook here, press Submit in the browser).
