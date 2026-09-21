@@ -117,6 +117,14 @@ research log exp-006a.
 
 ## Open items (need you)
 
+**Kaggle RTX queue stall (2026-09-20/21):** the submission notebook v3 (harness 8f3af9e) and the exp-024 control were
+pushed at 23:20 UTC with GPU quota available (pushes are rejected outright when the weekly 30 h is spent). Neither was
+scheduled in the following five hours: both sat at `KernelWorkerStatus.QUEUED`, no code ran, no quota was spent. The
+control was cancelled from the browser to free a session slot and the submission still did not start. Kaggle caps us at
+two concurrent batch GPU sessions and exposes no cancel in the API (only `kernels delete`), so queue position is not
+observable from here; the notebook page in a browser shows the real reason. Submission notebook **v2 (2026-09-16,
+harness 699825b) remains a passed run and is submittable without waiting**.
+
 **Submission runs the champion preset, not the unmeasured bundle** (exp-024 control and exp-026 bundle are measuring that gap now; research log 2026-09-20).
 
 **How to submit: `docs/SUBMITTING.md`** (build and push the notebook here, press Submit in the browser).
