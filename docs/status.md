@@ -108,6 +108,13 @@ architectural step therefore has to be measured on dev and val, not assumed.
     smoke on ls20 (140 actions, 0 levels, 128 s) and vc33 (200 actions, 0 levels, 47 s), `submission.parquet` written.
     Packaging and the framework path verified at HEAD; the model path needs the RTX Save & Run All (open item 2). GPU quota: 0.
 
+15. `scottmahony/arc-prize-2026-arc-agi-3-arc3-agent` **v3**, RTX, queued 2026-09-20 23:20 UTC, ran and **COMPLETED
+    2026-09-21 13:30 UTC** (14 h of queue, about 20 min of run). Harness 8f3af9e, champion preset. vLLM installed in
+    159 s, server ready on the **first attempt** (tuned flags, MTP + FP8 KV) after 321 s; `agent: repl` with the
+    champion config keys, so no silent fallback; offline smoke played ls20 (15 actions) and vc33 (4 actions) against
+    the served model in 284 s each, 0 levels (a 300 s per-game smoke is a pipeline check, not a score);
+    `submission.parquet` written with the expected placeholder row. **This version is valid and submittable.**
+
 ## Rule library coverage (exp-006a, code-only, 2026-09-16)
 
 `scripts/rule_coverage.py` plays each public game blind for 60 actions and measures the fraction of entity events the
