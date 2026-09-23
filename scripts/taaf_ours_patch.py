@@ -504,7 +504,26 @@ P6_TOOLDESC_OLD = '"Python code to run. The snippet is ephemeral and is not save
 P6_TOOLDESC_NEW = ('"Python code to run. Variables do not persist across calls; top-level functions, classes, imports and '
                    'UPPER_CASE constants of successful calls do."')
 
+# P11: the served Flash-Next chat template defaults to reasoning effort "xhigh" (it prepends "Reasoning effort is set to
+# xhigh. Please think carefully through the task, validate key assumptions, consider plausible alternatives ..." to the
+# system prompt) and also accepts "medium" (no instruction) and "low"; it renders the reasoning of every past assistant
+# turn unless `preserve_thinking` is false. About 81% of the output is reasoning and the score keeps rising until the
+# time limit in every harvested run, so both are knobs: OURS_REASONING_EFFORT (xhigh | medium | low; unset keeps the
+# template default) and OURS_PRESERVE_THINKING (0 | 1; unset keeps the template default, which renders them).
+UTILS_COMPAT = "src/ARC3-Inference/inference/utils/openai_compat.py"
+P11_IMPORT_OLD = "from typing import Any\n"
+P11_IMPORT_NEW = "import os\nfrom typing import Any\n"
+P11_OLD = '        payload["chat_template_kwargs"] = {"enable_thinking": bool(thinking)}\n'
+P11_NEW = (P11_OLD
+           + '        _effort = os.environ.get("OURS_REASONING_EFFORT", "").strip().lower()\n'
+           + '        if thinking and _effort in ("xhigh", "medium", "low"):\n'
+           + '            payload["chat_template_kwargs"]["reasoning_effort"] = _effort\n'
+           + '        _preserve = os.environ.get("OURS_PRESERVE_THINKING", "").strip()\n'
+           + '        if _preserve in ("0", "1"):\n'
+           + '            payload["chat_template_kwargs"]["preserve_thinking"] = _preserve == "1"\n')
+
 PATCHES.update({
+    "P11": [(UTILS_COMPAT, P11_IMPORT_OLD, P11_IMPORT_NEW), (UTILS_COMPAT, P11_OLD, P11_NEW)],
     "P6": [
         (TOOL_AGENT, "def _empty_world_model(", P6_FN + "def _empty_world_model("),
         (SANDBOX, P6_SANDBOX_CHILD_OLD, P6_SANDBOX_CHILD_NEW),

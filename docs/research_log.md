@@ -1069,3 +1069,25 @@ Bug:      the sandbox's restricted builtins lack __build_class__, so every `clas
           (os still refused). exp-035 was rebuilt with this before its push.
 Next arm: exp-036 = exp-035 + P9 + P10 + P6 (kernel scottmahony/arc3-taaf-ours-c), serving settings from the KV stress
           tests if they pass.
+
+## 2026-09-23 · finding: the served model runs at reasoning effort "xhigh" by default · exp-037 / exp-038 BUILT (queued)
+Found:    the Flash-Next chat template (HF RadixArk/Qwen3.8-Flash-Next-NVFP4, rev 7b71922, the checkpoint Keith Tyser's
+          Kaggle model mirrors) takes `reasoning_effort` in chat_template_kwargs: "xhigh" (default when unset) prepends
+          "Reasoning effort is set to xhigh. Please think carefully through the task, validate key assumptions, consider
+          plausible alternatives, and prioritize correctness, consistency, and clarity in the final answer." to the
+          system prompt; "medium" adds nothing; "low" adds "Keep your thinking brief and focused, moving directly to the
+          conclusion without unnecessary elaboration." It also takes `preserve_thinking` (false drops the reasoning of
+          past assistant turns). Rendered locally with jinja2 for all four settings. The Duck sends only
+          `enable_thinking`, so every public Flash-Next run so far played at xhigh.
+Why it matters: about 81% of the output is reasoning (1,460 tokens per call, tails to 12k) and the score is still
+          rising at the time limit in every run we have per-level timings for (thui-animfast 3.6 at 60 min, 6.5 at 90,
+          9.6 at 132; wuliao0 3.7 / 5.0 / 5.8; chiakazirim 3.1 / 3.2 / 5.2), so seconds per call convert into levels.
+Change:   patch P11 (scripts/taaf_ours_patch.py): OURS_REASONING_EFFORT (xhigh | medium | low) and
+          OURS_PRESERVE_THINKING (0 | 1) go into chat_template_kwargs; unset keeps today's behaviour. Bed: all 76
+          harness requests of a 25 s run carried `"reasoning_effort": "medium"`.
+Arms:     exp-037 = the unmodified base notebook + P11 at medium (scottmahony/arc3-taaf-effort-medium); exp-038 = the
+          same at low (scottmahony/arc3-taaf-effort-low). Both differ from the base only by effort, so each compares
+          with the harvested distribution of the base (30 plain Flash-Next runs, 3 animation-aware, plus exp-032).
+Expected: shorter calls, more calls per game, more levels, unless per-call quality drops more than the extra calls buy.
+          Our own effort ablation (exp-013/014, a different model and harness) found medium over low gave more levels
+          but lower RHAE; here the comparison is xhigh against medium/low.
