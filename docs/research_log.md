@@ -1224,3 +1224,20 @@ Behaviour: 54 responses per game; reasoning 3,633 characters per response (p90 8
           0.027 per response (KeyError 10, NameError 9, IndexError 7); carried note changed in 0.29 of turns. Minutes per
           solved level L1-L4: 22.1, 33.7, 22.5, 45.3.
 Use:      the control every arm today is compared with (plus the harvest distribution).
+
+## 2026-09-23 · exp-034 · our fork, first arm (P1 P1B P2 P3 P7, yield 600 s, output cap 6,144) · MEASURED, no gain
+Measured: public-25 6.44, 32 levels (dev 7.88, val 1.89); runs/exp034-ours-a (scottmahony/arc3-taaf-ours-a v1,
+          08:25-10:50 UTC). Harvest rank 27th percentile; control exp-032 7.86 / 38 levels. The gap is inside the noise
+          of two single runs (sd of a difference about 2.3), but there is no sign of a gain.
+Mechanics: the patches did what they target: carried note changed in 0.73 of turns (control 0.29; P1/P1B); first move
+          on a new level at 0.0 min (control 4.9; P3); 18% more model calls (1,599 vs 1,356) because the 6,144 cap's
+          reply reserve shrank prompts (17.0k vs 20.6k tokens) so 3.79 requests ran (vs 3.12), queue 104 s (vs 126), at
+          the price of 417 preemptions (vs 21). Worse: longest action-free stretch per level 58.4 min (control 45.5);
+          level-2 solves took 44.9 min (33.7). Per game: ft09 reached 4 levels in 57 min (control 114); lp85 and re86
+          stopped at 2 (control 4).
+Suspect:  the 600 s yield. A yield only restarts the turn with a fresh prompt (solver.py), so it sets how often the
+          harness re-grounds the model; at 600 s an unproductive turn runs 10 minutes and the P15 idle nudge and P19
+          review can surface only every 10 minutes. No evidence favoured 600 s; every harvested run used 180 s.
+Decision: the four queued arms (exp-035, 036, 039, 040; none pushed yet) are rebuilt with the base 180 s yield; the
+          output cap, P1-P3 and P7 stay (they do what they target). Tonight's submission is chosen among exp-032,
+          exp-037 and the arms that finish before 23:30.
