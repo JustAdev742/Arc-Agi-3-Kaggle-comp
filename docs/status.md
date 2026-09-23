@@ -258,6 +258,10 @@ this repo can influence. Practical consequences: GPU experiments are blocked unt
   corrupts the sandbox protocol; the host then blocks forever) and needs its fix before exp-036 runs; P9 reported a
   wrong diff right after GAME_OVER; P10's note accumulated in compressed history. exp-034/035 do not contain P6 and
   are unaffected (verified on the four patch sets).
+- **Scoring path (read in the notebook and TAAF source):** a real rerun plays through the Kaggle gateway's scorecard
+  (`competition_arcade.py`: one scorecard, hidden baselines); the notebook writes submission.parquet only in offline
+  runs. Levels therefore count as they complete, and a game still running at soft_end keeps its progress; the
+  wave-fit option only evens out per-game time (the 4th wave of 28 gets about 10% less), it rescues nothing.
 - **Blocked:** creating a private Kaggle dataset for our source was refused by the permission classifier (read as a
   possible public surface); worked around legitimately by patching the public source at runtime inside our private
   notebooks. No dataset of ours is needed.
