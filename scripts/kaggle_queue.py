@@ -137,6 +137,11 @@ def main() -> None:
                 st["pushed"] = now()
                 print(f"{now()} {it['name']}: pushed ({out.splitlines()[-2] if len(out.splitlines()) > 1 else out})",
                       flush=True)
+            else:  # report each new refusal reason once (a full slot, the weekly quota, a bad notebook)
+                reason = (out.strip().splitlines() or ["(no output)"])[-1][:300]
+                if reason != st.get("refused"):
+                    st["refused"] = reason
+                    print(f"{now()} {it['name']}: push refused: {reason}", flush=True)
             break  # one push attempt per cycle, in priority order
         spath.write_text(json.dumps(state, indent=1))
         time.sleep(120)
