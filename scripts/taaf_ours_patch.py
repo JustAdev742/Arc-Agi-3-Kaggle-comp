@@ -224,7 +224,58 @@ P7_NEW = ('        runtime_globals["__builtins__"]["__import__"] = _safe_import\
           '        except Exception:\n'
           '            pass\n')
 
+# P4: once a user message is older than the newest one, its standing instructions (about 2,400 characters repeated
+# every turn), its copy of the carried note (superseded by the newest) and its board image carry nothing new; they are
+# cut from the stored history. The newest user message is still sent in full with the current image.
+P4_FN = '''_HISTORY_USER_CUT_MARKER = "\\nOnly tool: `python`."
+_STRIP_PAST_REASONING = os.environ.get("OURS_STRIP_PAST_REASONING", "1") == "1"
+
+
+def _compress_history_message(message: dict[str, Any]) -> dict[str, Any]:
+    """An older turn as it is kept in history.
+
+    User turns lose their standing instructions, stale note and image (the newest turn keeps all three). Assistant
+    turns lose their reasoning: the served template does not render reasoning from before the latest user turn,
+    so it only counted against the history budget.
+    """
+    role = str(message.get("role", "")).strip()
+    if role == "assistant" and _STRIP_PAST_REASONING and message.get("reasoning"):
+        stripped = dict(message)
+        stripped.pop("reasoning", None)
+        return stripped
+    if role != "user":
+        return message
+    content = message.get("content")
+    if isinstance(content, list):
+        text = "\\n".join(
+            str(part.get("text", "")) for part in content if isinstance(part, dict) and part.get("type") == "text"
+        )
+    elif isinstance(content, str):
+        text = content
+    else:
+        return message
+    cut = text.find(_HISTORY_USER_CUT_MARKER)
+    if cut > 0:
+        text = text[:cut] + "\\n[Earlier turn; its standing instructions, world-model copy and image are omitted.]"
+    elif isinstance(content, str):
+        return message
+    compressed = dict(message)
+    compressed["content"] = text
+    return compressed
+
+
+'''
+P4_OLD = "        return self._drop_until_first_user_message(history)\n"
+P4_NEW = ("        return [\n"
+          "            _compress_history_message(message)\n"
+          "            for message in self._drop_until_first_user_message(history)\n"
+          "        ]\n")
+
 PATCHES.update({
+    "P4": [
+        (TOOL_AGENT, "def _empty_world_model(", P4_FN + "def _empty_world_model("),
+        (TOOL_AGENT, P4_OLD, P4_NEW),
+    ],
     "P1B": [
         (TOOL_AGENT, "def _extract_labeled_blocks(", P1B_RE),
         (TOOL_AGENT, P1B_MATCH_OLD, P1B_MATCH_NEW),
