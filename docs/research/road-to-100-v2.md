@@ -164,6 +164,9 @@ contrast (`scripts/goal_induction.py`) gives, per level, the goal candidates con
   (per-tile rules read from clue tiles), m0r0 (the twins merge) and, from explorer data, lp85 (brackets drawn as four
   corner pieces), which are the census's grammar gaps; tu93 level 5 (enemies can also cover the exit, so the goal needs
   the avatar's position relative to a remembered target); vc33 level 3 (each of three colours must align: a conjunction).
+  Allowing 1 percent of the negatives to satisfy a candidate (the census found win checks gated by action kind, so a
+  state can meet the goal without ending the level) recovers m0r0's goal from the optimal-play data ("one colour-10
+  piece left": the twins merged); it adds nothing on the explorer data.
 - **Ambiguity:** after a level's own falsification a median of 13 colour-free candidates are still alive (0 to 81).
   Contrast narrows the goal a lot but does not pick it; the pick is either an experiment that separates candidates
   (the harness's `disagreement_probe`) or a model reading the picture.
