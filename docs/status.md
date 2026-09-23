@@ -247,7 +247,17 @@ this repo can influence. Practical consequences: GPU experiments are blocked unt
   budget; wave-fit per-game cap in real reruns.
 - **GPU runs this session:** exp-024/026 (done), exp-032 = unchanged copy of the public anim + Flash-Next notebook
   (running), exp-033 FP8 KV (failed at startup: the model needs a BF16 KV cache), exp-034 = our fork without history
-  compression (running), exp-035 = with compression (queued), then two 25-minute KV-cache stress tests (5 vs 8 GiB).
+  compression (running). Queue, pushed as the two slots free: exp-037 (reasoning effort medium), 8 GiB KV stress
+  test, exp-035 (history compression), exp-038 (effort low), 5 GiB stress test; exp-036 after the P6 fix below.
+- **Found 2026-09-23:** the served chat template runs at reasoning effort "xhigh" unless told otherwise (it prepends
+  "think carefully ... consider plausible alternatives" to the system prompt) and accepts medium/low; every public
+  Flash-Next notebook plays at xhigh. Patch P11 makes it a knob; exp-037/038 measure it. Harvest analysis: the score
+  rises with time per game but concavely (stock mean 3.9 at 60 min, 6.3 at 132); levels 2-4 take as long as level 1
+  (median 24-31 min each); the score comes from later levels of a few games.
+- **Code review of our patches (subagent, bed-tested):** P6 can hang a game thread (replayed helper code that prints
+  corrupts the sandbox protocol; the host then blocks forever) and needs its fix before exp-036 runs; P9 reported a
+  wrong diff right after GAME_OVER; P10's note accumulated in compressed history. exp-034/035 do not contain P6 and
+  are unaffected (verified on the four patch sets).
 - **Blocked:** creating a private Kaggle dataset for our source was refused by the permission classifier (read as a
   possible public surface); worked around legitimately by patching the public source at runtime inside our private
   notebooks. No dataset of ours is needed.
