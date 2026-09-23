@@ -224,9 +224,11 @@ P7_NEW = ('        runtime_globals["__builtins__"]["__import__"] = _safe_import\
           '        except Exception:\n'
           '            pass\n')
 
-# P4: once a user message is older than the newest one, its standing instructions (about 2,400 characters repeated
-# every turn), its copy of the carried note (superseded by the newest) and its board image carry nothing new; they are
-# cut from the stored history. The newest user message is still sent in full with the current image.
+# P4: once a user message is older than the newest one, its standing instructions (about 600 tokens repeated every
+# turn), its copy of the carried note (superseded by the newest) and its board image (about 200 tokens) carry nothing
+# new; they are cut from the stored history, and so is the reasoning of finished turns (35% of all prompt tokens). The
+# newest user message is still sent in full with the current image. Pair with a lower LOCAL_ANALYZER_CONTEXT_WINDOW,
+# or the harness refills the freed budget with more history.
 P4_FN = '''_HISTORY_USER_CUT_MARKER = "\\nOnly tool: `python`."
 _STRIP_PAST_REASONING = os.environ.get("OURS_STRIP_PAST_REASONING", "1") == "1"
 
@@ -235,8 +237,8 @@ def _compress_history_message(message: dict[str, Any]) -> dict[str, Any]:
     """An older turn as it is kept in history.
 
     User turns lose their standing instructions, stale note and image (the newest turn keeps all three). Assistant
-    turns lose their reasoning: the served template does not render reasoning from before the latest user turn,
-    so it only counted against the history budget.
+    turns lose their reasoning: the served template renders it (35% of prompt tokens in a public run), while Qwen's
+    guidance is to keep only the final output of earlier turns; the current turn keeps its reasoning.
     """
     role = str(message.get("role", "")).strip()
     if role == "assistant" and _STRIP_PAST_REASONING and message.get("reasoning"):

@@ -10,8 +10,10 @@ queue for 19 s of work, and a game gets about 54 calls in 132 minutes. Scores we
 What follows:
 1. Tokens in the prompt, not generated tokens, are the scarce resource. Every prompt token that carries nothing new
    (repeated instructions, old images, old reasoning, duplicate re-prompts) costs concurrency for all games.
-2. The harness estimates tokens as JSON length / 3, counting base64 images and past reasoning that the server never
-   sees; its budget is not the server's prompt size. Check the server metrics (vllm:request_prompt_tokens) after any
-   change to context handling.
+2. Past-turn reasoning IS rendered by the served template and is 35% of all prompt tokens (median 7.8k per call);
+   repeated instructions are about 600 tokens per user message; an image costs about 200 tokens but the harness
+   estimates it from its base64 length. The harness fills a token budget (JSON length / 3), so cutting content only
+   shrinks the prompt if the budget (LOCAL_ANALYZER_CONTEXT_WINDOW) is lowered with it. Check the server metrics
+   (vllm:request_prompt_tokens) after any change to context handling.
 3. A larger `kv_cache_memory_bytes` is the other lever; about 12.6 GiB is free after the weights, so test it under
    load (scripts/build_kv_stress_nb.py) before a full run relies on it.
