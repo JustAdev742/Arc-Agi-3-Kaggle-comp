@@ -12,7 +12,7 @@ Last updated: 2026-09-17 (session 4, remote CPU container: 4 vCPU, 15 GB RAM, no
 | RESET in competition | competition mode forces *level* resets; game resets become level resets; a RESET at a level start is a billed no-op; one `make()` per environment; one scorecard | VERIFIED | docs.arcprize.org/toolkit/competition_mode and `arc_agi/api.py`; `arc3/env.py` mirrors it, `tests/test_env.py` checks it |
 | Games / levels | 25 public games, 6–10 levels each (188 levels); ids and per-level baselines in `environment_files/*/metadata.json` | VERIFIED | download on 2026-09-15 |
 | Runtime limit | **9 h** for CPU and GPU notebooks ("CPU Notebook <= 9 hours run-time, GPU Notebook <= 9 hours run-time"). Governor default 9 h minus a 15 min reserve | **VERIFIED** | Kaggle Code Requirements, pasted by the user on 2026-09-16 |
-| Daily submissions | 5 | UNCONFIRMED (two secondary sources agree) | starter README, third-party summary |
+| Daily submissions | **1 observed**: after the 2026-09-23 submission the CLI replied "0 submissions remaining today" | OBSERVED (one data point; the Rules tab is authoritative) | `kaggle competitions submit` output, 2026-09-23 |
 | Milestone 2 | closes 2026-09-30, 23:59 UTC; prizes $25,000 / $7,500 / $5,000; notebook must be public under an open-source license by then | VERIFIED | Kaggle overview (pasted 2026-09-16) |
 | Entry / team merge | 2026-10-26, 23:59 UTC | VERIFIED | Kaggle overview (pasted 2026-09-16) |
 | Final submission | 2026-11-02, 23:59 UTC; winners announced 2026-12-04 | VERIFIED | Kaggle overview (pasted 2026-09-16) |
@@ -114,6 +114,12 @@ architectural step therefore has to be measured on dev and val, not assumed.
     champion config keys, so no silent fallback; offline smoke played ls20 (15 actions) and vc33 (4 actions) against
     the served model in 284 s each, 0 levels (a 300 s per-game smoke is a pipeline check, not a score);
     `submission.parquet` written with the expected placeholder row. **This version is valid and submittable.**
+
+16. **COMPETITION SUBMISSION** 2026-09-23 04:23 UTC, on the owner's explicit instruction ("Submit it"): notebook
+    `scottmahony/arc-prize-2026-arc-agi-3-arc3-agent` **v3** (champion preset, harness 8f3af9e), submission ref
+    **56482492**, message "champion (exp-011 config), harness 8f3af9e, notebook v3". Status PENDING at submit time;
+    the rerun plays the hidden games for up to 9 h. Account history before it: 0.17 (2026-08-27) and 0.10
+    (2026-08-28), both from before this repo. Public score: pending.
 
 ## Rule library coverage (exp-006a, code-only, 2026-09-16)
 
