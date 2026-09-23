@@ -364,7 +364,21 @@ P9_NEW = '''            animation_line = describe_animation(previous_step_summar
                     lines.append(diff_line)
 '''
 
+# P10: the score weights level k by k, so level 1 is the cheapest level to spend actions on (1/28 of a 7-level game),
+# yet the prompt asks for the fewest actions everywhere and the model deliberates for minutes before its first probes
+# (a median of 3 calls, 8 minutes, before the first action on a new level). On level 1 only, the prompt now says that
+# quick, batched probe actions are cheap there.
+P10_OLD = '        state_line = f"Current state: step {current_step}, level {current_level}"\n'
+P10_NEW = ('        if current_level == 1:\n'
+           '            lines.append(\n'
+           '                "Scoring note: level 1 counts least toward the score, so actions spent here to learn what each "\n'
+           '                "action does and what completes a level are cheap; prefer a few quick probe actions (batch "\n'
+           '                "several in one call) over long deliberation until you know. From level 2 on, plan before acting."\n'
+           '            )\n'
+           '        state_line = f"Current state: step {current_step}, level {current_level}"\n')
+
 PATCHES.update({
+    "P10": [(TOOL_AGENT, P10_OLD, P10_NEW)],
     "P9": [
         (TOOL_AGENT, "def _empty_world_model(", P9_FN + "def _empty_world_model("),
         (TOOL_AGENT, P9_OLD, P9_NEW),

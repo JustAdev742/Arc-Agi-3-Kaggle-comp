@@ -68,6 +68,8 @@ def main() -> None:
     ap.add_argument("--kv-dtype", choices=["auto", "fp8"], default=None)
     ap.add_argument("--max-num-seqs", type=int, default=None)
     ap.add_argument("--cudagraph", type=int, default=None)
+    ap.add_argument("--kv-gib", type=float, default=None, help="TAAF_VLLM_KV_CACHE_MEMORY_BYTES in GiB (base 5)")
+    ap.add_argument("--prefix-caching", action="store_true", help="TAAF_VLLM_ENABLE_PREFIX_CACHING=1")
     ap.add_argument("--wavefit", action="store_true")
     ap.add_argument("--knob", action="append", default=[], metavar="KEY=VALUE",
                     help="analyzer env override applied with the thui knobs (e.g. LOCAL_ANALYZER_MAX_OUTPUT=6144)")
@@ -96,6 +98,13 @@ def main() -> None:
             if args.max_num_seqs:
                 s = s.replace('"TAAF_VLLM_MAX_NUM_SEQS": "8"', f'"TAAF_VLLM_MAX_NUM_SEQS": "{args.max_num_seqs}"')
                 changes.append(f"max_num_seqs {args.max_num_seqs}")
+            if args.kv_gib:
+                s = s.replace('"TAAF_VLLM_KV_CACHE_MEMORY_BYTES": "5368709120"',
+                              f'"TAAF_VLLM_KV_CACHE_MEMORY_BYTES": "{int(args.kv_gib * 1024**3)}"')
+                changes.append(f"KV cache {args.kv_gib} GiB")
+            if args.prefix_caching:
+                s = s.replace('"TAAF_VLLM_ENABLE_PREFIX_CACHING": "0"', '"TAAF_VLLM_ENABLE_PREFIX_CACHING": "1"')
+                changes.append("prefix caching on")
             if args.cudagraph:
                 s = s.replace('"TAAF_VLLM_MAX_CUDAGRAPH_CAPTURE_SIZE": "32"',
                               f'"TAAF_VLLM_MAX_CUDAGRAPH_CAPTURE_SIZE": "{args.cudagraph}"')
@@ -133,7 +142,7 @@ ANIM_BUNDLE_DIR = _OURS_BUNDLE""")
         cells.insert(idx, code_cell("# ours: source of scripts/taaf_ours_patch.py, applied in the next cell\n"
                                     f"_OURS_PATCH_SOURCE = {PATCH_SRC.read_text()!r}\n"))
     expected = (bool(args.kv_dtype) + bool(args.max_num_seqs) + bool(args.cudagraph) + bool(args.patches)
-                + bool(args.wavefit) + bool(args.knob))
+                + bool(args.wavefit) + bool(args.knob) + bool(args.kv_gib) + bool(args.prefix_caching))
     if len(changes) != expected:
         raise SystemExit(f"not every requested change found its anchor: {changes}")
     cells[0]["source"] = ["".join(cells[0]["source"]) + "\n\n**Changes in this arm:** "
