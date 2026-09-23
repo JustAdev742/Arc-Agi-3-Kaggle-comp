@@ -1108,3 +1108,27 @@ Depth:    level 1 is solved in >= 80% of runs in 19 of 25 games (never-solved: s
           The score comes from later levels (weight k for level k) in a few games: ft09 39.2 (3.57 of 6 levels),
           lp85 21.1, vc33 17.5, re86 16.0, ar25 10.9; mean levels per game 0.05-3.57. Carrying what a level taught into
           the next (P3, P8) and more calls per game (P4, P11, KV) are the levers this points at.
+
+## 2026-09-23 · code review of patches P1-P10 (subagent, bed-tested) · FIXED before exp-035/036 run
+Found:    (1) P6 replayed kept code outside the stdout redirect and with a live action(): a kept class or def whose
+          body prints wrote a stray line into the sandbox protocol; the host then blocked in stderr.read() while the
+          child waited for its action reply (bed: a game thread stuck 4.5 min against a 30 s tool timeout, which on
+          Kaggle holds one of 28 slots until soft_end), or crashed the game when the line was valid JSON; a class body
+          that acts re-sent its action on every call. Needs P6: exp-034/035 are not exposed (checked on the unpatched,
+          P7-only, exp-035 and full trees). (2) P9 credited the auto-reset after GAME_OVER to the last action (a
+          146-cell diff for one DOWN). (3) P10's level-1 note sat before P4's cut marker, so every compressed level-1
+          turn kept a copy (16 per request, about 26% of stored history in the bed). Minor: tracebacks hid frames of
+          kept helpers; two star imports shared one P6 key; the sandbox whitelist lacked object, super, setattr and the
+          common exception classes (`except KeyError:` raised NameError when the exception fired); `__name__` made
+          `if __name__ == "__main__":` a silent no-op; a result whose __str__ prints came back as "invalid response".
+Fixed:    all of the above in scripts/taaf_ours_patch.py (prelude under redirect_stdout with action/animation removed;
+          no P9 line after game_over; P10 after the note's end marker; "<persisted>" frames kept; import keys from the
+          source line; builtins widened; `__name__ = "__main__"`; final result converted inside the redirect).
+Verified: the reviewer's direct tests on the fixed tree (hang cases: 4 of 4 calls clean; class idioms G1-G5; a class
+          body that acts sends 1 action over 3 calls; P9 silent after GAME_OVER; P10 absent from compressed turns) and
+          three harness bed runs (scripted ls20 level-1 win in 13 actions with the goal/action models carried to level 2
+          marked "verify"; persisted helper listed in 86 of 87 prompts with an action every call; notes recovered from
+          reasoning with empty content). exp-035 and exp-036 rebuilt (not yet pushed), their inlined patch source equal
+          to the repo file; the notebook's own patch step simulated on a bundle copy (14 and 28 pairs applied).
+Follow-ups (pre-existing upstream, not fixed): the compile precheck catches only SyntaxError (a lone surrogate or a
+          very deep expression crashes the game); `_build_user_prompt` runs outside analyze()'s try.

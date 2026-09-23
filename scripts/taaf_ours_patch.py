@@ -212,10 +212,17 @@ P3_NEW = """        if summary.get("level_transition") or summary.get("run_compl
 # P7: pre-import the allowed modules and the usual collections names in every python call; 20 NameErrors in the thui
 # run came from missing imports (json, Counter, ...) or earlier calls' names. Also allow `class` statements: the
 # restricted builtins lacked __build_class__, so any class definition failed with "NameError: __build_class__ not found".
+# The whitelist also lacked object, super, setattr and the common exception classes, so `except KeyError:` raised
+# NameError exactly when the exception fired; `__name__` is "__main__" so a `if __name__ == "__main__":` block runs.
 P7_OLD = '        runtime_globals["__builtins__"]["__import__"] = _safe_import\n'
 P7_NEW = ('        runtime_globals["__builtins__"]["__import__"] = _safe_import\n'
           '        runtime_globals["__builtins__"]["__build_class__"] = builtins.__build_class__\n'
-          '        runtime_globals["__name__"] = "__python_tool__"\n'
+          '        for _name in ("object", "super", "property", "staticmethod", "classmethod", "setattr", "delattr",\n'
+          '                      "id", "vars", "BaseException", "KeyError", "IndexError", "AttributeError",\n'
+          '                      "StopIteration", "ZeroDivisionError", "AssertionError", "NotImplementedError",\n'
+          '                      "LookupError", "ArithmeticError", "OverflowError", "RecursionError", "NameError"):\n'
+          '            runtime_globals["__builtins__"].setdefault(_name, getattr(builtins, _name))\n'
+          '        runtime_globals["__name__"] = "__main__"\n'
           '        for _pre in ("json", "math", "collections", "itertools", "functools", "heapq", "re", "copy"):\n'
           '            try:\n'
           '                runtime_globals[_pre] = _safe_import(_pre)\n'
@@ -226,6 +233,33 @@ P7_NEW = ('        runtime_globals["__builtins__"]["__import__"] = _safe_import\
           '            runtime_globals.update(Counter=Counter, defaultdict=defaultdict, deque=deque)\n'
           '        except Exception:\n'
           '            pass\n')
+
+# P7 (cont.): the final `result` was converted to JSON after stdout was restored, so an object whose __str__ prints
+# wrote a stray line into the host protocol and the call came back as "invalid response"; convert inside the redirect.
+P7_FINAL_OLD = """            with contextlib.redirect_stdout(stdout):
+                exec(compiled, runtime_globals, runtime_globals)
+            _send(
+                {
+                    "type": "final",
+                    "stdout": stdout.getvalue(),
+                    "result": _json_safe(runtime_globals.get("result")),
+                    "action_results": _json_safe(action_results),
+                }
+            )
+"""
+P7_FINAL_NEW = """            with contextlib.redirect_stdout(stdout):
+                exec(compiled, runtime_globals, runtime_globals)
+                _final_result = _json_safe(runtime_globals.get("result"))
+                _final_actions = _json_safe(action_results)
+            _send(
+                {
+                    "type": "final",
+                    "stdout": stdout.getvalue(),
+                    "result": _final_result,
+                    "action_results": _final_actions,
+                }
+            )
+"""
 
 # P4: once a user message is older than the newest one, its standing instructions (about 600 tokens repeated every
 # turn), its copy of the carried note (superseded by the newest) and its board image (about 200 tokens) carry nothing
@@ -359,6 +393,7 @@ P9_NEW = '''            animation_line = describe_animation(previous_step_summar
             if (
                 executed > 0
                 and not previous_step_summary.get("level_transition")
+                and not previous_step_summary.get("game_over")
                 and current_frame is not None
                 and len(history_entries) > executed
             ):
@@ -371,14 +406,14 @@ P9_NEW = '''            animation_line = describe_animation(previous_step_summar
 # yet the prompt asks for the fewest actions everywhere and the model deliberates for minutes before its first probes
 # (a median of 3 calls, 8 minutes, before the first action on a new level). On level 1 only, the prompt now says that
 # quick, batched probe actions are cheap there.
-P10_OLD = '        state_line = f"Current state: step {current_step}, level {current_level}"\n'
-P10_NEW = ('        if current_level == 1:\n'
+P10_OLD = '        lines.append("end of world model. ")\n'
+P10_NEW = ('        lines.append("end of world model. ")\n'
+           '        if current_level == 1:\n'
            '            lines.append(\n'
            '                "Scoring note: level 1 counts least toward the score, so actions spent here to learn what each "\n'
            '                "action does and what completes a level are cheap; prefer a few quick probe actions (batch "\n'
            '                "several in one call) over long deliberation until you know. From level 2 on, plan before acting."\n'
-           '            )\n'
-           '        state_line = f"Current state: step {current_step}, level {current_level}"\n')
+           '            )\n')
 
 # P6: every python call started from a blank namespace, so helpers were rewritten again and again (54% of 1,116
 # function definitions in the thui run redefined an existing name; 32% of code lines repeated earlier lines) and names
@@ -406,7 +441,7 @@ def _persist_definitions(store: dict[str, str], code: str) -> None:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and not node.decorator_list:
             key = node.name if node.name not in _PERSIST_RESERVED else None
         elif isinstance(node, (ast.Import, ast.ImportFrom)):
-            key = "import:" + ",".join(alias.name for alias in node.names)
+            key = "import:" + (ast.get_source_segment(code, node) or ",".join(alias.name for alias in node.names))
         elif (
             isinstance(node, ast.Assign)
             and len(node.targets) == 1
@@ -455,11 +490,14 @@ P6_SANDBOX_CHILD_OLD = '''        _refresh_state(initial.get("state") or {})
         try:
             compiled = compile(str(initial.get("code", "")), "<python_tool>", "exec")'''
 P6_SANDBOX_CHILD_NEW = '''        _refresh_state(initial.get("state") or {})
-        for _snippet in initial.get("prelude") or []:
-            try:
-                exec(compile(str(_snippet), "<persisted>", "exec"), runtime_globals, runtime_globals)
-            except Exception:
-                pass
+        _live = {_k: runtime_globals.pop(_k) for _k in ("action", "animation") if _k in runtime_globals}
+        with contextlib.redirect_stdout(io.StringIO()):
+            for _snippet in initial.get("prelude") or []:
+                try:
+                    exec(compile(str(_snippet), "<persisted>", "exec"), runtime_globals, runtime_globals)
+                except Exception:
+                    pass
+        runtime_globals.update(_live)
 
         try:
             compiled = compile(str(initial.get("code", "")), "<python_tool>", "exec")'''
@@ -471,6 +509,18 @@ P6_SANDBOX_SIG_NEW = ("    animation_handler: Callable[[dict[str, Any]], dict[st
 P6_SANDBOX_MSG_OLD = '                "animation_enabled": animation_handler is not None,\n'
 P6_SANDBOX_MSG_NEW = ('                "animation_enabled": animation_handler is not None,\n'
                       '                "prelude": list(prelude or []),\n')
+# P6: a traceback inside a kept helper (compiled as "<persisted>") showed only the caller's line; keep those frames.
+P6_TB_OLD = """        user_frames = [frame for frame in extracted if frame.filename == "<python_tool>"]
+        lines = ["Traceback (most recent call last):"]
+        for frame in user_frames or extracted[-1:]:
+            lines.append(f'  File "<python_tool>", line {frame.lineno}, in {frame.name}')
+"""
+P6_TB_NEW = """        user_frames = [frame for frame in extracted if frame.filename in ("<python_tool>", "<persisted>")]
+        lines = ["Traceback (most recent call last):"]
+        for frame in user_frames or extracted[-1:]:
+            _shown = frame.filename if frame.filename == "<persisted>" else "<python_tool>"
+            lines.append(f'  File "{_shown}", line {frame.lineno}, in {frame.name}')
+"""
 P6_CALL_OLD = '''        sandbox_result = run_sandboxed_python(
             code=code,
 '''
@@ -529,6 +579,7 @@ PATCHES.update({
         (SANDBOX, P6_SANDBOX_CHILD_OLD, P6_SANDBOX_CHILD_NEW),
         (SANDBOX, P6_SANDBOX_SIG_OLD, P6_SANDBOX_SIG_NEW),
         (SANDBOX, P6_SANDBOX_MSG_OLD, P6_SANDBOX_MSG_NEW),
+        (SANDBOX, P6_TB_OLD, P6_TB_NEW),
         (TOOL_AGENT, P6_CALL_OLD, P6_CALL_NEW),
         (TOOL_AGENT, P6_STORE_OLD, P6_STORE_NEW),
         (TOOL_AGENT, P6_PROMPT_OLD, P6_PROMPT_NEW),
@@ -552,7 +603,7 @@ PATCHES.update({
     ],
     "P2": [(ACTION_NAMES, P2_OLD, P2_NEW)],
     "P3": [(TOOL_AGENT, P3_OLD, P3_NEW)],
-    "P7": [(SANDBOX, P7_OLD, P7_NEW)],
+    "P7": [(SANDBOX, P7_OLD, P7_NEW), (SANDBOX, P7_FINAL_OLD, P7_FINAL_NEW)],
 })
 
 
