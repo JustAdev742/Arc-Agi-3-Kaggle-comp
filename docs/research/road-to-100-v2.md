@@ -139,7 +139,9 @@ missing. Components 4.1 to 4.3 and 4.5 are code; 4.4 is where a model is require
 - The winning frame of a level is `perception.terminal_layer(layers, before)`: the layer before the level switch
   when the step ends with a jump, else the last layer. Exact on all 43 dev levels collected in exp-028; the old rule
   (`layers[0]`) was wrong on 12 (cd82's 16-frame pour, tu93's 9- and 14-frame moves, sk48's 39-frame flash, su15's
-  15-frame pull) and fed the REPL agent's level archive the board before the winning move (lesson 0017).
+  15-frame pull) and fed the REPL agent's level archive the board before the winning move (lesson 0017). In the
+  three champion runs and exp-017, 6 of the model's 34 level completions were such wins (su15 level 1 four times,
+  tu93 level 1 twice), so the goal hints it got for the next level were computed from the wrong board.
 
 ### 4.2 Level 1 by exploration (built; 9 of 19 dev games)
 The novelty explorer with masked keys clears level 1 of ar25, cd82, ft09, lp85, ls20, m0r0, s5i5, tu93 and vc33 within
