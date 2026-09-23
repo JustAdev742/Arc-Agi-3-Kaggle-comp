@@ -1595,9 +1595,11 @@ def planning_actions(rules: list[Rule], frame: Frame) -> list[Any]:
 
 # ---------------------------------------------------------------------------------------------- goals
 def goal_predicates(frames_by_level: list[tuple[list[Frame], bool]],
-                    avatar_ids: Optional[list[Optional[int]]] = None) -> list[dict[str, Any]]:
+                    avatar_ids: Optional[list[Optional[int]]] = None, *, forall: bool = False) -> list[dict[str, Any]]:
     """Goal candidates: predicates true at the final frame of every completed level and false at every earlier
     frame of those levels. Levels are (frames, won); for a won level the last frame is the simulated winning frame.
+    ``forall`` adds the universal relational kinds (``every_<rel>``, see :func:`forall_distance`), listed after the
+    existential ones; off by default so existing callers see the same candidates.
     ``avatar_ids`` (one per level, None when unknown) enables the avatar-relative kinds: the entity the keys move
     ends up inside / touching an entity of colour c (the human ls20 recording: the key you steer enters the colour-5
     socket on every level, while a HUD legend shows the same relation from the start, so the colour-pair form fails).
@@ -1655,6 +1657,12 @@ def goal_predicates(frames_by_level: list[tuple[list[Frame], bool]],
             # the human ls20 recording (2026-09-17) had no consistent predicate from level 3 on without this kind.
             preds.append((f"shape_matches(colour {a}, colour {b})", "shape_matches", (a, b),
                           lambda f, a=a, b=b: any(x is not y and same_mask(x, y) for x in f if x.color == a for y in f if y.color == b)))
+    if forall:
+        for rel in FORALL_RELS:
+            for a in colors:
+                for b in colors:
+                    preds.append((f"every_{rel}(colour {a}, colour {b})", f"every_{rel}", (a, b),
+                                  lambda f, rel=rel, a=a, b=b: forall_distance(rel, a, b, f) == 0))
     out = []
     for name, kind, args, p in preds:
         ok = True
@@ -1691,8 +1699,107 @@ def same_mask(x: Ent, y: Ent) -> bool:
 
 # ------------------------------------------------------------------------------ goal hypotheses: distance, falsification
 _GOAL_NAME = re.compile(r"^(\w+)\((?:colour )?(\d+)(?:, colour (\d+))?\)(?: == (\d+))?$")
+FORALL_RELS = ("same_box", "same_pos", "same_center", "inside", "in", "overlap", "same_rows", "same_columns")
 GOAL_KINDS = ("none_left", "count", "aligned", "all_same_colour_as", "overlap", "touch", "same_box", "same_columns", "same_rows",
-              "inside", "shape_matches", "vanish_shape", "reach", "reach_entity", "avatar_inside", "avatar_touch")
+              "inside", "shape_matches", "vanish_shape", "reach", "reach_entity", "avatar_inside", "avatar_touch",
+              *(f"every_{r}" for r in FORALL_RELS))
+
+
+def _pair_distance(rel: str, x: Ent, y: Ent) -> Optional[int]:
+    """How far piece ``x`` is from relation ``rel`` with target ``y`` (0 = related; None = cannot relate)."""
+    if rel == "same_box":
+        return abs(x.x0 - y.x0) + abs(x.y0 - y.y0) + abs(x.x1 - y.x1) + abs(x.y1 - y.y1)
+    if rel == "same_pos":
+        return abs(x.x0 - y.x0) + abs(x.y0 - y.y0)
+    if rel == "same_center":
+        return abs((x.x0 + x.x1) - (y.x0 + y.x1)) + abs((x.y0 + x.y1) - (y.y0 + y.y1))
+    if rel in ("inside", "in"):
+        if x.w * x.h >= y.w * y.h:
+            return None
+        return max(0, y.x0 - x.x0) + max(0, x.x1 - y.x1) + max(0, y.y0 - x.y0) + max(0, x.y1 - y.y1)
+    if rel == "overlap":
+        return 0 if x.overlaps(y) else max(1, _gap(x, y))
+    if rel == "same_rows":
+        return abs(x.y0 - y.y0) + abs(x.y1 - y.y1)
+    if rel == "same_columns":
+        return abs(x.x0 - y.x0) + abs(x.x1 - y.x1)
+    return None
+
+
+def forall_distance(rel: str, a: int, b: int, frame: Frame) -> Optional[int]:
+    """Universal relational goals (census 2026-09-23, lesson 0016: every multi-target game needs *every* target
+    satisfied, and level 1 usually shows one target, where 'some' and 'every' agree). ``every_<rel>(a, b)``: every
+    b-entity (target) has an a-entity (piece) in relation ``rel`` with it; for ``rel == 'in'``, every a-entity (piece)
+    lies inside some b-entity (zone: wa30's boxes). Distance: the sum over the quantified entities of the nearest
+    partner's distance, 0 when satisfied; None when either class is absent (not vacuously true)."""
+    pieces = [e for e in frame if e.color == a]
+    targets = [e for e in frame if e.color == b]
+    if not pieces or not targets:
+        return None
+    quantified, partners = (pieces, targets) if rel == "in" else (targets, pieces)
+    total = 0
+    for q in quantified:
+        best: Optional[int] = None
+        for p in partners:
+            if p is q:
+                continue
+            v = _pair_distance(rel, q, p) if rel == "in" else _pair_distance(rel, p, q)
+            if v is not None and (best is None or v < best):
+                best = v
+        if best is None:
+            return None
+        total += best
+    return total
+
+
+LIFTABLE_SINGLE = ("none_left", "aligned", "all_same_colour_as", "vanish_shape")
+
+
+def goal_signature(kind: str, args: tuple) -> Optional[tuple[str, bool]]:
+    """Colour-free signature of a goal hypothesis: its kind and whether its two colour arguments are equal. A game's
+    kind of win condition is constant but its colours need not be (exp-028: vc33 is 'aligned' on colour 11 at level 1
+    and on colour 14 at level 2, so no exact predicate transfers while the signature does). None for kinds that do
+    not lift (count targets and avatar-relative kinds change meaning between levels)."""
+    if kind in LIFTABLE_SINGLE:
+        return (kind, False)
+    if kind in ("overlap", "touch", "same_box", "same_columns", "same_rows", "inside", "shape_matches") or kind.startswith("every_"):
+        return (kind, len(args) >= 2 and args[0] == args[1])
+    return None
+
+
+def instantiate_goals(signatures: Iterable[tuple[str, bool]], frame: Frame, *, max_goals: int = 64) -> list[dict[str, Any]]:
+    """Every colour instantiation of the signatures on this frame that is computable and not already satisfied (a
+    level does not start won). Callers falsify them further as the level is explored: a candidate that holds on a
+    state that did not win is not the goal."""
+    colors = sorted({e.color for e in frame})
+    shapes = sorted({(e.color, e.shape) for e in frame if e.shape and e.size <= 400})
+    out: list[dict[str, Any]] = []
+    for kind, same in sorted(set(signatures)):
+        if kind == "vanish_shape":
+            cands = [(c, sh) for c, sh in shapes if sum(1 for e in frame if (e.color, e.shape) == (c, sh)) <= 4]
+        elif kind in LIFTABLE_SINGLE:
+            cands = [(c,) for c in colors]
+        else:
+            cands = [(a, b) for a in colors for b in colors if (a == b) == same]
+        for args in cands:
+            if kind == "vanish_shape":
+                c, sh = args
+
+                def pred(f: Frame, c: int = c, sh: str = sh) -> bool:
+                    return not any(e.color == c and e.shape == sh for e in f)
+
+                name = f"vanish(colour {c}, shape {str(sh)[:8]})"
+            else:
+                pred = goal_predicate(kind, args)  # type: ignore[assignment]
+                name = f"{kind}(colour {args[0]}" + (f", colour {args[1]})" if len(args) > 1 else ")")
+                if goal_distance(kind, args, frame) is None:
+                    continue  # not computable here (a colour with one entity cannot be aligned)
+            if pred is None or _holds(pred, frame):
+                continue
+            out.append({"goal": name, "kind": kind, "args": args, "predicate": pred, "lifted": True})
+            if len(out) >= max_goals:
+                return out
+    return out
 
 
 def goal_kind(goal: Any) -> Optional[tuple[str, tuple]]:
@@ -1732,6 +1839,8 @@ def goal_distance(kind: str, args: tuple, frame: Frame, *, avatar_id: Optional[i
     None = not computable here). Cheap geometry, no search: it ranks hypotheses and shows progress, the rule
     simulation (plan_rules) settles the cost of the ones that matter."""
     ents = list(frame)
+    if kind.startswith("every_"):
+        return forall_distance(kind[len("every_"):], int(args[0]), int(args[1]), frame)
     if kind == "none_left":
         return sum(1 for e in ents if e.color == args[0])
     if kind == "vanish_shape":
@@ -1808,7 +1917,8 @@ def goal_predicate(kind: str, args: tuple, *, avatar_id: Optional[int] = None) -
         return lambda f: _aligned([e for e in f if e.color == args[0]])
     if kind == "all_same_colour_as":
         return lambda f: len({e.color for e in f}) == 1 and all(e.color == args[0] for e in f)
-    if kind in ("none_left", "count", "overlap", "touch", "same_box", "same_columns", "same_rows", "inside", "shape_matches", "vanish_shape"):
+    if kind in ("none_left", "count", "overlap", "touch", "same_box", "same_columns", "same_rows", "inside", "shape_matches", "vanish_shape") \
+            or kind.startswith("every_"):
         d = goal_distance
         return lambda f: d(kind, args, f) == 0
     if kind == "reach_entity":

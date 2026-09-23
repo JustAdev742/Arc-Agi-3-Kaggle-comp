@@ -144,7 +144,7 @@ Kaggle's scheduler are therefore healthy; it is the **rtx6000 batch pool that is
 this repo can influence. Practical consequences: GPU experiments are blocked until the pool frees, CPU-only work
 (code gates, replays, notebook builds) is unaffected, and submitting does not depend on either.
 
-**Submission runs the champion preset, not the unmeasured bundle** (exp-024 control and exp-026 bundle are measuring that gap now; research log 2026-09-20).
+**Submission runs the champion preset, not the unmeasured bundle.** The exp-024 control was cancelled on 2026-09-21 during the queue stall and exp-026 (bundle) was never scheduled; both stay the first GPU runs when the rtx6000 pool allocates (research log 2026-09-23).
 
 **How to submit: `docs/SUBMITTING.md`** (build and push the notebook here, press Submit in the browser).
 

@@ -21,6 +21,13 @@ that change in at least ``volatile_line`` (0.4) of them, are masked out of the k
 are seen; the graph is re-keyed when the mask grows (nodes that differ only in masked cells merge). Statistics carry
 over between levels by default (the HUD stays put; ``volatile_per_level`` restarts them). A 0.2 cell threshold masked
 the avatar's own path on ls20 (253-328 cells, 23 states, graph exhausted); 0.5 does not.
+
+Goal-directed frontier (``goal_directed``, off by default; exp-029): level 1 is nearly free under RHAE when later
+levels beat the human count, and a game's kind of win condition never changes between levels (lesson 0016). When a
+level is completed, goal candidates are induced by contrast (``dsl.goal_predicates`` with the universal kinds: true
+on the observed winning frame, false on a sample of the states visited on the level, jointly over every completed
+level). On later levels the walk to the next unexplored node picks, among the ``goal_max_frontier`` nearest ones,
+the one minimising path length + ``goal_weight`` x goal distance (the smallest distance among the top candidates).
 """
 from __future__ import annotations
 
@@ -32,8 +39,9 @@ from typing import Optional
 import numpy as np
 from arcengine import GameAction, GameState
 
+from .. import dsl
 from ..env import Action, Frame
-from ..perception import background_color, components, grid_hash
+from ..perception import background_color, components, grid_hash, terminal_layer
 from . import register
 from .base import Agent, AgentContext, stable_seed
 
@@ -105,6 +113,21 @@ class ExplorerAgent(Agent):
         self.mask = np.zeros((64, 64), dtype=bool)
         self.n_rekeys = 0
         self.volatile_per_level = bool(cfg.get("volatile_per_level", False))  # carry-over measured better on ls20 (2 levels vs 1)
+        # goal-directed frontier (exp-029)
+        self.goal_directed = bool(cfg.get("goal_directed", False))
+        self.goal_weight = float(cfg.get("goal_weight", 0.25))
+        self.goal_max_frontier = int(cfg.get("goal_max_frontier", 48))
+        self.goal_neg_cap = int(cfg.get("goal_neg_cap", 300))
+        self.goal_top = int(cfg.get("goal_top", 3))
+        self.lvl_sample: list[np.ndarray] = []
+        self.lvl_keys: set[str] = set()
+        self.lvl_seen = 0
+        self.goal_levels: list[tuple[list, bool]] = []
+        self.goals: list[tuple[str, tuple]] = []
+        self.goal_names: list[str] = []
+        self.h_cache: dict[str, float] = {}
+        self.bg: Optional[int] = None
+        self.n_goal_picks = 0
 
     # ---------- candidate actions ----------
     def _candidates(self, frame: Frame) -> list[ActionKey]:
@@ -231,6 +254,10 @@ class ExplorerAgent(Agent):
             self.mask[:] = False
         self.keys_probed = set()
         self.level_key_probe_done = False
+        self.lvl_sample = []
+        self.lvl_keys = set()
+        self.lvl_seen = 0
+        self.h_cache.clear()
         self.nodes.clear()
         self.plan.clear()
         self.pending = None
@@ -238,11 +265,70 @@ class ExplorerAgent(Agent):
         self.cur = n.h
         self.root = n.h
 
+    # ---------- goal induction and heuristic (exp-029) ----------
+    def _sample_state(self, grid: np.ndarray) -> None:
+        self.lvl_seen += 1
+        if len(self.lvl_sample) < self.goal_neg_cap:
+            self.lvl_sample.append(np.asarray(grid).copy())
+        else:
+            j = self.rng.randrange(self.lvl_seen)
+            if j < self.goal_neg_cap:
+                self.lvl_sample[j] = np.asarray(grid).copy()
+
+    def _induce_goals(self, before: Frame, after: Frame) -> None:
+        """Contrastive goal candidates from every completed level: true on its winning frame, false on its samples."""
+        try:
+            bg = background_color(before.grid)
+            self.bg = bg
+            term = after.layers[terminal_layer(after.layers, before.grid)] if after.layers else before.grid
+            frames = [dsl.frame_from_grid(g, bg) for g in self.lvl_sample]
+            frames += [dsl.frame_from_grid(before.grid, bg), dsl.frame_from_grid(term, bg)]
+            self.goal_levels.append((frames, True))
+            cands = dsl.goal_predicates(self.goal_levels, forall=True)
+        except Exception as e:  # noqa: BLE001  (goal induction is an optimisation; exploration must go on)
+            self.log.warning("goal induction failed: %s", e)
+            return
+        rank = {"every_": 0, "same_box": 1, "inside": 1, "overlap": 2, "touch": 2, "same_rows": 2, "same_columns": 2,
+                "shape_matches": 3, "none_left": 3, "vanish_shape": 3, "count": 4, "aligned": 4}
+
+        def order(g: dict) -> int:
+            k = str(g["kind"])
+            return rank["every_"] if k.startswith("every_") else rank.get(k, 5)
+
+        cands = [g for g in cands if g.get("predicate") is not None]
+        cands.sort(key=order)
+        self.goals = [(str(g["kind"]), tuple(g["args"])) for g in cands]
+        self.goal_names = [str(g["goal"]) for g in cands]
+
+    def _h(self, node: Node) -> float:
+        """Goal distance of a node's frame (smallest among the top candidates), in actions via goal_weight."""
+        if not self.goals:
+            return 0.0
+        h = self.h_cache.get(node.h)
+        if h is not None:
+            return h
+        best: Optional[int] = None
+        try:
+            f = dsl.frame_from_grid(np.asarray(node.grid, dtype=np.int16), self.bg if self.bg is not None else background_color(node.grid))
+            for kind, args in self.goals[: self.goal_top]:
+                d = dsl.goal_distance(kind, args, f)
+                if d is not None and (best is None or d < best):
+                    best = d
+        except Exception:  # noqa: BLE001
+            best = None
+        h = self.goal_weight * float(best) if best is not None else 0.0
+        self.h_cache[node.h] = h
+        return h
+
     def _path_to_frontier(self) -> Optional[list[ActionKey]]:
         """BFS over known edges from the current node (and from root via RESET) to the
-        nearest node with untried actions. Returns the action sequence, or None."""
+        nearest node with untried actions. Returns the action sequence, or None.
+        With goal candidates (exp-029), the nearest ``goal_max_frontier`` frontier nodes compete on
+        path length + goal distance."""
         if self.cur is None:
             return None
+        if self.goal_directed and self.goals:
+            return self._path_to_frontier_goal()
         starts = [(self.cur, [])]
         if self.root is not None and self.root != self.cur and self.root in self.nodes:
             starts.append((self.root, [(0,)]))
@@ -265,6 +351,33 @@ class ExplorerAgent(Agent):
                         seen.add(nh)
                         q.append((nh, [*path, k]))
         return best
+
+    def _path_to_frontier_goal(self) -> Optional[list[ActionKey]]:
+        found: dict[str, list[ActionKey]] = {}
+        starts = [(self.cur, [])]
+        if self.root is not None and self.root != self.cur and self.root in self.nodes:
+            starts.append((self.root, [(0,)]))
+        for start, prefix in starts:
+            q = deque([(start, prefix)])
+            seen = {start}
+            while q and len(found) < self.goal_max_frontier:
+                h, path = q.popleft()
+                n = self.nodes.get(h)
+                if n is None:
+                    continue
+                if not n.expanded and path and (h not in found or len(path) < len(found[h])):
+                    found[h] = path
+                for k, nh in n.edges.items():
+                    if nh not in seen and nh in self.nodes:
+                        seen.add(nh)
+                        q.append((nh, [*path, k]))
+        if not found:
+            return None
+        best = min(found, key=lambda h: len(found[h]) + self._h(self.nodes[h]))
+        nearest = min(found, key=lambda h: len(found[h]))
+        if best != nearest:
+            self.n_goal_picks += 1
+        return found[best]
 
     # ---------- policy ----------
     def act(self, frame: Frame) -> Action:
@@ -321,9 +434,14 @@ class ExplorerAgent(Agent):
             if avail <= self.keys_probed:
                 self.level_key_probe_done = True
         if after.levels_completed != self.level:
+            if self.goal_directed and after.levels_completed > before.levels_completed:
+                self._induce_goals(before, after)
             return  # act() will rebuild the graph for the new level
         prev = self.nodes.get(self.cur or "")
         node = self._node(after)
+        if self.goal_directed and action.action is not GameAction.RESET and not after.game_over and node.h not in self.lvl_keys:
+            self.lvl_keys.add(node.h)
+            self._sample_state(after.grid)  # a distinct state of this level that did not win: a negative for induction
         if action.action is GameAction.RESET:
             self.root = node.h
         elif prev is not None:
@@ -338,4 +456,5 @@ class ExplorerAgent(Agent):
     def stats(self) -> dict:
         return {"nodes_last_level": len(self.nodes), "replans": self.n_replans, "fallbacks": self.n_fallback,
                 "masked_cells": int(self.mask.sum()), "rekeys": self.n_rekeys,
+                "goal_candidates": self.goal_names[:5], "goal_picks": self.n_goal_picks,
                 "change_rate": {a: round(c / n, 3) for a, (c, n) in self.changed.items() if n}}

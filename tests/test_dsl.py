@@ -311,3 +311,40 @@ def test_goal_candidates_dual_adds_raw_only_predicates():
     rows = goal_progress_dual(goals, comp[:2], raw[:2], avatar_id=1)
     r = next(r for r in rows if r["goal"] == "avatar_inside(colour 5)")
     assert r["dist"] == (20 - 10) * 2 and not r["falsified"]
+
+
+def test_forall_goals_need_every_target_and_have_a_distance():
+    # Two colour-4 slot outlines, two colour-9 pieces (census 2026-09-23: multi-target games need every target).
+    slots = [Ent(1, 4, 10, 10, 6, 6, 20, None), Ent(2, 4, 30, 10, 6, 6, 20, None)]
+
+    def pieces(p, q):
+        return [Ent(3, 9, p[0], p[1], 2, 2, 4, None), Ent(4, 9, q[0], q[1], 2, 2, 4, None)]
+
+    start = tuple(slots + pieces((12, 30), (32, 30)))
+    partial = tuple(slots + pieces((12, 12), (32, 30)))  # one piece in its slot: "some" holds, "every" does not
+    won = tuple(slots + pieces((12, 12), (32, 12)))
+    names = {g["goal"] for g in goal_predicates([([start, partial, won], True)], forall=True)}
+    assert "every_inside(colour 9, colour 4)" in names
+    assert "inside(colour 9, colour 4)" not in names  # the partial state falsified the existential form
+    assert not any(n.startswith("every_") for n in (g["goal"] for g in goal_predicates([([start, partial, won], True)])))
+    d = [dsl.goal_distance("every_inside", (9, 4), f) for f in (start, partial, won)]
+    assert d[0] > d[1] > d[2] == 0
+    assert dsl.goal_kind("every_inside(colour 9, colour 4)") == ("every_inside", (9, 4))
+    assert dsl.forall_distance("in", 9, 4, won) == 0 and dsl.forall_distance("in", 9, 4, start) > 0
+    assert dsl.forall_distance("inside", 9, 7, won) is None  # no colour-7 targets: not vacuously true
+
+
+def test_lifted_goals_transfer_a_kind_across_colours():
+    # vc33 (exp-028): the goal is "aligned" on every level, on colour 11 at level 1 and colour 14 at level 2.
+    assert dsl.goal_signature("aligned", (11,)) == ("aligned", False)
+    assert dsl.goal_signature("same_columns", (11, 11)) == ("same_columns", True)
+    assert dsl.goal_signature("every_inside", (9, 4)) == ("every_inside", False)
+    assert dsl.goal_signature("count", (3, 2)) is None
+    level2 = (Ent(1, 14, 5, 5, 2, 2, 4, None), Ent(2, 14, 9, 20, 2, 2, 4, None), Ent(3, 7, 30, 30, 4, 4, 16, None))
+    goals = dsl.instantiate_goals([("aligned", False), ("same_columns", True)], level2)
+    names = {g["goal"] for g in goals}
+    assert "aligned(colour 14)" in names  # the colour-14 pair is not aligned at the start: a live candidate
+    assert "aligned(colour 7)" not in names  # a single entity is never aligned: not computable as a goal here
+    won = (Ent(1, 14, 5, 5, 2, 2, 4, None), Ent(2, 14, 5, 20, 2, 2, 4, None), Ent(3, 7, 30, 30, 4, 4, 16, None))
+    assert any(g["predicate"](won) for g in goals if g["goal"] == "aligned(colour 14)")
+    assert all(not g["predicate"](level2) for g in goals)  # nothing already satisfied at the level start

@@ -254,48 +254,6 @@ def _save(out: str, game_id: str, rec: dict[str, Any]) -> None:
 
 
 # ---------------------------------------------------------------------------------------------------- analyze
-def _forall_predicates(colors: list[int]) -> list[tuple[str, str, tuple, Callable]]:
-    """For-all relational kinds (census 2026-09-23: every multi-target game needs every target satisfied; level 1
-    usually shows one target, where 'some' and 'every' agree, so level 1 alone cannot separate them).
-    Non-vacuous: at least one target entity must exist."""
-    def box(e: Any) -> tuple[int, int, int, int]:
-        return (e.x0, e.y0, e.x1, e.y1)
-
-    def strictly_inside(x: Any, y: Any) -> bool:
-        return (y.x0 <= x.x0 and x.x1 <= y.x1 and y.y0 <= x.y0 and x.y1 <= y.y1
-                and (x.x1 - x.x0 + 1) * (x.y1 - x.y0 + 1) < (y.x1 - y.x0 + 1) * (y.y1 - y.y0 + 1))
-
-    rels: dict[str, Callable[[Any, Any], bool]] = {
-        "same_box": lambda x, y: box(x) == box(y),
-        "same_pos": lambda x, y: (x.x0, x.y0) == (y.x0, y.y0),
-        "same_center": lambda x, y: (x.x0 + x.x1, x.y0 + x.y1) == (y.x0 + y.x1, y.y0 + y.y1),
-        "inside": strictly_inside,  # x (a piece) sits inside y (a target outline or zone)
-        "overlap": lambda x, y: x.overlaps(y),
-        "same_rows": lambda x, y: (x.y0, x.y1) == (y.y0, y.y1),
-        "same_columns": lambda x, y: (x.x0, x.x1) == (y.x0, y.x1),
-    }
-    preds: list[tuple[str, str, tuple, Callable]] = []
-    for a in colors:
-        for b in colors:
-            for rname, rel in rels.items():
-                # every b-entity (target) has an a-entity (piece) in relation
-                def every_target(f: Any, a: int = a, b: int = b, rel: Callable = rel) -> bool:
-                    tg = [y for y in f if y.color == b]
-                    pc = [x for x in f if x.color == a]
-                    return bool(tg) and bool(pc) and all(any(x is not y and rel(x, y) for x in pc) for y in tg)
-
-                preds.append((f"every({rname}: colour {a} -> each colour {b})", f"forall_target_{rname}", (a, b), every_target))
-                if rname in ("inside", "overlap"):
-                    # every a-entity (piece) is in relation with some b-entity (zone): wa30 boxes in zones
-                    def every_piece(f: Any, a: int = a, b: int = b, rel: Callable = rel) -> bool:
-                        tg = [y for y in f if y.color == b]
-                        pc = [x for x in f if x.color == a]
-                        return bool(tg) and bool(pc) and all(any(x is not y and rel(x, y) for y in tg) for x in pc)
-
-                    preds.append((f"every({rname}: each colour {a} -> colour {b})", f"forall_piece_{rname}", (a, b), every_piece))
-    return preds
-
-
 def _frames(grids: list[np.ndarray], bg: int) -> list[Any]:
     from arc3 import dsl
 
@@ -326,13 +284,16 @@ def _score_level(preds: list[tuple[str, str, tuple, Callable]], terminal: Any, n
     return out
 
 
-def _all_predicates(colors: list[int]) -> list[tuple[str, str, tuple, Callable]]:
-    """The existing existential grammar (dsl.goal_predicates' kinds, rebuilt as plain predicates) plus for-all."""
+def _all_predicates(colors: list[int], start: Any) -> list[tuple[str, str, tuple, Callable]]:
+    """dsl.goal_predicates' kinds, enumerated as plain predicates so every candidate can be scored on every level
+    (goal_predicates itself returns only strict survivors), plus the universal kinds (dsl.FORALL_RELS)."""
     from arc3 import dsl
 
-    # dsl.goal_predicates filters by contrast itself; to score every kind on every level we rebuild the candidate list
-    # by asking it for predicates on a trivial won 'level' whose only frame is empty: instead, enumerate the kinds.
     preds: list[tuple[str, str, tuple, Callable]] = []
+    shapes = {(e.color, e.shape) for e in start if e.size <= 400 and e.shape}
+    for c, sh in sorted(x for x in shapes if sum(1 for e in start if (e.color, e.shape) == x) <= 4):
+        preds.append((f"vanish(colour {c}, shape {sh[:8]})", "vanish_shape", (c, sh),
+                      lambda f, c=c, sh=sh: not any(e.color == c and e.shape == sh for e in f)))
     for c in colors:
         preds.append((f"none_left(colour {c})", "none_left", (c,), lambda f, c=c: not any(e.color == c for e in f)))
         for n in range(1, 5):
@@ -346,7 +307,11 @@ def _all_predicates(colors: list[int]) -> list[tuple[str, str, tuple, Callable]]
                 p = dsl.goal_predicate(kind, (a, b))
                 if p is not None:
                     preds.append((f"{kind}(colour {a}, colour {b})", kind, (a, b), p))
-    return preds + _forall_predicates(colors)
+            for rel in dsl.FORALL_RELS:
+                p = dsl.goal_predicate(f"every_{rel}", (a, b))
+                if p is not None:
+                    preds.append((f"every_{rel}(colour {a}, colour {b})", f"every_{rel}", (a, b), p))
+    return preds
 
 
 def _terminal_layer(lv: dict[str, Any]) -> str:
@@ -382,7 +347,7 @@ def analyze_game(path: str) -> dict[str, Any]:
         term = _frames([lv["terminal_exact"]], bg)[0]
         per_level.append((lv, term, negs))
         colors |= {e.color for e in term} | {e.color for e in negs[0]}
-    preds = _all_predicates(sorted(colors))
+    preds = _all_predicates(sorted(colors), per_level[0][2][-2])  # the level-1 start frame
     scored = []
     for lv, term, negs in per_level:
         limit = max(1, len(negs) // 100)
@@ -397,14 +362,40 @@ def analyze_game(path: str) -> dict[str, Any]:
     joint = set(l1["survivors"])
     for lv in scored[1:]:
         joint &= set(lv["survivors"])
+    # Lifted transfer: the same kind with the same colour-equality pattern (vc33's goal is "aligned" on every level,
+    # but on colour 11 at level 1 and colour 14 at level 2, so exact predicates never transfer there).
+    names = {n: (k, a) for n, k, a, _p in preds}
+
+    def lifted(name: str) -> tuple:
+        k, a = names.get(name, (name, ()))
+        cols = [x for x in a if isinstance(x, int)]
+        return (k, len(cols) == 2 and cols[0] == cols[1])
+
+    l1_lifted = {lifted(n) for n in l1["survivors"]}
+    lifted_transfer = [sorted({str(lifted(n)) for n in lv["survivors"]} & {str(x) for x in l1_lifted}) for lv in scored[1:]]
+    # The realistic test (dsl.instantiate_goals): after level 1 only, instantiate its survivors' colour-free signatures
+    # at each later level's start, falsify them with that level's non-winning states, and check that the level's
+    # winning frame satisfies a survivor (recall) and how many survive (ambiguity left for experiments or a model).
+    from arc3 import dsl
+
+    sigs = {sg for n in l1["survivors"] for sg in [dsl.goal_signature(*names.get(n, (n, ())))] if sg is not None}
+    instantiated = []
+    for lv, term, negs in per_level[1:]:
+        cands = dsl.instantiate_goals(sigs, negs[-2]) if sigs else []  # negs[-2] is the level's start frame
+        alive = [g for g in cands if not any(_holds(g["predicate"], f) for f in negs)]
+        instantiated.append({"level": lv["level"], "instantiated": len(cands), "alive_after_falsification": len(alive),
+                             "winning_frame_satisfies": sorted(g["goal"] for g in alive if _holds(g["predicate"], term))})
     out.update({
         "levels": scored,
         "l1_survivors": len(l1["survivors"]),
-        "l1_survivors_existing_grammar": sum(1 for n in l1["survivors"] if not n.startswith("every(")),
-        "l1_survivors_forall": sum(1 for n in l1["survivors"] if n.startswith("every(")),
+        "l1_survivors_existing_grammar": sum(1 for n in l1["survivors"] if not n.startswith("every_")),
+        "l1_survivors_forall": sum(1 for n in l1["survivors"] if n.startswith("every_")),
         "transfer": transfer,
         "l1_survivors_holding_on_all_later": sorted(n for n, t in transfer.items() if t and all(t)),
         "joint_survivors": sorted(joint),
+        "l1_kinds": sorted(str(x) for x in l1_lifted),
+        "lifted_transfer": lifted_transfer,
+        "lifted_instantiation": instantiated,
     })
     return out
 
