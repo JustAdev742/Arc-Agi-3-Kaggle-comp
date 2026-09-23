@@ -919,3 +919,16 @@ Settings: dev, 1200 s and 2000 actions per game, 8 concurrent, seed 0, Qwen3.8-2
           kernels scottmahony/arc3-eval-dev-p (v2, run kaggle-repl-dev-024) and scottmahony/arc3-eval-dev-q (v1, run
           kaggle-repl-dev-026).
 Measured: pending.
+
+## 2026-09-23 · exp-030 / exp-031 · the public Tufa-harness forks, measured under our account · QUEUED (owner approved running third-party public notebooks, 07:20 UTC)
+Why:      the public leaderboard's middle pack (7-9) runs on Tufa Labs' open-source Duck harness (TAAF +
+          ARC3-Inference, MIT); a public fork with our model (Qwen3.8-27B-FP8) is titled "LB-9". Our harness scores
+          about 1 on the public games. The owner asked for the highest score and approved running these notebooks.
+Arms:     exp-030 = private copy of foysalemonshanto/lb-9-arc3-duck-v12-with-qwen-3-8-27b (TAAF anim branch 2026-08-07:
+          animation awareness, hard no-op guard; Qwen3.8-27B-FP8 repack, Apache-2.0; vLLM 0.19.0 wheelhouse);
+          exp-031 = private copy of wuliao0/duck-qwen3-8-anim-base (original Duck share bundle; Qwen3.8-Flash-Next
+          NVFP4 by RadixArk with a PLE FP8 patch; vLLM tuned: MTP 3, BF16 KV, 8 sequences). Both unchanged apart from a
+          credit cell; non-submission mode plays the 25 public games once, 28 concurrent, 7,920 s per game.
+Checked:  both notebooks talk only to the local vLLM server and the competition gateway; no credentials; internet off.
+Gate:     public-25 score (their frozen scorer's score.json where written, else TAAF's per-game final scores) against
+          our harness on the same games; the better one is the next submission (1 per day).
