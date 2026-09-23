@@ -397,7 +397,10 @@ P9_NEW = '''            animation_line = describe_animation(previous_step_summar
                 and current_frame is not None
                 and len(history_entries) > executed
             ):
-                diff_line = _board_diff_line(history_entries[-executed - 1].frame.grid, current_frame.grid)
+                try:  # prompt building runs outside the analyzer's try: a bad entry must not end the game
+                    diff_line = _board_diff_line(history_entries[-executed - 1].frame.grid, current_frame.grid)
+                except Exception:
+                    diff_line = ""
                 if diff_line:
                     lines.append(diff_line)
 '''
