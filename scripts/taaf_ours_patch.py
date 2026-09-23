@@ -34,6 +34,11 @@ P1_NOTE_FN = '''_NOTE_LABELS = (
 )
 _REASONING_NOTE_MAX_LINES = 8
 _REASONING_NOTE_MAX_CHARS = 600
+_REASONING_LABEL_RE = re.compile(
+    r"^(world model|goal model|action model|recent findings|open questions|plan|cross-level notes|hypothesis"
+    r"|history check|next test)(?:\\s+[^:\\n]{0,40})?:\\s*(.*)$",
+    re.IGNORECASE,
+)
 
 
 def _extract_scientist_note_from_reasoning(reasoning: str) -> dict[str, str]:
@@ -47,7 +52,7 @@ def _extract_scientist_note_from_reasoning(reasoning: str) -> dict[str, str]:
     """
     if not reasoning or not reasoning.strip():
         return {}
-    lowered_labels = {label.lower() + ":": label for label in _NOTE_LABELS}
+    by_lower = {label.lower(): label for label in _NOTE_LABELS}
     blocks: dict[str, list[str]] = {}
     current: str | None = None
     for raw_line in reasoning.splitlines():
@@ -56,11 +61,11 @@ def _extract_scientist_note_from_reasoning(reasoning: str) -> dict[str, str]:
         while candidate.startswith(("-", "*", "#")):
             candidate = candidate[1:].lstrip()
         candidate = candidate.replace("**", "")
-        lowered = candidate.lower()
-        matched = next((label for key, label in lowered_labels.items() if lowered.startswith(key)), None)
+        found = _REASONING_LABEL_RE.match(candidate)
+        matched = by_lower.get(found.group(1).lower()) if found is not None else None
         if matched is not None:
             current = matched
-            inline = candidate[len(matched) + 1:].strip()
+            inline = found.group(2).strip()
             blocks[current] = [inline] if inline else []
             continue
         if not stripped:
@@ -134,6 +139,100 @@ PATCHES: dict[str, list[tuple[str, str, str]]] = {
          "                assistant_message[\"tool_calls\"] = tool_calls"),
     ],
 }
+
+
+ACTION_NAMES = "src/ARC3-Inference/inference/agent/action_names.py"
+SANDBOX = "src/ARC3-Inference/inference/agent/python_tool_sandbox.py"
+
+# P1b: note labels with a qualifier ("World model update:", "World model (level 2):", "Plan for next probe:") were
+# rejected by the exact `startswith("world model:")` match; 272 of 1,329 responses in the thui run carried such headers.
+P1B_MATCH_OLD = """        for target in targets:
+            if lowered.startswith(target):
+                matched_label = normalized_labels[target[:-1]]
+                inline_value = candidate[len(target):].strip()
+                break
+"""
+P1B_MATCH_NEW = """        for target in targets:
+            if lowered.startswith(target):
+                matched_label = normalized_labels[target[:-1]]
+                inline_value = candidate[len(target):].strip()
+                break
+        if matched_label is None:
+            lenient = _LENIENT_LABEL_RE.match(candidate.replace("**", ""))
+            if lenient is not None:
+                matched_label = normalized_labels.get(lenient.group(1).lower())
+                inline_value = lenient.group(2).strip() if matched_label is not None else ""
+"""
+P1B_RE = '''_LENIENT_LABEL_RE = re.compile(
+    r"^(world model|goal model|action model|recent findings|open questions|plan|cross-level notes|hypothesis"
+    r"|history check|next test)(?:\\s+[^:\\n]{0,40})?:\\s*(.*)$",
+    re.IGNORECASE,
+)
+
+
+def _extract_labeled_blocks('''
+
+# P2: the engine's ACTION7 (UNDO in the ARC-AGI-3 docs) had no model-facing name, so the model saw "ACTION7" among the
+# valid actions and every attempt was rejected ("Unknown action"); in the thui run 15 attempts in 6 games, and in 26
+# calls the model concluded ACTION7 does nothing.
+P2_OLD = '    "ACTION6": "MOUSE",\n    "RESET": "RESET",\n'
+P2_NEW = '    "ACTION6": "MOUSE",\n    "ACTION7": "UNDO",\n    "RESET": "RESET",\n'
+
+# P3: a new level cleared the goal and action models (and every other note except cross-level notes, which the model
+# wrote once in a whole run), so each level restarted from an empty note. A game's kind of win condition is constant
+# across levels (lesson 0016) and action semantics rarely change, so the goal and action models are kept, marked for
+# verification; a GAME_OVER restart of the same level keeps the whole note.
+P3_OLD = """        if summary.get("level_transition") or summary.get("run_complete") or summary.get("game_over"):
+            for key in (
+                "world_model",
+                "goal_model",
+                "action_model",
+                "recent_findings",
+                "open_questions",
+                "current_plan",
+            ):
+                self._summarized_knowledge[key] = ""
+"""
+P3_NEW = """        if summary.get("level_transition") or summary.get("run_complete"):
+            for key in ("goal_model", "action_model"):
+                value = self._summarized_knowledge.get(key, "")
+                if value and not value.startswith("[from an earlier level"):
+                    self._summarized_knowledge[key] = (
+                        "[from an earlier level; verify on this level before relying on it] " + value
+                    )
+            for key in (
+                "world_model",
+                "recent_findings",
+                "open_questions",
+                "current_plan",
+            ):
+                self._summarized_knowledge[key] = ""
+"""
+
+# P7: pre-import the allowed modules and the usual collections names in every python call; 20 NameErrors in the thui
+# run came from missing imports (json, Counter, ...) or earlier calls' names.
+P7_OLD = '        runtime_globals["__builtins__"]["__import__"] = _safe_import\n'
+P7_NEW = ('        runtime_globals["__builtins__"]["__import__"] = _safe_import\n'
+          '        for _pre in ("json", "math", "collections", "itertools", "functools", "heapq", "re", "copy"):\n'
+          '            try:\n'
+          '                runtime_globals[_pre] = _safe_import(_pre)\n'
+          '            except Exception:\n'
+          '                pass\n'
+          '        try:\n'
+          '            from collections import Counter, defaultdict, deque\n'
+          '            runtime_globals.update(Counter=Counter, defaultdict=defaultdict, deque=deque)\n'
+          '        except Exception:\n'
+          '            pass\n')
+
+PATCHES.update({
+    "P1B": [
+        (TOOL_AGENT, "def _extract_labeled_blocks(", P1B_RE),
+        (TOOL_AGENT, P1B_MATCH_OLD, P1B_MATCH_NEW),
+    ],
+    "P2": [(ACTION_NAMES, P2_OLD, P2_NEW)],
+    "P3": [(TOOL_AGENT, P3_OLD, P3_NEW)],
+    "P7": [(SANDBOX, P7_OLD, P7_NEW)],
+})
 
 
 def apply(bundle_dir: Path | str, names: list[str] | None = None) -> list[str]:
