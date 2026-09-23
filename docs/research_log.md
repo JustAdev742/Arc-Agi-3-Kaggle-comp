@@ -1211,3 +1211,16 @@ Bed:      expect line in 107 of 107 prompts; supervisor calls every bed interval
           following prompts; the prompt carries the notes, "level 1 took 13 actions; the last 13: ...", 55 actions of
           level 2 run-length encoded and the 4,160-character board; exact notebook tree clean on ft09.
 Arm:      exp-040 = exp-039 + P18 + P19 (scottmahony/arc3-taaf-ours-e), queued after exp-039.
+
+## 2026-09-23 · exp-032 · unmodified public anim + Flash-Next notebook (our control) · MEASURED
+Measured: public-25 7.86, 38 levels (dev 8.48, val 5.88); runs/exp032-anim-flashnext (kernel
+          scottmahony/arc3-taaf-anim-flashnext v1, 08:01-10:27 UTC). Harvest: n=37 stock-cap runs, mean 7.15, sd 1.65:
+          73rd percentile, i.e. an ordinary draw of the base configuration. Score had every game stopped at 15 / 30 /
+          60 / 90 / 120 / 132 min: 1.03 / 1.72 / 4.18 / 5.05 / 7.28 / 7.86.
+Server:   1,356 requests; 20,570 prompt and 1,472 generated tokens per request; 126 s queued, 16.7 s decoding, 145 s
+          end to end per request; 3.12 running on average (max 6); 21 preemptions. Same as the public thui run.
+Behaviour: 54 responses per game; reasoning 3,633 characters per response (p90 8,877); 12 length cut-offs; acting turns
+          0.64; longest action-free stretch per level median 45.5 min; first move on a new level 4.9 min; tool errors
+          0.027 per response (KeyError 10, NameError 9, IndexError 7); carried note changed in 0.29 of turns. Minutes per
+          solved level L1-L4: 22.1, 33.7, 22.5, 45.3.
+Use:      the control every arm today is compared with (plus the harvest distribution).
