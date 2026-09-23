@@ -1016,3 +1016,28 @@ Change:   on the exp-032 notebook: P1 carried note read from the hidden reasonin
           Kernel scottmahony/arc3-taaf-ours-a v1.
 Expected: more model calls per game (shorter prompts, fewer duplicate turns) and notes that survive; public-25 above the
           harvested anim + Flash-Next distribution (9.56, 6.79, ...) only if the effect is larger than about 2 points.
+
+## 2026-09-23 · prompt anatomy of the public anim + Flash-Next run · MEASURED (replay, no GPU)
+Method:   the harness's own trimming and eviction replayed over the parsed transcripts; the replay reproduces the logged
+          message counts (25/25 snapshots) and the server's image counters exactly (7,501 image items =
+          mm_cache_queries_total; 479 unique = cache misses). Prompt tokens were checked on the 16 calls that hit
+          finish_reason=length (prompt = 32,768 - completion).
+Measured: the served template DOES render past-turn reasoning: with it the predictions fit all 16 calls across 10 games
+          (mean error -0.8k tokens, worst 2.9k); without it they undershoot every call by 8.9k-17.7k. Past reasoning is
+          35% of all prompt tokens (median 7.8k per call); fixed boilerplate is about 600 tokens per user message (about
+          3.5k per late prompt); an image costs about 200 tokens. Prompt tokens per call: p10 11.0k, median 22.8k, p90
+          25.1k. (This corrects an inference in the serving entry above that the template dropped past reasoning.)
+Reading:  Qwen's guidance is to keep only the final output of earlier turns, not their thinking; the harness keeps both.
+          Dropping past reasoning, old images and repeated instructions from history, with the history budget lowered
+          to match, should about halve the prompt and so roughly double the requests that fit in the KV cache.
+
+## 2026-09-23 · exp-035 · our Duck fork with history compression (arm "ours-b") · QUEUED (next free GPU slot)
+Change:   exp-034 plus P4 (older user turns keep only their action summary and state line: no standing instructions,
+          no stale note, no image; stored assistant turns lose their reasoning, the current turn keeps it) and P8 (on a
+          new level the prompt asks for a `Cross-level notes:` line before acting); LOCAL_ANALYZER_CONTEXT_WINDOW 22528,
+          so the history budget is about 15.9k estimated tokens (about 13-14k server tokens) instead of 31.7k estimated
+          (22.8k server). Bed test with a scripted level-1 win: the first prompt on level 2 carries the goal and action
+          models marked "verify" and the cross-level request; unpatched, the note is empty. Kernel
+          scottmahony/arc3-taaf-ours-b.
+Expected: about twice the running requests (vllm:num_requests_running, queue time) and more calls per game; a public-25
+          gain only counts if clearly outside the harvested range of the base configuration.

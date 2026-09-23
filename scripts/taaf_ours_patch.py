@@ -271,7 +271,20 @@ P4_NEW = ("        return [\n"
           "            for message in self._drop_until_first_user_message(history)\n"
           "        ]\n")
 
+# P8: the harness carries `Cross-level notes:` to every later level, but the model wrote that label once in a whole
+# run, so each level was re-learned from scratch (a median of 3 calls, 8 minutes, before the first action on a new
+# level). A game's kind of win condition and its action semantics usually persist (lesson 0016), so a completed level
+# now asks for that note before acting.
+P8_OLD = '                lines.append("You have progressed to a new level!")\n'
+P8_NEW = ('                lines.append("You have progressed to a new level!")\n'
+          '                lines.append(\n'
+          '                    "Before acting on the new level, write one line starting with `Cross-level notes:` that "\n'
+          '                    "states what completed the previous level (the goal as you now understand it) and what each "\n'
+          '                    "action does; it is kept for every later level. Then check the new board against it."\n'
+          '                )\n')
+
 PATCHES.update({
+    "P8": [(TOOL_AGENT, P8_OLD, P8_NEW)],
     "P4": [
         (TOOL_AGENT, "def _empty_world_model(", P4_FN + "def _empty_world_model("),
         (TOOL_AGENT, P4_OLD, P4_NEW),
