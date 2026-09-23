@@ -210,9 +210,12 @@ P3_NEW = """        if summary.get("level_transition") or summary.get("run_compl
 """
 
 # P7: pre-import the allowed modules and the usual collections names in every python call; 20 NameErrors in the thui
-# run came from missing imports (json, Counter, ...) or earlier calls' names.
+# run came from missing imports (json, Counter, ...) or earlier calls' names. Also allow `class` statements: the
+# restricted builtins lacked __build_class__, so any class definition failed with "NameError: __build_class__ not found".
 P7_OLD = '        runtime_globals["__builtins__"]["__import__"] = _safe_import\n'
 P7_NEW = ('        runtime_globals["__builtins__"]["__import__"] = _safe_import\n'
+          '        runtime_globals["__builtins__"]["__build_class__"] = builtins.__build_class__\n'
+          '        runtime_globals["__name__"] = "__python_tool__"\n'
           '        for _pre in ("json", "math", "collections", "itertools", "functools", "heapq", "re", "copy"):\n'
           '            try:\n'
           '                runtime_globals[_pre] = _safe_import(_pre)\n'
@@ -377,7 +380,143 @@ P10_NEW = ('        if current_level == 1:\n'
            '            )\n'
            '        state_line = f"Current state: step {current_step}, level {current_level}"\n')
 
+# P6: every python call started from a blank namespace, so helpers were rewritten again and again (54% of 1,116
+# function definitions in the thui run redefined an existing name; 32% of code lines repeated earlier lines) and names
+# from earlier calls raised NameError. Top-level functions and classes (undecorated), imports and UPPER_CASE literal
+# constants from a successful call are kept per game (at most 12,000 characters, oldest dropped) and replayed silently
+# before the next call's code; each replayed piece runs in its own try, so a stale one cannot break the call.
+PROMPTS = "src/ARC3-Inference/inference/agent/prompts.py"
+P6_FN = '''_PERSIST_RESERVED = {
+    "action", "animation", "current_frame", "latest_frame", "previous_frame", "history", "transitions",
+    "last_transition", "last_action", "last_action_frame", "last_action_result", "valid_actions", "result", "print",
+}
+_PERSIST_MAX_CHARS = 12000
+
+
+def _persist_definitions(store: dict[str, str], code: str) -> None:
+    """Keep top-level defs, classes, imports and UPPER_CASE literal constants of a successful call."""
+    import ast
+
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return
+    for node in tree.body:
+        key = None
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and not node.decorator_list:
+            key = node.name if node.name not in _PERSIST_RESERVED else None
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            key = "import:" + ",".join(alias.name for alias in node.names)
+        elif (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id.isupper()
+            and node.targets[0].id not in _PERSIST_RESERVED
+        ):
+            try:
+                ast.literal_eval(node.value)
+            except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
+                continue
+            key = "const:" + node.targets[0].id
+        if key is None:
+            continue
+        source = ast.get_source_segment(code, node)
+        if source:
+            store.pop(key, None)
+            store[key] = source
+    while store and sum(len(v) for v in store.values()) > _PERSIST_MAX_CHARS:
+        store.pop(next(iter(store)))
+
+
+def _persisted_helper_names(store: dict[str, str]) -> list[str]:
+    import ast
+
+    names: list[str] = []
+    for key, source in store.items():
+        if key.startswith(("import:", "const:")):
+            if key.startswith("const:"):
+                names.append(key[len("const:"):])
+            continue
+        try:
+            node = ast.parse(source).body[0]
+        except (SyntaxError, IndexError):
+            continue
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            names.append(f"{node.name}({', '.join(a.arg for a in node.args.args)})")
+        else:
+            names.append(key)
+    return names[-16:]
+
+
+'''
+P6_SANDBOX_CHILD_OLD = '''        _refresh_state(initial.get("state") or {})
+
+        try:
+            compiled = compile(str(initial.get("code", "")), "<python_tool>", "exec")'''
+P6_SANDBOX_CHILD_NEW = '''        _refresh_state(initial.get("state") or {})
+        for _snippet in initial.get("prelude") or []:
+            try:
+                exec(compile(str(_snippet), "<persisted>", "exec"), runtime_globals, runtime_globals)
+            except Exception:
+                pass
+
+        try:
+            compiled = compile(str(initial.get("code", "")), "<python_tool>", "exec")'''
+P6_SANDBOX_SIG_OLD = ("    animation_handler: Callable[[dict[str, Any]], dict[str, Any]] | None = None,\n"
+                      ") -> dict[str, Any]:\n")
+P6_SANDBOX_SIG_NEW = ("    animation_handler: Callable[[dict[str, Any]], dict[str, Any]] | None = None,\n"
+                      "    prelude: list[str] | None = None,\n"
+                      ") -> dict[str, Any]:\n")
+P6_SANDBOX_MSG_OLD = '                "animation_enabled": animation_handler is not None,\n'
+P6_SANDBOX_MSG_NEW = ('                "animation_enabled": animation_handler is not None,\n'
+                      '                "prelude": list(prelude or []),\n')
+P6_CALL_OLD = '''        sandbox_result = run_sandboxed_python(
+            code=code,
+'''
+P6_CALL_NEW = '''        if not hasattr(self, "_persisted_defs"):
+            self._persisted_defs = {}
+        sandbox_result = run_sandboxed_python(
+            code=code,
+            prelude=list(self._persisted_defs.values()),
+'''
+P6_STORE_OLD = '        step_executed = any(bool(item.get("executed")) for item in action_results)\n'
+P6_STORE_NEW = ('        if not rendered_error:\n'
+                '            _persist_definitions(self._persisted_defs, code)\n'
+                '        step_executed = any(bool(item.get("executed")) for item in action_results)\n')
+P6_PROMPT_OLD = '        lines.extend(self._summarized_knowledge_lines())\n'
+P6_PROMPT_NEW = ('        _helpers = _persisted_helper_names(getattr(self, "_persisted_defs", {}) or {})\n'
+                 '        if _helpers:\n'
+                 '            lines.append(\n'
+                 '                "Kept from your earlier successful python calls and re-created in every call: "\n'
+                 '                + ", ".join(_helpers)\n'
+                 '                + ". Call them directly instead of rewriting them; define one again to replace it."\n'
+                 '            )\n'
+                 '        lines.extend(self._summarized_knowledge_lines())\n')
+P6_SYS1_OLD = '    "- Every `python` tool call starts fresh. Re-import modules or re-define any custom utility logic you need.\\n"\n'
+P6_SYS1_NEW = ('    "- Each `python` tool call starts with fresh variables, but the top-level functions, classes, imports and '
+               'UPPER_CASE constants of your earlier successful calls are re-created automatically (the user message lists '
+               'them): reuse them instead of rewriting them. Other variables are not kept.\\n"\n')
+P6_SYS2_OLD = '    "- The `python` tool code is not saved between calls, so rewrite any custom utility logic you still need.\\n"\n'
+P6_SYS2_NEW = ('    "- Variables are not saved between calls; your top-level functions, classes, imports and UPPER_CASE '
+               'constants are (see above).\\n"\n')
+P6_TOOLDESC_OLD = '"Python code to run. The snippet is ephemeral and is not saved across tool calls."'
+P6_TOOLDESC_NEW = ('"Python code to run. Variables do not persist across calls; top-level functions, classes, imports and '
+                   'UPPER_CASE constants of successful calls do."')
+
 PATCHES.update({
+    "P6": [
+        (TOOL_AGENT, "def _empty_world_model(", P6_FN + "def _empty_world_model("),
+        (SANDBOX, P6_SANDBOX_CHILD_OLD, P6_SANDBOX_CHILD_NEW),
+        (SANDBOX, P6_SANDBOX_SIG_OLD, P6_SANDBOX_SIG_NEW),
+        (SANDBOX, P6_SANDBOX_MSG_OLD, P6_SANDBOX_MSG_NEW),
+        (TOOL_AGENT, P6_CALL_OLD, P6_CALL_NEW),
+        (TOOL_AGENT, P6_STORE_OLD, P6_STORE_NEW),
+        (TOOL_AGENT, P6_PROMPT_OLD, P6_PROMPT_NEW),
+        (PROMPTS, P6_SYS1_OLD, P6_SYS1_NEW),
+        (PROMPTS, P6_SYS2_OLD, P6_SYS2_NEW),
+        (TOOL_AGENT, P6_TOOLDESC_OLD, P6_TOOLDESC_NEW),
+    ],
     "P10": [(TOOL_AGENT, P10_OLD, P10_NEW)],
     "P9": [
         (TOOL_AGENT, "def _empty_world_model(", P9_FN + "def _empty_world_model("),
