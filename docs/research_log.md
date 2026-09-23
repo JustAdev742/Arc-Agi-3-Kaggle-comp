@@ -1248,3 +1248,15 @@ Measured: scottmahony/arc3-kv-stress-8g v1 (10:50-11:05 UTC, about 11 minutes of
           use). runs/kvstress-8g/summary.json. As the headroom analysis predicted, the 5 GiB profile leaves no room for
           3 more GiB of KV. Remaining throughput levers: shorter prompts (P4, exp-035), shorter outputs (P11, exp-037),
           prefix caching (stress test queued; it shares the 4-5k-token system prompt across requests).
+
+## 2026-09-23 · submission-path safety for the Duck fork: tests, arm registry, complete run records · DONE (code only)
+Tests:    tests/test_taaf_ours_patch.py (38 tests, full suite green, ruff clean) against a verbatim copy of the upstream
+          agent and utils modules (tests/fixtures/taaf_anim, MIT/CC0 notice): every patch applies exactly once alone and
+          all together in both orders and compiles; applying twice fails loudly; the patched harness imports; P1-P4,
+          P6/P7 (replayed code that prints or acts cannot hang or re-send actions; class idioms, except KeyError,
+          __main__), P9, P11, P12, P13-P19 prompt additions (with a fake chat call for the supervisor), P17 hint gating;
+          the builder's inlined source equals the repo file and applies; the arm registry names only known patches.
+Registry: kaggle/taaf/arms.json + scripts/build_arms.py: each arm's patches, knobs and flags in one place; it
+          reproduces the queued exp-036/039/040 and the pushed exp-035 notebooks byte for byte. Pushed arms are rebuilt
+          only with --force.
+Records:  runs/<run>/summary.json now carries the call statistics and behaviour metrics next to the score.
