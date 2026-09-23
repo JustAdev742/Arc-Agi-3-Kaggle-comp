@@ -254,6 +254,14 @@ this repo can influence. Practical consequences: GPU experiments are blocked unt
   7.86 (38 levels); exp-034 fork, first arm, 6.44 (32; its 600 s yield is the prime suspect, the queued arms went
   back to 180 s); exp-037 effort medium 6.70 (37; +35% calls, no more levels: effort stays xhigh). KV 8 GiB fails
   at startup (out of memory). exp-035 (history compression P4 + 22.5k window) 3.58 (21 levels): the model re-derived its state every call once its past reasoning was stripped (lesson 0022); P4 and the smaller budget are out. exp-036/039 carry P4 and could not be cancelled from the API (no session id; internal endpoint 403), so they finish. Replacements queued at the base budget: exp-042 (low-token fixes) and exp-043 (all patches but P4/P11). Nothing beats the base yet.
+- **New lever, P21 (2026-09-23 afternoon):** the server fits 4-6 calls while about 20 wait first-come, so every game
+  gets the same call rate (later levels even less: 0.37 vs 0.47 calls/min in exp-032), yet level k is worth k times
+  level 1. P21 gates the calls (6 in flight) and admits the largest weight x wait, weight 1 + 2 x (level - 1) fading
+  after 45 stalled minutes. Replay model over 19 base runs: +0.64 on the public 25 (paired sd 0.84), +0.42 on a
+  modelled harder hidden set; bed-tested on the real harness. Queue (scripts/kaggle_queue.py, pushes as slots free):
+  stress tests 5 GiB, 6.5 GiB + 4k chunks, the b12x MoE kernels, prefix caching; then exp-045 (base + P21), exp-042
+  (low-token fixes), exp-046 (P21 + 6.5 GiB, if its stress test passes), exp-047 (P21 + prefix caching, if its stress
+  test passes), exp-043 (all patches but P4/P11). GPU quota: 13.3 of 30 h used at 13:37 UTC, resets 2026-09-26 00:00.
 - **The 100% question (owner, 2026-09-23):** every system reported at 100 (NVIDIA AVO, MIT VISTA, Tycho) is Claude
   Opus 5 or GPT-5.6 over the internet on the 25 public games; none can run in the offline Kaggle rerun, and frontier
   models score 30-63 on the semi-private set. Their shared structures are ported as patches P13-P20
