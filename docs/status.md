@@ -130,75 +130,27 @@ research log exp-006a.
 
 ## Open items (need you)
 
-**Kaggle RTX queue stall (2026-09-20/21):** the submission notebook v3 (harness 8f3af9e) and the exp-024 control were
-pushed at 23:20 UTC with GPU quota available (pushes are rejected outright when the weekly 30 h is spent). Neither was
-scheduled in the following five hours: both sat at `KernelWorkerStatus.QUEUED`, no code ran, no quota was spent. The
-control was cancelled from the browser to free a session slot and the submission still did not start. Kaggle caps us at
-two concurrent batch GPU sessions and exposes no cancel in the API (only `kernels delete`), so queue position is not
-observable from here; the notebook page in a browser shows the real reason. Submission notebook **v2 (2026-09-16,
-harness 699825b) remains a passed run and is submittable without waiting**.
+Current as of 2026-09-23 14:30 UTC. (The earlier items about our own REPL harness, the rtx6000 queue stall and the
+champion preset are superseded by the move to the Duck family; they are in this file's git history.)
 
-Diagnosed 2026-09-21 12:20 UTC: a CPU kernel pushed at that moment was **RUNNING within seconds**
-(`arc3-submission-cpu-check` v2) while the GPU kernel had then been queued 13 hours. The account, the token and
-Kaggle's scheduler are therefore healthy; it is the **rtx6000 batch pool that is not allocating**, which nothing in
-this repo can influence. Practical consequences: GPU experiments are blocked until the pool frees, CPU-only work
-(code gates, replays, notebook builds) is unaffected, and submitting does not depend on either.
-
-**Submission runs the champion preset, not the unmeasured bundle.** The exp-024 control was cancelled on 2026-09-21 during the queue stall and exp-026 (bundle) was never scheduled; both stay the first GPU runs when the rtx6000 pool allocates (research log 2026-09-23).
-
-**How to submit: `docs/SUBMITTING.md`** (build and push the notebook here, press Submit in the browser).
-
-1. **Milestone 2 (closes 2026-09-30) — decisions received 2026-09-17.** License: **Apache-2.0** (`LICENSE` at the
-   root, packed into the notebook bundle, named in the notebook header). Publication: allowed; my decision is to
-   publish the notebook together with a submission, not before (a public copy without an entry only gives the code
-   away). Submission: the owner's condition is "fully verify it will get over 50 or 100 percent and the code works".
-   The first part cannot be met: the score is percent of human-level RHAE, our dev base is 0.6-1.4, exp-017 is 1.29,
-   the public leader is 18.81 (`docs/research/road-to-100.md`); no run of ours can be verified above 50. So **no
-   submission is made under that condition**. What I will do: keep the notebook in a state that passes a private
-   Save & Run All on the RTX at every harness change (the last pass was harness 699825b on 2026-09-16; a re-run at the
-   current HEAD is first in the quota queue below), so that a Milestone 2 entry is one click away if the owner
-   decides an entry at the expected 1-3 is worth having for the leaderboard position and the end-to-end validation.
-   Nemotron 3 Super: **not for the submission** (NVIDIA Open Model License, not OSI; and its KV headroom on 96 GB
-   caps the concurrency we need most); its serving check is dropped from the queue, the built kernel and notes stay.
-   gpt-oss-120b (Apache-2.0) remains the candidate model.
-2. **GPU quota is exhausted for the week** (30 h; resets 2026-09-19 00:00 UTC). Ready to push, in this order, when
-   it resets: (0) the submission notebook's private Save & Run All at the current HEAD (about 20 min; the Milestone 2
-   gate; the push on 2026-09-17 03:20 UTC answered "Maximum weekly GPU quota of 30.00 hours reached"); (1) exp-024,
-   the champion preset at HEAD as the control every arm compares with (`scratchpad/nb/exp024`); then exp-023
-   (no-op memory) and exp-023b (hard skip) against it; exp-025 (arm B: Qwen3.8-27B NVFP4, `scratchpad/nb/exp025`,
-   champion preset, Marlin NVFP4 ladder) and the Flash-Next serving check (arm D, `scratchpad/nb/flashnext-diag`) for the
-   model-challenger set of the research brief (arm C = FP8 at medium effort is exp-013/013b, already measured: 1.251 / 0.866);
-   then exp-019 (memory only) and exp-020 (memory + level boundary + the per-level action-budget notice added
-   after exp-017's 355-796-action levels), three runs each against the six-run base; then exp-022 (the probe sweep,
-   `explore_first` 8, plus the goal-hypothesis line) on top of exp-020, and the gpt-oss-120b serving check of
-   `docs/research/road-to-100.md` section 5 (about 50 min of quota; Nemotron dropped, see item 1). Exact commands
-   (rebuild from HEAD first so the tarball carries the current harness; `S` is the session scratchpad or any folder):
-
-   ```bash
-   B=".venv/bin/python scripts/build_eval_notebook.py --agent repl --split dev --time-per-game 1200 --workers 8"
-   $B --config '{"context_tokens": 32768, "reasoning_effort": "low", "max_output_tokens": 3072, "level_consolidation": false}' \
-      --slug arc3-eval-dev-m --run-name kaggle-repl-dev-019 --note "exp-019 memory arm" --out $S/nb/exp019
-   $B --config '{"context_tokens": 32768, "reasoning_effort": "low", "max_output_tokens": 3072, "level_action_notice": 120}' \
-      --slug arc3-eval-dev-n --run-name kaggle-repl-dev-020 --note "exp-020 level boundary + action notice" --out $S/nb/exp020
-   $B --config '{"context_tokens": 32768, "reasoning_effort": "low", "max_output_tokens": 3072, "level_action_notice": 120, "explore_first": 8, "explore_first_clicks": 4}' \
-      --slug arc3-eval-dev-o --run-name kaggle-repl-dev-022 --note "exp-022 sweep + goal hypotheses" --out $S/nb/exp022
-   .venv/bin/python scripts/push_eval.py $S/nb/exp019      # one kernel at a time (one RTX slot); repeat each arm three times
-   .venv/bin/python scripts/pull_run.py scottmahony/arc3-eval-dev-m kaggle-repl-dev-019
-   # Milestone 2 gate first: make notebook && .venv/bin/python scripts/push_eval.py notebooks  (private Save & Run All)
-   # serving check (docs/models/gpt-oss-120b-mxfp4/NOTES.md holds the attempt ladder used to build it; rebuild the same way):
-   .venv/bin/python scripts/push_eval.py $S/nb/diag-gptoss
-   ```
-   (`scratchpad/nb/exp019`, `scratchpad/nb/exp020`; rebuild from HEAD with `scripts/build_eval_notebook.py`); the
-   exp-018 repeat with the image-limit fix; the Flash-Next serving check (`scratchpad/nb/flashnext-diag`; the dataset
-   `scottmahony/qwen3-8-flash-next-nvfp4`, all 25 files, 132.7 GB, and the vLLM 0.29.0 wheelhouse
-   `scottmahony/arc3-vllm-wheelhouse-v0290-cu130` are both ready). If the workstation (RTX PRO 6000, CLAUDE.md) is
-   reachable, the same evaluations run there with `make eval AGENT=repl ...` against a local vLLM started from
-   `arc3.serve.build_vllm_command`; tell me and I will write the exact commands.
-3. Daily submission limit: paste the "Submission limits" lines from the Kaggle **Rules** page (still UNCONFIRMED;
-   5 per day from two secondary sources).
-4. For future sessions put the Kaggle token in the Claude Code environment as `KAGGLE_API_TOKEN` (this session keeps
-   it in git-ignored `.kaggle/access_token`). Consider regenerating the token after this project since it passed
-   through a chat upload.
+1. **Milestone 2 (closes 2026-09-30): I recommend not entering.** An entry must be a public notebook under an open
+   license. Our best measured configuration is the unmodified public base (7.86 on the public 25; Duck-family
+   notebooks score about 5-8 on the leaderboard) against a leader at about 19, so a prize is out of reach, and
+   publishing our fork would give away our only differentiated work (the P21 gate, if it proves out). Say so if you
+   want an entry anyway for the visibility; making anything public waits for your word.
+2. **GPU quota is the binding constraint: 30 h per week, resetting Saturdays 00:00 UTC.** A full public-25 run costs
+   about 2.5 h, so about 10 full runs a week; single runs differ by about 2.3 points (sd of a difference), so only
+   large effects or clear mechanism changes can be read from one run. Nothing to decide unless you can add GPU time
+   elsewhere: the RTX PRO 6000 workstation in CLAUDE.md is not reachable from this cloud session; if you can give me
+   access (or run commands there), each experiment would stop costing Kaggle quota.
+3. **Kaggle's API cannot cancel a running notebook** (the cancel call needs a session id no public call returns; the
+   site's internal endpoint refuses API tokens). A run that should be stopped (like exp-036/039 today, which carry the
+   harmful P4) can only be cancelled from the browser: https://www.kaggle.com/code/scottmahony/arc3-taaf-ours-c and
+   .../arc3-taaf-ours-d (both end on their own about 15:30 and 16:00 UTC today).
+4. **Daily submissions:** 1 per day, 2 final selections (verified on the Rules tab). Tonight's slot (00:03 UTC) is
+   used by a pre-registered rule (research log): a P21 arm if its mechanism and score check out, else the base.
+5. For future sessions put the Kaggle token in the environment as `KAGGLE_API_TOKEN`; consider regenerating it after
+   the competition since it passed through a chat upload.
 
 ## Follow-ups noticed (not fixed on purpose)
 
