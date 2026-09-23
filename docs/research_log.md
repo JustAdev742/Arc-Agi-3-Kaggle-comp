@@ -1462,3 +1462,9 @@ Yardstick: scripts/zsum.py now clips each game's z at +-3 (null sd 6.2): exp-042
           exp-045 +0.9, exp-032 +0.8, exp-046 +0.5, exp-043 -0.7, P4 arms -1.8 to -2.6.
 Quota:    exp-048 (fixes + P21 + 6.5 GiB) and exp-042r (repeat) started at 21:10 and 21:28 with 29.3 of 30 h used; they
           will likely be stopped when the weekly quota runs out and re-pushed after the 2026-09-26 reset.
+
+## 2026-09-23 22:30 · quota edge: sessions are not stopped at 30 h · OBSERVED
+exp-048 and exp-042r (pushed 21:10 and 21:28 with 29.3 h used) were still RUNNING at 22:30 with 30.85 h used and
+10.96 h reserved: Kaggle admitted them against the reservation and lets them finish. The Sep 24 submission rule was
+amended at 22:32, before exp-048's result, only to list exp-048 (fixes + P21 + 6.5 GiB) among the P21 arms it
+considers; the criteria are unchanged.
