@@ -253,7 +253,7 @@ this repo can influence. Practical consequences: GPU experiments are blocked unt
 - **Measured today (public 25, one run each; harvest of the base: n=37, mean 7.15, sd 1.65):** exp-032 control
   7.86 (38 levels); exp-034 fork, first arm, 6.44 (32; its 600 s yield is the prime suspect, the queued arms went
   back to 180 s); exp-037 effort medium 6.70 (37; +35% calls, no more levels: effort stays xhigh). KV 8 GiB fails
-  at startup (out of memory). Nothing beats the base yet; exp-035/036/039/040 run this afternoon.
+  at startup (out of memory). exp-035 (history compression P4 + 22.5k window) 3.58 (21 levels): the model re-derived its state every call once its past reasoning was stripped (lesson 0022); P4 and the smaller budget are out. exp-036/039 carry P4 and could not be cancelled from the API (no session id; internal endpoint 403), so they finish. Replacements queued at the base budget: exp-042 (low-token fixes) and exp-043 (all patches but P4/P11). Nothing beats the base yet.
 - **The 100% question (owner, 2026-09-23):** every system reported at 100 (NVIDIA AVO, MIT VISTA, Tycho) is Claude
   Opus 5 or GPT-5.6 over the internet on the 25 public games; none can run in the offline Kaggle rerun, and frontier
   models score 30-63 on the semi-private set. Their shared structures are ported as patches P13-P20

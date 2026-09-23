@@ -1288,3 +1288,25 @@ Checked:  the learner found ls20's energy strip (rows 61-62) after 20 actions an
           the note; learner and wrappers unit-tested against stub classes; applies in either order with P9; the
           upstream solver.py joined the test fixture (text only).
 Arm:      added to exp-040 (not yet pushed), which is now exp-039 + P18 + P19 + P20.
+
+## 2026-09-23 · exp-035 · history compression (P4) with a 22,528-token window · MEASURED, REVERTED
+Measured: public-25 3.58, 21 levels (dev 4.37, val 1.10); runs/exp035-ours-b (scottmahony/arc3-taaf-ours-b v1,
+          pushed 11:03, complete 13:29 UTC). Harvest rank: beats 1 of 37 base runs (3rd percentile); control 7.86 / 38
+          levels. Score had every game stopped at 15 / 30 / 60 / 90 / 120 min: 0.43 / 1.19 / 2.73 / 2.95 / 3.39
+          (control 1.03 / 1.72 / 4.18 / 5.05 / 7.28): behind from the first quarter hour on.
+Server:   prompt 10,195 tokens per request (control 20,570) and 4.19 requests running (3.12), as intended, yet 1,323
+          requests in all (1,356): each reply was 2,038 tokens (1,472), and 615 preemptions (21) recomputed work.
+Behaviour: reasoning per reply p50 4,182 characters (control 2,267); acting turns 0.39 (0.64); longest action-free
+          stretch per level median 69.7 min (45.5); 56 replies cut at the output cap. Minutes per solved level L1 22.2
+          (14 levels), L2 37.0 (5), L3 41.0 (2).
+Reading:  with its earlier reasoning stripped and half the history, the model re-derived its state at every call and
+          spent the freed throughput on longer thinking instead of actions. The past reasoning the template renders
+          (35% of prompt tokens) carries the working hypotheses; the carried note does not replace it (it changed in
+          0.69 of turns here, as in exp-034, without helping). Qwen's "drop old thinking" advice does not hold for
+          this harness. Lesson 0022.
+Decision: P4, the 22,528-token window and the 6,144-token output cap are out of every new arm; the registry defaults
+          are now the base's own budget (32,768-token window, no output cap, 180 s yield). exp-040 (with P4) is dropped
+          before it ran; exp-042 (low-token fixes only: P1 P1B P2 P3 P7 P12 P13 P17) and exp-043 (every patch except P4
+          and P11) replace it. exp-036 and exp-039 (both with P4) were already running and cannot be stopped from here:
+          the public API's cancel call needs a session id no public call returns, and the site's internal endpoint
+          refused the API token (403). They finish and are read against exp-035, not the control.

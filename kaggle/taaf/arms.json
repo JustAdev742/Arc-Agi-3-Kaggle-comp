@@ -3,9 +3,7 @@
  "defaults": {
   "wavefit": true,
   "knobs": {
-   "LOCAL_ANALYZER_YIELD_SECONDS": "180",
-   "LOCAL_ANALYZER_MAX_OUTPUT": "6144",
-   "LOCAL_ANALYZER_CONTEXT_WINDOW": "22528"
+   "LOCAL_ANALYZER_YIELD_SECONDS": "180"
   }
  },
  "arms": [
@@ -22,7 +20,7 @@
    ],
    "knobs": {
     "LOCAL_ANALYZER_YIELD_SECONDS": "600",
-    "LOCAL_ANALYZER_CONTEXT_WINDOW": null
+    "LOCAL_ANALYZER_MAX_OUTPUT": "6144"
    },
    "note": "exp-034: carried-note fixes, ACTION7 as UNDO, notes kept across levels, pre-imports, 600 s turn yield, 6,144-token output cap."
   },
@@ -40,7 +38,11 @@
     "P8",
     "P12"
    ],
-   "note": "exp-035: exp-034's patches plus history compression (P4) and the cross-level note request (P8); compile errors contained (P12); turn yield back to the base 180 s after exp-034."
+   "note": "exp-035: exp-034's patches plus history compression (P4) and the cross-level note request (P8); compile errors contained (P12); turn yield back to the base 180 s after exp-034.",
+   "knobs": {
+    "LOCAL_ANALYZER_MAX_OUTPUT": "6144",
+    "LOCAL_ANALYZER_CONTEXT_WINDOW": "22528"
+   }
   },
   {
    "exp": "exp036",
@@ -59,7 +61,11 @@
     "P12"
    ],
    "note": "exp-036: exp-035 plus board diff (P9), level-1 probing note (P10) and persisted helpers (P6).",
-   "pushed": 1
+   "pushed": 1,
+   "knobs": {
+    "LOCAL_ANALYZER_MAX_OUTPUT": "6144",
+    "LOCAL_ANALYZER_CONTEXT_WINDOW": "22528"
+   }
   },
   {
    "exp": "exp037",
@@ -71,8 +77,6 @@
    ],
    "knobs": {
     "LOCAL_ANALYZER_YIELD_SECONDS": null,
-    "LOCAL_ANALYZER_MAX_OUTPUT": null,
-    "LOCAL_ANALYZER_CONTEXT_WINDOW": null,
     "OURS_REASONING_EFFORT": "medium"
    },
    "note": "exp-037: the served template's reasoning effort set to medium (default xhigh); nothing else changed."
@@ -86,8 +90,6 @@
    ],
    "knobs": {
     "LOCAL_ANALYZER_YIELD_SECONDS": null,
-    "LOCAL_ANALYZER_MAX_OUTPUT": null,
-    "LOCAL_ANALYZER_CONTEXT_WINDOW": null,
     "OURS_REASONING_EFFORT": "low"
    },
    "note": "exp-038: the served template's reasoning effort set to low (default xhigh); nothing else changed.",
@@ -114,7 +116,12 @@
     "P16",
     "P17"
    ],
-   "note": "exp-039: exp-036 plus the stall-analysis patches P13-P17."
+   "note": "exp-039: exp-036 plus the stall-analysis patches P13-P17.",
+   "knobs": {
+    "LOCAL_ANALYZER_MAX_OUTPUT": "6144",
+    "LOCAL_ANALYZER_CONTEXT_WINDOW": "22528"
+   },
+   "pushed": 1
   },
   {
    "exp": "exp040",
@@ -140,7 +147,12 @@
     "P19",
     "P20"
    ],
-   "note": "exp-040: exp-039 plus predict-before-act (P18), a supervisor review of a stalled level (P19) and lever L1 no-impact detection (P20, ported from sahasawatt/thui-l1-v0)."
+   "note": "exp-040: exp-039 plus predict-before-act (P18), a supervisor review of a stalled level (P19) and lever L1 no-impact detection (P20, ported from sahasawatt/thui-l1-v0).",
+   "knobs": {
+    "LOCAL_ANALYZER_MAX_OUTPUT": "6144",
+    "LOCAL_ANALYZER_CONTEXT_WINDOW": "22528"
+   },
+   "dropped": "not run: carries P4, and exp-035 (P4 with the 22,528-token window) fell to 3.58 against the base's 7.86; replaced by exp-042 and exp-043"
   },
   {
    "exp": "exp041",
@@ -167,10 +179,52 @@
     "P11"
    ],
    "knobs": {
+    "LOCAL_ANALYZER_MAX_OUTPUT": "6144",
+    "LOCAL_ANALYZER_CONTEXT_WINDOW": "22528",
     "OURS_REASONING_EFFORT": "medium"
    },
    "note": "exp-041: exp-040 at reasoning effort medium (P11); built only if exp-037 shows medium beats the default xhigh.",
    "dropped": "not run: medium effort did not pay in exp-037"
+  },
+  {
+   "exp": "exp042",
+   "slug": "arc3-taaf-ours-g",
+   "patches": [
+    "P1",
+    "P1B",
+    "P2",
+    "P3",
+    "P7",
+    "P12",
+    "P13",
+    "P17"
+   ],
+   "note": "exp-042: the base's own history budget and turn yield (no P4, no output cap, 32,768-token window) with the low-token fixes only: note read from reasoning (P1/P1B), ACTION7 as UNDO (P2), goal and action models kept across levels (P3), sandbox pre-imports (P7), compile errors contained (P12), score semantics (P13), animation error keys (P17)."
+  },
+  {
+   "exp": "exp043",
+   "slug": "arc3-taaf-ours-h",
+   "patches": [
+    "P1",
+    "P1B",
+    "P2",
+    "P3",
+    "P7",
+    "P12",
+    "P13",
+    "P17",
+    "P8",
+    "P9",
+    "P10",
+    "P6",
+    "P14",
+    "P15",
+    "P16",
+    "P18",
+    "P19",
+    "P20"
+   ],
+   "note": "exp-043: exp-042 plus every other patch except P4 and P11: cross-level note (P8), board diff (P9), level-1 probing note (P10), persisted helpers (P6), level-start comparison, idle probe and level record (P14-P16), predict before acting (P18), supervisor review (P19), lever L1 no-impact detection (P20)."
   }
  ]
 }

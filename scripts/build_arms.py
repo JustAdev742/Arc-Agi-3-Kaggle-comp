@@ -5,8 +5,9 @@
 
 Each arm gets ``<dir>/<exp>/`` with its notebook and kernel-metadata.json, built by scripts/build_taaf_nb.py from the
 registry's patches, knobs (the registry defaults, overridden per arm; a null value drops a default) and flags. Arms
-with a recorded ``pushed`` version are history and are skipped unless ``--force``: rebuilding them would change what a
-later push of the same kernel runs. Push a built folder with scripts/push_eval.py.
+with a recorded ``pushed`` version are history, and arms marked ``dropped`` were decided against; both are skipped
+unless ``--force``, since rebuilding a pushed arm would change what a later push of the same kernel runs. Push a built
+folder with scripts/push_eval.py.
 """
 from __future__ import annotations
 
@@ -37,7 +38,7 @@ def arm_command(arm: dict, defaults: dict, out: Path) -> list[str]:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True)
-    ap.add_argument("--arms", nargs="*", default=None, help="exp ids (default: every arm not yet pushed)")
+    ap.add_argument("--arms", nargs="*", default=None, help="exp ids (default: every arm neither pushed nor dropped)")
     ap.add_argument("--force", action="store_true", help="also rebuild arms that record a pushed version")
     args = ap.parse_args()
     registry = json.loads(REGISTRY.read_text())
@@ -50,6 +51,9 @@ def main() -> None:
     for arm in selected:
         if arm.get("pushed") and not args.force:
             print(f"skip {arm['exp']} ({arm['slug']} v{arm['pushed']} already pushed; --force to rebuild)")
+            continue
+        if arm.get("dropped") and not args.force:
+            print(f"skip {arm['exp']} (dropped: {arm['dropped']}; --force to build anyway)")
             continue
         subprocess.run(arm_command(arm, registry.get("defaults", {}), out), check=True)
 

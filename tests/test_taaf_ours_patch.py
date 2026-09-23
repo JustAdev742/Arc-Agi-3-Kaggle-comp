@@ -6,8 +6,10 @@ harness can hang or crash games in a competition rerun. These run against a verb
 """
 from __future__ import annotations
 
+import ast
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -300,11 +302,17 @@ def test_arm_registry_names_only_known_patches_and_builds(tmp_path):
     for arm in registry["arms"]:
         assert set(arm["patches"]) <= set(tp.PATCHES), arm["exp"]
     out = tmp_path / "arms"
-    subprocess.run([sys.executable, str(ROOT / "scripts" / "build_arms.py"), "--out", str(out), "--force",
-                    "--arms", "exp040"], check=True, capture_output=True, text=True)
-    nb = json.loads((out / "exp040" / "arc3-taaf-ours-e.ipynb").read_text())
+    subprocess.run([sys.executable, str(ROOT / "scripts" / "build_arms.py"), "--out", str(out),
+                    "--arms", "exp043", "exp040"], check=True, capture_output=True, text=True)
+    assert not (out / "exp040").exists()  # dropped arms are not built without --force
+    nb = json.loads((out / "exp043" / "arc3-taaf-ours-h.ipynb").read_text())
     text = "\n".join("".join(c["source"]) for c in nb["cells"])
-    assert "'LOCAL_ANALYZER_YIELD_SECONDS': '180'" in text and "P19" in text
+    applied = ast.literal_eval(re.search(r'_ours_ns\["apply"\]\(_OURS_BUNDLE, (\[[^\]]*\])\)', text).group(1))
+    knobs = ast.literal_eval(re.search(r"^_KNOBS = (\{.*\})$", text, re.MULTILINE).group(1))
+    assert "P19" in applied and knobs["LOCAL_ANALYZER_YIELD_SECONDS"] == "180"
+    # exp-035: P4 with a smaller history budget regressed, so the new arms keep the base's budget
+    assert "P4" not in applied
+    assert "LOCAL_ANALYZER_CONTEXT_WINDOW" not in knobs and "LOCAL_ANALYZER_MAX_OUTPUT" not in knobs
 
 
 def test_p20_no_impact_learner_and_wrappers():
