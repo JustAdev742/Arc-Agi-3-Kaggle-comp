@@ -933,7 +933,131 @@ P20_PROMPT_NEW = P9_OLD + """            if previous_step_summary.get("no_impact
                 )
 """
 
+# P21: the server is the bottleneck (4-6 requests fit the KV cache, about 20 more wait about 126 s each in vLLM's
+# first-come queue) and the score weights level k by k, so the calls of a game on level 4 are worth about four times a
+# level-1 call, and that game's model has already worked the game out. A gate in front of the server keeps at most
+# OURS_GATE_SLOTS calls in flight (default 8, the server's max_num_seqs; 0 turns it off) and lets the waiting call with
+# the largest weight x wait go next, so no game starves. Weight 1 + OURS_GATE_LEVEL_WEIGHT x (level - 1) (default
+# step 1), fading as a level stalls past OURS_GATE_STALL_MIN minutes (default 45). Every OURS_GATE_PRINT_S seconds
+# (default 600) the gate prints its counts to the notebook log.
+P21_FN = '''import threading as _ours_threading
+
+_OURS_GATE_LOCK = _ours_threading.Lock()
+_OURS_GATE_STATE: dict = {}
+
+
+class _OursCallGate:
+    """At most ``slots`` model calls in flight; the waiting call with the largest weight x wait goes next."""
+
+    def __init__(self, slots: int) -> None:
+        self.slots = max(1, int(slots))
+        self._cv = _ours_threading.Condition()
+        self._busy = 0
+        self._waiting: dict[int, tuple[float, float]] = {}
+        self._next_ticket = 0
+        self.admitted = 0
+        self.timeouts = 0
+        self.waited_s = 0.0
+        self._last_print = time.monotonic()
+
+    def _best(self, now: float) -> int | None:
+        best, best_score = None, -1.0
+        for ticket, (weight, t0) in self._waiting.items():
+            score = weight * (now - t0)
+            if score > best_score:
+                best, best_score = ticket, score
+        return best
+
+    def acquire(self, weight: float, timeout: float | None, should_stop: Callable[[], bool] | None = None) -> float:
+        """Wait for a slot; return the seconds waited. Raises requests.Timeout past ``timeout``."""
+        start = time.monotonic()
+        deadline = None if timeout is None else start + max(0.0, float(timeout))
+        with self._cv:
+            ticket = self._next_ticket
+            self._next_ticket += 1
+            self._waiting[ticket] = (max(0.05, float(weight)), start)
+            try:
+                while True:
+                    now = time.monotonic()
+                    if self._busy < self.slots and self._best(now) == ticket:
+                        self._busy += 1
+                        self.admitted += 1
+                        self.waited_s += now - start
+                        if now - self._last_print >= _get_env_float("OURS_GATE_PRINT_S", 600.0):
+                            self._last_print = now
+                            weights = sorted(round(w, 1) for w, _ in self._waiting.values())
+                            print(f"ours-gate: admitted {self.admitted}, mean wait "
+                                  f"{self.waited_s / max(1, self.admitted):.1f}s, timeouts {self.timeouts}, "
+                                  f"busy {self._busy}/{self.slots}, waiting weights {weights}", flush=True)
+                        return now - start
+                    if deadline is not None and now >= deadline:
+                        self.timeouts += 1
+                        raise requests.Timeout(f"waited {now - start:.0f}s for a model slot")
+                    if should_stop is not None:
+                        try:
+                            stop = bool(should_stop())
+                        except Exception:
+                            stop = False
+                        if stop:
+                            raise requests.RequestException("stopped while waiting for a model slot")
+                    self._cv.wait(1.0 if deadline is None else max(0.01, min(1.0, deadline - now)))
+            finally:
+                self._waiting.pop(ticket, None)
+                self._cv.notify_all()
+
+    def release(self) -> None:
+        with self._cv:
+            self._busy = max(0, self._busy - 1)
+            self._cv.notify_all()
+
+
+def _ours_call_gate() -> "_OursCallGate | None":
+    with _OURS_GATE_LOCK:
+        if "gate" not in _OURS_GATE_STATE:
+            slots = _get_env_int("OURS_GATE_SLOTS", 8)
+            _OURS_GATE_STATE["gate"] = _OursCallGate(slots) if slots > 0 else None
+        return _OURS_GATE_STATE["gate"]
+
+
+def _ours_gate_weight(agent: Any) -> float:
+    """1 on level 1; 1 + step x (level - 1) on later levels, fading once a level has stalled past OURS_GATE_STALL_MIN."""
+    level = max(1, int(getattr(agent, "_ours_gate_level", 1) or 1))
+    step = _get_env_float("OURS_GATE_LEVEL_WEIGHT", 1.0)
+    stall_min = _get_env_float("OURS_GATE_STALL_MIN", 45.0)
+    now = time.monotonic()
+    minutes = (now - float(getattr(agent, "_ours_gate_level_t0", now))) / 60.0
+    fade = 1.0 if stall_min <= 0 or minutes <= stall_min else stall_min / minutes
+    return 1.0 + max(0.0, step) * (level - 1) * fade
+
+
+'''
+P21_LEVEL_OLD = ("        current_frame, history_entries = load_runtime_state(state_path)\n"
+                 "        user_prompt = self._build_user_prompt(\n")
+P21_LEVEL_NEW = ("        current_frame, history_entries = load_runtime_state(state_path)\n"
+                 "        _ours_lv = int(getattr(current_frame, 'level', 1) or 1) if current_frame is not None else 1\n"
+                 "        if _ours_lv != getattr(self, '_ours_gate_level', None):  # ours P21: level and its start time\n"
+                 "            self._ours_gate_level, self._ours_gate_level_t0 = _ours_lv, time.monotonic()\n"
+                 "        self._ours_gate_stop = should_stop\n"
+                 "        user_prompt = self._build_user_prompt(\n")
+P21_CALL_OLD = "        response = post_chat(payload)\n"
+P21_CALL_NEW = """        _ours_gate = _ours_call_gate()  # ours P21: weighted fair share of the model server across games
+        if _ours_gate is None:
+            response = post_chat(payload)
+        else:
+            _ours_budget = request_timeout_seconds if request_timeout_seconds is not None else self._timeout
+            _ours_waited = _ours_gate.acquire(_ours_gate_weight(self), _ours_budget, getattr(self, "_ours_gate_stop", None))
+            try:
+                if _ours_budget is not None:
+                    request_timeout_seconds = max(1.0, float(_ours_budget) - _ours_waited)
+                response = post_chat(payload)
+            finally:
+                _ours_gate.release()
+"""
+
 PATCHES.update({
+    "P21": [(TOOL_AGENT, "def _empty_world_model(", P21_FN + "def _empty_world_model("),
+            (TOOL_AGENT, P21_LEVEL_OLD, P21_LEVEL_NEW),
+            (TOOL_AGENT, P21_CALL_OLD, P21_CALL_NEW)],
     "P11": [(UTILS_COMPAT, P11_IMPORT_OLD, P11_IMPORT_NEW), (UTILS_COMPAT, P11_OLD, P11_NEW)],
     "P12": [(TOOL_AGENT, P12_OLD, P12_NEW)],
     "P13": [(PROMPTS, PROMPTS_SCORE_OLD, PROMPTS_SCORE_NEW)],

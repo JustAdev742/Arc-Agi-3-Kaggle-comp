@@ -13,6 +13,8 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
+import time
 import types
 from pathlib import Path
 
@@ -373,3 +375,67 @@ def test_p20_prompt_line(h):
         previous_step_summary={"executed_count": 1, "executed_actions": ["LEFT"], "level": 1, "no_impact_count": 1,
                                "hud_rows": [7]})
     assert "1 of these actions changed only the game's counter strip (rows [7]) and had NO impact" in prompt
+
+
+def test_p21_gate_serves_the_heaviest_waiter_first_and_never_blocks_forever(h):
+    gate = h.ta._OursCallGate(1)
+    assert gate.acquire(1.0, None) < 0.5  # a free slot is taken at once
+    order, threads = [], []
+
+    def wait(name, weight):
+        gate.acquire(weight, 30.0)
+        order.append(name)
+        gate.release()
+
+    for name, weight, pause in (("a", 1.0, 0.0), ("b", 1.0, 0.05), ("heavy", 4.0, 0.1)):
+        time.sleep(pause)
+        threads.append(threading.Thread(target=wait, args=(name, weight)))
+        threads[-1].start()
+    time.sleep(0.3)
+    gate.release()
+    for t in threads:
+        t.join(10)
+    assert order == ["heavy", "a", "b"]  # weight x wait: 4 x 0.2 s beats 1 x 0.35 s; equal weights go oldest first
+    gate.acquire(1.0, None)
+    with pytest.raises(h.ta.requests.Timeout):
+        gate.acquire(1.0, 0.2)
+    with pytest.raises(h.ta.requests.RequestException, match="stopped"):
+        gate.acquire(1.0, 30.0, should_stop=lambda: True)
+    gate.release()
+    assert gate.timeouts == 1 and not gate._waiting
+
+
+def test_p21_weight_grows_with_level_and_fades_on_a_stalled_level(h, monkeypatch):
+    monkeypatch.setenv("OURS_GATE_LEVEL_WEIGHT", "1")
+    monkeypatch.setenv("OURS_GATE_STALL_MIN", "45")
+    now = time.monotonic()
+    agent = types.SimpleNamespace(_ours_gate_level=4, _ours_gate_level_t0=now)
+    assert h.ta._ours_gate_weight(agent) == pytest.approx(4.0)
+    agent._ours_gate_level_t0 = now - 90 * 60
+    assert h.ta._ours_gate_weight(agent) == pytest.approx(2.5, abs=0.01)
+    assert h.ta._ours_gate_weight(types.SimpleNamespace()) == 1.0
+
+
+def test_p21_chat_completion_goes_through_the_gate_and_keeps_the_time_budget(h, monkeypatch):
+    monkeypatch.setenv("OURS_GATE_SLOTS", "2")
+    h.ta._OURS_GATE_STATE.clear()
+    seen = []
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        seen.append(timeout)
+        return types.SimpleNamespace(status_code=200, text="", raise_for_status=lambda: None,
+                                     json=lambda: {"choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}]})
+
+    monkeypatch.setattr(h.ta.requests, "post", fake_post)
+    agent = h.ta.ToolAgent(model="mock")
+    try:
+        result = agent._chat_completion([{"role": "user", "content": "hi"}], tools=None, request_timeout_seconds=300)
+        gate = h.ta._ours_call_gate()
+        assert result.message["content"] == "ok" and gate.admitted == 1 and gate._busy == 0
+        assert 299.0 <= seen[0] <= 300.0
+        monkeypatch.setenv("OURS_GATE_SLOTS", "0")
+        h.ta._OURS_GATE_STATE.clear()
+        agent._chat_completion([{"role": "user", "content": "hi"}], tools=None, request_timeout_seconds=300)
+        assert h.ta._ours_call_gate() is None and seen[1] == 300
+    finally:
+        h.ta._OURS_GATE_STATE.clear()

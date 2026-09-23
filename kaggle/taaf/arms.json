@@ -234,7 +234,38 @@
     "kv_gib": 6.5,
     "batched_tokens": 4096
    },
-   "note": "exp-044: the unmodified base with a 6.5 GiB KV cache (base 5) and 4,096-token prefill chunks (base 8,192), the profile of stress test kvstress65b4k; pushed only if that test ran without errors or out-of-memory."
+   "note": "exp-044: the unmodified base with a 6.5 GiB KV cache (base 5) and 4,096-token prefill chunks (base 8,192), the profile of stress test kvstress65b4k; pushed only if that test ran without errors or out-of-memory.",
+   "dropped": "not run: replaced by exp-046 (the same serving profile with the P21 gate), to save a run"
+  },
+  {
+   "exp": "exp045",
+   "slug": "arc3-taaf-gate",
+   "patches": [
+    "P21"
+   ],
+   "knobs": {
+    "OURS_GATE_SLOTS": "6",
+    "OURS_GATE_LEVEL_WEIGHT": "2",
+    "OURS_GATE_STALL_MIN": "45"
+   },
+   "note": "exp-045: the unmodified base plus the model-call gate (P21): at most 6 calls in flight at the server, the waiting call with the largest weight x wait next, weight 1 + 2 x (level - 1) fading after 45 stalled minutes. Replay model (scripts/sim_call_share.py, 19 base runs): +0.64 expected, paired sd 0.84."
+  },
+  {
+   "exp": "exp046",
+   "slug": "arc3-taaf-gate-kv65",
+   "patches": [
+    "P21"
+   ],
+   "knobs": {
+    "OURS_GATE_SLOTS": "6",
+    "OURS_GATE_LEVEL_WEIGHT": "2",
+    "OURS_GATE_STALL_MIN": "45"
+   },
+   "serving": {
+    "kv_gib": 6.5,
+    "batched_tokens": 4096
+   },
+   "note": "exp-046: exp-045 on a 6.5 GiB KV cache with 4,096-token prefill chunks (the kvstress65b4k profile); pushed only if that stress test passed."
   }
  ]
 }
