@@ -879,5 +879,37 @@
    "generated_tokens": 76356,
    "tokens_per_action": 848.4
   }
- ]
+ ],
+ "calls": {
+  "games": 25,
+  "responses": 1356,
+  "responses_per_game_median": 54,
+  "turns_per_game_median": 35,
+  "reasoning_chars_mean": 3633,
+  "reasoning_chars_p50": 2267,
+  "reasoning_chars_p90": 8877,
+  "reasoning_chars_max": 34080,
+  "content_chars_mean": 154,
+  "finish_reasons": {
+   "tool_calls": 1344,
+   "length": 12
+  }
+ },
+ "behaviour": {
+  "turns": 897,
+  "acting_share": 0.64,
+  "responses": 1356,
+  "idle_min_median": 45.5,
+  "first_move_L2plus_min_median": 4.9,
+  "tool_errors_per_response": 0.027,
+  "top_errors": {
+   "KeyError": 10,
+   "NameError": 9,
+   "IndexError": 7,
+   "ValueError": 4,
+   "TypeError": 3,
+   "AttributeError": 2
+  },
+  "note_update_share": 0.289
+ }
 }

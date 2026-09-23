@@ -23,6 +23,10 @@ sys.path.insert(0, str(ROOT))
 from arc3.scoring import game_score  # noqa: E402
 from arc3.splits import resolve  # noqa: E402
 
+sys.path.insert(0, str(ROOT / "scripts"))
+from taaf_call_stats import run_stats as call_stats  # noqa: E402
+from taaf_mechanisms import run_stats as behaviour_stats  # noqa: E402
+
 
 def server_metrics(dl: Path) -> dict:
     """Totals from the vLLM Prometheus dump (vllm-metrics-final.prom) and the running/waiting counts in the server log."""
@@ -50,6 +54,16 @@ def server_metrics(dl: Path) -> dict:
             out["running_mean"] = round(sum(running) / len(running), 2)
             out["running_max"] = max(running)
     return out
+
+
+def _optional(fn, path: Path) -> dict | None:
+    """Transcript-based metrics when the run has transcripts (scripts/taaf_call_stats.py, taaf_mechanisms.py)."""
+    try:
+        stats = fn(path)
+    except SystemExit:  # no transcripts in this output
+        return None
+    stats.pop("run", None)
+    return stats
 
 
 def main() -> None:
@@ -122,12 +136,16 @@ def main() -> None:
                "levels_completed": sum(g["levels_completed"] for g in games),
                "levels_total": sum(g["levels_total"] for g in games),
                "score_if_stopped_at_min": {m: score_at(60.0 * m) for m in (15, 30, 60, 90, 120, 132)},
+               "calls": _optional(call_stats, out),
+               "behaviour": _optional(behaviour_stats, out),
                "results": games}
     (out / "summary.json").write_text(json.dumps(summary, indent=1))
     print(f"{run_name}: all {summary['score_all']}  dev {summary['score_dev']}  val {summary['score_val']}  "
           f"levels {summary['levels_completed']}/{summary['levels_total']}")
     print("  score had every game stopped at N minutes:", summary["score_if_stopped_at_min"])
     print("  server:", summary["server"])
+    print("  calls:", summary["calls"])
+    print("  behaviour:", summary["behaviour"])
     for g in sorted(games, key=lambda g: -g["score"]):
         if g["levels_completed"]:
             print(f"  {g['game_id']}: {g['levels_completed']}/{g['levels_total']} score {g['score']:.2f} "
