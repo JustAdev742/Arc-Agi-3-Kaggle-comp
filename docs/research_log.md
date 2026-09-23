@@ -985,3 +985,34 @@ Measured (exp-033): the server never started. vLLM worker: `NotImplementedError:
           kv_cache_memory_bytes (after the 81.8 GiB of weights 12.6 GiB are free; 5 GiB go to KV, the rest to CUDA graphs,
           MoE workspace and 8,192 batched tokens; the MoE autotuner already hit one OOM at 5 GiB) or shorter prompts
           (20,600 prompt tokens per request on average).
+
+## 2026-09-23 · transcript analysis of the best public anim + Flash-Next run · MEASURED (no GPU)
+Data:     runs/pub-yocybercode_thui-animfast-b71-full25-r1 (public outputs: transcripts, prompts, vLLM metrics); parsed
+          883 turns and 1,346 model calls (matches the server's 1,346 requests); scripts in the session scratchpad.
+Measured: 54 model calls per game in 132 min; 146 s mean latency per call, 127 s of it queued (3.1 requests running,
+          21.5 waiting on average); 20.6k prompt / 1.46k generated tokens per call; generated tokens are 81% reasoning,
+          15% code, 4% visible text. 45% of turns executed no action (54% of wall-clock); a turn that yields after 180 s
+          re-sends the same user message (261 of 374 post-yield user messages were byte-identical to the previous one).
+          The carried note: 58% of calls had empty visible text; the exact-label parser missed 272 responses with
+          qualified headers ("World model update:"); only 21.5% of turns updated the note; every new level started with
+          an empty note (the harness clears all fields but cross-level notes, which the model wrote once).
+          Code: 32% of code lines repeat earlier calls' lines; 7.5% of tool calls errored (NameError 20, IndexError on
+          `.ascii` 16, KeyError 16, rejected actions 16, ...). ACTION7 has no model-facing name: all 15 attempts in the
+          6 games that offer it were rejected, and in 26 calls the model concluded it does nothing. 16 calls ran to
+          finish_reason=length after 4k-12k reasoning tokens with no tool call. Efficiency is not the problem: on solved
+          levels the median agent/human action ratio is 0.72 (0.8-0.9 across 16 harvested runs; the mean score at human
+          efficiency would be 8.6 instead of 7.3). The loss is unsolved levels and too few model calls.
+
+## 2026-09-23 · exp-034 · our Duck fork, bug fixes and note repair (arm "ours-a") · RUNNING (pushed 08:25 UTC)
+Why:      the transcript analysis above. Every change is general (no game knowledge) and bed-tested on CPU with the real
+          harness against a mock model (scripts: taaf_ours_patch.py, build_taaf_nb.py; bed in the session scratchpad).
+Change:   on the exp-032 notebook: P1 carried note read from the hidden reasoning when the reply has none; P1b lenient
+          note labels; P2 ACTION7 exposed as UNDO (was unmapped and always rejected); P3 goal and action models kept
+          across levels (marked "verify"), the whole note kept across GAME_OVER (lesson 0016: the kind of win condition
+          is constant per game); P7 json/math/collections/itertools/functools/heapq/re/copy and Counter/defaultdict/deque
+          pre-imported in every python call; LOCAL_ANALYZER_YIELD_SECONDS 600 (was 180: fewer duplicate re-prompts);
+          LOCAL_ANALYZER_MAX_OUTPUT 6144 (was unlimited: caps runaway reasoning and, through the reply reserve, trims the
+          history budget by about 5.6k estimated tokens); wave-fit per-game cap in real reruns only.
+          Kernel scottmahony/arc3-taaf-ours-a v1.
+Expected: more model calls per game (shorter prompts, fewer duplicate turns) and notes that survive; public-25 above the
+          harvested anim + Flash-Next distribution (9.56, 6.79, ...) only if the effect is larger than about 2 points.
