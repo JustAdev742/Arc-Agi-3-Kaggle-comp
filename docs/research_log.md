@@ -1149,3 +1149,31 @@ Throughput: 3-4 requests running, 20-22 waiting; whole-server generation 190-220
           in 10 s windows; MTP mean acceptance length 2.7-3.0. The GPU's compute is mostly idle while the KV cache caps
           the batch, so shorter prompts (P4) and shorter outputs (P11) raise throughput almost linearly and carry no
           memory risk; a larger KV cache is the risky lever.
+
+## 2026-09-23 · level-2+ stall analysis (subagent) and patches P13-P16 · BUILT, bed-tested; exp-039 queued
+Data:     the 17 games of the thui run that solved some but not all levels (1,252 stuck minutes, 309 turns, 442 calls);
+          per-game evidence in docs/research/stall-analysis-thui.md (the subagent's report; its notes and scripts stay
+          in the session scratchpad). One seed: the causes are a reading of transcripts, the shares are measured.
+Found:    68% of stuck time went to calls that took no action (151 of 309 turns hit the 180 s yield without acting;
+          median longest action-free stretch 22 min; a median of 8 action batches per stuck level); new mechanics on a
+          level went unprobed while level-1 assumptions were kept (lf52's arrow keys first pressed 42 min into level 2,
+          ls20's icon examined 97 min in, tn36's goal panel dropped); the note was empty at the start of all 39 new
+          levels and the previous level left the context a median 22 min after level-up (all 10 re-derivation episodes
+          began after that); 3 games read the cumulative `score` as a per-action reward; 13 of 17 stuck levels were still
+          under the human action count when time ran out, so actions were not the constraint.
+Change:   P13 system-prompt line: `score` counts levels completed and is not a reward; `reward` is non-zero only on the
+          level-completing action. P14 at a level change: the new board against the previous level's first board
+          (colours new on this level, item-sized object kinds new or gone, exact from segmentation), the actions never
+          tried in this game, and a request to test each cheaply before reusing the old plan (once per level). P15
+          when no action has been taken for 8+ minutes on a level at least 10 minutes old: a request for a 1-3 action
+          probe with a stated prediction (thresholds OURS_GOVERNOR_IDLE_MIN / _LEVEL_MIN); plus a standing line listing
+          actions never tried. P16 a harness record of each completed level (action count and last 16 actions,
+          run-length encoded) kept in every prompt. Idle time is measured from the history length and the level, since
+          the harness re-sends the previous step summary after an idle turn (the first bed run caught this).
+Bed:      scripted ls20 level-1 win then an inspect-only mock: comparison once on the first level-2 prompt, record
+          "level 1 took 13 actions; the last 13: LEFT x3, UP x4, RIGHT x3, UP x3" in every later prompt, untried "DOWN"
+          listed, probe request from the first prompt past the (bed) idle threshold; score line in every system prompt;
+          ft09 and vc33 runs of the exact notebook tree clean.
+Arm:      exp-039 = exp-036 + P13-P16, same knobs (scottmahony/arc3-taaf-ours-d), queued after exp-036.
+Expected: more acting on stuck levels and faster discovery of new mechanics; more levels 2+; risk: probe actions cost
+          RHAE on levels that would have been solved anyway (13 of 17 stuck levels had slack under the human count).

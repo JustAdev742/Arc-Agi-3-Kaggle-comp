@@ -588,9 +588,157 @@ P12_NEW = P12_OLD + """        except (ValueError, UnicodeError, RecursionError,
                 {"error": f"Python code could not be compiled: {type(exc).__name__}: {exc}"}, indent=2))
 """
 
+# P13-P16 (exp-039): from the level-2+ stall analysis of the thui run (17 games that solved some levels, 1,252 stuck
+# minutes; research log 2026-09-23): 68% of stuck time went to calls that took no action, new mechanics on a level
+# went unprobed while level-1 assumptions were kept (lf52's arrow keys first pressed 42 min into level 2), the
+# previous level left the context a median 22 min after level-up, and three games read the cumulative `score` as a
+# per-action reward.
+#
+# P13: say what `score` and `reward` in an action result mean.
+PROMPTS_SCORE_OLD = "and `last_action_result['valid_actions']`.\\n\"\n"
+PROMPTS_SCORE_NEW = (PROMPTS_SCORE_OLD
+                     + "    \"- `last_action_result['score']` counts the levels completed so far in this game: it stays the same "
+                       "while you play a level and rises by 1 only when a level is completed, so it is not a reward for the last "
+                       "action. `reward` is non-zero only on the action that completes a level.\\n\"\n")
+
+# P14: at a level change the harness compares the new board with the start of the previous level (colours and small
+# object shapes that are new, exact from the frames) and lists the actions never tried in this game, and asks for one
+# cheap probe of each before the previous level's plan is reused. P15: after a stretch with no action (8+ minutes on a
+# level that is 10+ minutes old) the next prompt asks for a 1-3 action probe with a stated prediction. P16: a record of
+# how each completed level ended (its action count and last actions, from the game log) stays in every prompt, since
+# the previous level's turns leave the context about 22 minutes after level-up.
+P14_FN = '''def _ours_object_kinds(grid: Any) -> dict[tuple[str, str], tuple[int, int, tuple[int, int, int, int]]]:
+    """(colour, shape hash) -> (count, cells, bounding box of one instance) for one board."""
+    from inference.utils.grid_utils import ARC_COLOR_CHARS
+    from inference.utils.segmentation import segment_layer
+
+    kinds: dict[tuple[str, str], tuple[int, int, tuple[int, int, int, int]]] = {}
+    for node in segment_layer(grid, ARC_COLOR_CHARS).get("nodes", []):
+        rows = [point[0] for point in node["boundary"]]
+        cols = [point[1] for point in node["boundary"]]
+        key = (str(node["color"]), str(node["hash"]))
+        count, cells, box = kinds.get(key, (0, int(node["pixels"]), (min(rows), min(cols), max(rows), max(cols))))
+        kinds[key] = (count + 1, cells, box)
+    return kinds
+
+
+def _ours_untried_actions(history_entries: list[Any], valid_actions: list[str] | None) -> list[str]:
+    used = set()
+    for entry in history_entries:
+        name = str(getattr(entry, "action", "") or "").split("(", 1)[0].strip().upper()
+        if name:
+            used.add(name)
+    return [a for a in _normalize_valid_actions(valid_actions) if a.upper() not in used and a.upper() != "RESET"]
+
+
+def _ours_level_start_lines(history_entries: list[Any], current_frame: Any, level: int,
+                            valid_actions: list[str] | None) -> list[str]:
+    """What is new on a level's first board compared with the previous level's first board, and untried actions."""
+    lines = [
+        "If this board has new kinds of objects (listed below) or actions you have never tried, test each cheaply "
+        "(one action or one short probe) and note what it does before reusing the previous level's plan."
+    ]
+    prev_start = next((e.frame for e in history_entries
+                       if getattr(e, "frame", None) is not None and e.frame.level == level - 1), None)
+    if prev_start is not None and current_frame is not None:
+        before, after = _ours_object_kinds(prev_start.grid), _ours_object_kinds(current_frame.grid)
+        new_colours = sorted({c for c, _ in after} - {c for c, _ in before})
+        new_kinds = sorted(((k, v) for k, v in after.items() if k not in before and v[1] <= 25),
+                           key=lambda kv: (kv[1][1], kv[1][0]))
+        gone = sorted(((k, v) for k, v in before.items() if k not in after and v[1] <= 25),
+                      key=lambda kv: (kv[1][1], kv[1][0]))
+
+        def _kind(kv: Any) -> str:
+            (colour, _), (count, cells, (r0, c0, r1, c1)) = kv
+            return f"{colour} {r1 - r0 + 1}x{c1 - c0 + 1} x{count} (e.g. rows {r0}-{r1}, cols {c0}-{c1})"
+
+        parts = [f"colours new on this level: {', '.join(new_colours) if new_colours else 'none'}"]
+        if new_kinds:
+            parts.append("new small object kinds: " + "; ".join(_kind(kv) for kv in new_kinds[:5]))
+        if gone:
+            parts.append("kinds no longer present: " + "; ".join(_kind(kv) for kv in gone[:3]))
+        lines.append(f"Harness comparison with the first board of level {level - 1} (exact): " + ". ".join(parts) + ".")
+    untried = _ours_untried_actions(history_entries, valid_actions)
+    if untried:
+        lines.append("Actions you have never tried in this game: " + ", ".join(untried) + ".")
+    return lines
+
+
+def _ours_level_record(history_entries: list[Any], level: int, limit: int = 16) -> str:
+    """How level `level` ended, from the game log: its action count and last actions, run-length encoded."""
+    names = [str(history_entries[i].action or "") for i in range(1, len(history_entries))
+             if getattr(history_entries[i - 1], "frame", None) is not None
+             and history_entries[i - 1].frame.level == level]
+    if not names:
+        return ""
+    runs: list[list[Any]] = []
+    for name in names[-limit:]:
+        if runs and runs[-1][0] == name:
+            runs[-1][1] += 1
+        else:
+            runs.append([name, 1])
+    tail = ", ".join(f"{n} x{k}" if k > 1 else n for n, k in runs)
+    return f"level {level} took {len(names)} actions; the last {min(limit, len(names))}: {tail}"
+
+
+'''
+P14_OLD = ('            if previous_step_summary.get("game_over"):\n'
+           '                lines.append("The game is over.")\n')
+P14_NEW = (P14_OLD
+           + '            if (previous_step_summary.get("level_transition") and not previous_step_summary.get("run_complete")\n'
+           + '                    and getattr(self, "_ours_p14_level", None) != current_level):\n'
+           + '                self._ours_p14_level = current_level\n'
+           + '                try:  # prompt building runs outside the analyzer\'s try\n'
+           + '                    lines.extend(_ours_level_start_lines(history_entries, current_frame, current_level, valid_actions))\n'
+           + '                    _record = _ours_level_record(history_entries, current_level - 1)\n'
+           + '                    if _record:\n'
+           + '                        _records = getattr(self, "_ours_level_records", None) or {}\n'
+           + '                        _records[current_level - 1] = _record\n'
+           + '                        self._ours_level_records = _records\n'
+           + '                except Exception:\n'
+           + '                    pass\n')
+P16_OLD = "        lines.extend(self._summarized_knowledge_lines())\n"
+P16_NEW = (P16_OLD
+           + '        _records = getattr(self, "_ours_level_records", None) or {}\n'
+           + '        if _records:\n'
+           + '            lines.append("Harness record of completed levels (exact, from the game log): "\n'
+           + '                         + "; ".join(_records[k] for k in sorted(_records)[-3:]) + ".")\n')
+P15_OLD = '        lines.append("end of world model. ")\n'
+P15_NEW = (P15_OLD
+           + '        try:\n'
+           + '            _now = time.monotonic()\n'
+           + '            if getattr(self, "_ours_t_level", None) is None:\n'
+           + '                self._ours_t_level = self._ours_t_act = _now\n'
+           + '                self._ours_level, self._ours_n_hist = current_level, len(history_entries)\n'
+           + '            if current_level != self._ours_level:\n'
+           + '                self._ours_t_level = self._ours_t_act = _now\n'
+           + '                self._ours_level = current_level\n'
+           + '            if len(history_entries) != self._ours_n_hist:\n'
+           + '                self._ours_t_act = _now\n'
+           + '                self._ours_n_hist = len(history_entries)\n'
+           + '            _idle = (_now - self._ours_t_act) / 60.0\n'
+           + '            if (_idle >= float(os.environ.get("OURS_GOVERNOR_IDLE_MIN", "8"))\n'
+           + '                    and (_now - self._ours_t_level) / 60.0 >= float(os.environ.get("OURS_GOVERNOR_LEVEL_MIN", "10"))):\n'
+           + '                lines.append(\n'
+           + '                    f"No action for {_idle:.0f} minutes on this level: in your next python call, run a probe of 1-3 "\n'
+           + '                    "actions that tests your best current hypothesis. Print the outcome you predict before acting "\n'
+           + '                    "and compare it after; a wrong prediction is progress."\n'
+           + '                )\n'
+           + '            if len(history_entries) > 5 and not any(l.startswith("Actions you have never tried") for l in lines):\n'
+           + '                _untried = _ours_untried_actions(history_entries, valid_actions)\n'
+           + '                if _untried:\n'
+           + '                    lines.append("Actions you have never tried in this game: " + ", ".join(_untried) + ".")\n'
+           + '        except Exception:\n'
+           + '            pass\n')
+
 PATCHES.update({
     "P11": [(UTILS_COMPAT, P11_IMPORT_OLD, P11_IMPORT_NEW), (UTILS_COMPAT, P11_OLD, P11_NEW)],
     "P12": [(TOOL_AGENT, P12_OLD, P12_NEW)],
+    "P13": [(PROMPTS, PROMPTS_SCORE_OLD, PROMPTS_SCORE_NEW)],
+    "P14": [(TOOL_AGENT, "def _empty_world_model(", P14_FN + "def _empty_world_model("),
+            (TOOL_AGENT, P14_OLD, P14_NEW)],
+    "P15": [(TOOL_AGENT, P15_OLD, P15_NEW)],
+    "P16": [(TOOL_AGENT, P16_OLD, P16_NEW)],
     "P6": [
         (TOOL_AGENT, "def _empty_world_model(", P6_FN + "def _empty_world_model("),
         (SANDBOX, P6_SANDBOX_CHILD_OLD, P6_SANDBOX_CHILD_NEW),
