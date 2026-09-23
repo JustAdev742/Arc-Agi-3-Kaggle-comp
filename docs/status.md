@@ -119,7 +119,7 @@ architectural step therefore has to be measured on dev and val, not assumed.
     `scottmahony/arc-prize-2026-arc-agi-3-arc3-agent` **v3** (champion preset, harness 8f3af9e), submission ref
     **56482492**, message "champion (exp-011 config), harness 8f3af9e, notebook v3". Status PENDING at submit time;
     the rerun plays the hidden games for up to 9 h. Account history before it: 0.17 (2026-08-27) and 0.10
-    (2026-08-28), both from before this repo. Public score: pending.
+    (2026-08-28), both from before this repo. Public score: **0.68** (complete 13:25 UTC).
 
 ## Rule library coverage (exp-006a, code-only, 2026-09-16)
 
@@ -277,7 +277,8 @@ this repo can influence. Practical consequences: GPU experiments are blocked unt
 
 ## Session 5 outcome (2026-09-23, CPU only; the rtx6000 pool was stalled)
 
-- **Competition submission 56482492** made on the owner's instruction (notebook v3, champion preset); score pending
+- **Competition submission 56482492** made on the owner's instruction (notebook v3, champion preset); public LB
+  **0.68** (scored 2026-09-23 13:25 UTC; our old harness; the Duck-family notebooks score about 5-7 there)
   (run 16 above). Daily limit observed as 1.
 - **Road to 100 percent, part II** (`docs/research/road-to-100-v2.md`), requested by the owner: level 1 is nearly free
   under RHAE (levels 2+ at 0.949-0.991 of the human count pay for any level-1 cost); optimal play is a median 0.41 of
