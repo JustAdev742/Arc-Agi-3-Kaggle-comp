@@ -226,7 +226,8 @@
     "P20",
     "P22"
    ],
-   "note": "exp-043: exp-042 plus every other patch except P4 and P11: cross-level note (P8), board diff (P9), level-1 probing note (P10), persisted helpers (P6), level-start comparison, idle probe and level record (P14-P16), predict before acting (P18), supervisor review (P19), lever L1 no-impact detection (P20). Plus P22: no previous_frame across a level-up (level-transition study)."
+   "note": "exp-043: exp-042 plus every other patch except P4 and P11: cross-level note (P8), board diff (P9), level-1 probing note (P10), persisted helpers (P6), level-start comparison, idle probe and level record (P14-P16), predict before acting (P18), supervisor review (P19), lever L1 no-impact detection (P20). Plus P22: no previous_frame across a level-up (level-transition study).",
+   "pushed": 1
   },
   {
    "exp": "exp044",
@@ -268,7 +269,8 @@
     "kv_gib": 6.5,
     "batched_tokens": 4096
    },
-   "note": "exp-046: exp-045 on a 6.5 GiB KV cache with 4,096-token prefill chunks (the kvstress65b4k profile); pushed only if that stress test passed."
+   "note": "exp-046: exp-045 on a 6.5 GiB KV cache with 4,096-token prefill chunks (the kvstress65b4k profile); pushed only if that stress test passed.",
+   "pushed": 1
   },
   {
    "exp": "exp047",

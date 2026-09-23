@@ -1405,3 +1405,30 @@ Measured (runs/kvstress-*/summary.json):
 Decision: exp-046 (P21 on the 6.5 GiB / 4,096-token profile) stays queued; exp-047 (P21 + prefix caching) dropped
           before it ran; b12x dropped. Prefix caching costs capacity on this hybrid model under memory pressure, even
           though the Duck's prompts share long prefixes; revisit only with more free KV.
+
+## 2026-09-23 · exp-045 · P21 fair-share gate on the unmodified base · MEASURED: mechanism confirmed, score within noise
+Measured: public-25 7.59, 34 levels (dev 8.02, val 6.24); runs/exp045-gate (scottmahony/arc3-taaf-gate v1, pushed
+          16:22, complete 18:49 UTC). Harvest rank 74th percentile (n=39, mean 6.98, sd 1.77); control exp-032 7.86 / 38.
+Mechanism: calls per minute per game L1 0.31 / L2 0.45 / L3+ 0.67 (control 0.47 / 0.37 / 0.37); pooled L2+ / L1 1.71
+          (control 0.80). Gate: 1,373 calls admitted, mean gate wait 107.5 s, 0 timeouts, 6/6 busy throughout; vLLM's
+          own queue fell to 16 s per call (control 126 s) at the same total throughput (1,377 requests; 3.1 running;
+          18 preemptions); no crashed game. Minutes per solved level L1 23.0 (17) / L2 26.8 (9) / L3 16.5 (6) / L4 7.6 (2);
+          harvest 24.2 / 25.6 / 30.8 / 24.3.
+Levels:   by index 17 / 9 / 6 / 2 (control 21 / 10 / 4 / 3): later levels were solved faster, but L1 solves fell by 4 and
+          the extra L2+ calls (823 vs 705) did not add L2+ solves in this run (17 vs 17).
+Reading:  P21 does what it was built to do, at no throughput cost. Its score effect is within one run's noise: +0.61
+          against the harvest mean (the replay model predicted +0.64), -0.27 against our control. Kept as a candidate
+          component; it needs repeats (or the combined arm) before it earns a place in the final configuration.
+
+## 2026-09-23 · exp-042 · low-token fixes (P1 P1B P2 P7 P12 P13 P17 + P22) at the base budget · MEASURED: best run so far
+Measured: public-25 10.89, 46 levels (dev 12.52, val 5.73); runs/exp042-ours-g (scottmahony/arc3-taaf-ours-g v1,
+          pushed 16:31, complete 18:55 UTC). Harvest rank 95th percentile (beats 37 of 39 base runs; max 11.02); levels by
+          index 22 / 13 / 5 / 4 / 2 (control 21 / 10 / 4 / 3). ar25 reached 5 levels (41.7).
+Server and behaviour: identical to the control (1,342 requests, 20.6k prompt, 1.49k generated, 3.12 running, acting
+          0.63, tool errors 0.022 per response); 65 preemptions (control 21).
+Reading:  a single run at +2.2 sd of the base distribution. The patches fix real failures (ACTION7 unusable, class
+          statements and exception names failing in the sandbox, notes lost in the reasoning, score misread, stale
+          previous_frame at a level start), but none of them was expected to be worth +3.9. With a skeptical prior
+          the expected gain is about +0.5; a repeat decides. Tonight's submission follows the pre-registered rule
+          (a passing P21 arm, else the base); exp-042 is tomorrow's submission candidate and the base of the next
+          combined arm.
