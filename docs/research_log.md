@@ -822,7 +822,8 @@ Change:   cells that change in at least half of the observed transitions, and ed
           change in at least 40 percent of them, are masked out of the state key after 12 transitions; the graph is
           re-keyed (nodes merge) when the mask grows; statistics carry over between levels (per-level restarts were
           worse on ls20: 1 level vs 2). ls20 sweep first (20,000 actions): cell threshold 0.2 masked the avatar's own
-          path (253-328 cells, graph exhausted at 23 states), 0.5 does not.
+          path (253-328 cells, graph exhausted at 23 states), 0.5 does not. These ls20 figures (and the 1,967 nodes
+          below) are single-game checks run in the session, not saved as runs.
 Settings: dev (19 games), 90 s and 20,000 actions per game, 1 worker, commit 94f6e7c plus the change;
           runs/exp027-explorer-mask-false (mask_volatile false) and runs/exp027-explorer-mask-true.
 Measured: levels 6 → 15 (of 142), games with level 1 solved 6 → 9, dev RHAE 0.002 → 0.110. Per game the masked arm
@@ -830,8 +831,8 @@ Measured: levels 6 → 15 (of 142), games with level 1 solved 6 → 9, dev RHAE 
           m0r0 (1 → 2, level 1 in 94 vs 30), vc33 (1 → 3, level 1 in 65 vs 7), s5i5 (0 → 1), cd82 (1 → 2). Level-1
           action counts fell where both arms solved it: m0r0 2,007 → 94, vc33 2,298 → 65, lp85 156 → 41, cd82 9,199 → 984.
 Notes:    both arms ran before the stable-seed fix below, so their random fallback streams differed by process; the
-          gap (every game equal or better, +9 levels) is far outside that noise, but a same-seed repeat is queued as a
-          check. Levels 2+ still cost 700-19,000 actions: blind search cannot pay for later levels, which is the point
+          gap (every game equal or better, +9 levels) is far outside that noise. Same-seed repeat of the masked arm:
+          runs/exp029-explorer-control, 15 levels, dev 0.085 (lp85's level 1 took 1,327 actions instead of 41). Levels 2+ still cost 700-19,000 actions: blind search cannot pay for later levels, which is the point
           of the goal-induction work (exp-028).
 
 ## 2026-09-23 · fix · per-game seeds were salted per process (hash(str)) in the explorer, rules and random agents · KEPT
@@ -844,8 +845,9 @@ Change:   `arc3.agents.base.stable_seed` (crc32 of the game id) in all three age
 Why:      the exp-028 collector wraps the engine's next_level() to render the board at the moment the win is declared.
           On cd82 the winning pour is a 16-layer step: layers[0] is identical to the board before the pour, the
           finished board is layers[14], the next level's start is layers[15]. The harness (exp-020's observed terminal
-          frame) took layers[0], so the level archive and every goal predicate built from it saw the board before
-          the winning move on animated games.
+          frame, commit 0608566, 2026-09-16; in the submitted notebook v3, 8f3af9e; not in the champion record's
+          756a87e, which archived a simulated frame) took layers[0], so the level archive and every goal predicate
+          built from it saw the board before the winning move on animated games.
 Change:   `perception.terminal_layer(layers, before)`: when the last consecutive change in the step is a jump (at
           least 3x every earlier change including the winning move's own, and at least 20 cells) the last layer is
           the next level and the terminal is the one before it; otherwise the switch is pending and the terminal is

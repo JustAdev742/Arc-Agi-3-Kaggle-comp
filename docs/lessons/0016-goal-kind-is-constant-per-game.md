@@ -7,8 +7,9 @@ validation games were not opened). Full table: `docs/research/win-conditions-dev
   gravity flips, fog), never a new kind of goal. Infer the goal on level 1 and carry it; relearn mechanics per level.
 - **The target is on screen from the first frame in 17 of 19** (outline, marker, reference picture or strip, clue
   tiles); bp35's gem starts off-screen, tr87's answer must be computed from a shown rule table, m0r0 has no marker.
-- **Kinds seen:** place pieces in slots (11 games), make a region equal a shown reference (10), bring a sprite to a
-  marker (7), align (1), count (1), all tiles satisfy a local rule (1). None was "collect everything".
+- **Kinds seen:** place pieces in slots (9 games), make a region equal a shown reference (8), bring a sprite to a
+  marker (6), align (1), count (1), all tiles satisfy a local rule (1), other (2); a game can carry two. None was
+  "collect everything".
 - **Every game has a per-attempt action budget drawn as an edge bar**; running out loses the attempt (ls20 costs a
   life). That bar is what volatility masking removes from state keys (exp-027).
 - **The win check can be gated by action kind** (dc22 arrows only, cd82 pour or stamp, tr87 UP/DOWN, m0r0, sk48): a

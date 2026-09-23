@@ -10,9 +10,9 @@ in `runs/` or a command in section 9; the research log has one entry per experim
 
 - **100 percent does not mean "no mistakes". It means "learn the game on level 1, then play every later level with
   slightly fewer actions than a human".** Two measured facts make that concrete:
-  1. **Level 1 is nearly free.** If every level from 2 on uses at most 95 to 99 percent of the human action count
-     (95 for a 4-level game, 98 for 7 levels, 99 for 9 or more), level 1 may take any number of actions and the game
-     still scores 100 (section 1; checked with the toolkit-parity scorer).
+  1. **Level 1 is nearly free.** If every level from 2 on uses at most 94.9 to 99.1 percent of the human action
+     count (0.949 of it for a 4-level game, 0.982 for 7 levels, 0.989 for 9, 0.991 for 10), level 1 may take any
+     number of actions and the game still scores 100 (section 1; checked with the toolkit-parity scorer).
   2. **Optimal play is far below the human count.** An exact search inside the real engine (a research instrument;
      the agent never has the engine) finished 32 dev levels of 13 games: the optimum is a **median 41 percent of the
      human action count** (mean 46, range 9 to 100). 30 of the 32 levels leave room for the 115 cap; the median
@@ -25,17 +25,18 @@ in `runs/` or a command in section 9; the research log has one entry per experim
 - **Built and measured this cycle, all without a model, on CPU:**
   - exp-027: the explorer ignores the budget bar when it keys states. Dev levels 6 → 15; level 1 cleared on 9 of 19
     games in at most 90 s of CPU each.
-  - exp-028: goal induction by contrast (the winning frame against every non-winning state visited). From level 1
-    alone, candidates on 10 of 13 games; a level-1 candidate still holds on 10 of 15 later levels (11 of 15 when
-    the goal is carried as a colour-free kind). About a dozen candidates stay alive per level: contrast narrows the
+  - exp-028: goal induction by contrast (the winning frame against every non-winning state visited). On the
+    explorer's own data, level 1 gives candidates on 5 of 9 games and a level-1 candidate holds on 2 of 6 later
+    levels (3 of 6 carried as a colour-free kind); on the optimal-play search's data (more solved levels), 10 of 13
+    games and 10 of 15 later levels (11 of 15). About a dozen candidates stay alive per level: contrast narrows the
     goal, a model or an experiment has to pick it.
   - exp-029: search steered by the induced goal, without a model of the mechanics: 15 → 14 levels (reverted). It
     saved 25 percent of the actions on ar25 level 2 and lost ls20 level 2, whose socket accepts the key only after
     changer tiles reshape it. A goal distance is a heuristic for planning in a model, not for blind search.
   - A harness bug fixed: the REPL agent archived the wrong frame as a level's winning frame on animated wins (12 of
-    43 collected dev levels; the new rule is exact on 43 of 43).
+    43 collected dev levels; the new rule is exact on 43 of 43). The old rule is in the submitted notebook (v3).
 - **Where we stand, and what limits us:** the submitted agent scores about 1 on dev; the Kaggle leader is about 19;
-  the best verified system on hidden games (GPT-6 Astra) is 62.7 with unlimited compute. Our model is not wasteful
+  the best verified system on hidden games (GPT-6 Astra) is 62.7 with unlimited compute (both from Part I). Our model is not wasteful
   on the levels it solves: across the three champion dev runs and the long-horizon run of the same configuration
   (exp-017, 3,600 s per game) it solved 34 levels at a median 0.93 of the human action
   count (2.2x the optimum), but only 3 of the 34 were beyond level 1. **The gap to 100 is levels never solved, not
@@ -68,25 +69,26 @@ actions each → 100.0; at 99 actions each → 98.4. The dev games have 6 to 9 l
 - The lever only pays when every later level is completed below the human count. Until an agent can do that, level
   1 is worth what it scores (weight 1 of 21 to 45 per game). Today that is most of our score: in the three champion
   dev runs level 1 alone gives 84, 79 and 100 percent of the summed game scores (`runs/kaggle-repl-dev-011`, `-011b`,
-  `-011c`), and the model solves those levels at or below the human count (ar25 in 19 actions against 32, tn36 in 14
-  against 32, lp85 in 10 against 17), where the explorer needs 52 to 984. Explore-first would lower today's score;
-  it becomes the right trade only once levels 2+ are won (section 7, item 2).
+  `-011c`), and 14 of the model's 22 level-1 wins there are at or below the human count (ar25 in 19 actions against
+  32, tn36 in 14 against 32, lp85 in 10 against 17), where the explorer needs 52 on ar25, 41 to 1,327 on lp85
+  depending on the seed, and never clears tn36. Explore-first would lower today's score; it becomes the right trade
+  only once levels 2+ are won (section 7, item 3).
 - It cannot be gamed with a second play: the scorer keeps the best play, but competition mode refuses a second play
   and a full reset (`arc_agi/api.py`; lesson 0001), and `arc3/env.py` mirrors that locally.
 
 ## 2. The headroom: how short can a level be?
 
-`scripts/oracle_bfs.py` runs breadth-first search inside the real engine (deep copies of the game object, about
-12 ms each). Keys: the board without UI overlays, the game's hidden state, and the full render with the budget bar
+`scripts/oracle_bfs.py` runs breadth-first search inside the real engine (deep copies of the game object). Keys: the board without UI overlays, the game's hidden state, and the full render with the budget bar
 masked (a selection shown only in the HUD is otherwise merged away). Actions: the engine's valid actions, plus one
 click per visible object when a game tags no clickable sprite (bp35, cd82, ft09, s5i5, su15 and others). Budget:
 240 s or 60,000 nodes per level; levels are solved in sequence. Dev split only (`runs/oracle-bfs/summary.json`; the
-first version, which also ran the validation games, is superseded: `runs/oracle-bfs-v1`).
+first version, with coarser keys and no object clicks, also ran the validation games and is superseded:
+`runs/oracle-bfs-v1`).
 
 | Game | Levels | Solved levels: optimal / human (ratio) | First unsolved level: optimum at least |
 |---|---:|---|---|
 | ar25 | 8 | L1 15/32 (0.47); L2 11/50 (0.22) | L3 ≥ 8 (human 75) |
-| bp35 | 9 | none (82 candidate clicks per state) | L1 ≥ 5 (human 21); a code-derived solution takes 15 |
+| bp35 | 9 | none (80 object clicks and 2 keys per state) | L1 ≥ 5 (human 21); a code-derived solution takes 15 |
 | cd82 | 6 | L1 5/55 (0.09); L2 6/8 (0.75) | L3 ≥ 7 (human 41) |
 | dc22 | 6 | L1 20/59 (0.34); L2 42/102 (0.41); L3 45/67 (0.67); L4 62/98 (0.63) | L5 ≥ 8 (human 324) |
 | ft09 | 6 | L1 4/43 (0.09) | L2 ≥ 6 (human 12) |
@@ -123,8 +125,8 @@ by a factor of about 2.4 on the median level. The slack is the budget for learni
 ## 3. What the games are made of
 
 `docs/research/win-conditions-dev.md` (source census of the 19 dev games; lesson 0016). In short: place pieces in
-slots (11 games), make a region equal a shown reference (10), bring a sprite to a marker (7), align (1), count (1),
-per-tile rules (1); a game can carry two. The kind never changes between levels; later levels add mechanics. The
+slots (9 games), make a region equal a shown reference (8), bring a sprite to a marker (6), align (1), count (1),
+per-tile rules (1), other (2); a game can carry two. The kind never changes between levels; later levels add mechanics. The
 goal is drawn in 17 of 19. The win check is gated by action kind in at least 5 games. Every game has a per-attempt
 budget bar. Multi-target games need every target, which level 1 (one target) cannot distinguish from "some target":
 hence the universal goal kinds added to `arc3/dsl.py` this cycle (`every_<relation>`, opt-in).
@@ -139,13 +141,15 @@ missing. Components 4.1 to 4.3 and 4.5 are code; 4.4 is where a model is require
 - The winning frame of a level is `perception.terminal_layer(layers, before)`: the layer before the level switch
   when the step ends with a jump, else the last layer. Exact on all 43 dev levels collected in exp-028; the old rule
   (`layers[0]`) was wrong on 12 (cd82's 16-frame pour, tu93's 9- and 14-frame moves, sk48's 39-frame flash, su15's
-  15-frame pull) and fed the REPL agent's level archive the board before the winning move (lesson 0017). In the
-  three champion runs and exp-017, 6 of the model's 34 level completions were such wins (su15 level 1 four times,
-  tu93 level 1 twice), so the goal hints it got for the next level were computed from the wrong board.
+  15-frame pull) and fed the REPL agent's level archive the board before the winning move (lesson 0017). That rule
+  came with the exp-020 port (commit 0608566, 2026-09-16) and is in the submitted notebook v3 (8f3af9e); the champion
+  record's runs (756a87e) predate it and archived a simulated winning frame instead. With the pre-win board as the
+  "winning" frame no goal predicate can be consistent (cd82), or one is computed from a mid-animation board (tu93).
 
 ### 4.2 Level 1 by exploration (built; 9 of 19 dev games)
 The novelty explorer with masked keys clears level 1 of ar25, cd82, ft09, lp85, ls20, m0r0, s5i5, tu93 and vc33 within
-20,000 actions and 90 s of CPU (exp-027). It fails on games with deep level-1 solutions or wide click alphabets
+20,000 actions and 90 s of CPU (exp-027; at the stable seed the same 15 levels, dev 0.085 against 0.110, because
+lp85's level 1 took 1,327 actions instead of 41: `runs/exp029-explorer-control`). It fails on games with deep level-1 solutions or wide click alphabets
 (bp35, dc22, ka59, re86, sb26, sk48, su15, tn36, tr87, wa30). In the full system the model takes over level 1 where the
 explorer stalls, with the explorer's effect statistics as its starting knowledge.
 
@@ -186,7 +190,7 @@ it is the component that the model A/B (Part I, section 5) and any fine-tuning m
 
 ### 4.5 Planning at below-human cost (built as code; measured with exp-029's model-free proxy)
 With a model of the mechanics and a goal predicate, breadth-first or A* search in the model (`dsl.plan`, the
-sandbox's `plan_rules`) produces the optimal plan; section 2 shows the optimum leaves a median of 21 actions of
+sandbox's `plan_rules`) produces the optimal plan; section 2 shows the optimum leaves a median of 21.5 actions of
 slack. Without the model, the goal alone is not enough: exp-029 steered the explorer's frontier by the induced goal's
 distance (path length + 0.25 x distance among the 48 nearest unexplored states) and went from 15 to 14 dev levels.
 It saved a quarter of the actions on ar25 level 2 (19,267 → 14,493) and lost ls20 level 2, where the distance pulls
@@ -194,7 +198,8 @@ the search to a socket that stays blocked until changer tiles reshape the key. P
 trap; a searched plan in a model of the mechanics does not have that problem.
 
 ### 4.6 Time
-Level-1 exploration costs seconds of CPU per game, not model calls; the model's 9-hour budget moves to levels 2+.
+Level-1 exploration costs at most about 90 s of CPU per game (ft09: 71 s), not model calls; the model's 9-hour
+budget moves to levels 2+.
 
 ## 5. The arithmetic of 100 for one game
 
@@ -204,7 +209,7 @@ Efficiency on a solved level is already near the target; the missing points are 
 
 Take a 7-level game with the dev median ratio: every later level's optimum is 0.41 of the human count, and the
 game needs levels 2 to 7 at 0.98 or less. The per-level budget for learning that level's new mechanics and for
-mistakes is then 0.98 − 0.41 = 0.57 of the human count, about 35 actions on a 60-action level. Level 1 has no
+mistakes is then 0.98 − 0.41 = 0.57 of the human count, about 34 actions on a 60-action level. Level 1 has no
 budget beyond the game's own attempt budget. A single unfinished level caps the game at the completed weight, so
 reliability (finishing every level) matters more than polish.
 
@@ -215,12 +220,12 @@ reliability (finishing every level) matters more than polish.
 | Explore freely, then replay the solution in a second play | closed | competition mode refuses a second play and full resets (lesson 0001) |
 | Level 1 as a free learning level | open, measured | section 1; needs every later level below the human count to pay |
 | Mask the budget bar in state keys | kept | exp-027: 6 → 15 dev levels |
-| Goal induction by contrast from exploration data | measured | exp-028: level-1 candidates on 10 of 13 games; hold on 10 of 15 later levels |
+| Goal induction by contrast from exploration data | measured | exp-028: level-1 candidates on 5 of 9 games from the explorer's data (10 of 13 from optimal-play data); a level-1 candidate holds on 2 of 6 later levels (10 of 15) |
 | Universal ("every target") goal kinds | built, opt-in | census; `dsl.forall_distance`, tests |
 | Search steered by the induced goal, without a mechanics model | reverted | exp-029: 15 → 14 levels (ar25 faster, ls20 lost to a precondition) |
-| Colour-free goal templates (the same kind on different colours per level) | built, opt-in | exp-028: 11 of 15 later levels against 10 exact (vc33) |
+| Colour-free goal templates (the same kind on different colours per level) | built, opt-in | exp-028: 3 of 6 later levels against 2 exact on explorer data, 11 of 15 against 10 on optimal-play data (vc33) |
 | Reach goals as the avatar's position against a remembered target | proposed | dc22 and tu93 induce "the marker disappears" (holds on 4 levels each) but it has no distance gradient, and tu93 level 5 breaks it (enemies also cover the exit) |
-| Oracle trajectories as training data (optimal action sequences from the engine search) | proposed, not started | 32 optimal level solutions exist; useful for a click-target or action ranker (CLAUDE.md item 6); overfitting risk: the hidden games differ |
+| Oracle trajectories as training data (optimal action sequences from the engine search) | proposed, not started | the search solves 32 levels optimally but records only the lengths (exp-028 keeps the path frames of 28); saving the action sequences comes first; useful for a click-target or action ranker (CLAUDE.md item 6); overfitting risk: the hidden games differ |
 | Procedural level variants of the public games for training | proposed, not started | CLAUDE.md item 7; only when the public games stop giving signal |
 | Human replay priors | blocked (data) | Part I, section 8 |
 
@@ -231,18 +236,20 @@ reliability (finishing every level) matters more than polish.
 2. **The goal line with the new kinds** (GPU; built this cycle as `goal_forall` and `goal_lifted`, off in the
    champion, on in the bundle): the model sees contrastive goal candidates from the correct winning frame, including
    "every target" relations and the previous levels' goal kinds on this level's colours, with falsification as it
-   plays. CPU gate passed (exp-028: 11 of 15 later levels covered). Model gate: levels 2+ solved on dev.
+   plays. CPU gate passed (exp-028: 11 of 15 later levels covered on optimal-play data, 3 of 6 on explorer data).
+   Model gate: levels 2+ solved on dev.
 3. **Explorer as a level-1 rescue** (GPU): when the model has not solved level 1 after a set number of actions, the
-   explorer plays it out (seconds of CPU; it clears level 1 on 9 of 19 dev games, including ls20, cd82 and ft09 where
-   the champion never did) and the model starts level 2 with the transition log, the winning frame and the goal
+   explorer plays it out (at most about 90 s of CPU; it clears level 1 on 9 of 19 dev games, including ls20, cd82 and
+   ft09 where the champion never did) and the model starts level 2 with the transition log, the winning frame and the goal
    candidates. Level 1 is nearly worthless once it is slow, so the rescue costs little and opens level 2 (weight 2+).
    Gate: levels 2+ on dev; level-1 score loss only on games the model would have solved slowly.
 4. **Grammar gaps from the census** (code, CPU): masked region equality (cd82, sk48), bracket slots as one target
    (lp85), merge counts (m0r0, su15), per-tile constraints read from clue tiles (ft09), and reach goals as the
    avatar's position against a remembered target (tu93 level 5, where enemies can also cover the exit). Gate: exp-028
    level-1 candidates and transfer on the same data.
-5. **Oracle trajectories as data** (CPU, later): 32 optimal level solutions and their search graphs are a dataset for
-   a click-target or action ranker (CLAUDE.md item 6), to be trained only after items 1 to 3 plateau.
+5. **Oracle trajectories as data** (CPU, later): the optimal solutions of 32 levels, once the search saves their
+   action sequences (today it records lengths), are a dataset for a click-target or action ranker (CLAUDE.md item 6),
+   to be trained only after items 1 to 3 plateau.
 
 ## 8. Risks
 

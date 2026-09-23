@@ -9,7 +9,7 @@ Blind exploration (random or novelty search) completes a few early levels but at
   primitive the model can call for a bounded number of actions when it has no hypothesis.
 
 Addendum 2026-09-23 (still true, with one exception): blind search is worthless for the levels it plays, but level 1
-is nearly free when every later level beats the human count (4 levels: ≤ 0.95 of it; 7: ≤ 0.98; 9+: ≤ 0.99;
+is nearly free when every later level beats the human count (4 levels: ≤ 0.949 of it; 7: ≤ 0.982; 9: ≤ 0.989;
 `docs/research/road-to-100-v2.md` section 1). So exploring level 1 blind costs little if, and only if, the agent
 then wins the later levels. With budget-bar cells masked from its state keys (exp-027) the explorer clears level 1
 of 9 of 19 dev games in at most 90 s of CPU; its levels 2+ still cost 700 to 19,000 actions.

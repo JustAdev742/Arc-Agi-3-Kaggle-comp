@@ -19,7 +19,7 @@ it must be general (engine-level), not a per-game rule, or it overfits the publi
 | Every game has a per-level action budget drawn as a HUD bar; running out loses the attempt (ls20: a life; tu93 also loses on enemy contact; bp35 also on spikes) | 19 of 19 | The bar is the volatile cell region the explorer must mask; its length is the attempt budget; a RESET refills it and costs one action |
 | The win is checked only after certain action types (dc22 arrows only; cd82 pour or stamp; m0r0 piece moves; sk48 successful arrow moves; tr87 UP/DOWN) | at least 5 of 19 | A state can satisfy the goal without the level ending; a goal test must be tried after the right action kind |
 | At least one level's human baseline exceeds the per-attempt budget (m0r0 L3/L5/L6, ka59 L7, tu93 L4, wa30 L9, tn36 L2, vc33 L4, re86 L7, s5i5 L5) | 8 of 19 | Baselines include failed attempts; those levels are lenient (the 115 cap is within reach) |
-| A code-derived solution beats the human baseline on level 1 | 6 of 6 checked: ft09 4 vs 43, lp85 5 vs 17, sb26 9 vs 18, tr87 15 vs 54, ar25 15 vs 32, bp35 15 vs 21 | Knowing the rules and the goal is worth 1.2x to 10x fewer actions than a human; the headroom is real (see the oracle table in `road-to-100-v2.md`) |
+| A code-derived solution beats the human baseline on level 1 | 6 of 6 checked: ft09 4 vs 43, lp85 5 vs 17, sb26 9 vs 18, tr87 15 vs 54, ar25 15 vs 32, bp35 15 vs 21 | Knowing the rules and the goal is worth 1.4x to 11x fewer actions than a human; the headroom is real (see the oracle table in `road-to-100-v2.md`) |
 
 ## 2. Per game
 
@@ -49,7 +49,7 @@ satisfies a local constraint), OTHER. A game can carry two.
 | vc33 | 7 | ALIGN + PLACE_IN_SLOTS | every floater sits at the height of a marker of its colour on a bordering wall | clicks on valves move liquid between columns; later gates swap floaters | 50 to 200 clicks |
 | wa30 | 9 | PLACE_IN_SLOTS | every box is inside a goal zone and not held | arrows move and turn; ACTION5 grabs, releases or destroys | 70 to 200 steps |
 
-Totals (a game can count twice): PLACE_IN_SLOTS 11, MATCH_REFERENCE 10, AVATAR_REACH 7, ALIGN 1, COUNT 1,
+Totals (a game can count twice): PLACE_IN_SLOTS 9, MATCH_REFERENCE 8, AVATAR_REACH 6, ALIGN 1, COUNT 1,
 ALL_STATE 1, OTHER 2, COLLECT_ALL 0.
 
 ## 3. What the goal grammar needs (gap analysis against `arc3/dsl.py` goal kinds)

@@ -85,5 +85,6 @@ A new champion needs three runs a side or a difference well outside ±0.3 RHAE /
 - 2026-09-23: the REPL agent archives a completed level's winning frame with `perception.terminal_layer` instead of
   `layers[0]` (lesson 0017). A bug fix, not a knob: on animated wins (12 of 43 collected dev levels: cd82, tu93,
   sk48, su15) the level-completion notice's "win conditions consistent with every completed level" were computed
-  from the board before the winning move (in the record's three runs: su15 level 1 in each, tu93 level 1 in 011). The
-  submitted notebook (v3, harness 8f3af9e) predates it; the exp-024 control at HEAD is the first model run with it.
+  from the board before the winning move. That `layers[0]` rule came with the exp-020 port (commit 0608566,
+  2026-09-16 23:37): the record's runs (756a87e) predate it and archived a simulated winning frame instead, while the
+  submitted notebook (v3, harness 8f3af9e) carries it. The exp-024 control at HEAD is the first model run with the fix.

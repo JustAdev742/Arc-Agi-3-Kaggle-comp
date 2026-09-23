@@ -231,14 +231,14 @@ this repo can influence. Practical consequences: GPU experiments are blocked unt
 - **Competition submission 56482492** made on the owner's instruction (notebook v3, champion preset); score pending
   (run 16 above). Daily limit observed as 1.
 - **Road to 100 percent, part II** (`docs/research/road-to-100-v2.md`), requested by the owner: level 1 is nearly free
-  under RHAE (levels 2+ at 0.95-0.99 of the human count pay for any level-1 cost); optimal play is a median 0.41 of
+  under RHAE (levels 2+ at 0.949-0.991 of the human count pay for any level-1 cost); optimal play is a median 0.41 of
   the human count over 32 dev levels (`runs/oracle-bfs`, research instrument); the win-condition census of the 19
   dev games (`docs/research/win-conditions-dev.md`, lesson 0016); our model solves levels at a median 0.93 of the
   human count but 31 of its 34 solved levels are level 1, so the gap is unsolved levels.
 - **Kept:** exp-027 explorer masks budget-bar cells in state keys (dev levels 6 → 15); stable per-game seeds
   (process-salted `hash()` made explorer/rules/random runs unrepeatable); the REPL agent's winning frame is
-  `perception.terminal_layer` (exact on 43 of 43 collected levels, `layers[0]` on 31; a bug fix on the champion's
-  path, recorded in `docs/champion.md`); universal and colour-free goal kinds in the DSL (opt-in) and the REPL knobs
+  `perception.terminal_layer` (exact on 43 of 43 collected levels, `layers[0]` on 31; the old rule is in the
+  submitted notebook v3, not in the champion record's runs; `docs/champion.md`); universal and colour-free goal kinds in the DSL (opt-in) and the REPL knobs
   `goal_forall` / `goal_lifted` (off in CHAMPION, on in BUNDLE).
 - **Measured, not kept:** exp-029 goal-directed explorer frontier (15 → 14 levels; ls20 lost to a precondition).
 - **Instruments:** `scripts/oracle_bfs.py` (optimal-play BFS in the engine), `scripts/goal_induction.py` (exp-028:

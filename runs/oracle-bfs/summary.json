@@ -1,5 +1,5 @@
 {
- "note": "dev split only; v2 of scripts/oracle_bfs.py (object clicks, full-render keys with the budget bar masked, depth_lb) for 18 games, tu93 from v1 (runs/oracle-bfs-v1, which also has the val games and is superseded)",
+ "note": "dev split only; v2 of scripts/oracle_bfs.py (object clicks, full-render keys with the budget bar masked, depth_lb), 60,000 nodes / 240 s per level, all 19 dev games (tu93 re-run separately with the same settings on 2026-09-23: identical to v1). runs/oracle-bfs-v1 (older keys, engine clicks only, 30,000 nodes / 150 s, also the val games) is superseded.",
  "max_nodes": 60000,
  "max_s_per_level": 240.0,
  "wall_s": 1802.5,
@@ -496,7 +496,8 @@
      "expanded": 62,
      "seen": 62,
      "secs": 0.4,
-     "branching": 4.0
+     "branching": 4.0,
+     "masked_lines": 1
     },
     {
      "level": 2,
@@ -505,8 +506,9 @@
      "optimal": 10,
      "expanded": 23,
      "seen": 29,
-     "secs": 0.1,
-     "branching": 4.0
+     "secs": 0.2,
+     "branching": 4.0,
+     "masked_lines": 1
     },
     {
      "level": 3,
@@ -515,8 +517,9 @@
      "optimal": 19,
      "expanded": 94,
      "seen": 102,
-     "secs": 0.6,
-     "branching": 4.0
+     "secs": 0.7,
+     "branching": 4.0,
+     "masked_lines": 1
     },
     {
      "level": 4,
@@ -525,8 +528,9 @@
      "optimal": 17,
      "expanded": 64,
      "seen": 69,
-     "secs": 0.4,
-     "branching": 4.0
+     "secs": 0.5,
+     "branching": 4.0,
+     "masked_lines": 1
     },
     {
      "level": 5,
@@ -535,8 +539,9 @@
      "optimal": 29,
      "expanded": 265,
      "seen": 279,
-     "secs": 2.1,
-     "branching": 4.0
+     "secs": 2.2,
+     "branching": 4.0,
+     "masked_lines": 1
     },
     {
      "level": 6,
@@ -545,8 +550,9 @@
      "optimal": 28,
      "expanded": 1216,
      "seen": 1342,
-     "secs": 11.0,
-     "branching": 4.0
+     "secs": 10.8,
+     "branching": 4.0,
+     "masked_lines": 1
     },
     {
      "level": 7,
@@ -556,7 +562,8 @@
      "expanded": 43,
      "seen": 47,
      "secs": 0.3,
-     "branching": 4.0
+     "branching": 4.0,
+     "masked_lines": 1
     },
     {
      "level": 8,
@@ -565,8 +572,9 @@
      "optimal": 21,
      "expanded": 63,
      "seen": 63,
-     "secs": 0.4,
-     "branching": 4.0
+     "secs": 0.5,
+     "branching": 4.0,
+     "masked_lines": 1
     },
     {
      "level": 9,
@@ -576,13 +584,13 @@
      "expanded": 72,
      "seen": 73,
      "secs": 0.6,
-     "branching": 4.0
+     "branching": 4.0,
+     "masked_lines": 1
     }
    ],
    "win_levels": 9,
    "level1_budget": "unbounded",
-   "later_weighted_pct": 112.6,
-   "oracle_version": "v1 (engine keys, sys_click alphabet; tu93 has no clicks, so v2 would not change it)"
+   "later_weighted_pct": 112.6
   },
   {
    "game": "vc33",

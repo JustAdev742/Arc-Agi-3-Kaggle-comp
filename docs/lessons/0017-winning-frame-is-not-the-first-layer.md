@@ -17,4 +17,6 @@ exact moment a game declares a level won, and compares it with the layers the ag
   next action's first layer is the new level (not seen on the dev levels so far; the rule handles it).
 
 Why it matters: the level archive and every goal predicate built from it were fed the board before the winning move
-on animated games, so the win condition could never be found there.
+on animated games, so the win condition could never be found there. The `layers[0]` rule came with the exp-020 port
+(commit 0608566, 2026-09-16) and is in the submitted notebook v3 (8f3af9e); the champion record's runs (756a87e)
+predate it and used a simulated winning frame.
