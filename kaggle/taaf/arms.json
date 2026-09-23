@@ -225,6 +225,16 @@
     "P20"
    ],
    "note": "exp-043: exp-042 plus every other patch except P4 and P11: cross-level note (P8), board diff (P9), level-1 probing note (P10), persisted helpers (P6), level-start comparison, idle probe and level record (P14-P16), predict before acting (P18), supervisor review (P19), lever L1 no-impact detection (P20)."
+  },
+  {
+   "exp": "exp044",
+   "slug": "arc3-taaf-kv65",
+   "patches": [],
+   "serving": {
+    "kv_gib": 6.5,
+    "batched_tokens": 4096
+   },
+   "note": "exp-044: the unmodified base with a 6.5 GiB KV cache (base 5) and 4,096-token prefill chunks (base 8,192), the profile of stress test kvstress65b4k; pushed only if that test ran without errors or out-of-memory."
   }
  ]
 }

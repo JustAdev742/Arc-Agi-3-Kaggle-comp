@@ -10,7 +10,8 @@ animation-aware TAAF source; Tufa Labs' Duck harness, MIT). Options:
 
 - ``--patches``: our source patches from scripts/taaf_ours_patch.py. The notebook inlines that file, copies the mounted
   anim bundle to /tmp/ours_bundle, applies the patches there and imports the solver from the copy (no dataset of ours).
-- ``--kv-dtype`` / ``--max-num-seqs`` / ``--cudagraph``: serving profile overrides (the base profile is kv5-bf16-mtp3-c8-cg32).
+- ``--kv-dtype`` / ``--max-num-seqs`` / ``--cudagraph`` / ``--kv-gib`` / ``--batched-tokens`` / ``--prefix-caching``: serving
+  profile overrides (the base profile is kv5-bf16-mtp3-c8-cg32 with 8,192 batched tokens and no prefix caching).
 - ``--wavefit``: in a real competition rerun only, size the per-game cap to the concurrency waves the hidden list needs so
   the last wave is not cancelled by the notebook's soft deadline (at most 1.25x the stock 7,920 s).
 
@@ -70,6 +71,7 @@ def main() -> None:
     ap.add_argument("--cudagraph", type=int, default=None)
     ap.add_argument("--kv-gib", type=float, default=None, help="TAAF_VLLM_KV_CACHE_MEMORY_BYTES in GiB (base 5)")
     ap.add_argument("--prefix-caching", action="store_true", help="TAAF_VLLM_ENABLE_PREFIX_CACHING=1")
+    ap.add_argument("--batched-tokens", type=int, default=None, help="TAAF_VLLM_MAX_NUM_BATCHED_TOKENS (base 8192)")
     ap.add_argument("--wavefit", action="store_true")
     ap.add_argument("--knob", action="append", default=[], metavar="KEY=VALUE",
                     help="analyzer env override applied with the thui knobs (e.g. LOCAL_ANALYZER_MAX_OUTPUT=6144)")
@@ -105,6 +107,10 @@ def main() -> None:
             if args.prefix_caching:
                 s = s.replace('"TAAF_VLLM_ENABLE_PREFIX_CACHING": "0"', '"TAAF_VLLM_ENABLE_PREFIX_CACHING": "1"')
                 changes.append("prefix caching on")
+            if args.batched_tokens:
+                s = s.replace('"TAAF_VLLM_MAX_NUM_BATCHED_TOKENS": "8192"',
+                              f'"TAAF_VLLM_MAX_NUM_BATCHED_TOKENS": "{args.batched_tokens}"')
+                changes.append(f"max_num_batched_tokens {args.batched_tokens}")
             if args.cudagraph:
                 s = s.replace('"TAAF_VLLM_MAX_CUDAGRAPH_CAPTURE_SIZE": "32"',
                               f'"TAAF_VLLM_MAX_CUDAGRAPH_CAPTURE_SIZE": "{args.cudagraph}"')
@@ -142,7 +148,8 @@ ANIM_BUNDLE_DIR = _OURS_BUNDLE""")
         cells.insert(idx, code_cell("# ours: source of scripts/taaf_ours_patch.py, applied in the next cell\n"
                                     f"_OURS_PATCH_SOURCE = {PATCH_SRC.read_text()!r}\n"))
     expected = (bool(args.kv_dtype) + bool(args.max_num_seqs) + bool(args.cudagraph) + bool(args.patches)
-                + bool(args.wavefit) + bool(args.knob) + bool(args.kv_gib) + bool(args.prefix_caching))
+                + bool(args.wavefit) + bool(args.knob) + bool(args.kv_gib) + bool(args.prefix_caching)
+                + bool(args.batched_tokens))
     if len(changes) != expected:
         raise SystemExit(f"not every requested change found its anchor: {changes}")
     cells[0]["source"] = ["".join(cells[0]["source"]) + "\n\n**Changes in this arm:** "

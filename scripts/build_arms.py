@@ -4,7 +4,8 @@
     .venv/bin/python scripts/build_arms.py --out <dir> [--arms exp039 exp040] [--force]
 
 Each arm gets ``<dir>/<exp>/`` with its notebook and kernel-metadata.json, built by scripts/build_taaf_nb.py from the
-registry's patches, knobs (the registry defaults, overridden per arm; a null value drops a default) and flags. Arms
+registry's patches, knobs (the registry defaults, overridden per arm; a null value drops a default), serving
+overrides (``serving``: build_taaf_nb.py flags without dashes, e.g. ``{"kv_gib": 6.5}``) and flags. Arms
 with a recorded ``pushed`` version are history, and arms marked ``dropped`` were decided against; both are skipped
 unless ``--force``, since rebuilding a pushed arm would change what a later push of the same kernel runs. Push a built
 folder with scripts/push_eval.py.
@@ -30,6 +31,12 @@ def arm_command(arm: dict, defaults: dict, out: Path) -> list[str]:
             cmd += ["--knob", f"{key}={value}"]
     if arm.get("wavefit", defaults.get("wavefit", False)):
         cmd.append("--wavefit")
+    for key, value in arm.get("serving", {}).items():  # e.g. {"kv_gib": 6.5, "batched_tokens": 4096}
+        flag = "--" + key.replace("_", "-")
+        if value is True:
+            cmd.append(flag)
+        elif value not in (None, False):
+            cmd += [flag, str(value)]
     if arm.get("note"):
         cmd += ["--note", arm["note"]]
     return cmd
