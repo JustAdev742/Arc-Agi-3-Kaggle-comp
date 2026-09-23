@@ -1468,3 +1468,19 @@ exp-048 and exp-042r (pushed 21:10 and 21:28 with 29.3 h used) were still RUNNIN
 10.96 h reserved: Kaggle admitted them against the reservation and lets them finish. The Sep 24 submission rule was
 amended at 22:32, before exp-048's result, only to list exp-048 (fixes + P21 + 6.5 GiB) among the P21 arms it
 considers; the criteria are unchanged.
+
+## 2026-09-23 · exp-048 (fixes + P21 + 6.5 GiB KV) and exp-042r (repeat of the fixes) · MEASURED: best by far
+exp-048:  public-25 **15.50, 47 levels** (dev 19.55, val 2.68); runs/exp048-fix-gate-kv65 (scottmahony/arc3-taaf-fix-gate-kv65
+          v1, pushed 21:10, complete 23:36 UTC). Above all 39 reference base runs (max 11.02); z-sum +1.8 sd (clipped
+          per game). Levels by index reach L8: minutes per solved level L1 22.4 (20), L2 24.1 (9), L3 11.7 (5), L4 16.9
+          (4), L5 6.2 (3), L6 23.0 (3), L7 11.6 (2), L8 12.8 (1). lp85 8/8 levels (100), sb26 7 (77.8), ft09 6 (95.6),
+          re86 4; weaker games slightly below the reference (sc25 -6.1, dc22 -4.7, vc33 -4.0). Server: 1,558 requests,
+          4.19 running, vLLM queue 8.8 s, 86 preemptions; gate 1,552 admitted, 92 s mean wait, 0 timeouts, no crash;
+          pooled L2+/L1 calls-per-minute ratio 1.68.
+exp-042r: 8.87, 45 levels (87th percentile; z-sum +1.8 sd): the fixes' first run (10.89, +2.4 sd) was not a fluke;
+          two runs average 9.88 against the base mean 6.98.
+Reading:  the fixes (P1 P1B P2 P7 P12 P13 P17 P22) raise the base on both runs; with P21 and the larger KV cache on
+          top, the games that progress keep getting calls and run deep (three games at 6-8 levels, a pattern no
+          reference run shows). One run of the combination; its components: P21 alone 7.59, P21 + KV 6.75, fixes alone
+          10.89 / 8.87. Repeats after the quota reset decide how much is the combination and how much luck.
+Decision: tonight's submission by the pre-registered rule is exp-048 (a passing P21 arm with the highest score).
