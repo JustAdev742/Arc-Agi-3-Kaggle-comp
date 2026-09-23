@@ -1041,3 +1041,19 @@ Change:   exp-034 plus P4 (older user turns keep only their action summary and s
           scottmahony/arc3-taaf-ours-b.
 Expected: about twice the running requests (vllm:num_requests_running, queue time) and more calls per game; a public-25
           gain only counts if clearly outside the harvested range of the base configuration.
+
+## 2026-09-23 · patches P9 (board diff) and P10 (level-1 probing note) · BUILT, bed-tested, not yet run
+P9:       after an action sequence the next prompt gets one line with the changed cells grouped into up to three
+          regions (cells within two of each other join), each with bounding box and top colour transitions, e.g.
+          "Board diff over that sequence: 39 cells changed in 2 region(s): 30 cells in rows 63-63, cols 0-29 (W>B x30);
+          9 cells in rows 20-22, cols 10-12 (W>R x9)." Motive: 62% of calls re-split `.ascii`, mostly to compute this
+          diff; CLAUDE.md item 1 (exact perception handed to the model). Cost about 40-80 prompt tokens per turn.
+P10:      on level 1 only: "level 1 counts least toward the score, so actions spent here to learn what each action does
+          and what completes a level are cheap; prefer a few quick probe actions (batch several in one call) over long
+          deliberation until you know. From level 2 on, plan before acting." Motive: the level weighting (level 1 of a
+          7-level game weighs 1/28) and the 3 calls / 8 minutes of deliberation before the first action on a level.
+Bed:      with a scripted level-1 win on ls20, 56 of 58 prompts carried a diff line; the level-1 note appeared only
+          while on level 1.
+Harvest note: the unmodified animation-aware Flash-Next notebooks scored 9.56, 6.79 and 3.33 (mean 6.6, n=3) against
+          7.15 (n=30) for the plain Flash-Next Duck: no sign that animation awareness helps (its authors' A/B: +1.4%,
+          p=0.92). Our patches are independent of it; a `bm.solver.animation_awareness = False` arm stays possible.
