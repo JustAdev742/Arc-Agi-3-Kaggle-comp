@@ -10,7 +10,9 @@ Per run (the folder holding ``kernel-output/transcripts`` or the transcripts the
   acting turn), median over (game, level) pairs;
 - minutes from a level's first turn to its first acting turn, for levels 2 and later (a new level's first move);
 - tool errors per model response, by exception type (from ``[TOOL RESULT: python]`` blocks);
-- carried-note updates: turns whose "Working world model carried" block differs from the previous turn's.
+- carried-note updates: turns whose "Working world model carried" block differs from the previous turn's;
+- model calls per minute by level (L1, L2, L3+): responses over the minutes of turns on that level; under the stock
+  first-come queue every level gets about the same rate, and the P21 gate should raise it on later levels.
 The stall analysis of the public thui run (research log 2026-09-23) is the reference these are compared with.
 """
 from __future__ import annotations
@@ -62,6 +64,8 @@ def game_turns(text: str) -> list[dict]:
 
 def run_stats(path: Path) -> dict:
     acting = total = responses = note_changes = note_turns = 0
+    rate_calls: Counter = Counter()
+    rate_min: Counter = Counter()
     idle, first_move = [], []
     errors: Counter = Counter()
     for f in sorted(transcripts_dir(path).glob("*.txt")):
@@ -79,6 +83,9 @@ def run_stats(path: Path) -> dict:
         firsts: dict[int, float] = {}
         for i, turn in enumerate(turns[:-1]):
             lvl = turn["level"] or 0
+            bucket = "L1" if lvl <= 1 else "L2" if lvl == 2 else "L3+"
+            rate_calls[bucket] += turn["responses"]
+            rate_min[bucket] += (turns[i + 1]["t"] - turn["t"]) / 60.0
             level_start.setdefault(lvl, turn["t"])
             total += 1
             if turns[i + 1]["action"] > turn["action"]:
@@ -100,7 +107,9 @@ def run_stats(path: Path) -> dict:
             "first_move_L2plus_min_median": round(statistics.median(first_move), 1) if first_move else None,
             "tool_errors_per_response": round(sum(errors.values()) / responses, 3) if responses else None,
             "top_errors": dict(errors.most_common(6)),
-            "note_update_share": round(note_changes / note_turns, 3) if note_turns else None}
+            "note_update_share": round(note_changes / note_turns, 3) if note_turns else None,
+            "calls_per_min_by_level": {b: round(rate_calls[b] / rate_min[b], 3) for b in ("L1", "L2", "L3+")
+                                       if rate_min[b] > 0}}
 
 
 def main() -> None:
@@ -112,7 +121,7 @@ def main() -> None:
         print(f"{s['run']}: turns {s['turns']}, acting {s['acting_share']}, longest idle/level median "
               f"{s['idle_min_median']} min, first move on L2+ median {s['first_move_L2plus_min_median']} min, "
               f"tool errors/response {s['tool_errors_per_response']} {s['top_errors']}, note updated in "
-              f"{s['note_update_share']} of turns")
+              f"{s['note_update_share']} of turns, calls/min by level {s['calls_per_min_by_level']}")
 
 
 if __name__ == "__main__":
