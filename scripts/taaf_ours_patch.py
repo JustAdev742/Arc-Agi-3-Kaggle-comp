@@ -731,6 +731,30 @@ P15_NEW = (P15_OLD
            + '        except Exception:\n'
            + '            pass\n')
 
+# P17: 12 of 34 failed tool calls in the stall analysis involved animation(): its error replies carry only "error",
+# so model code reading `steps` or `frames` raised KeyError; and the stage-3 hint re-fired on a stuck level with no new
+# animation to look at (s5i5 re-read one stale animation 7 times after 4 hints). Error replies now keep the usual keys
+# (empty), and the hint fires again on a level only after a new transient animation.
+P17_VIEW_OLD = """            if not view.get("error"):
+                self._bump_animation_counter("stage2_animation_requests_served")
+            return view
+"""
+P17_VIEW_NEW = """            if not view.get("error"):
+                self._bump_animation_counter("stage2_animation_requests_served")
+            else:  # ours P17: keep the usual keys so code that reads them does not raise KeyError
+                view = {"action": None, "action_num": request.get("action_num"), "frames": 0, "unique_frames": 0,
+                        "board_unchanged": None, "steps": [], "frame": None, "region": "", "ascii": "", **view}
+            return view
+"""
+P17_HINT_OLD = """        self._animation_turns_since_hint = 0
+        self._animation_hint_follow_window = ANIMATION_HINT_FOLLOW_WINDOW_TURNS
+"""
+P17_HINT_NEW = """        _last_hint = getattr(self, "_ours_hint_anims", None)
+        if _last_hint is not None and _last_hint[0] == current_level and self._animation_transient_animations <= _last_hint[1]:
+            return ""  # ours P17: nothing new to look at since the last hint on this level
+        self._ours_hint_anims = (current_level, self._animation_transient_animations)
+""" + P17_HINT_OLD
+
 PATCHES.update({
     "P11": [(UTILS_COMPAT, P11_IMPORT_OLD, P11_IMPORT_NEW), (UTILS_COMPAT, P11_OLD, P11_NEW)],
     "P12": [(TOOL_AGENT, P12_OLD, P12_NEW)],
@@ -739,6 +763,7 @@ PATCHES.update({
             (TOOL_AGENT, P14_OLD, P14_NEW)],
     "P15": [(TOOL_AGENT, P15_OLD, P15_NEW)],
     "P16": [(TOOL_AGENT, P16_OLD, P16_NEW)],
+    "P17": [(TOOL_AGENT, P17_VIEW_OLD, P17_VIEW_NEW), (TOOL_AGENT, P17_HINT_OLD, P17_HINT_NEW)],
     "P6": [
         (TOOL_AGENT, "def _empty_world_model(", P6_FN + "def _empty_world_model("),
         (SANDBOX, P6_SANDBOX_CHILD_OLD, P6_SANDBOX_CHILD_NEW),

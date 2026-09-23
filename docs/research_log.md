@@ -1177,3 +1177,9 @@ Bed:      scripted ls20 level-1 win then an inspect-only mock: comparison once o
 Arm:      exp-039 = exp-036 + P13-P16, same knobs (scottmahony/arc3-taaf-ours-d), queued after exp-036.
 Expected: more acting on stuck levels and faster discovery of new mechanics; more levels 2+; risk: probe actions cost
           RHAE on levels that would have been solved anyway (13 of 17 stuck levels had slack under the human count).
+P17 (added to exp-039 before its push): animation() error replies carried only "error", so model code reading `steps` or
+          `frames` raised KeyError (12 of 34 failed calls in the stall analysis); they now keep the usual keys, empty.
+          The stage-3 animation hint re-fired every 6 stuck turns with nothing new to show; it now re-fires on a level
+          only after a new transient animation. Checked: a bed mock requesting an invalid frame and reading `steps` got
+          312 KeyErrors in 12 s unpatched and none patched; a stub hint sequence fired at turns 6, 12, 18, 24, 30, 36
+          unpatched and at 6 and 20 (the new animation) patched.
