@@ -1136,3 +1136,16 @@ P12 (added after the review): the python tool's compile pre-check caught only Sy
           (UnicodeEncodeError) or a 200,000-term expression (RecursionError) raised out of the tool runner and ended the
           game on the unpatched harness (reproduced), and now come back as a tool error. In exp-035 and exp-036 (rebuilt,
           not yet pushed) and every later arm.
+
+## 2026-09-23 · serving headroom in the public runs' vLLM logs · MEASURED (no GPU)
+Memory:   device total 94.97 GiB; free at start 94.43 GiB; weights 81.8 GiB (the checkpoint is 125.9 GiB: a PLE-offload
+          worker keeps the rest in host RAM); KV 5.0 GiB (105,202 tokens); CUDA graphs 0.36 GiB; so about 7.3 GiB is left
+          for activations, MoE and FlashInfer workspaces and the vision encoder. Allocation failures with the caching
+          allocator retrying: 2 in the thui run (one mid-run: 300 MB requested, 298 MB free), 2 in chiakazirim, 1 in
+          wuliao0; no HTTP 500, no watchdog restart, so they were recovered. A 3 GiB larger KV cache (the 8 GiB stress
+          test) eats most of that margin: it must pass the stress test with images and 20k-token prompts before any
+          full run uses it.
+Throughput: 3-4 requests running, 20-22 waiting; whole-server generation 190-220 tokens/s; prefill 1.8-4.4k tokens/s
+          in 10 s windows; MTP mean acceptance length 2.7-3.0. The GPU's compute is mostly idle while the KV cache caps
+          the batch, so shorter prompts (P4) and shorter outputs (P11) raise throughput almost linearly and carry no
+          memory risk; a larger KV cache is the risky lever.
