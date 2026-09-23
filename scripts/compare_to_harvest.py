@@ -26,6 +26,11 @@ def load_reference(models: str, anim: str) -> list[dict]:
             continue
         if anim != "any" and bool(d.get("anim")) != (anim == "yes"):
             continue
+        # Stock per-game cap only (one run gave every game 27,000 s), and not a run that broke (8 levels in 25 games).
+        caps = [float(x) for x in (d.get("knobs") or {}).get("max_runtime_s_per_game", [])
+                if x.replace(".", "", 1).isdigit()]
+        if any(c > 8000 for c in caps) or d.get("levels", 0) < 15:
+            continue
         refs.append(d)
     return refs
 
@@ -51,6 +56,20 @@ def main() -> None:
           f"(min {min(r['levels'] for r in refs)}, max {max(r['levels'] for r in refs)})")
     if ours.get("server"):
         print("  our server:", ours["server"])
+    # Minutes from the previous level's completion (or the start) to each completed level; the stock-cap harvest
+    # (19 runs, research log 2026-09-23) has medians 24.2 / 25.6 / 30.8 / 24.3 for levels 1-4.
+    per_level: dict[int, list[float]] = {}
+    for g in ours["results"]:
+        prev = 0.0
+        for k, t in enumerate(g.get("level_done_s") or [], start=1):
+            if t is None:
+                break
+            per_level.setdefault(k, []).append((t - prev) / 60.0)
+            prev = t
+    if per_level:
+        print("  our minutes per solved level (median, count):",
+              ", ".join(f"L{k} {statistics.median(v):.1f} ({len(v)})" for k, v in sorted(per_level.items())),
+              "| stock-cap harvest: L1 24.2, L2 25.6, L3 30.8, L4 24.3")
     per_game: dict[str, list[float]] = {}
     for r in refs:
         for g in r["results"]:
