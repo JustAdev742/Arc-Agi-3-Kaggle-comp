@@ -1432,3 +1432,17 @@ Reading:  a single run at +2.2 sd of the base distribution. The patches fix real
           the expected gain is about +0.5; a repeat decides. Tonight's submission follows the pre-registered rule
           (a passing P21 arm, else the base); exp-042 is tomorrow's submission candidate and the base of the next
           combined arm.
+
+## 2026-09-23 · per-game standardized yardstick (scripts/zsum.py) · MEASURED (no GPU)
+Why:      the public-25 mean moves a point when one high-variance game (ft09, lp85, ar25: sd 10-25) has a lucky run.
+Method:   each game's score standardized against that game's distribution over the 39 stock-cap harvested base runs
+          (sd floored at 2), summed over the 25 games; the null distribution is the reference runs scored leave-one-out
+          (mean +0.4, sd 6.7).
+Measured: exp-042 (fixes) +18.5 = +2.7 sd, above all 39 reference runs (its mean ranked 95th percentile); exp-045 (P21)
+          +7.5 = +1.1 sd (85%); exp-032 control +4.7 (+0.6 sd); exp-034 -1.9; exp-037 -0.4; the P4 arms -11.4 to -16.3
+          (-1.8 to -2.5 sd). exp-042's gain is broad: 13 games up, 11 down, the largest in ar25 (+31, 5 levels), lp85
+          (+21), sp80 (+13), re86 (+12), ft09 (+9). Its fixes were visibly exercised only a little (UNDO named 3 times in
+          ar25; the no-previous-frame case 3 times in lp85); P1's carried note and P13's score line touch every call.
+Reading:  the strongest evidence so far that a change helps. Eight arms were tested today, so one extreme result is
+          expected about 20% of the time by chance; exp-042r (an unchanged repeat) and exp-048 (fixes + P21 + 6.5 GiB)
+          are the first runs after Saturday's quota reset. Use the z-sum next to the mean from now on.
