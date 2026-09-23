@@ -305,3 +305,63 @@ def test_arm_registry_names_only_known_patches_and_builds(tmp_path):
     nb = json.loads((out / "exp040" / "arc3-taaf-ours-e.ipynb").read_text())
     text = "\n".join("".join(c["source"]) for c in nb["cells"])
     assert "'LOCAL_ANALYZER_YIELD_SECONDS': '180'" in text and "P19" in text
+
+
+def test_p20_no_impact_learner_and_wrappers():
+    """Lever L1 (ported): rows that change on >= 90% of actions become the counter band after 20 actions; an action that
+    changes only band rows is flagged no_impact with board_changed False, and the flag reaches the step summary."""
+
+    class Session:
+        def __init__(self):
+            self.game = types.SimpleNamespace(current_state=None)
+
+        def _execute_action(self, action, **kw):
+            self.game.current_state = kw.pop("next_grid")
+            return {"executed": True, "board_changed": True, "level_completed": False}
+
+    class Agent:
+        def _compact_action_result(self, payload):
+            return {"board_changed": payload.get("board_changed")}
+
+        def _summarize_step_sequence(self, action_results):
+            return {"executed_count": len(action_results)}
+
+        def _describe_last_outcome(self, summary):
+            return "Last executed sequence."
+
+    ns = {"_HarnessGameSession": Session, "ToolAgent": Agent, "_grid_from_state": lambda state: state or ()}
+    exec(tp.P20_NEW, ns)
+    learner = ns["_ours_hud_update"]
+    st = ns["_ours_hud_new"]()
+    for i in range(24):
+        learner(st, {0, 10 + (i % 7)})
+    assert st["band"] == {0}
+    assert learner(st, {0}) is True and learner(st, {0, 5}) is False
+    st = ns["_ours_hud_new"]()
+    assert not any(learner(st, set(range(6))) for _ in range(30)) and st["band"] is None
+
+    session, move = Session(), types.SimpleNamespace(id=types.SimpleNamespace(name="ACTION1"))
+    board = [[0] * 4 for _ in range(4)]
+    session.game.current_state = tuple(tuple(r) for r in board)
+    payload = None
+    for step in range(1, 26):  # row 3 (a counter) ticks every action; row step % 3 moves as well until the last one
+        board[3][0] = step
+        if step < 25:
+            board[step % 3][1] = step
+        grid = tuple(tuple(r) for r in board)
+        payload = Session._execute_action(session, move, next_grid=grid)
+    assert payload["no_impact"] is True and payload["board_changed"] is False and payload["hud_rows"] == [3]
+    agent = Agent()
+    assert agent._compact_action_result(payload)["no_impact"] is True
+    summary = agent._summarize_step_sequence([payload])
+    assert summary["no_impact_count"] == 1 and "NO impact" in agent._describe_last_outcome(summary)
+
+
+def test_p20_prompt_line(h):
+    agent = h.ta.ToolAgent(model="mock")
+    hist = _history(h, [(1, ""), (1, "LEFT")])
+    prompt = agent._build_user_prompt(
+        2, valid_actions=["ACTION1"], current_frame=h.Frame(_grid({}), 2, 1), history_entries=hist,
+        previous_step_summary={"executed_count": 1, "executed_actions": ["LEFT"], "level": 1, "no_impact_count": 1,
+                               "hud_rows": [7]})
+    assert "1 of these actions changed only the game's counter strip (rows [7]) and had NO impact" in prompt

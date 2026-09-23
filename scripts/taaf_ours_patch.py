@@ -832,6 +832,107 @@ P19_NEW = (P19_OLD
            + '        except Exception:\n'
            + '            pass\n')
 
+# P20: lever L1, no-impact detection, ported from the public notebook sahasawatt/thui-l1-v0 (implementation Sahasawat
+# Wittayaprasit; idea and measurement Son Pham, sonpham-org/arc-3); yocybercode/thui-l1-v0-full25-r1 ran it on the
+# public 25 (10.93, one run; its base notebook 9.32, one run). A per-game learner finds the rows that change on at
+# least 90% of actions (a step counter or energy strip; at most 4 rows, after 20 actions); an action that changes only
+# those rows is reported as board_changed=False and no_impact, and the outcome line says it had no gameplay effect.
+# Targets the stall-analysis failure of reading HUD ticks as effects. Appended to the end of solver.py ("<EOF>").
+SOLVER = "src/ARC3-Inference/inference/framework/solver.py"
+P20_NEW = '''
+
+# ---- ours P20: lever L1 no-impact detection (idea Son Pham, sonpham-org/arc-3; implementation Sahasawat
+# Wittayaprasit, kaggle sahasawatt/thui-l1-v0), ported to wrap this module's session and the tool agent ----
+_OURS_HUD_FRAC, _OURS_HUD_MIN, _OURS_HUD_MAX_ROWS = 0.9, 20, 4
+
+
+def _ours_hud_new() -> dict:
+    return {"n": 0, "rows": {}, "band": None, "noimp": 0}
+
+
+def _ours_hud_update(st: dict, changed_rows: set, learn: bool = True) -> bool:
+    """True when changed_rows is non-empty and lies inside the learned counter band."""
+    if not changed_rows:
+        return False
+    if learn:
+        st["n"] += 1
+        for r in changed_rows:
+            st["rows"][r] = st["rows"].get(r, 0) + 1
+        if st["n"] >= _OURS_HUD_MIN:
+            band = {r for r, k in st["rows"].items() if k / st["n"] >= _OURS_HUD_FRAC}
+            st["band"] = band if 0 < len(band) <= _OURS_HUD_MAX_ROWS else None
+    band = st.get("band")
+    return bool(band) and changed_rows <= band
+
+
+def _ours_install_l1() -> None:
+    orig_exec = _HarnessGameSession._execute_action
+    orig_compact = ToolAgent._compact_action_result
+    orig_summ = ToolAgent._summarize_step_sequence
+    orig_desc = ToolAgent._describe_last_outcome
+
+    def _exec(self, action, **kw):
+        prev = _grid_from_state(self.game.current_state)
+        payload = orig_exec(self, action, **kw)
+        try:
+            if not payload.get("executed", True):
+                return payload
+            new = _grid_from_state(self.game.current_state)
+            changed = {r for r in range(min(len(prev), len(new))) if prev[r] != new[r]} if prev and new else set()
+            st = self.__dict__.setdefault("_ours_hud", _ours_hud_new())
+            learn = getattr(getattr(action, "id", None), "name", "") != "RESET" and not payload.get("level_completed")
+            if learn and _ours_hud_update(st, changed):
+                st["noimp"] += 1
+                payload["board_changed"] = False
+                payload["no_impact"] = True
+                payload["hud_rows"] = sorted(st["band"])
+        except Exception:  # never let the detector break a step
+            pass
+        return payload
+
+    def _compact(self, payload):
+        compact = orig_compact(self, payload)
+        if payload.get("no_impact"):
+            compact["no_impact"] = True
+            compact["hud_rows"] = payload.get("hud_rows")
+        return compact
+
+    def _summ(self, action_results):
+        summary = orig_summ(self, action_results)
+        if summary is not None:
+            hits = [item for item in action_results if item.get("executed") and item.get("no_impact")]
+            summary["no_impact_count"] = len(hits)
+            if hits:
+                summary["hud_rows"] = hits[-1].get("hud_rows")
+        return summary
+
+    def _desc(self, summary):
+        text = orig_desc(self, summary)
+        if summary and summary.get("no_impact_count"):
+            text += (f" {summary['no_impact_count']} of these actions changed only the game's counter strip (rows "
+                     f"{summary.get('hud_rows')}) and had NO impact on gameplay objects; do not read them as effects.")
+        return text
+
+    _HarnessGameSession._execute_action = _exec
+    ToolAgent._compact_action_result = _compact
+    ToolAgent._summarize_step_sequence = _summ
+    ToolAgent._describe_last_outcome = _desc
+
+
+_ours_install_l1()
+'''
+
+# P20 (cont.): this bundle never calls _describe_last_outcome, so the no-impact note goes into the prompt's summary of
+# the last action sequence, next to the animation line.
+P20_PROMPT_OLD = P9_OLD
+P20_PROMPT_NEW = P9_OLD + """            if previous_step_summary.get("no_impact_count"):
+                lines.append(
+                    f"{previous_step_summary['no_impact_count']} of these actions changed only the game's counter strip "
+                    f"(rows {previous_step_summary.get('hud_rows')}) and had NO impact on gameplay objects; do not read "
+                    "them as effects."
+                )
+"""
+
 PATCHES.update({
     "P11": [(UTILS_COMPAT, P11_IMPORT_OLD, P11_IMPORT_NEW), (UTILS_COMPAT, P11_OLD, P11_NEW)],
     "P12": [(TOOL_AGENT, P12_OLD, P12_NEW)],
@@ -842,6 +943,7 @@ PATCHES.update({
     "P16": [(TOOL_AGENT, P16_OLD, P16_NEW)],
     "P17": [(TOOL_AGENT, P17_VIEW_OLD, P17_VIEW_NEW), (TOOL_AGENT, P17_HINT_OLD, P17_HINT_NEW)],
     "P18": [(TOOL_AGENT, P18_OLD, P18_NEW)],
+    "P20": [(SOLVER, "<EOF>", P20_NEW), (TOOL_AGENT, P20_PROMPT_OLD, P20_PROMPT_NEW)],
     "P19": [(TOOL_AGENT, "def _empty_world_model(", P19_FN + "def _empty_world_model("),
             (TOOL_AGENT, P19_OLD, P19_NEW)],
     "P6": [
@@ -885,6 +987,12 @@ def apply(bundle_dir: Path | str, names: list[str] | None = None) -> list[str]:
         for rel, old, new in PATCHES[name]:
             path = root / rel
             text = path.read_text(encoding="utf-8")
+            if old == "<EOF>":  # append to the end of the file, once
+                if new in text:
+                    raise RuntimeError(f"patch {name}: already appended to {rel}")
+                path.write_text(text + new, encoding="utf-8")
+                applied.append(f"{name}:{rel}")
+                continue
             count = text.count(old)
             if count != 1:
                 raise RuntimeError(f"patch {name}: expected exactly one match in {rel}, found {count}")

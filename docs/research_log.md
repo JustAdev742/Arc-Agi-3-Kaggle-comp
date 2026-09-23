@@ -1273,3 +1273,18 @@ Mechanics: the throughput gain is real: 1,830 requests (+35%), 950 generated tok
 Decision: effort stays at the template default (xhigh). exp-038 (low) is dropped and exp-041 (exp-040 at medium) is not
           built into the queue. The throughput levers left are the ones that do not thin the reasoning: shorter prompts
           (P4, exp-035) and prefix caching (stress test queued).
+
+## 2026-09-23 · patch P20: lever L1 no-impact detection, ported from a public notebook · BUILT, in exp-040
+Source:   yocybercode/thui-l1-v0-full25-r1 scored 10.93 on the public 25 (2nd of 37 harvested base runs); its only
+          change to the base is lever L1 from sahasawatt/thui-l1-v0 (implementation Sahasawat Wittayaprasit; idea and
+          measurement Son Pham, sonpham-org/arc-3); the matching base run thui-fast-v0 scored 9.32 (one run each).
+What:     per game, rows that change on at least 90% of actions (a counter or energy strip, at most 4 rows, after 20
+          actions) form a band; an action that changes only band rows is reported board_changed False and no_impact,
+          and the prompt's summary of the last sequence says so ("changed only the game's counter strip ... had NO
+          impact on gameplay objects"). Our anim bundle never calls _describe_last_outcome, where the original put the
+          note, so P20 also writes it next to the animation line. Appended to solver.py via a new end-of-file mode in
+          apply() (appending twice fails loudly).
+Checked:  the learner found ls20's energy strip (rows 61-62) after 20 actions and 26 prompts of a 40 s bed run carried
+          the note; learner and wrappers unit-tested against stub classes; applies in either order with P9; the
+          upstream solver.py joined the test fixture (text only).
+Arm:      added to exp-040 (not yet pushed), which is now exp-039 + P18 + P19 + P20.

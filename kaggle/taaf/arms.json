@@ -137,9 +137,10 @@
     "P16",
     "P17",
     "P18",
-    "P19"
+    "P19",
+    "P20"
    ],
-   "note": "exp-040: exp-039 plus predict-before-act (P18) and a supervisor review of a stalled level (P19)."
+   "note": "exp-040: exp-039 plus predict-before-act (P18), a supervisor review of a stalled level (P19) and lever L1 no-impact detection (P20, ported from sahasawatt/thui-l1-v0)."
   },
   {
    "exp": "exp041",
