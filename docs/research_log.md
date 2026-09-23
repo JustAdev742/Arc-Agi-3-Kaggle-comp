@@ -910,3 +910,12 @@ Kept:     dsl.forall_distance / every_<relation> kinds (goal_predicates(forall=T
           model's goal-hypotheses line; unmeasured with a model (next bundle run). With 1 percent of the negatives
           allowed to satisfy a candidate (gated win checks), the optimal-play data also gives m0r0's goal
           ("count(colour 10) == 1": the twins merged).
+
+## 2026-09-23 · exp-024 control and exp-026 bundle, rebuilt at HEAD eda2240 · RUNNING (pushed 06:53 UTC, both started at once)
+Why:      the control measures the champion preset at HEAD, which now includes the winning-frame fix (lesson 0017;
+          the champion record's harness archived a simulated frame, v3 archived layers[0]); the bundle measures every
+          unmeasured knob together, now including goal_forall / goal_lifted (exp-028).
+Settings: dev, 1200 s and 2000 actions per game, 8 concurrent, seed 0, Qwen3.8-27B-FP8 on vLLM 0.27.1 (same as exp-011);
+          kernels scottmahony/arc3-eval-dev-p (v2, run kaggle-repl-dev-024) and scottmahony/arc3-eval-dev-q (v1, run
+          kaggle-repl-dev-026).
+Measured: pending.
