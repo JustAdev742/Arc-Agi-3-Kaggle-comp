@@ -1260,3 +1260,16 @@ Registry: kaggle/taaf/arms.json + scripts/build_arms.py: each arm's patches, kno
           reproduces the queued exp-036/039/040 and the pushed exp-035 notebooks byte for byte. Pushed arms are rebuilt
           only with --force.
 Records:  runs/<run>/summary.json now carries the call statistics and behaviour metrics next to the score.
+
+## 2026-09-23 · exp-037 · reasoning effort medium (P11 only, on the unmodified base) · MEASURED, not kept
+Measured: public-25 6.70, 37 levels (dev 7.66, val 3.65); runs/exp037-effort-medium (scottmahony/arc3-taaf-effort-medium
+          v1, 10:28-12:57 UTC); harvest 27th percentile; control exp-032 7.86 / 38 levels.
+Mechanics: the throughput gain is real: 1,830 requests (+35%), 950 generated tokens per request (-35%), 92.6 s queued and
+          106.6 s end to end per request (-26%), 73 responses per game (vs 54), reasoning 2,185 characters per response
+          (-40%), preemptions 61. But per-call quality fell about as much as the call count rose: levels 37 vs 38, level 1
+          took a median 41.1 min (control 22.1) though level 2 was quicker (23.0 vs 33.7); several solved levels used
+          far more actions than humans (tr87 119 and 159 vs 54 and 58; ka59 84 vs 28), and the visible note was written
+          in 0.09 of turns (control 0.29).
+Decision: effort stays at the template default (xhigh). exp-038 (low) is dropped and exp-041 (exp-040 at medium) is not
+          built into the queue. The throughput levers left are the ones that do not thin the reasoning: shorter prompts
+          (P4, exp-035) and prefix caching (stress test queued).

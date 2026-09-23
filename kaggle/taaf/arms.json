@@ -89,7 +89,8 @@
     "LOCAL_ANALYZER_CONTEXT_WINDOW": null,
     "OURS_REASONING_EFFORT": "low"
    },
-   "note": "exp-038: the served template's reasoning effort set to low (default xhigh); nothing else changed."
+   "note": "exp-038: the served template's reasoning effort set to low (default xhigh); nothing else changed.",
+   "dropped": "not run: exp-037 (medium) gave +35% calls and no more levels, so low effort is not worth a run"
   },
   {
    "exp": "exp039",
@@ -166,7 +167,8 @@
    "knobs": {
     "OURS_REASONING_EFFORT": "medium"
    },
-   "note": "exp-041: exp-040 at reasoning effort medium (P11); built only if exp-037 shows medium beats the default xhigh."
+   "note": "exp-041: exp-040 at reasoning effort medium (P11); built only if exp-037 shows medium beats the default xhigh.",
+   "dropped": "not run: medium effort did not pay in exp-037"
   }
  ]
 }
