@@ -250,6 +250,14 @@ this repo can influence. Practical consequences: GPU experiments are blocked unt
   compression (running). Queue, pushed as the two slots free: exp-037 (reasoning effort medium), 8 GiB KV stress
   test, exp-035 (history compression), exp-036 (+ board diff, level-1 note, persisted helpers), exp-039 (+ the
   stall-analysis patches P13-P16), 5 GiB stress test; exp-038 (effort low) only if exp-037 beats the default.
+- **Measured today (public 25, one run each; harvest of the base: n=37, mean 7.15, sd 1.65):** exp-032 control
+  7.86 (38 levels); exp-034 fork, first arm, 6.44 (32; its 600 s yield is the prime suspect, the queued arms went
+  back to 180 s); exp-037 effort medium 6.70 (37; +35% calls, no more levels: effort stays xhigh). KV 8 GiB fails
+  at startup (out of memory). Nothing beats the base yet; exp-035/036/039/040 run this afternoon.
+- **The 100% question (owner, 2026-09-23):** every system reported at 100 (NVIDIA AVO, MIT VISTA, Tycho) is Claude
+  Opus 5 or GPT-5.6 over the internet on the 25 public games; none can run in the offline Kaggle rerun, and frontier
+  models score 30-63 on the semi-private set. Their shared structures are ported as patches P13-P20
+  (docs/research/frontier-100-systems.md).
 - **Found 2026-09-23:** the served chat template runs at reasoning effort "xhigh" unless told otherwise (it prepends
   "think carefully ... consider plausible alternatives" to the system prompt) and accepts medium/low; every public
   Flash-Next notebook plays at xhigh. Patch P11 makes it a knob; exp-037/038 measure it. Harvest analysis: the score
