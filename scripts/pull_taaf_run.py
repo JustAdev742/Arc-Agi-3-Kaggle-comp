@@ -55,27 +55,53 @@ def main() -> None:
         n = int(g.get("levels_completed", 0))
         apl = list(g.get("actions_per_level") or [])
         base = list(g.get("base_actions_per_level") or [])
+        hist = list(g.get("history") or [])
         ours = game_score([apl[i] if i < n else None for i in range(len(base))], base) if base else 0.0
+        # Wall-clock second of the action that completed each level (history is in action order and
+        # actions_per_level partitions it), so the run shows how the score grew with time.
+        done_s, k = [], 0
+        for i in range(n):
+            k += apl[i]
+            done_s.append(round(float(hist[k - 1].get("wallclock_seconds") or 0.0), 1) if 0 < k <= len(hist) else None)
+        gen = sum(int(h.get("generated_tokens") or 0) for h in hist) + int(g.get("final_generated_tokens") or 0)
         games.append({"game_id": gid, "state": g.get("state"), "levels_completed": n, "levels_total": len(base),
-                      "level_actions": apl, "baselines": base, "score": round(ours, 4),
-                      "taaf_final_score": g.get("final_score"), "actions": len(g.get("history") or []),
-                      "wall_s": g.get("final_wallclock_seconds"), "generated_tokens": g.get("final_generated_tokens")})
+                      "level_actions": apl, "baselines": base, "score": round(ours, 4), "level_done_s": done_s,
+                      "taaf_final_score": g.get("final_score"), "actions": len(hist),
+                      "wall_s": g.get("final_wallclock_seconds"), "generated_tokens": gen,
+                      "tokens_per_action": round(gen / len(hist), 1) if hist else None})
 
     def mean(ids: set[str]) -> float | None:
         xs = [g["score"] for g in games if g["game_id"] in ids]
         return round(sum(xs) / len(xs), 4) if xs else None
 
+    def score_at(t: float) -> float:
+        """Mean score had every game stopped at t seconds (levels completed later count as unsolved)."""
+        xs = []
+        for g in games:
+            if not g["baselines"]:
+                xs.append(0.0)
+                continue
+            m = sum(1 for s in g["level_done_s"] if s is not None and s <= t)
+            xs.append(game_score([g["level_actions"][i] if i < m else None for i in range(len(g["baselines"]))],
+                                 g["baselines"]))
+        return round(sum(xs) / len(xs), 4) if xs else 0.0
+
     summary = {"run_name": run_name, "kernel": kernel, "source": str(bench[-1].relative_to(dl)), "games": len(games),
                "score_all": mean({g["game_id"] for g in games}), "score_dev": mean(dev), "score_val": mean(val),
                "levels_completed": sum(g["levels_completed"] for g in games),
-               "levels_total": sum(g["levels_total"] for g in games), "results": games}
+               "levels_total": sum(g["levels_total"] for g in games),
+               "score_if_stopped_at_min": {m: score_at(60.0 * m) for m in (15, 30, 60, 90, 120, 132)},
+               "results": games}
     (out / "summary.json").write_text(json.dumps(summary, indent=1))
     print(f"{run_name}: all {summary['score_all']}  dev {summary['score_dev']}  val {summary['score_val']}  "
           f"levels {summary['levels_completed']}/{summary['levels_total']}")
+    print("  score had every game stopped at N minutes:", summary["score_if_stopped_at_min"])
     for g in sorted(games, key=lambda g: -g["score"]):
         if g["levels_completed"]:
             print(f"  {g['game_id']}: {g['levels_completed']}/{g['levels_total']} score {g['score']:.2f} "
-                  f"(taaf {g['taaf_final_score']}) actions {g['level_actions'][:g['levels_completed']]} base {g['baselines'][:g['levels_completed']]}")
+                  f"(taaf {g['taaf_final_score']}) actions {g['level_actions'][:g['levels_completed']]} "
+                  f"base {g['baselines'][:g['levels_completed']]} done_min "
+                  f"{[round(s / 60, 1) for s in g['level_done_s'] if s is not None]} tok/act {g['tokens_per_action']}")
 
 
 if __name__ == "__main__":
