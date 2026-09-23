@@ -285,7 +285,90 @@ P8_NEW = ('                lines.append("You have progressed to a new level!")\n
           '                    "action does; it is kept for every later level. Then check the new board against it."\n'
           '                )\n')
 
+# P9: after an action sequence the model usually spends its next call computing what changed (62% of calls re-split
+# `.ascii` in the thui run). The harness now states it: changed cells grouped into up to three regions (cells within
+# two of each other join), each with its bounding box and main colour transitions, in the prompt's colour letters.
+P9_FN = '''def _board_diff_line(before: Any, after: Any) -> str:
+    """One line describing how the board changed between two grids (empty when shapes differ)."""
+    from collections import Counter
+
+    from inference.utils.grid_utils import ARC_COLOR_CHARS
+
+    if not before or not after or len(before) != len(after):
+        return ""
+    cells: dict[tuple[int, int], tuple[int, int]] = {}
+    for r, (row_b, row_a) in enumerate(zip(before, after)):
+        if row_b == row_a or len(row_b) != len(row_a):
+            continue
+        for c, (vb, va) in enumerate(zip(row_b, row_a)):
+            if vb != va:
+                cells[(r, c)] = (int(vb), int(va))
+    if not cells:
+        return "Board diff over that sequence: no cell changed on the final board."
+
+    def sym(v: int) -> str:
+        return ARC_COLOR_CHARS[max(0, min(15, v))]
+
+    seen: set[tuple[int, int]] = set()
+    regions: list[list[tuple[int, int]]] = []
+    for start in cells:
+        if start in seen:
+            continue
+        seen.add(start)
+        stack, comp = [start], []
+        while stack:
+            r, c = stack.pop()
+            comp.append((r, c))
+            for dr in (-2, -1, 0, 1, 2):
+                for dc in (-2, -1, 0, 1, 2):
+                    nb = (r + dr, c + dc)
+                    if nb in cells and nb not in seen:
+                        seen.add(nb)
+                        stack.append(nb)
+        regions.append(comp)
+    regions.sort(key=len, reverse=True)
+    parts = []
+    for comp in regions[:3]:
+        rows = [r for r, _ in comp]
+        cols = [c for _, c in comp]
+        trans = Counter(f"{sym(cells[p][0])}>{sym(cells[p][1])}" for p in comp).most_common(2)
+        parts.append(
+            f"{len(comp)} cells in rows {min(rows)}-{max(rows)}, cols {min(cols)}-{max(cols)} ("
+            + ", ".join(f"{t} x{n}" for t, n in trans) + ")"
+        )
+    more = f"; {len(regions) - 3} smaller region(s) not listed" if len(regions) > 3 else ""
+    return (f"Board diff over that sequence: {len(cells)} cells changed in {len(regions)} region(s): "
+            + "; ".join(parts) + more + ".")
+
+
+'''
+P9_OLD = '''            animation_line = describe_animation(previous_step_summary.get("animation"))
+            if animation_line:
+                lines.append(animation_line)
+'''
+P9_NEW = '''            animation_line = describe_animation(previous_step_summary.get("animation"))
+            if animation_line:
+                lines.append(animation_line)
+            try:
+                executed = int(previous_step_summary.get("executed_count") or 0)
+            except (TypeError, ValueError):
+                executed = 0
+            if (
+                executed > 0
+                and not previous_step_summary.get("level_transition")
+                and current_frame is not None
+                and len(history_entries) > executed
+            ):
+                diff_line = _board_diff_line(history_entries[-executed - 1].frame.grid, current_frame.grid)
+                if diff_line:
+                    lines.append(diff_line)
+'''
+
 PATCHES.update({
+    "P9": [
+        (TOOL_AGENT, "def _empty_world_model(", P9_FN + "def _empty_world_model("),
+        (TOOL_AGENT, P9_OLD, P9_NEW),
+    ],
     "P8": [(TOOL_AGENT, P8_OLD, P8_NEW)],
     "P4": [
         (TOOL_AGENT, "def _empty_world_model(", P4_FN + "def _empty_world_model("),
