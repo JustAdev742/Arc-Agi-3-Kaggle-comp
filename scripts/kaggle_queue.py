@@ -7,10 +7,12 @@ The queue file is a JSON list of items, in priority order:
 
     {"name": "exp045", "folder": "<built folder>", "kernel": "scottmahony/arc3-taaf-gate", "run": "exp045-gate",
      "kind": "full" | "stress", "after": "<name>" (optional: push only once that item was pushed),
-     "requires_ok": "<run>" (optional: push only if runs/<run>/summary.json is a clean stress test; skipped if not)}
+     "requires_ok": "<run>" (optional: push only if runs/<run>/summary.json is a clean stress test; skipped if not),
+     "pull_only": true (optional: pushed elsewhere; only pull it when it finishes)}
 
 Every 2 minutes it tries to push the first eligible item with scripts/push_eval.py (Kaggle refuses pushes while both
-GPU slots are busy, so a failed push just waits); every 5 minutes it checks the pushed items' status, and a finished
+GPU slots are busy, so a failed push just waits; a kernel already RUNNING or QUEUED counts as pushed, so a run pushed
+by an earlier loop is not pushed twice); every 5 minutes it checks the pushed items' status, and a finished
 one is pulled: full runs with scripts/pull_taaf_run.py and scripts/compare_to_harvest.py, stress tests by
 downloading kv_stress.json to runs/<run>/summary.json. Progress lines go to stdout; state is kept next to the queue
 file (<queue>.state.json), so a restarted runner resumes where it stopped.
@@ -94,6 +96,8 @@ def main() -> None:
         items = json.loads(qpath.read_text())  # re-read: the queue may be edited while this runs
         for it in items:
             state.setdefault(it["name"], {})
+            if it.get("pull_only") and not state[it["name"]].get("pushed"):
+                state[it["name"]]["pushed"] = "elsewhere"
         pending = [it for it in items if not state[it["name"]].get("done") and not state[it["name"]].get("skipped")]
         if not pending:
             print(f"{now()} queue empty", flush=True)
@@ -123,6 +127,11 @@ def main() -> None:
                     st["skipped"] = f"{it['requires_ok']} did not pass"
                     print(f"{now()} {it['name']}: skipped ({st['skipped']})", flush=True)
                     continue
+            status = run([KAGGLE, "kernels", "status", it["kernel"]])
+            if "RUNNING" in status or "QUEUED" in status:
+                st["pushed"] = now() + " (found running)"
+                print(f"{now()} {it['name']}: already running, not pushed again", flush=True)
+                continue
             out = run([PY, "scripts/push_eval.py", it["folder"]], timeout=900)
             if "successfully pushed" in out:
                 st["pushed"] = now()

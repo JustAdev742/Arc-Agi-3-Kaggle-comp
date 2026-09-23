@@ -1310,3 +1310,24 @@ Decision: P4, the 22,528-token window and the 6,144-token output cap are out of 
           and P11) replace it. exp-036 and exp-039 (both with P4) were already running and cannot be stopped from here:
           the public API's cancel call needs a session id no public call returns, and the site's internal endpoint
           refused the API token (403). They finish and are read against exp-035, not the control.
+
+## 2026-09-23 · P21 · weighted fair share of the model server across games · BUILT, bed-tested; exp-045/046 queued
+Why:      the server is the bottleneck: 4-6 requests fit the KV cache while about 20 wait about 126 s each in vLLM's
+          first-come queue (exp-032), so every game gets the same call rate. The score weights level k by k, and a game
+          on a later level has already worked its mechanics out, so its calls are worth more than a level-1 call.
+Change:   a gate in the harness process (all games are threads of one solver) keeps at most OURS_GATE_SLOTS calls in
+          flight (6) and admits the waiting call with the largest weight x wait; weight 1 + 2 x (level - 1), fading as
+          45 / minutes once a level has stalled 45 minutes. No game starves (every waiter's priority keeps growing); a
+          wait past the call's time budget or a stop request ends the wait like a failed request (retried by the
+          solver loop). The gate prints its counts to the notebook log every 10 minutes.
+Replay:   scripts/sim_call_share.py (19 stock-cap base runs; per-(game, level) hazard per call; each game's cycle
+          theta / weight + S0 with the server capped at 10.3 calls/min): first-come 7.34 (the harvest mean is 7.15);
+          step 1: +0.49; step 2 with the 45-min fade: +0.64 (paired sd 0.84, positive in 77% of draws); step 4: +0.75.
+          With a shorter minimum cycle S0 (0.6 min) +0.77, with a longer one (1.2 min) +0.49. Below what one run can
+          resolve (sd of a difference of two runs about 2.3), so exp-045 is read on its mechanism: call rate by level
+          from the transcripts and the gate lines.
+Bed test: real harness, mock server with 2 s latency, 4 games, 2 slots: one gate shared by all games (58 calls in
+          60 s, never more than 2 in flight), even progress (14-15 actions each), clean stop at the time limit.
+Arms:     exp-045 = base + P21 (arc3-taaf-gate); exp-046 = exp-045 on the 6.5 GiB KV / 4,096-token profile if its stress
+          test passes (arc3-taaf-gate-kv65). One queue runner (scripts/kaggle_queue.py) now pushes in priority order:
+          5 GiB and 6.5 GiB stress tests, exp-045, exp-042, exp-046, the prefix-caching stress test, exp-043.
