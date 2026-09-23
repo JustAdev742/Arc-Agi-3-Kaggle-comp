@@ -575,8 +575,22 @@ P11_NEW = (P11_OLD
            + '        if _preserve in ("0", "1"):\n'
            + '            payload["chat_template_kwargs"]["preserve_thinking"] = _preserve == "1"\n')
 
+# P12: the python tool's compile pre-check caught only SyntaxError, so code that compile() rejects otherwise (a null
+# byte: ValueError; a lone surrogate: UnicodeEncodeError; a very deep expression: RecursionError) raised out of the
+# tool runner and ended the game (code review 2026-09-23). Now it is an ordinary tool error the model can fix.
+P12_OLD = """        try:
+            compile(code, "<python_tool>", "exec")
+        except SyntaxError as exc:
+            return _ToolDispatchResult(json.dumps({"error": f"Python syntax error: {exc}"}, indent=2))
+"""
+P12_NEW = P12_OLD + """        except (ValueError, UnicodeError, RecursionError, MemoryError, OverflowError) as exc:
+            return _ToolDispatchResult(json.dumps(
+                {"error": f"Python code could not be compiled: {type(exc).__name__}: {exc}"}, indent=2))
+"""
+
 PATCHES.update({
     "P11": [(UTILS_COMPAT, P11_IMPORT_OLD, P11_IMPORT_NEW), (UTILS_COMPAT, P11_OLD, P11_NEW)],
+    "P12": [(TOOL_AGENT, P12_OLD, P12_NEW)],
     "P6": [
         (TOOL_AGENT, "def _empty_world_model(", P6_FN + "def _empty_world_model("),
         (SANDBOX, P6_SANDBOX_CHILD_OLD, P6_SANDBOX_CHILD_NEW),

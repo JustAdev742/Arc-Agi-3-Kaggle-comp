@@ -1132,3 +1132,7 @@ Verified: the reviewer's direct tests on the fixed tree (hang cases: 4 of 4 call
           to the repo file; the notebook's own patch step simulated on a bundle copy (14 and 28 pairs applied).
 Follow-ups (pre-existing upstream, not fixed): the compile precheck catches only SyntaxError (a lone surrogate or a
           very deep expression crashes the game); `_build_user_prompt` runs outside analyze()'s try.
+P12 (added after the review): the python tool's compile pre-check caught only SyntaxError; a lone surrogate
+          (UnicodeEncodeError) or a 200,000-term expression (RecursionError) raised out of the tool runner and ended the
+          game on the unpatched harness (reproduced), and now come back as a tool error. In exp-035 and exp-036 (rebuilt,
+          not yet pushed) and every later arm.
