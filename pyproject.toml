@@ -27,6 +27,8 @@ addopts = "-q"
 [tool.ruff]
 line-length = 120
 target-version = "py312"
+# Upstream code kept verbatim: the patch-test fixture and our copy of the public base notebook.
+extend-exclude = ["tests/fixtures", "kaggle/taaf/base-thui-animfast.ipynb"]
 
 [tool.ruff.lint]
 # Pinned so `make lint` means the same thing on every machine (ruff's defaults change between releases).

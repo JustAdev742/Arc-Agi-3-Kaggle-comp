@@ -1,0 +1,295 @@
+"""Tests for scripts/taaf_ours_patch.py, the source patches every Duck-fork notebook applies at run time.
+
+A patch that stops matching the upstream text fails the notebook at its first cell, and a patch that breaks the
+harness can hang or crash games in a competition rerun. These run against a verbatim copy of the upstream modules
+(tests/fixtures/taaf_anim, see its NOTICE.md), so they need neither the Kaggle dataset nor a model server.
+"""
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+import types
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+FIXTURE = ROOT / "tests" / "fixtures" / "taaf_anim"
+sys.path.insert(0, str(ROOT / "scripts"))
+import taaf_ours_patch as tp  # noqa: E402
+
+ALL = list(tp.PATCHES)
+
+
+def _copy(dst: Path) -> Path:
+    shutil.copytree(FIXTURE, dst, ignore=shutil.ignore_patterns("__pycache__"))
+    return dst
+
+
+# --- patch application ------------------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("name", ALL)
+def test_each_patch_applies_alone(tmp_path, name):
+    bundle = _copy(tmp_path / "b")
+    assert len(tp.apply(bundle, [name])) == len(tp.PATCHES[name])
+
+
+@pytest.mark.parametrize("order", [ALL, list(reversed(ALL))], ids=["forward", "reversed"])
+def test_all_patches_apply_together_in_any_order_and_compile(tmp_path, order):
+    bundle = _copy(tmp_path / "b")
+    tp.apply(bundle, order)
+    for rel in {rel for pairs in tp.PATCHES.values() for rel, _, _ in pairs}:
+        compile((bundle / rel).read_text(encoding="utf-8"), rel, "exec")
+
+
+def test_a_patch_applied_twice_fails_loudly(tmp_path):
+    bundle = _copy(tmp_path / "b")
+    tp.apply(bundle, ["P2"])
+    with pytest.raises(RuntimeError, match="expected exactly one match"):
+        tp.apply(bundle, ["P2"])
+
+
+# --- the patched harness ---------------------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def h(tmp_path_factory):
+    """The fully patched harness modules, imported from a temporary copy."""
+    bundle = _copy(tmp_path_factory.mktemp("patched") / "b")
+    tp.apply(bundle)
+    src = str(bundle / "src" / "ARC3-Inference")
+    saved_env = {k: os.environ.get(k) for k in ("LOCAL_ANALYZER_MODEL_ID", "LOCAL_ANALYZER_BASE_URL")}
+    os.environ.update(LOCAL_ANALYZER_MODEL_ID="mock", LOCAL_ANALYZER_BASE_URL="http://127.0.0.1:9/v1")
+    sys.path.insert(0, src)
+    try:
+        from inference.agent import action_names, prompts, python_tool_sandbox, tool_agent
+        from inference.agent.runtime_state import Frame, HistoryEntry
+        from inference.utils import openai_compat
+
+        yield types.SimpleNamespace(ta=tool_agent, sandbox=python_tool_sandbox, prompts=prompts, names=action_names,
+                                    compat=openai_compat, Frame=Frame, HistoryEntry=HistoryEntry)
+    finally:
+        sys.path.remove(src)
+        for mod in [m for m in sys.modules if m == "inference" or m.startswith("inference.")]:
+            del sys.modules[mod]
+        for k, v in saved_env.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+
+def _grid(cells: dict[tuple[int, int], int], size: int = 8) -> tuple[tuple[int, ...], ...]:
+    g = [[0] * size for _ in range(size)]
+    for (r, c), v in cells.items():
+        g[r][c] = v
+    return tuple(tuple(row) for row in g)
+
+
+def test_p1_note_read_from_reasoning(h):
+    note = h.ta._extract_scientist_note_from_reasoning(
+        "thinking about it\n**World model:** the red block is the player\nPlan: move left twice\n\nmore thoughts")
+    assert note["world_model"] == "the red block is the player"
+    assert note["current_plan"] == "move left twice"
+
+
+def test_p2_undo_maps_to_action7(h):
+    assert h.names.to_engine_action("UNDO") == "ACTION7"
+    assert h.names.to_model_action("ACTION7") == "UNDO"
+
+
+def test_p3_goal_and_action_models_survive_a_level_change_but_not_a_game_over_reset(h):
+    agent = h.ta.ToolAgent(model="mock")
+    base = {"world_model": "W", "goal_model": "G", "action_model": "A", "recent_findings": "R",
+            "open_questions": "O", "current_plan": "P", "cross_level_notes": "C"}
+    agent._summarized_knowledge = dict(base)
+    agent._last_step_summary = {"game_over": True}
+    agent._update_summarized_knowledge_from_step_summary()
+    assert agent._summarized_knowledge == base
+    agent._last_step_summary = {"level_transition": True}
+    agent._update_summarized_knowledge_from_step_summary()
+    k = agent._summarized_knowledge
+    assert k["goal_model"].startswith("[from an earlier level") and k["goal_model"].endswith(" G")
+    assert k["action_model"].endswith(" A") and k["cross_level_notes"] == "C"
+    assert k["world_model"] == k["current_plan"] == k["recent_findings"] == ""
+
+
+def test_p4_older_user_turns_are_compressed_and_past_reasoning_dropped(h):
+    user = {"role": "user", "content": [
+        {"type": "text", "text": "Executed actions: LEFT.\nCurrent state: step 3, level 1.\nOnly tool: `python`. It receives..."},
+        {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}}]}
+    out = h.ta._compress_history_message(user)
+    text = out["content"] if isinstance(out["content"], str) else json.dumps(out["content"])
+    assert "Current state: step 3" in text and "Only tool" not in text and "image_url" not in text
+    reply = h.ta._compress_history_message({"role": "assistant", "content": "", "reasoning": "long thoughts"})
+    assert not reply.get("reasoning")
+
+
+def test_p6_persisted_definitions_keep_defs_imports_and_constants_only(h):
+    store: dict[str, str] = {}
+    h.ta._persist_definitions(store, "import math\nfrom itertools import *\nfrom math import *\n"
+                                     "def f(x):\n    return x\nclass C:\n    pass\nX = 3\ny = 4\n")
+    assert {"f", "C", "const:X"} <= set(store)
+    assert len([k for k in store if k.startswith("import:")]) == 3
+    assert not any("y = 4" in v for v in store.values())
+    h.ta._persist_definitions(store, "def broken(:\n")
+    assert "broken" not in store
+
+
+def _run(h, code, prelude=(), handler=None):
+    grid = [[0] * 8 for _ in range(8)]
+    state = {"current_frame": {"ascii": "", "step": 0, "level": 1, "shape": [8, 8], "grid": grid},
+             "history": [], "valid_actions": ["UP", "DOWN"], "last_action_result": {}}
+    handler = handler or (lambda actions: {"action_result": {"executed": True}, "state": state})
+    return h.sandbox.run_sandboxed_python(code=code, timeout_seconds=10, initial_state=state,
+                                          action_handler=handler, prelude=list(prelude))
+
+
+def test_p6_p7_replayed_code_that_prints_or_acts_cannot_hang_or_repeat_actions(h):
+    sent = []
+
+    def handler(actions):
+        sent.append(actions)
+        return {"action_result": {"executed": True}, "state": {}}
+
+    prelude = ["class Probe:\n    print('building')\n    r = action(['UP'])\n", "def g():\n    return 7\n"]
+    out = _run(h, "print(g())\nr = action(['DOWN'])\n", prelude=prelude, handler=handler)
+    assert out["error"] == "" and out["stdout"].strip() == "7"
+    assert sent == [[{"action": "DOWN"}]]  # the kept class body's action(["UP"]) is not replayed
+
+
+def test_p7_class_idioms_and_exception_names_work(h):
+    code = ("class A:\n    def v(self):\n        return 1\nclass B(A, object):\n    @property\n    def w(self):\n"
+            "        return super().v() + 1\ntry:\n    {}['k']\nexcept KeyError:\n    print('caught', B().w, __name__)\n"
+            "class R:\n    def __str__(self):\n        print('side effect')\n        return 'R'\nresult = R()\n")
+    out = _run(h, code)
+    assert out["error"] == ""
+    assert "caught 2 __main__" in out["stdout"]
+
+
+def test_p9_board_diff_line(h):
+    before = _grid({(1, 1): 9})
+    after = _grid({(1, 2): 9})
+    line = h.ta._board_diff_line(before, after)
+    assert line.startswith("Board diff over that sequence: 2 cells changed in 1 region(s)")
+    assert "rows 1-1, cols 1-2" in line
+    assert h.ta._board_diff_line(before, before).endswith("no cell changed on the final board.")
+
+
+def test_p11_reasoning_effort_and_preserve_thinking_knobs(h, monkeypatch):
+    kw = {"provider": "vllm", "model": "m", "messages": [], "max_tokens": None, "temperature": 0.6, "top_p": 0.95,
+          "top_k": 20}
+    monkeypatch.setenv("OURS_REASONING_EFFORT", "medium")
+    monkeypatch.setenv("OURS_PRESERVE_THINKING", "0")
+    on = h.compat.build_chat_payload(thinking=True, **kw)["chat_template_kwargs"]
+    off = h.compat.build_chat_payload(thinking=False, **kw)["chat_template_kwargs"]
+    assert on == {"enable_thinking": True, "reasoning_effort": "medium", "preserve_thinking": False}
+    assert "reasoning_effort" not in off
+    monkeypatch.setenv("OURS_REASONING_EFFORT", "bogus")
+    monkeypatch.delenv("OURS_PRESERVE_THINKING")
+    assert h.compat.build_chat_payload(thinking=True, **kw)["chat_template_kwargs"] == {"enable_thinking": True}
+
+
+def test_p12_code_that_cannot_compile_is_a_tool_error_not_a_crash(h):
+    stub = types.SimpleNamespace(_ensure_session=lambda path: None)
+    for code in ('print("\ud800")', "x = " + "1+" * 200000 + "1", "def f(:\n  pass"):
+        result = h.ta.ToolAgent._run_python_tool(stub, None, {"code": code})
+        assert '"error"' in str(getattr(result, "content", result))
+
+
+def test_p13_score_semantics_in_the_system_prompt(h):
+    assert "counts the levels completed so far" in h.prompts.STRUCTURED_RUNTIME_STATE_ADDENDUM
+
+
+def _history(h, levels_and_actions):
+    """[(level, action), ...] -> HistoryEntry list whose frames carry those levels (first entry: the start board)."""
+    return [h.HistoryEntry(action, h.Frame(_grid({(0, i % 8): 1 + level}), i, level))
+            for i, (level, action) in enumerate(levels_and_actions)]
+
+
+def test_p14_p16_level_start_comparison_and_record(h):
+    agent = h.ta.ToolAgent(model="mock")
+    hist = _history(h, [(1, ""), (1, "LEFT"), (1, "LEFT"), (1, "UP"), (2, "UP")])
+    current = h.Frame(_grid({(3, 3): 12, (5, 5): 12}), 4, 2)
+    prompt = agent._build_user_prompt(
+        4, valid_actions=["ACTION1", "ACTION2", "ACTION3"], current_frame=current, history_entries=hist,
+        previous_step_summary={"executed_count": 1, "executed_actions": ["UP"], "level": 2, "level_transition": True})
+    assert "Harness comparison with the first board of level 1 (exact): colours new on this level:" in prompt
+    assert "Actions you have never tried in this game: DOWN." in prompt
+    assert "level 1 took 4 actions; the last 4: LEFT x2, UP x2" in prompt
+    again = agent._build_user_prompt(
+        5, valid_actions=["ACTION1", "ACTION2", "ACTION3"], current_frame=current, history_entries=hist,
+        previous_step_summary={"executed_count": 1, "executed_actions": ["UP"], "level": 2, "level_transition": True})
+    assert "Harness comparison" not in again  # once per level
+    assert "level 1 took 4 actions" in again
+
+
+def test_p15_p18_p19_idle_probe_expectation_and_supervisor(h, monkeypatch):
+    monkeypatch.setenv("OURS_GOVERNOR_IDLE_MIN", "0")
+    monkeypatch.setenv("OURS_GOVERNOR_LEVEL_MIN", "0")
+    monkeypatch.setenv("OURS_SUPERVISOR_MIN", "1")
+    agent = h.ta.ToolAgent(model="mock")
+    calls = []
+
+    def fake_chat(messages, tools=None, request_timeout_seconds=None):
+        calls.append(messages)
+        return types.SimpleNamespace(message={"content": "The goal is untested.\nProbe: press UP twice."})
+
+    agent._chat_completion = fake_chat
+    hist = _history(h, [(1, ""), (1, "LEFT")])
+    current = h.Frame(_grid({(1, 1): 9}), 2, 1)
+    kw = {"valid_actions": ["ACTION1", "ACTION2"], "current_frame": current, "history_entries": hist,
+          "previous_step_summary": {"executed_count": 0, "executed_actions": [], "level": 1}}
+    first = agent._build_user_prompt(2, **kw)
+    assert "No action for 0 minutes on this level" in first
+    assert "print one line starting with `expect:`" in first
+    agent._ours_sup_t -= 120.0  # two minutes on this level since the last review (deterministic, no sleep)
+    second = agent._build_user_prompt(2, **kw)
+    assert len(calls) == 1 and "You are reviewing an agent" in calls[0][0]["content"]
+    assert "Supervisor review of this stalled level" in second
+    assert "The goal is untested. | Probe: press UP twice." in second
+
+
+def test_p17_animation_hint_fires_again_only_after_a_new_animation(h):
+    agent = types.SimpleNamespace(
+        _animation_awareness_enabled=True, _animation_hint_level=1, _animation_turns_without_progress=0,
+        _animation_transient_animations=0, _animation_hint_follow_window=0, _animation_turns_since_hint=99,
+        _animation_counted_action=None, _bump_animation_counter=lambda name: None)
+    fired, marker = [], None
+    for turn in range(1, 40):
+        if turn in (1, 2, 3, 20):
+            marker = turn
+        summary = {"animation": {"transient_pixels": 999}, "end_action_num": marker}
+        if h.ta.ToolAgent._animation_hint_line(agent, summary, 1):
+            fired.append(turn)
+    assert fired == [6, 20]
+
+
+# --- the notebook builder --------------------------------------------------------------------------------------
+
+
+def test_builder_inlines_the_patch_source_and_every_requested_patch_applies(tmp_path):
+    names = ["P1", "P1B", "P2", "P3", "P7", "P4", "P8", "P9", "P10", "P6", "P12", "P13", "P14", "P15", "P16", "P17",
+             "P18", "P19"]
+    out = tmp_path / "nb"
+    subprocess.run([sys.executable, str(ROOT / "scripts" / "build_taaf_nb.py"), "--out", str(out), "--slug", "t-arm",
+                    "--patches", *names, "--wavefit", "--knob", "OURS_REASONING_EFFORT=medium"],
+                   check=True, capture_output=True, text=True)
+    nb = json.loads((out / "t-arm.ipynb").read_text())
+    cells = ["".join(c["source"]) for c in nb["cells"]]
+    ns: dict = {}
+    exec(next(c for c in cells if c.startswith("# ours: source of scripts/taaf_ours_patch.py")), ns)
+    assert ns["_OURS_PATCH_SOURCE"] == (ROOT / "scripts" / "taaf_ours_patch.py").read_text()
+    apply_cell = next(c for c in cells if '_ours_ns["apply"](_OURS_BUNDLE' in c)
+    assert repr(names) in apply_cell
+    assert any("'OURS_REASONING_EFFORT': 'medium'" in c and "assert os.environ[_k] == _v" in c for c in cells)
+    patch_ns = {"__name__": "taaf_ours_patch"}
+    exec(compile(ns["_OURS_PATCH_SOURCE"], "taaf_ours_patch.py", "exec"), patch_ns)
+    applied = patch_ns["apply"](_copy(tmp_path / "b"), names)
+    assert len(applied) == sum(len(tp.PATCHES[n]) for n in names)
+    meta = json.loads((out / "kernel-metadata.json").read_text())
+    assert meta["is_private"] is True and meta["enable_internet"] is False
