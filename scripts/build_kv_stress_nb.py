@@ -14,11 +14,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE = ROOT / "kaggle" / "taaf" / "base-thui-animfast.ipynb"
 KV_ANCHOR = '"TAAF_VLLM_KV_CACHE_MEMORY_BYTES": "5368709120"'
+ENV_END = '"TAAF_VLLM_OMP_THREADS": "1"\n}'
 
 STRESS = r'''
 # ours: synthetic load shaped like the Duck's requests, then a JSON summary (no games are played)
@@ -151,6 +153,8 @@ def main() -> None:
     ap.add_argument("--prefix-caching", action="store_true", help="TAAF_VLLM_ENABLE_PREFIX_CACHING=1 (MTP kept)")
     ap.add_argument("--batched-tokens", type=int, default=None,
                     help="TAAF_VLLM_MAX_NUM_BATCHED_TOKENS (base 8192); smaller prefill chunks use less activation memory")
+    ap.add_argument("--env", action="append", default=[], metavar="KEY=VALUE",
+                    help="extra serving env for the launcher, e.g. TAAF_VLLM_MOE_BACKEND=flashinfer_b12x")
     args = ap.parse_args()
     nb = json.loads(BASE.read_text())
     cells = nb["cells"][:11]
@@ -167,6 +171,13 @@ def main() -> None:
                 assert '"TAAF_VLLM_MAX_NUM_BATCHED_TOKENS": "8192"' in s
                 s = s.replace('"TAAF_VLLM_MAX_NUM_BATCHED_TOKENS": "8192"',
                               f'"TAAF_VLLM_MAX_NUM_BATCHED_TOKENS": "{args.batched_tokens}"')
+            for kv in args.env:
+                key, value = kv.split("=", 1)
+                if f'"{key}": ' in s:
+                    s = re.sub(rf'"{re.escape(key)}": "[^"]*"', f'"{key}": "{value}"', s)
+                else:
+                    assert ENV_END in s
+                    s = s.replace(ENV_END, f'"TAAF_VLLM_OMP_THREADS": "1",\n    "{key}": "{value}"\n}}')
             s = s.replace("PUBLIC25_VLLM_PROFILE_NAME = 'kv5-bf16-mtp3-c8-cg32'",
                           f"PUBLIC25_VLLM_PROFILE_NAME = '{args.slug}'")
             cell["source"] = [s]
@@ -176,7 +187,8 @@ def main() -> None:
     cells[0]["source"] = [f"# {args.slug}: serving stress test (team scottmahony)\n\nFlash-Next NVFP4 vLLM server "
                           f"(Keith Tyser's bundle) with a {args.kv_gib} GiB KV cache"
                           f"{' and prefix caching on' if args.prefix_caching else ''}"
-                          f"{f' and {args.batched_tokens}-token prefill chunks' if args.batched_tokens else ''} under a synthetic Duck-shaped "
+                          f"{f' and {args.batched_tokens}-token prefill chunks' if args.batched_tokens else ''}"
+                          f"{f' and {args.env}' if args.env else ''} under a synthetic Duck-shaped "
                           f"load for {args.minutes} minutes; no games are played. Built by scripts/build_kv_stress_nb.py."]
     code = lambda src: {"cell_type": "code", "execution_count": None, "metadata": {}, "outputs": [], "source": [src]}  # noqa: E731
     cells += [code(STRESS.replace("__MINUTES__", str(args.minutes))), code(TEARDOWN)]
