@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-09-23 (session 5, remote CPU container: 4 vCPU, 15 GB RAM, no GPU; Kaggle CLI authenticated as `scottmahony`).
+Last updated: 2026-09-23 (session 6, remote CPU container: 4 vCPU, 15 GB RAM, no GPU; Kaggle CLI authenticated as `scottmahony`).
 
 ## Competition facts: verified vs. unconfirmed
 
@@ -225,6 +225,32 @@ this repo can influence. Practical consequences: GPU experiments are blocked unt
   README and this file were brought up to date. Left as is on purpose: `governor.py` (tested, off the submission
   path since lesson 0011); the council arm (parked); the `notebooks/eval` watchdog's `os._exit(0)`, which skips the
   final summary but no longer loses the per-game results.
+
+## Session 6 (2026-09-23, in progress): the submission base moves to the public Duck family
+
+- **Why:** our REPL harness at HEAD scored 0.44 (exp-024 champion) and 0.26 (exp-026 bundle) on dev; the public
+  Duck-family notebooks score 5-11 on the same public games (22+ harvested public runs, `runs/public-harvest/`; plain
+  Flash-Next Duck n=19 mean 7.4, animation-aware n=3 mean 7.0). The owner approved running the public Tufa/Duck
+  notebooks on this account and asked for the highest possible score.
+- **Verified facts (competition pages via the CLI):** the hidden set is 110 games, all played by every submission, half
+  public / half private LB; 1 submission per day; 2 final selections; winners license CC-BY 4.0; the Duck notebook is
+  Apache 2.0, its code MIT. Forum: identical notebooks vary 1.5-2.3x on the LB and about 2 points on the public games;
+  Duck-style public scores of 10-22 became 5-7 on the LB (lesson 0018).
+- **Diagnosis of the best public configuration** (animation-aware Duck on Qwen3.8-Flash-Next NVFP4; research log):
+  time-bound, 54 model calls per game, 127 s of queueing per call because the KV cache (5 GiB after 81.8 GiB of
+  weights, BF16 only) holds about 3 prompts of 20.6k tokens; 35% of prompt tokens are past reasoning; the carried note
+  is mostly lost; ACTION7 (UNDO) is unmapped and always rejected; solved levels already use fewer actions than humans.
+- **Our fork** (patches applied at runtime to the published anim source, `scripts/taaf_ours_patch.py`; notebooks from
+  `scripts/build_taaf_nb.py`; every patch bed-tested on CPU with the real harness and a mock model): P1/P1b carried
+  note from reasoning and lenient labels, P2 ACTION7 as UNDO, P3 goal/action models kept across levels, P4 history
+  compression, P7 pre-imports, P8 cross-level note on level change; knobs yield 600 s, output cap 6,144, history
+  budget; wave-fit per-game cap in real reruns.
+- **GPU runs this session:** exp-024/026 (done), exp-032 = unchanged copy of the public anim + Flash-Next notebook
+  (running), exp-033 FP8 KV (failed at startup: the model needs a BF16 KV cache), exp-034 = our fork without history
+  compression (running), exp-035 = with compression (queued), then two 25-minute KV-cache stress tests (5 vs 8 GiB).
+- **Blocked:** creating a private Kaggle dataset for our source was refused by the permission classifier (read as a
+  possible public surface); worked around legitimately by patching the public source at runtime inside our private
+  notebooks. No dataset of ours is needed.
 
 ## Session 5 outcome (2026-09-23, CPU only; the rtx6000 pool was stalled)
 
