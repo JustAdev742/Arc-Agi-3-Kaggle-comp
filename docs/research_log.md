@@ -932,3 +932,18 @@ Arms:     exp-030 = private copy of foysalemonshanto/lb-9-arc3-duck-v12-with-qwe
 Checked:  both notebooks talk only to the local vLLM server and the competition gateway; no credentials; internet off.
 Gate:     public-25 score (their frozen scorer's score.json where written, else TAAF's per-game final scores) against
           our harness on the same games; the better one is the next submission (1 per day).
+
+## 2026-09-23 · exp-032 · a third public fork: animation-aware harness on the Flash-Next server · QUEUED; queue reordered
+Why:      Kaggle's notebook list sorted by score puts the Flash-Next Duck forks on top (chiakazirim/duck-qwen3-8-tuned,
+          wuliao0/duck-qwen3-8-anim-base) and the Qwen3.8-27B "LB-9" fork 48th, so exp-031 (Flash-Next) runs first.
+          exp-032 is a private copy of yocybercode/thui-animfast-b71-full25-r1 (unchanged plus a credit cell): Keith
+          Tyser's Flash-Next NVFP4 serving bundle, with the anim branch's solver tree put first on sys.path and the anim
+          bundle's pickled benchmark (animation_awareness and hard_noop_guard on), LOCAL_ANALYZER_SEED 20260825 and
+          LOCAL_ANALYZER_YIELD_SECONDS 180. The graft is sound on inspection: the serving setup verifies only its own
+          files' hashes, the anim tool agent reads the same LOCAL_ANALYZER_* variables the serving setup writes, and the
+          anim source is a superset of the June source apart from dropped re_arc imports.
+Order:    exp-031, exp-032, then exp-030 (kernel scottmahony/arc3-taaf-anim-flashnext for exp-032).
+Facts found while waiting (docs/status.md): the hidden set is 110 games, all played by every submission, and the Duck's
+          7,920 s x 28-concurrent schedule (4 waves, 8.8 h) is sized for it, so there is no idle time to reallocate.
+          Forum numbers on noise and the public-to-hidden gap are in docs/lessons/0018.
+Gate:     same as exp-030/031; with the noise in lesson 0018 a single run separates arms only by more than about 2 points.
