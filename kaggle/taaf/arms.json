@@ -196,9 +196,10 @@
     "P7",
     "P12",
     "P13",
-    "P17"
+    "P17",
+    "P22"
    ],
-   "note": "exp-042: the base's own history budget and turn yield (no P4, no output cap, 32,768-token window) with the low-token fixes only: note read from reasoning (P1/P1B), ACTION7 as UNDO (P2), sandbox pre-imports and class support (P7), compile errors contained (P12), score semantics (P13), animation error keys (P17). P3 left out: in exp-034 it made the first move on a new level immediate (0.0 min vs 4.9) while level-2 solves took longer (44.9 vs 33.7 min)."
+   "note": "exp-042: the base's own history budget and turn yield (no P4, no output cap, 32,768-token window) with the low-token fixes only: note read from reasoning (P1/P1B), ACTION7 as UNDO (P2), sandbox pre-imports and class support (P7), compile errors contained (P12), score semantics (P13), animation error keys (P17). P3 left out: in exp-034 it made the first move on a new level immediate (0.0 min vs 4.9) while level-2 solves took longer (44.9 vs 33.7 min). Plus P22: no previous_frame across a level-up (level-transition study)."
   },
   {
    "exp": "exp043",
@@ -221,9 +222,10 @@
     "P16",
     "P18",
     "P19",
-    "P20"
+    "P20",
+    "P22"
    ],
-   "note": "exp-043: exp-042 plus every other patch except P4 and P11: cross-level note (P8), board diff (P9), level-1 probing note (P10), persisted helpers (P6), level-start comparison, idle probe and level record (P14-P16), predict before acting (P18), supervisor review (P19), lever L1 no-impact detection (P20)."
+   "note": "exp-043: exp-042 plus every other patch except P4 and P11: cross-level note (P8), board diff (P9), level-1 probing note (P10), persisted helpers (P6), level-start comparison, idle probe and level record (P14-P16), predict before acting (P18), supervisor review (P19), lever L1 no-impact detection (P20). Plus P22: no previous_frame across a level-up (level-transition study)."
   },
   {
    "exp": "exp044",

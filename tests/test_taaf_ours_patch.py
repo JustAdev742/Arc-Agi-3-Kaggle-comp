@@ -517,3 +517,21 @@ def test_p21_turn_rule_two_calls_and_zero_means_off(h, monkeypatch, tmp_path, tu
         h.ta._OURS_GATE_STATE.clear()
     assert getattr(result, "yielded_control", False)
     assert len(seen) == expect if turn_calls == "2" else len(seen) >= expect
+
+
+def test_p22_a_level_up_is_not_offered_as_the_latest_change(h):
+    level1 = [[0] * 8 for _ in range(8)]
+    level2 = [[3] * 8 for _ in range(8)]
+    history = [{"action": "", "frame": {"ascii": "", "step": 0, "level": 1, "shape": [8, 8], "grid": level1}},
+               {"action": "UP", "frame": {"ascii": "", "step": 1, "level": 2, "shape": [8, 8], "grid": level2}}]
+    state = {"current_frame": {"ascii": "", "step": 1, "level": 2, "shape": [8, 8], "grid": level2},
+             "history": history, "valid_actions": ["UP"], "last_action_result": {}}
+    code = "print(previous_frame is None, last_transition is None, len(transitions))\n"
+    out = h.sandbox.run_sandboxed_python(code=code, timeout_seconds=10, initial_state=state,
+                                         action_handler=lambda actions: {"action_result": {}, "state": state})
+    assert out["error"] == "" and out["stdout"].split() == ["True", "True", "1"]
+    history[1]["frame"]["level"] = 1  # the same step within a level is still the latest change
+    state["current_frame"]["level"] = 1
+    out = h.sandbox.run_sandboxed_python(code=code, timeout_seconds=10, initial_state=state,
+                                         action_handler=lambda actions: {"action_result": {}, "state": state})
+    assert out["stdout"].split() == ["False", "False", "1"]

@@ -1098,7 +1098,27 @@ P21_YIELD_NEW = ("            _ours_gated = _ours_call_gate() is not None  # our
                  "            if self._yield_seconds is not None and _ours_gated and 0 < _ours_turn_calls <= turn_count:\n"
                  "                return \"turn_time_budget\"\n")
 
+# P22 (level-transition study, 2026-09-23, 38 level starts in exp-032): at a new level's first calls `previous_frame`
+# and `last_transition` still held the level-completing step, so a diff compared the old level's last board with the
+# new level's first; 5 level starts spent reasoning on it ("previous_frame is the L1 end screen ... not useful"). A
+# transition that crosses a level boundary is no longer offered as the latest change: on a new level `previous_frame`,
+# `last_transition` and `last_action_frame` are None until the first action there, as at a game's start. `transitions`
+# keeps the full list.
+P22_OLD = """            runtime_globals["previous_frame"] = (
+                last_transition.before_frame if last_transition is not None else None
+            )
+"""
+P22_NEW = """            if last_transition is not None and getattr(last_transition.before_frame, "level", None) != getattr(
+                    last_transition.after_frame, "level", None):  # ours P22: a level-up is not the latest change
+                last_transition = None
+                runtime_globals["last_transition"] = None
+            runtime_globals["previous_frame"] = (
+                last_transition.before_frame if last_transition is not None else None
+            )
+"""
+
 PATCHES.update({
+    "P22": [(SANDBOX, P22_OLD, P22_NEW)],
     "P21": [(TOOL_AGENT, "def _empty_world_model(", P21_FN + "def _empty_world_model("),
             (TOOL_AGENT, P21_LEVEL_OLD, P21_LEVEL_NEW),
             (TOOL_AGENT, P21_CALL_OLD, P21_CALL_NEW),

@@ -1366,3 +1366,22 @@ Fixed:    0 or less turns the turn rule off; the slot count is updated last and 
           OURS_GATE_MIN_LEFT_S (30) seconds of the call's budget left (budgets under 60 s take any slot). Tests for each
           (test_p21_*, 8 in all); the reviewer's repro scripts now pass; bed test on the real harness clean. exp-045/046/047
           rebuilt before their first push.
+
+## 2026-09-23 · level transitions in the control run (subagent study of exp-032) · MEASURED (no GPU); P22 BUILT
+Measured: 38 level starts at L2 or later in 21 games (docs/research/level-transitions-exp032.md). The first action on a
+          new level comes after a median of 3 model calls, as on level 1, but 8.0 min instead of 1.6 min, because a call
+          takes about 160 s once the server is saturated (3 running, 21-22 waiting in 706 of 719 log samples after
+          minute 13). Solved L2+ levels took a median of 12 calls (L1: 14) but 32.5 min (L1: 22.1): later levels are
+          not harder per call, they are slower per call. Probing first vs re-applying the last level's plan: 11 of 20
+          vs 6 of 15 solved (Fisher p = 0.5, confounded by game). 94% of the chat at a new level's first call is from
+          earlier levels; it leaves the history about 20 min after the level-up; the carried note was empty at 37 of
+          38 level starts (the harness clears it). Four level starts lost much of the level to a stale belief from
+          the model's own recap; five spent reasoning on `previous_frame`, which still showed the old level.
+Reading:  the call latency on later levels is the cost P21 attacks (calls per level are about constant, so time per
+          level follows the call rate); this supports the replay model's assumption of a constant hazard per call.
+          Clearing history at a level-up is not supported (history is used; a summary would carry the same stale
+          recaps; lesson 0022).
+Change:   P22: a transition that crosses a level boundary is no longer offered as the latest change (previous_frame,
+          last_transition and last_action_frame are None on a new level until its first action, as at a game's start;
+          `transitions` keeps everything). Sandbox test added. Added to exp-042 (fixes) and exp-043 before either ran.
+          Not in the P21 arms, which stay single-change.
