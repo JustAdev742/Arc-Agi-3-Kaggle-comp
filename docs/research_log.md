@@ -1057,3 +1057,15 @@ Bed:      with a scripted level-1 win on ls20, 56 of 58 prompts carried a diff l
 Harvest note: the unmodified animation-aware Flash-Next notebooks scored 9.56, 6.79 and 3.33 (mean 6.6, n=3) against
           7.15 (n=30) for the plain Flash-Next Duck: no sign that animation awareness helps (its authors' A/B: +1.4%,
           p=0.92). Our patches are independent of it; a `bm.solver.animation_awareness = False` arm stays possible.
+
+## 2026-09-23 · patch P6 (persisted helpers) and a sandbox bug (class statements) · BUILT, bed-tested
+P6:       top-level functions (undecorated), imports and UPPER_CASE literal constants of a successful python call are
+          kept per game (12,000 characters, oldest dropped) and replayed silently before the next call; the newest
+          prompt lists them ("Kept from your earlier successful python calls ...: pick(acts)"); three prompt lines that
+          said nothing is saved now say what is. Bed: a mock that defines a helper once and then only calls it made 1
+          action in 588 requests without P6 (NameError every call) and 71 actions in 71 requests with it.
+Bug:      the sandbox's restricted builtins lack __build_class__, so every `class` statement the model wrote failed
+          with "NameError: __build_class__ not found". P7 now allows it (and sets __name__); imports stay restricted
+          (os still refused). exp-035 was rebuilt with this before its push.
+Next arm: exp-036 = exp-035 + P9 + P10 + P6 (kernel scottmahony/arc3-taaf-ours-c), serving settings from the KV stress
+          tests if they pass.
