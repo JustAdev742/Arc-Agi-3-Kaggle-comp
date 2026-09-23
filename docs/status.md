@@ -214,6 +214,14 @@ champion preset are superseded by the move to the Duck family; they are in this 
   stress tests 5 GiB, 6.5 GiB + 4k chunks, the b12x MoE kernels, prefix caching; then exp-045 (base + P21), exp-042
   (low-token fixes), exp-046 (P21 + 6.5 GiB, if its stress test passes), exp-047 (P21 + prefix caching, if its stress
   test passes), exp-043 (all patches but P4/P11). GPU quota: 13.3 of 30 h used at 13:37 UTC, resets 2026-09-26 00:00.
+- **Results this evening (public 25, one run each; base harvest n=39, mean 6.98, sd 1.77):** exp-042 (low-token
+  fixes P1 P1B P2 P7 P12 P13 P17 + P22) **10.89, 46 levels**, 95th percentile, our best run; exp-045 (P21 gate)
+  7.59, 34 levels, mechanism confirmed (L2+/L1 calls-per-minute ratio 1.71 vs 0.80, 0 timeouts, same total
+  throughput); P4 arms exp-036/039 3.94 / 3.50. Stress tests: 6.5 GiB KV passes (+25% running, +14% tokens/s);
+  prefix caching -19% (exp-047 dropped); b12x MoE kernels unsupported. Running now: exp-046 (P21 + 6.5 GiB) and
+  exp-043 (all patches but P4/P11). Queued for Saturday's quota: exp-048 (fixes + P21 + 6.5 GiB, the combined
+  candidate) and exp-042r (a repeat: is 10.89 real?). Submissions: 00:03 Sep 24 by the pre-registered rule (a
+  passing P21 arm, currently exp-045, or exp-046 if it scores higher and passes); 00:03 Sep 25 exp-042.
 - **The 100% question (owner, 2026-09-23):** every system reported at 100 (NVIDIA AVO, MIT VISTA, Tycho) is Claude
   Opus 5 or GPT-5.6 over the internet on the 25 public games; none can run in the offline Kaggle rerun, and frontier
   models score 30-63 on the semi-private set. Their shared structures are ported as patches P13-P20
