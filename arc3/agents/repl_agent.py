@@ -177,6 +177,12 @@ class ReplAgent(Agent):
         self.level_avatars: list[Optional[int]] = []  # the avatar id of each archived level (avatar-relative goal kinds)
         self.level_archive_raw: list[Optional[tuple[list, bool]]] = []  # raw component frames per archived level (None when simulated)
         self.goal_progress_in_prompt = bool(c.get("goal_progress_in_prompt", True))
+        # exp-028 goal kinds (both off by default, unmeasured with a model): universal "every target" relations, and
+        # the candidates' colour-free kinds re-instantiated on each new level's colours (vc33 aligns colour 11, then 14)
+        self.goal_forall = bool(c.get("goal_forall", False))
+        self.goal_lifted = bool(c.get("goal_lifted", False))
+        self.goal_lifted_max = int(c.get("goal_lifted_max", 8))
+        self._lifted_level: Optional[int] = None
         self._goal_falsified: dict[str, int] = {}
         self._goal_checked = 0  # frames of the current level already checked for falsification
         self.idle_turns_in_row = 0
@@ -650,10 +656,23 @@ class ReplAgent(Agent):
 
     def _refresh_goal_info(self) -> list[str]:
         from .. import dsl
-        self.goal_info = dsl.goal_candidates_dual(self.level_archive, self.level_archive_raw, avatar_ids=self.level_avatars)
+        self.goal_info = dsl.goal_candidates_dual(self.level_archive, self.level_archive_raw, avatar_ids=self.level_avatars,
+                                                  forall=self.goal_forall)
+        self._lifted_level = None
         self._goal_falsified = {}
         self._goal_checked = 0
         return [g["goal"] for g in self.goal_info]
+
+    def _add_lifted_goals(self, start: Any) -> None:
+        """Colour-free instantiations of the current candidates on this level's start frame (dsl.instantiate_goals),
+        replacing the previous level's; exact candidates keep their place, falsification prunes the rest."""
+        from .. import dsl
+        self._lifted_level = self.tracker_level
+        exact = [g for g in self.goal_info if not g.get("lifted")]
+        sigs = {sg for g in exact for sg in [dsl.goal_signature(str(g["kind"]), tuple(g["args"]))] if sg is not None}
+        names = {g["goal"] for g in exact}
+        lifted = [dict(g, rep="compound") for g in dsl.instantiate_goals(sigs, start) if g["goal"] not in names]
+        self.goal_info = exact + lifted[: self.goal_lifted_max]
 
     def _goal_progress_line(self) -> str:
         """Goal hypotheses ranked by distance, with the ones this level already falsified (checked incrementally)."""
@@ -667,6 +686,8 @@ class ReplAgent(Agent):
                 return ""
             if self._goal_checked > len(frames):
                 self._goal_falsified, self._goal_checked = {}, 0  # the tracker was reset: a new level or a restart
+            if self.goal_lifted and self._lifted_level != self.tracker_level:
+                self._add_lifted_goals(frames[0])
             av = t.avatar()
             aid = int(av["id"]) if av else None
             raw = t.plain_frames() if any(g.get("rep") == "raw" for g in self.goal_info) else None

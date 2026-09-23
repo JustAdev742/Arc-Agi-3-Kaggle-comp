@@ -851,4 +851,56 @@ Change:   `perception.terminal_layer(layers, before)`: when the last consecutive
           the next level and the terminal is the one before it; otherwise the switch is pending and the terminal is
           the last layer. Used at both REPL-agent sites. Tests: tests/test_perception.py (three cases) and
           tests/test_repl_agent.py::test_animated_win_archives_the_final_board_not_the_first_layer, which fails on
-          the old rule. Checked against the exact terminal on every level of the exp-028 collections (next entry).
+          the old rule. Checked against the exact terminal on every level of the exp-028 collections: exact on 43 of
+          43 with the jump factor at 2 (1.5 to 2.5 all exact; 3 misses su15), against 31 of 43 for layers[0].
+
+## 2026-09-23 · exp-029 · explorer frontier steered by the induced goal (goal_directed) · REVERTED (stays off by default)
+Why:      level 1 is nearly free (road-to-100-v2 section 1) and the goal kind is constant per game (lesson 0016), so a
+          goal induced from level 1 could steer the explorer's search on later levels toward states nearer the goal.
+Change:   at each level completion the explorer induces goal candidates by contrast (dsl.goal_predicates with the
+          universal kinds, jointly over completed levels: true on the observed winning frame via
+          perception.terminal_layer, false on up to 300 sampled states of the level); on later levels the walk to the
+          next unexplored node picks, among the 48 nearest, the one minimising path length + 0.25 x goal distance
+          (smallest over the top 3 candidates). The state sampler has its own rng: a first attempt shared the
+          explorer's and changed exploration on games with no candidate (cd82 lost a level from that alone; rerun).
+Settings: dev, 20,000 actions (300 s so the action cap binds), 2 workers, stable seed; control
+          runs/exp029-explorer-control (explorer defaults; harness 5f27596, the explorer code path it runs is unchanged
+          since), treatment runs/exp029-explorer-goal (harness 162a423 plus the sampler's own rng, committed next).
+Measured: levels 15 → 14, dev RHAE 0.085 → 0.085. Candidates existed on ar25, ls20, s5i5, tu93; the frontier choice
+          differed from the nearest node 828 times on ar25 and 282 on ls20. ar25 level 2: 19,267 → 14,493 actions
+          (level 3: 681 → 5,455); ls20 level 2: solved in 6,232 → unsolved in 19,404 (the goal is a socket that only
+          accepts the key after changer tiles reshape it, so the goal distance pulls the search to a blocked socket).
+          Every other game identical. The control reproduces exp-027's masked arm (15 levels) at the stable seed.
+Notes:    a goal distance is a good heuristic for planning in a model of the mechanics, not for blind search in the
+          real game: preconditions (reshape the key first) make greedy progress a trap. The goal work is for the
+          model-based planner and the model's goal line, not for the explorer.
+
+## 2026-09-23 · exp-028 · goal induction by contrast from exploration data, universal and colour-free goal kinds · MEASURED (instrument; DSL pieces kept, opt-in)
+Why:      road-to-100-v2: level 1 is nearly free and a game's kind of win condition never changes (lesson 0016), so the
+          goal read off a solved level 1 could carry the later levels. Question: can it be read off, and does it hold?
+Method:   scripts/goal_induction.py. Collect, per solved level: a sample of up to 600 distinct non-winning states, the
+          winning path, the exact winning board (the engine's next_level() wrapped: measurement only) and the step's
+          layers. Two sources: the masked explorer (what an agent can gather; dev, 20,000 actions, 90 s per game) and
+          the optimal-play search (more solved levels; 13 games, up to 5 levels, 240 s per level). Analyze: every goal
+          predicate of the DSL grammar plus the new universal kinds (`every_<relation>`: every target has a piece in
+          relation; `dsl.forall_distance`) scored by contrast (true on the winning board, false on every negative);
+          transfer = a level-1 survivor is also a survivor of a later level; colour-free transfer = the level-1
+          survivors' signatures (`dsl.goal_signature`: kind + equal-colours flag) instantiated at the later level's
+          start (`dsl.instantiate_goals`), falsified by that level's negatives, and checked on its winning board.
+Measured: explorer data (runs/exp028-goal-induction/explorer): 9 games with a solved level; level-1 candidates on 5
+          (ar25, ls20, s5i5, tu93, vc33); none on cd82, ft09, lp85, m0r0. 6 later levels: an exact level-1 candidate
+          holds on 2, a colour-free one on 3.
+          optimal-play data (runs/exp028-goal-induction/oracle): 13 games, 28 levels; level-1 candidates on 10 (none
+          on cd82, ft09, m0r0). 15 later levels: an exact level-1 candidate holds on 10 (dc22 L2-L4, tu93 L2-L4, ls20
+          L2-L3, ar25 L2, vc33 L4), a colour-free one on 11 (+ vc33 L2, whose goal is "aligned" on colour 14 after
+          colour 11). Misses: cd82 L2 and m0r0 L2 (no level-1 candidate), tu93 L5 (enemies arrive and can also cover
+          the exit, so "the exit disappears" stops being the goal), vc33 L3 (three colours must each align: a
+          conjunction). Candidates still alive after each later level's own falsification: median 13 (0 to 81).
+          Winning frame: perception.terminal_layer exact on 43 of 43 collected levels.
+Reading:  the reach goals come out as "the marker disappears" (dc22: colour 11 over 4 levels; tu93: colour 14 over 4),
+          which transfers until something else can cover the marker; slot goals come out as every_in / inside
+          (ls20); the four misses on level 1 are exactly the census's grammar gaps (masked region equality, per-tile
+          clue rules, brackets drawn as four corner pieces, twin merge). Contrast leaves about a dozen live candidates
+          per level: the rest is experiment selection or a model's judgement.
+Kept:     dsl.forall_distance / every_<relation> kinds (goal_predicates(forall=True)), dsl.goal_signature,
+          dsl.instantiate_goals; all opt-in, so no agent's behaviour changed. Tests in tests/test_dsl.py.

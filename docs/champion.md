@@ -79,3 +79,11 @@ Build with the preset (the harness at any commit, every later knob off) and the 
 ```
 
 A new champion needs three runs a side or a difference well outside ±0.3 RHAE / ±2 levels, plus a val run.
+
+## Changes on the champion's code path since the record
+
+- 2026-09-23: the REPL agent archives a completed level's winning frame with `perception.terminal_layer` instead of
+  `layers[0]` (lesson 0017). A bug fix, not a knob: on animated wins (12 of 43 collected dev levels: cd82, tu93,
+  sk48, su15) the level-completion notice's "win conditions consistent with every completed level" were computed
+  from the board before the winning move. The submitted notebook (v3, harness 8f3af9e) predates it; the exp-024
+  control at HEAD is the first model run that includes it.

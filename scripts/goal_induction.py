@@ -381,7 +381,7 @@ def analyze_game(path: str) -> dict[str, Any]:
     sigs = {sg for n in l1["survivors"] for sg in [dsl.goal_signature(*names.get(n, (n, ())))] if sg is not None}
     instantiated = []
     for lv, term, negs in per_level[1:]:
-        cands = dsl.instantiate_goals(sigs, negs[-2]) if sigs else []  # negs[-2] is the level's start frame
+        cands = dsl.instantiate_goals(sigs, negs[-2], max_goals=1000) if sigs else []  # negs[-2]: the level start
         alive = [g for g in cands if not any(_holds(g["predicate"], f) for f in negs)]
         instantiated.append({"level": lv["level"], "instantiated": len(cands), "alive_after_falsification": len(alive),
                              "winning_frame_satisfies": sorted(g["goal"] for g in alive if _holds(g["predicate"], term))})

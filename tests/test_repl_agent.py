@@ -843,3 +843,37 @@ def test_animated_win_archives_the_final_board_not_the_first_layer():
         assert any(e.color == 9 and e.y0 == 2 for e in final)  # the archived winning frame is the finished board
     finally:
         agent.close()
+
+
+def test_goal_knobs_add_universal_and_colour_free_candidates():
+    import numpy as np
+
+    from arc3.dsl import Ent
+
+    mock = MockClient([MockClient.say("ok")])
+    agent = get("repl")(AgentContext(game_id="fake", deadline=time.time() + 300,
+                                     config={"client": mock, "image": False, "goal_forall": True, "goal_lifted": True}))
+    try:
+        # goal_forall: a completed level whose winning frame has both pieces in both slots yields every_inside
+        slots = [Ent(1, 4, 10, 10, 6, 6, 20, None), Ent(2, 4, 30, 10, 6, 6, 20, None)]
+        start = tuple(slots + [Ent(3, 9, 12, 30, 2, 2, 4, None), Ent(4, 9, 32, 30, 2, 2, 4, None)])
+        partial = tuple(slots + [Ent(3, 9, 12, 12, 2, 2, 4, None), Ent(4, 9, 32, 30, 2, 2, 4, None)])
+        won = tuple(slots + [Ent(3, 9, 12, 12, 2, 2, 4, None), Ent(4, 9, 32, 12, 2, 2, 4, None)])
+        agent.level_archive = [([start, partial, won], True)]
+        agent.level_archive_raw = [None]
+        agent.level_avatars = [None]
+        assert "every_inside(colour 9, colour 4)" in agent._refresh_goal_info()
+        # goal_lifted: level 1 was won by lining up colour 11; level 2 shows two unaligned colour-14 entities
+        agent.goal_info = [{"goal": "aligned(colour 11)", "kind": "aligned", "args": (11,), "rep": "compound",
+                            "predicate": lambda f: False}]
+        g = np.zeros((64, 64), dtype=np.int16)
+        g[10:12, 10:12] = 14
+        g[30:32, 40:42] = 14
+        agent.frame = _frame(g, levels=1, level_step=0)
+        agent.tracker.reset(g)
+        agent.tracker_level = 1
+        text = agent._observation_text()
+        assert "aligned(colour 14)" in text, text
+        assert sum(1 for x in agent.goal_info if x.get("lifted")) <= agent.goal_lifted_max
+    finally:
+        agent.close()

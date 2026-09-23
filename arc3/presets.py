@@ -1,7 +1,8 @@
 """Named agent configurations. ``CHAMPION`` is the measured best configuration and the one the submission notebook
 runs unless a challenger wins on the fixed evaluation; every knob added since is off in it, so a control run at any
 later commit reproduces the champion's behaviour (docs/champion.md). ``BUNDLE`` is the current experimental arm
-(exp-019/020/022: memory, level boundary, action-budget notice, probe sweep, goal hypotheses).
+(exp-019/020/022/028: memory, level boundary, action-budget notice, probe sweep, goal hypotheses with the
+universal and colour-free goal kinds).
 
 Precedence when building a notebook or an eval: preset first, then ``--config`` on top.
 """
@@ -24,6 +25,8 @@ CHAMPION: dict[str, Any] = {
     "noop_memory": False,             # exp-023 arm, unmeasured (known no-ops shown and flagged)
     "noop_skip": False,               # exp-023b arm, unmeasured (known no-ops not sent)
     "postmortem": False,              # research data only (one call at the end of an unsolved game)
+    "goal_forall": False,             # exp-028 goal kinds, unmeasured with a model ("every target" relations)
+    "goal_lifted": False,             # exp-028 goal kinds, unmeasured with a model (colour-free re-instantiation per level)
 }
 
 BUNDLE: dict[str, Any] = {
@@ -37,6 +40,8 @@ BUNDLE: dict[str, Any] = {
     "bg_holes": True,
     "noop_memory": True,
     "postmortem": True,
+    "goal_forall": True,
+    "goal_lifted": True,
 }
 
 PRESETS: dict[str, dict[str, Any]] = {"champion": CHAMPION, "bundle": BUNDLE}

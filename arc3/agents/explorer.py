@@ -120,6 +120,9 @@ class ExplorerAgent(Agent):
         self.goal_neg_cap = int(cfg.get("goal_neg_cap", 300))
         self.goal_top = int(cfg.get("goal_top", 3))
         self.lvl_sample: list[np.ndarray] = []
+        # own stream: sampling must not change the exploration itself (a shared rng made the exp-029 arms differ on
+        # games with no goal candidate)
+        self.sample_rng = random.Random(ctx.seed * 104729 + stable_seed(ctx.game_id))
         self.lvl_keys: set[str] = set()
         self.lvl_seen = 0
         self.goal_levels: list[tuple[list, bool]] = []
@@ -271,7 +274,7 @@ class ExplorerAgent(Agent):
         if len(self.lvl_sample) < self.goal_neg_cap:
             self.lvl_sample.append(np.asarray(grid).copy())
         else:
-            j = self.rng.randrange(self.lvl_seen)
+            j = self.sample_rng.randrange(self.lvl_seen)
             if j < self.goal_neg_cap:
                 self.lvl_sample[j] = np.asarray(grid).copy()
 

@@ -1977,16 +1977,16 @@ def goal_progress(goals: list[Any], frames: list[Frame], *, avatar_id: Optional[
 
 
 def goal_candidates_dual(compound_levels: list[tuple[list[Frame], bool]], raw_levels: Optional[list[Optional[tuple[list[Frame], bool]]]],
-                         avatar_ids: Optional[list[Optional[int]]] = None) -> list[dict[str, Any]]:
+                         avatar_ids: Optional[list[Optional[int]]] = None, *, forall: bool = False) -> list[dict[str, Any]]:
     """Candidates over the tracker's compound frames plus, when every won level also has raw component frames, over
     the raw frames (entries tagged ``rep``: 'compound' or 'raw'; a name consistent in both keeps the compound entry).
     Exact perception: the compound view merges multi-part sprites, which is right for movement and wrong for some
     goals (human ls20 recording, 2026-09-17: on the last level the shrunken socket was absorbed into the key's
     compound, so no compound predicate held; the raw components show the key inside the socket on all 7 levels)."""
-    out = [dict(g, rep="compound") for g in goal_predicates(compound_levels, avatar_ids=avatar_ids)]
+    out = [dict(g, rep="compound") for g in goal_predicates(compound_levels, avatar_ids=avatar_ids, forall=forall)]
     names = {g["goal"] for g in out}
     if raw_levels and len(raw_levels) == len(compound_levels) and all(r is not None for r in raw_levels):
-        for g in goal_predicates([r for r in raw_levels if r is not None], avatar_ids=avatar_ids):
+        for g in goal_predicates([r for r in raw_levels if r is not None], avatar_ids=avatar_ids, forall=forall):
             if g["goal"] not in names:
                 out.append(dict(g, rep="raw"))
     return out

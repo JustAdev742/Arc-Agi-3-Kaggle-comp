@@ -301,7 +301,7 @@ def moved_objects(before: Sequence[Obj], after: Sequence[Obj]) -> list[tuple[Obj
     return out
 
 
-def terminal_layer(layers: Sequence[np.ndarray], before: np.ndarray | None = None, *, jump: float = 3.0,
+def terminal_layer(layers: Sequence[np.ndarray], before: np.ndarray | None = None, *, jump: float = 2.0,
                    min_jump: int = 20) -> int:
     """Index of the completed level's final board among the layers of the step that completed the level.
 
@@ -312,6 +312,8 @@ def terminal_layer(layers: Sequence[np.ndarray], before: np.ndarray | None = Non
     ``jump`` times every earlier change in this step, the winning move's own change from ``before`` included, and at
     least ``min_jump`` cells), the last layer is the next level and the terminal is the one before it; otherwise the
     switch is still pending (the next action shows the new level) and the terminal is the last layer.
+    Checked against the engine's exact winning board on 43 dev levels (exp-028): ``jump`` 1.5 to 2.5 are exact on all
+    43, 3.0 misses su15 (a pull animation of 103 cells, then a 262-cell switch); ``layers[0]`` is exact on 31.
     """
     n = len(layers)
     if n <= 1:

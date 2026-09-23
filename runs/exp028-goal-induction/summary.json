@@ -1,0 +1,1602 @@
+{
+ "run": "/home/user/Arc-Agi-3-Kaggle-comp/runs/exp028-goal-induction",
+ "games": [
+  {
+   "game": "ar25",
+   "source": "explorer",
+   "levels_solved": 2,
+   "terminal_layer": [
+    "layers[0] of 3",
+    "layers[0] of 3"
+   ],
+   "levels": [
+    {
+     "level": 1,
+     "n_neg": 78,
+     "actions": 52,
+     "baseline": 32,
+     "survivors": [
+      "every_same_rows(colour 11, colour 0)",
+      "same_rows(colour 11, colour 11)",
+      "shape_matches(colour 4, colour 5)",
+      "shape_matches(colour 5, colour 4)"
+     ],
+     "near": []
+    },
+    {
+     "level": 2,
+     "n_neg": 642,
+     "actions": 19267,
+     "baseline": 50,
+     "survivors": [
+      "every_same_rows(colour 11, colour 0)",
+      "shape_matches(colour 4, colour 5)",
+      "shape_matches(colour 5, colour 4)"
+     ],
+     "near": [
+      "same_columns(colour 11, colour 11)"
+     ]
+    }
+   ],
+   "l1_survivors": 4,
+   "l1_survivors_existing_grammar": 3,
+   "l1_survivors_forall": 1,
+   "transfer": {
+    "every_same_rows(colour 11, colour 0)": [
+     true
+    ],
+    "same_rows(colour 11, colour 11)": [
+     false
+    ],
+    "shape_matches(colour 4, colour 5)": [
+     true
+    ],
+    "shape_matches(colour 5, colour 4)": [
+     true
+    ]
+   },
+   "l1_survivors_holding_on_all_later": [
+    "every_same_rows(colour 11, colour 0)",
+    "shape_matches(colour 4, colour 5)",
+    "shape_matches(colour 5, colour 4)"
+   ],
+   "joint_survivors": [
+    "every_same_rows(colour 11, colour 0)",
+    "shape_matches(colour 4, colour 5)",
+    "shape_matches(colour 5, colour 4)"
+   ],
+   "l1_kinds": [
+    "('every_same_rows', False)",
+    "('same_rows', True)",
+    "('shape_matches', False)"
+   ],
+   "lifted_transfer": [
+    [
+     "('every_same_rows', False)",
+     "('shape_matches', False)"
+    ]
+   ],
+   "lifted_instantiation": [
+    {
+     "level": 2,
+     "instantiated": 40,
+     "alive_after_falsification": 29,
+     "winning_frame_satisfies": [
+      "every_same_rows(colour 11, colour 0)",
+      "shape_matches(colour 4, colour 5)",
+      "shape_matches(colour 5, colour 4)"
+     ]
+    }
+   ]
+  },
+  {
+   "game": "bp35",
+   "source": "explorer",
+   "levels_solved": 0,
+   "terminal_layer": []
+  },
+  {
+   "game": "cd82",
+   "source": "explorer",
+   "levels_solved": 2,
+   "terminal_layer": [
+    "layers[14] of 16",
+    "layers[14] of 16"
+   ],
+   "levels": [
+    {
+     "level": 1,
+     "n_neg": 250,
+     "actions": 984,
+     "baseline": 55,
+     "survivors": [],
+     "near": []
+    },
+    {
+     "level": 2,
+     "n_neg": 605,
+     "actions": 5721,
+     "baseline": 8,
+     "survivors": [
+      "shape_matches(colour 15, colour 15)"
+     ],
+     "near": []
+    }
+   ],
+   "l1_survivors": 0,
+   "l1_survivors_existing_grammar": 0,
+   "l1_survivors_forall": 0,
+   "transfer": {},
+   "l1_survivors_holding_on_all_later": [],
+   "joint_survivors": [],
+   "l1_kinds": [],
+   "lifted_transfer": [
+    []
+   ],
+   "lifted_instantiation": [
+    {
+     "level": 2,
+     "instantiated": 0,
+     "alive_after_falsification": 0,
+     "winning_frame_satisfies": []
+    }
+   ]
+  },
+  {
+   "game": "dc22",
+   "source": "explorer",
+   "levels_solved": 0,
+   "terminal_layer": []
+  },
+  {
+   "game": "ft09",
+   "source": "explorer",
+   "levels_solved": 1,
+   "terminal_layer": [
+    "layers[0] of 2"
+   ],
+   "levels": [
+    {
+     "level": 1,
+     "n_neg": 472,
+     "actions": 6118,
+     "baseline": 43,
+     "survivors": [],
+     "near": []
+    }
+   ],
+   "l1_survivors": 0,
+   "l1_survivors_existing_grammar": 0,
+   "l1_survivors_forall": 0,
+   "transfer": {},
+   "l1_survivors_holding_on_all_later": [],
+   "joint_survivors": [],
+   "l1_kinds": [],
+   "lifted_transfer": [],
+   "lifted_instantiation": []
+  },
+  {
+   "game": "ka59",
+   "source": "explorer",
+   "levels_solved": 0,
+   "terminal_layer": []
+  },
+  {
+   "game": "lp85",
+   "source": "explorer",
+   "levels_solved": 1,
+   "terminal_layer": [
+    "layers[0] of 2"
+   ],
+   "levels": [
+    {
+     "level": 1,
+     "n_neg": 140,
+     "actions": 1327,
+     "baseline": 17,
+     "survivors": [],
+     "near": []
+    }
+   ],
+   "l1_survivors": 0,
+   "l1_survivors_existing_grammar": 0,
+   "l1_survivors_forall": 0,
+   "transfer": {},
+   "l1_survivors_holding_on_all_later": [],
+   "joint_survivors": [],
+   "l1_kinds": [],
+   "lifted_transfer": [],
+   "lifted_instantiation": []
+  },
+  {
+   "game": "ls20",
+   "source": "explorer",
+   "levels_solved": 2,
+   "terminal_layer": [
+    "layers[0] of 2",
+    "layers[0] of 2"
+   ],
+   "levels": [
+    {
+     "level": 1,
+     "n_neg": 164,
+     "actions": 596,
+     "baseline": 22,
+     "survivors": [
+      "count(colour 9) == 3",
+      "every_in(colour 12, colour 5)",
+      "every_in(colour 9, colour 5)",
+      "inside(colour 12, colour 5)",
+      "vanish(colour 9, shape 80fa8f40)",
+      "vanish(colour 9, shape f14c517d)"
+     ],
+     "near": []
+    },
+    {
+     "level": 2,
+     "n_neg": 352,
+     "actions": 6232,
+     "baseline": 123,
+     "survivors": [
+      "count(colour 9) == 3",
+      "every_in(colour 12, colour 5)",
+      "every_in(colour 9, colour 5)",
+      "inside(colour 12, colour 5)",
+      "overlap(colour 12, colour 5)",
+      "overlap(colour 5, colour 12)",
+      "touch(colour 12, colour 5)",
+      "touch(colour 5, colour 12)",
+      "vanish(colour 9, shape 80fa8f40)"
+     ],
+     "near": []
+    }
+   ],
+   "l1_survivors": 6,
+   "l1_survivors_existing_grammar": 4,
+   "l1_survivors_forall": 2,
+   "transfer": {
+    "count(colour 9) == 3": [
+     true
+    ],
+    "every_in(colour 12, colour 5)": [
+     true
+    ],
+    "every_in(colour 9, colour 5)": [
+     true
+    ],
+    "inside(colour 12, colour 5)": [
+     true
+    ],
+    "vanish(colour 9, shape 80fa8f40)": [
+     true
+    ],
+    "vanish(colour 9, shape f14c517d)": [
+     false
+    ]
+   },
+   "l1_survivors_holding_on_all_later": [
+    "count(colour 9) == 3",
+    "every_in(colour 12, colour 5)",
+    "every_in(colour 9, colour 5)",
+    "inside(colour 12, colour 5)",
+    "vanish(colour 9, shape 80fa8f40)"
+   ],
+   "joint_survivors": [
+    "count(colour 9) == 3",
+    "every_in(colour 12, colour 5)",
+    "every_in(colour 9, colour 5)",
+    "inside(colour 12, colour 5)",
+    "vanish(colour 9, shape 80fa8f40)"
+   ],
+   "l1_kinds": [
+    "('count', False)",
+    "('every_in', False)",
+    "('inside', False)",
+    "('vanish_shape', False)"
+   ],
+   "lifted_transfer": [
+    [
+     "('count', False)",
+     "('every_in', False)",
+     "('inside', False)",
+     "('vanish_shape', False)"
+    ]
+   ],
+   "lifted_instantiation": [
+    {
+     "level": 2,
+     "instantiated": 68,
+     "alive_after_falsification": 57,
+     "winning_frame_satisfies": [
+      "every_in(colour 12, colour 5)",
+      "every_in(colour 9, colour 5)",
+      "inside(colour 12, colour 5)",
+      "vanish(colour 9, shape 3d60b4d5)",
+      "vanish(colour 9, shape 80fa8f40)"
+     ]
+    }
+   ]
+  },
+  {
+   "game": "m0r0",
+   "source": "explorer",
+   "levels_solved": 2,
+   "terminal_layer": [
+    "layers[0] of 2",
+    "layers[0] of 2"
+   ],
+   "levels": [
+    {
+     "level": 1,
+     "n_neg": 88,
+     "actions": 94,
+     "baseline": 30,
+     "survivors": [],
+     "near": []
+    },
+    {
+     "level": 2,
+     "n_neg": 515,
+     "actions": 9588,
+     "baseline": 111,
+     "survivors": [],
+     "near": [
+      "count(colour 10) == 1",
+      "every_in(colour 10, colour 6)"
+     ]
+    }
+   ],
+   "l1_survivors": 0,
+   "l1_survivors_existing_grammar": 0,
+   "l1_survivors_forall": 0,
+   "transfer": {},
+   "l1_survivors_holding_on_all_later": [],
+   "joint_survivors": [],
+   "l1_kinds": [],
+   "lifted_transfer": [
+    []
+   ],
+   "lifted_instantiation": [
+    {
+     "level": 2,
+     "instantiated": 0,
+     "alive_after_falsification": 0,
+     "winning_frame_satisfies": []
+    }
+   ]
+  },
+  {
+   "game": "re86",
+   "source": "explorer",
+   "levels_solved": 0,
+   "terminal_layer": []
+  },
+  {
+   "game": "s5i5",
+   "source": "explorer",
+   "levels_solved": 1,
+   "terminal_layer": [
+    "layers[0] of 2"
+   ],
+   "levels": [
+    {
+     "level": 1,
+     "n_neg": 149,
+     "actions": 810,
+     "baseline": 20,
+     "survivors": [
+      "count(colour 13) == 2"
+     ],
+     "near": []
+    }
+   ],
+   "l1_survivors": 1,
+   "l1_survivors_existing_grammar": 1,
+   "l1_survivors_forall": 0,
+   "transfer": {
+    "count(colour 13) == 2": []
+   },
+   "l1_survivors_holding_on_all_later": [],
+   "joint_survivors": [
+    "count(colour 13) == 2"
+   ],
+   "l1_kinds": [
+    "('count', False)"
+   ],
+   "lifted_transfer": [],
+   "lifted_instantiation": []
+  },
+  {
+   "game": "sb26",
+   "source": "explorer",
+   "levels_solved": 0,
+   "terminal_layer": []
+  },
+  {
+   "game": "sk48",
+   "source": "explorer",
+   "levels_solved": 0,
+   "terminal_layer": []
+  },
+  {
+   "game": "su15",
+   "source": "explorer",
+   "levels_solved": 0,
+   "terminal_layer": []
+  },
+  {
+   "game": "tn36",
+   "source": "explorer",
+   "levels_solved": 0,
+   "terminal_layer": []
+  },
+  {
+   "game": "tr87",
+   "source": "explorer",
+   "levels_solved": 0,
+   "terminal_layer": []
+  },
+  {
+   "game": "tu93",
+   "source": "explorer",
+   "levels_solved": 1,
+   "terminal_layer": [
+    "layers[5] of 9"
+   ],
+   "levels": [
+    {
+     "level": 1,
+     "n_neg": 108,
+     "actions": 284,
+     "baseline": 19,
+     "survivors": [
+      "none_left(colour 14)",
+      "vanish(colour 14, shape 9a14c8d4)"
+     ],
+     "near": []
+    }
+   ],
+   "l1_survivors": 2,
+   "l1_survivors_existing_grammar": 2,
+   "l1_survivors_forall": 0,
+   "transfer": {
+    "none_left(colour 14)": [],
+    "vanish(colour 14, shape 9a14c8d4)": []
+   },
+   "l1_survivors_holding_on_all_later": [],
+   "joint_survivors": [
+    "none_left(colour 14)",
+    "vanish(colour 14, shape 9a14c8d4)"
+   ],
+   "l1_kinds": [
+    "('none_left', False)",
+    "('vanish_shape', False)"
+   ],
+   "lifted_transfer": [],
+   "lifted_instantiation": []
+  },
+  {
+   "game": "vc33",
+   "source": "explorer",
+   "levels_solved": 3,
+   "terminal_layer": [
+    "layers[0] of 2",
+    "layers[0] of 2",
+    "layers[0] of 2"
+   ],
+   "levels": [
+    {
+     "level": 1,
+     "n_neg": 36,
+     "actions": 65,
+     "baseline": 7,
+     "survivors": [
+      "aligned(colour 11)",
+      "every_same_columns(colour 11, colour 11)",
+      "same_columns(colour 11, colour 11)"
+     ],
+     "near": []
+    },
+    {
+     "level": 2,
+     "n_neg": 97,
+     "actions": 732,
+     "baseline": 18,
+     "survivors": [
+      "aligned(colour 14)",
+      "every_same_columns(colour 14, colour 14)",
+      "same_columns(colour 14, colour 14)"
+     ],
+     "near": []
+    },
+    {
+     "level": 3,
+     "n_neg": 642,
+     "actions": 14718,
+     "baseline": 44,
+     "survivors": [],
+     "near": []
+    }
+   ],
+   "l1_survivors": 3,
+   "l1_survivors_existing_grammar": 2,
+   "l1_survivors_forall": 1,
+   "transfer": {
+    "aligned(colour 11)": [
+     false,
+     false
+    ],
+    "every_same_columns(colour 11, colour 11)": [
+     false,
+     false
+    ],
+    "same_columns(colour 11, colour 11)": [
+     false,
+     false
+    ]
+   },
+   "l1_survivors_holding_on_all_later": [],
+   "joint_survivors": [],
+   "l1_kinds": [
+    "('aligned', False)",
+    "('every_same_columns', True)",
+    "('same_columns', True)"
+   ],
+   "lifted_transfer": [
+    [
+     "('aligned', False)",
+     "('every_same_columns', True)",
+     "('same_columns', True)"
+    ],
+    []
+   ],
+   "lifted_instantiation": [
+    {
+     "level": 2,
+     "instantiated": 8,
+     "alive_after_falsification": 6,
+     "winning_frame_satisfies": [
+      "aligned(colour 14)",
+      "every_same_columns(colour 14, colour 14)",
+      "same_columns(colour 14, colour 14)"
+     ]
+    },
+    {
+     "level": 3,
+     "instantiated": 19,
+     "alive_after_falsification": 15,
+     "winning_frame_satisfies": []
+    }
+   ]
+  },
+  {
+   "game": "wa30",
+   "source": "explorer",
+   "levels_solved": 0,
+   "terminal_layer": []
+  },
+  {
+   "game": "ar25",
+   "source": "oracle",
+   "levels_solved": 2,
+   "terminal_layer": [
+    "layers[0] of 3",
+    "layers[0] of 3"
+   ],
+   "levels": [
+    {
+     "level": 1,
+     "n_neg": 299,
+     "actions": 15,
+     "baseline": 32,
+     "survivors": [
+      "every_same_rows(colour 11, colour 0)",
+      "shape_matches(colour 4, colour 5)",
+      "shape_matches(colour 5, colour 4)"
+     ],
+     "near": [
+      "same_columns(colour 11, colour 11)"
+     ]
+    },
+    {
+     "level": 2,
+     "n_neg": 613,
+     "actions": 11,
+     "baseline": 50,
+     "survivors": [
+      "every_same_rows(colour 11, colour 0)",
+      "shape_matches(colour 4, colour 5)",
+      "shape_matches(colour 5, colour 4)"
+     ],
+     "near": [
+      "same_columns(colour 11, colour 11)",
+      "same_rows(colour 11, colour 11)"
+     ]
+    }
+   ],
+   "l1_survivors": 3,
+   "l1_survivors_existing_grammar": 2,
+   "l1_survivors_forall": 1,
+   "transfer": {
+    "every_same_rows(colour 11, colour 0)": [
+     true
+    ],
+    "shape_matches(colour 4, colour 5)": [
+     true
+    ],
+    "shape_matches(colour 5, colour 4)": [
+     true
+    ]
+   },
+   "l1_survivors_holding_on_all_later": [
+    "every_same_rows(colour 11, colour 0)",
+    "shape_matches(colour 4, colour 5)",
+    "shape_matches(colour 5, colour 4)"
+   ],
+   "joint_survivors": [
+    "every_same_rows(colour 11, colour 0)",
+    "shape_matches(colour 4, colour 5)",
+    "shape_matches(colour 5, colour 4)"
+   ],
+   "l1_kinds": [
+    "('every_same_rows', False)",
+    "('shape_matches', False)"
+   ],
+   "lifted_transfer": [
+    [
+     "('every_same_rows', False)",
+     "('shape_matches', False)"
+    ]
+   ],
+   "lifted_instantiation": [
+    {
+     "level": 2,
+     "instantiated": 37,
+     "alive_after_falsification": 32,
+     "winning_frame_satisfies": [
+      "every_same_rows(colour 11, colour 0)",
+      "shape_matches(colour 4, colour 5)",
+      "shape_matches(colour 5, colour 4)"
+     ]
+    }
+   ]
+  },
+  {
+   "game": "cd82",
+   "source": "oracle",
+   "levels_solved": 2,
+   "terminal_layer": [
+    "layers[14] of 16",
+    "layers[14] of 16"
+   ],
+   "levels": [
+    {
+     "level": 1,
+     "n_neg": 73,
+     "actions": 5,
+     "baseline": 55,
+     "survivors": [],
+     "near": []
+    },
+    {
+     "level": 2,
+     "n_neg": 512,
+     "actions": 6,
+     "baseline": 8,
+     "survivors": [],
+     "near": [
+      "shape_matches(colour 15, colour 15)"
+     ]
+    }
+   ],
+   "l1_survivors": 0,
+   "l1_survivors_existing_grammar": 0,
+   "l1_survivors_forall": 0,
+   "transfer": {},
+   "l1_survivors_holding_on_all_later": [],
+   "joint_survivors": [],
+   "l1_kinds": [],
+   "lifted_transfer": [
+    []
+   ],
+   "lifted_instantiation": [
+    {
+     "level": 2,
+     "instantiated": 0,
+     "alive_after_falsification": 0,
+     "winning_frame_satisfies": []
+    }
+   ]
+  },
+  {
+   "game": "dc22",
+   "source": "oracle",
+   "levels_solved": 4,
+   "terminal_layer": [
+    "layers[0] of 2",
+    "layers[0] of 2",
+    "layers[0] of 2",
+    "layers[0] of 2"
+   ],
+   "levels": [
+    {
+     "level": 1,
+     "n_neg": 144,
+     "actions": 20,
+     "baseline": 59,
+     "survivors": [
+      "none_left(colour 11)",
+      "vanish(colour 11, shape 24a38e0e)"
+     ],
+     "near": []
+    },
+    {
+     "level": 2,
+     "n_neg": 644,
+     "actions": 42,
+     "baseline": 102,
+     "survivors": [
+      "none_left(colour 11)",
+      "vanish(colour 11, shape 24a38e0e)"
+     ],
+     "near": []
+    },
+    {
+     "level": 3,
+     "n_neg": 647,
+     "actions": 45,
+     "baseline": 67,
+     "survivors": [
+      "none_left(colour 11)",
+      "vanish(colour 11, shape 24a38e0e)"
+     ],
+     "near": []
+    },
+    {
+     "level": 4,
+     "n_neg": 664,
+     "actions": 62,
+     "baseline": 98,
+     "survivors": [
+      "count(colour 11) == 1",
+      "every_in(colour 11, colour 5)",
+      "vanish(colour 11, shape 24a38e0e)"
+     ],
+     "near": []
+    }
+   ],
+   "l1_survivors": 2,
+   "l1_survivors_existing_grammar": 2,
+   "l1_survivors_forall": 0,
+   "transfer": {
+    "none_left(colour 11)": [
+     true,
+     true,
+     false
+    ],
+    "vanish(colour 11, shape 24a38e0e)": [
+     true,
+     true,
+     true
+    ]
+   },
+   "l1_survivors_holding_on_all_later": [
+    "vanish(colour 11, shape 24a38e0e)"
+   ],
+   "joint_survivors": [
+    "vanish(colour 11, shape 24a38e0e)"
+   ],
+   "l1_kinds": [
+    "('none_left', False)",
+    "('vanish_shape', False)"
+   ],
+   "lifted_transfer": [
+    [
+     "('none_left', False)",
+     "('vanish_shape', False)"
+    ],
+    [
+     "('none_left', False)",
+     "('vanish_shape', False)"
+    ],
+    [
+     "('vanish_shape', False)"
+    ]
+   ],
+   "lifted_instantiation": [
+    {
+     "level": 2,
+     "instantiated": 27,
+     "alive_after_falsification": 16,
+     "winning_frame_satisfies": [
+      "none_left(colour 11)",
+      "vanish(colour 11, shape 24a38e0e)"
+     ]
+    },
+    {
+     "level": 3,
+     "instantiated": 29,
+     "alive_after_falsification": 20,
+     "winning_frame_satisfies": [
+      "none_left(colour 11)",
+      "vanish(colour 11, shape 24a38e0e)"
+     ]
+    },
+    {
+     "level": 4,
+     "instantiated": 26,
+     "alive_after_falsification": 16,
+     "winning_frame_satisfies": [
+      "vanish(colour 11, shape 24a38e0e)"
+     ]
+    }
+   ]
+  },
+  {
+   "game": "ft09",
+   "source": "oracle",
+   "levels_solved": 1,
+   "terminal_layer": [
+    "layers[0] of 2"
+   ],
+   "levels": [
+    {
+     "level": 1,
+     "n_neg": 123,
+     "actions": 4,
+     "baseline": 43,
+     "survivors": [],
+     "near": []
+    }
+   ],
+   "l1_survivors": 0,
+   "l1_survivors_existing_grammar": 0,
+   "l1_survivors_forall": 0,
+   "transfer": {},
+   "l1_survivors_holding_on_all_later": [],
+   "joint_survivors": [],
+   "l1_kinds": [],
+   "lifted_transfer": [],
+   "lifted_instantiation": []
+  },
+  {
+   "game": "ka59",
+   "source": "oracle",
+   "levels_solved": 1,
+   "terminal_layer": [
+    "layers[0] of 2"
+   ],
+   "levels": [
+    {
+     "level": 1,
+     "n_neg": 613,
+     "actions": 11,
+     "baseline": 28,
+     "survivors": [
+      "aligned(colour 1)",
+      "count(colour 1) == 2",
+      "every_in(colour 14, colour 4)",
+      "every_inside(colour 14, colour 1)",
+      "every_inside(colour 4, colour 1)",
+      "every_same_rows(colour 1, colour 1)",
+      "every_same_rows(colour 15, colour 1)",
+      "vanish(colour 1, shape 30d5b81d)"
+     ],
+     "near": []
+    }
+   ],
+   "l1_survivors": 8,
+   "l1_survivors_existing_grammar": 3,
+   "l1_survivors_forall": 5,
+   "transfer": {
+    "aligned(colour 1)": [],
+    "count(colour 1) == 2": [],
+    "every_in(colour 14, colour 4)": [],
+    "every_inside(colour 14, colour 1)": [],
+    "every_inside(colour 4, colour 1)": [],
+    "every_same_rows(colour 1, colour 1)": [],
+    "every_same_rows(colour 15, colour 1)": [],
+    "vanish(colour 1, shape 30d5b81d)": []
+   },
+   "l1_survivors_holding_on_all_later": [],
+   "joint_survivors": [
+    "aligned(colour 1)",
+    "count(colour 1) == 2",
+    "every_in(colour 14, colour 4)",
+    "every_inside(colour 14, colour 1)",
+    "every_inside(colour 4, colour 1)",
+    "every_same_rows(colour 1, colour 1)",
+    "every_same_rows(colour 15, colour 1)",
+    "vanish(colour 1, shape 30d5b81d)"
+   ],
+   "l1_kinds": [
+    "('aligned', False)",
+    "('count', False)",
+    "('every_in', False)",
+    "('every_inside', False)",
+    "('every_same_rows', False)",
+    "('every_same_rows', True)",
+    "('vanish_shape', False)"
+   ],
+   "lifted_transfer": [],
+   "lifted_instantiation": []
+  },
+  {
+   "game": "lp85",
+   "source": "oracle",
+   "levels_solved": 1,
+   "terminal_layer": [
+    "layers[0] of 2"
+   ],
+   "levels": [
+    {
+     "level": 1,
+     "n_neg": 15,
+     "actions": 5,
+     "baseline": 17,
+     "survivors": [
+      "every_same_columns(colour 15, colour 9)"
+     ],
+     "near": [
+      "every_same_rows(colour 2, colour 2)"
+     ]
+    }
+   ],
+   "l1_survivors": 1,
+   "l1_survivors_existing_grammar": 0,
+   "l1_survivors_forall": 1,
+   "transfer": {
+    "every_same_columns(colour 15, colour 9)": []
+   },
+   "l1_survivors_holding_on_all_later": [],
+   "joint_survivors": [
+    "every_same_columns(colour 15, colour 9)"
+   ],
+   "l1_kinds": [
+    "('every_same_columns', False)"
+   ],
+   "lifted_transfer": [],
+   "lifted_instantiation": []
+  },
+  {
+   "game": "ls20",
+   "source": "oracle",
+   "levels_solved": 3,
+   "terminal_layer": [
+    "layers[0] of 2",
+    "layers[0] of 2",
+    "layers[0] of 2"
+   ],
+   "levels": [
+    {
+     "level": 1,
+     "n_neg": 103,
+     "actions": 13,
+     "baseline": 22,
+     "survivors": [
+      "count(colour 9) == 3",
+      "every_in(colour 12, colour 5)",
+      "every_in(colour 9, colour 5)",
+      "inside(colour 12, colour 5)",
+      "vanish(colour 9, shape 80fa8f40)",
+      "vanish(colour 9, shape f14c517d)"
+     ],
+     "near": []
+    },
+    {
+     "level": 2,
+     "n_neg": 622,
+     "actions": 45,
+     "baseline": 123,
+     "survivors": [
+      "count(colour 9) == 3",
+      "every_in(colour 12, colour 5)",
+      "every_in(colour 9, colour 5)",
+      "inside(colour 12, colour 5)",
+      "overlap(colour 12, colour 5)",
+      "overlap(colour 5, colour 12)",
+      "touch(colour 12, colour 5)",
+      "touch(colour 5, colour 12)",
+      "vanish(colour 9, shape 80fa8f40)"
+     ],
+     "near": []
+    },
+    {
+     "level": 3,
+     "n_neg": 641,
+     "actions": 39,
+     "baseline": 73,
+     "survivors": [
+      "vanish(colour 9, shape 80fa8f40)"
+     ],
+     "near": []
+    }
+   ],
+   "l1_survivors": 6,
+   "l1_survivors_existing_grammar": 4,
+   "l1_survivors_forall": 2,
+   "transfer": {
+    "count(colour 9) == 3": [
+     true,
+     false
+    ],
+    "every_in(colour 12, colour 5)": [
+     true,
+     false
+    ],
+    "every_in(colour 9, colour 5)": [
+     true,
+     false
+    ],
+    "inside(colour 12, colour 5)": [
+     true,
+     false
+    ],
+    "vanish(colour 9, shape 80fa8f40)": [
+     true,
+     true
+    ],
+    "vanish(colour 9, shape f14c517d)": [
+     false,
+     false
+    ]
+   },
+   "l1_survivors_holding_on_all_later": [
+    "vanish(colour 9, shape 80fa8f40)"
+   ],
+   "joint_survivors": [
+    "vanish(colour 9, shape 80fa8f40)"
+   ],
+   "l1_kinds": [
+    "('count', False)",
+    "('every_in', False)",
+    "('inside', False)",
+    "('vanish_shape', False)"
+   ],
+   "lifted_transfer": [
+    [
+     "('count', False)",
+     "('every_in', False)",
+     "('inside', False)",
+     "('vanish_shape', False)"
+    ],
+    [
+     "('vanish_shape', False)"
+    ]
+   ],
+   "lifted_instantiation": [
+    {
+     "level": 2,
+     "instantiated": 68,
+     "alive_after_falsification": 57,
+     "winning_frame_satisfies": [
+      "every_in(colour 12, colour 5)",
+      "every_in(colour 9, colour 5)",
+      "inside(colour 12, colour 5)",
+      "vanish(colour 9, shape 3d60b4d5)",
+      "vanish(colour 9, shape 80fa8f40)"
+     ]
+    },
+    {
+     "level": 3,
+     "instantiated": 102,
+     "alive_after_falsification": 81,
+     "winning_frame_satisfies": [
+      "vanish(colour 9, shape 80fa8f40)",
+      "vanish(colour 9, shape fd598a9e)"
+     ]
+    }
+   ]
+  },
+  {
+   "game": "m0r0",
+   "source": "oracle",
+   "levels_solved": 2,
+   "terminal_layer": [
+    "layers[0] of 2",
+    "layers[0] of 2"
+   ],
+   "levels": [
+    {
+     "level": 1,
+     "n_neg": 612,
+     "actions": 15,
+     "baseline": 30,
+     "survivors": [],
+     "near": [
+      "count(colour 10) == 1"
+     ]
+    },
+    {
+     "level": 2,
+     "n_neg": 625,
+     "actions": 23,
+     "baseline": 111,
+     "survivors": [],
+     "near": [
+      "count(colour 10) == 1"
+     ]
+    }
+   ],
+   "l1_survivors": 0,
+   "l1_survivors_existing_grammar": 0,
+   "l1_survivors_forall": 0,
+   "transfer": {},
+   "l1_survivors_holding_on_all_later": [],
+   "joint_survivors": [],
+   "l1_kinds": [],
+   "lifted_transfer": [
+    []
+   ],
+   "lifted_instantiation": [
+    {
+     "level": 2,
+     "instantiated": 0,
+     "alive_after_falsification": 0,
+     "winning_frame_satisfies": []
+    }
+   ]
+  },
+  {
+   "game": "s5i5",
+   "source": "oracle",
+   "levels_solved": 1,
+   "terminal_layer": [
+    "layers[0] of 2"
+   ],
+   "levels": [
+    {
+     "level": 1,
+     "n_neg": 133,
+     "actions": 13,
+     "baseline": 20,
+     "survivors": [
+      "count(colour 13) == 2"
+     ],
+     "near": []
+    }
+   ],
+   "l1_survivors": 1,
+   "l1_survivors_existing_grammar": 1,
+   "l1_survivors_forall": 0,
+   "transfer": {
+    "count(colour 13) == 2": []
+   },
+   "l1_survivors_holding_on_all_later": [],
+   "joint_survivors": [
+    "count(colour 13) == 2"
+   ],
+   "l1_kinds": [
+    "('count', False)"
+   ],
+   "lifted_transfer": [],
+   "lifted_instantiation": []
+  },
+  {
+   "game": "sk48",
+   "source": "oracle",
+   "levels_solved": 1,
+   "terminal_layer": [
+    "layers[3] of 39"
+   ],
+   "levels": [
+    {
+     "level": 1,
+     "n_neg": 616,
+     "actions": 14,
+     "baseline": 61,
+     "survivors": [
+      "every_same_rows(colour 0, colour 0)",
+      "none_left(colour 14)",
+      "none_left(colour 8)",
+      "none_left(colour 9)",
+      "vanish(colour 14, shape 91872f4d)",
+      "vanish(colour 8, shape cac9b644)",
+      "vanish(colour 9, shape 41744822)"
+     ],
+     "near": []
+    }
+   ],
+   "l1_survivors": 7,
+   "l1_survivors_existing_grammar": 6,
+   "l1_survivors_forall": 1,
+   "transfer": {
+    "every_same_rows(colour 0, colour 0)": [],
+    "none_left(colour 14)": [],
+    "none_left(colour 8)": [],
+    "none_left(colour 9)": [],
+    "vanish(colour 14, shape 91872f4d)": [],
+    "vanish(colour 8, shape cac9b644)": [],
+    "vanish(colour 9, shape 41744822)": []
+   },
+   "l1_survivors_holding_on_all_later": [],
+   "joint_survivors": [
+    "every_same_rows(colour 0, colour 0)",
+    "none_left(colour 14)",
+    "none_left(colour 8)",
+    "none_left(colour 9)",
+    "vanish(colour 14, shape 91872f4d)",
+    "vanish(colour 8, shape cac9b644)",
+    "vanish(colour 9, shape 41744822)"
+   ],
+   "l1_kinds": [
+    "('every_same_rows', True)",
+    "('none_left', False)",
+    "('vanish_shape', False)"
+   ],
+   "lifted_transfer": [],
+   "lifted_instantiation": []
+  },
+  {
+   "game": "su15",
+   "source": "oracle",
+   "levels_solved": 1,
+   "terminal_layer": [
+    "layers[3] of 15"
+   ],
+   "levels": [
+    {
+     "level": 1,
+     "n_neg": 27,
+     "actions": 7,
+     "baseline": 22,
+     "survivors": [
+      "count(colour 0) == 3",
+      "count(colour 15) == 1",
+      "every_inside(colour 0, colour 4)",
+      "inside(colour 0, colour 4)",
+      "inside(colour 3, colour 0)",
+      "none_left(colour 9)",
+      "overlap(colour 0, colour 15)",
+      "overlap(colour 0, colour 3)",
+      "overlap(colour 0, colour 4)",
+      "overlap(colour 15, colour 0)",
+      "overlap(colour 3, colour 0)",
+      "overlap(colour 4, colour 0)",
+      "shape_matches(colour 0, colour 15)",
+      "shape_matches(colour 0, colour 3)",
+      "shape_matches(colour 15, colour 0)",
+      "shape_matches(colour 3, colour 0)",
+      "touch(colour 0, colour 15)",
+      "touch(colour 0, colour 4)",
+      "touch(colour 15, colour 0)",
+      "touch(colour 4, colour 0)",
+      "vanish(colour 9, shape 00e71f0f)"
+     ],
+     "near": []
+    }
+   ],
+   "l1_survivors": 21,
+   "l1_survivors_existing_grammar": 20,
+   "l1_survivors_forall": 1,
+   "transfer": {
+    "count(colour 0) == 3": [],
+    "count(colour 15) == 1": [],
+    "every_inside(colour 0, colour 4)": [],
+    "inside(colour 0, colour 4)": [],
+    "inside(colour 3, colour 0)": [],
+    "none_left(colour 9)": [],
+    "overlap(colour 0, colour 15)": [],
+    "overlap(colour 0, colour 3)": [],
+    "overlap(colour 0, colour 4)": [],
+    "overlap(colour 15, colour 0)": [],
+    "overlap(colour 3, colour 0)": [],
+    "overlap(colour 4, colour 0)": [],
+    "shape_matches(colour 0, colour 15)": [],
+    "shape_matches(colour 0, colour 3)": [],
+    "shape_matches(colour 15, colour 0)": [],
+    "shape_matches(colour 3, colour 0)": [],
+    "touch(colour 0, colour 15)": [],
+    "touch(colour 0, colour 4)": [],
+    "touch(colour 15, colour 0)": [],
+    "touch(colour 4, colour 0)": [],
+    "vanish(colour 9, shape 00e71f0f)": []
+   },
+   "l1_survivors_holding_on_all_later": [],
+   "joint_survivors": [
+    "count(colour 0) == 3",
+    "count(colour 15) == 1",
+    "every_inside(colour 0, colour 4)",
+    "inside(colour 0, colour 4)",
+    "inside(colour 3, colour 0)",
+    "none_left(colour 9)",
+    "overlap(colour 0, colour 15)",
+    "overlap(colour 0, colour 3)",
+    "overlap(colour 0, colour 4)",
+    "overlap(colour 15, colour 0)",
+    "overlap(colour 3, colour 0)",
+    "overlap(colour 4, colour 0)",
+    "shape_matches(colour 0, colour 15)",
+    "shape_matches(colour 0, colour 3)",
+    "shape_matches(colour 15, colour 0)",
+    "shape_matches(colour 3, colour 0)",
+    "touch(colour 0, colour 15)",
+    "touch(colour 0, colour 4)",
+    "touch(colour 15, colour 0)",
+    "touch(colour 4, colour 0)",
+    "vanish(colour 9, shape 00e71f0f)"
+   ],
+   "l1_kinds": [
+    "('count', False)",
+    "('every_inside', False)",
+    "('inside', False)",
+    "('none_left', False)",
+    "('overlap', False)",
+    "('shape_matches', False)",
+    "('touch', False)",
+    "('vanish_shape', False)"
+   ],
+   "lifted_transfer": [],
+   "lifted_instantiation": []
+  },
+  {
+   "game": "tu93",
+   "source": "oracle",
+   "levels_solved": 5,
+   "terminal_layer": [
+    "layers[5] of 9",
+    "layers[5] of 9",
+    "layers[5] of 9",
+    "layers[11] of 14",
+    "layers[12] of 14"
+   ],
+   "levels": [
+    {
+     "level": 1,
+     "n_neg": 81,
+     "actions": 18,
+     "baseline": 19,
+     "survivors": [
+      "none_left(colour 14)",
+      "vanish(colour 14, shape 9a14c8d4)"
+     ],
+     "near": []
+    },
+    {
+     "level": 2,
+     "n_neg": 40,
+     "actions": 10,
+     "baseline": 16,
+     "survivors": [
+      "none_left(colour 14)",
+      "vanish(colour 14, shape 9a14c8d4)"
+     ],
+     "near": []
+    },
+    {
+     "level": 3,
+     "n_neg": 122,
+     "actions": 19,
+     "baseline": 34,
+     "survivors": [
+      "none_left(colour 14)",
+      "vanish(colour 14, shape 9a14c8d4)"
+     ],
+     "near": []
+    },
+    {
+     "level": 4,
+     "n_neg": 87,
+     "actions": 17,
+     "baseline": 42,
+     "survivors": [
+      "none_left(colour 14)",
+      "vanish(colour 14, shape 9a14c8d4)"
+     ],
+     "near": []
+    },
+    {
+     "level": 5,
+     "n_neg": 309,
+     "actions": 29,
+     "baseline": 123,
+     "survivors": [],
+     "near": []
+    }
+   ],
+   "l1_survivors": 2,
+   "l1_survivors_existing_grammar": 2,
+   "l1_survivors_forall": 0,
+   "transfer": {
+    "none_left(colour 14)": [
+     true,
+     true,
+     true,
+     false
+    ],
+    "vanish(colour 14, shape 9a14c8d4)": [
+     true,
+     true,
+     true,
+     false
+    ]
+   },
+   "l1_survivors_holding_on_all_later": [],
+   "joint_survivors": [],
+   "l1_kinds": [
+    "('none_left', False)",
+    "('vanish_shape', False)"
+   ],
+   "lifted_transfer": [
+    [
+     "('none_left', False)",
+     "('vanish_shape', False)"
+    ],
+    [
+     "('none_left', False)",
+     "('vanish_shape', False)"
+    ],
+    [
+     "('none_left', False)",
+     "('vanish_shape', False)"
+    ],
+    []
+   ],
+   "lifted_instantiation": [
+    {
+     "level": 2,
+     "instantiated": 14,
+     "alive_after_falsification": 8,
+     "winning_frame_satisfies": [
+      "none_left(colour 14)",
+      "vanish(colour 14, shape 9a14c8d4)"
+     ]
+    },
+    {
+     "level": 3,
+     "instantiated": 15,
+     "alive_after_falsification": 8,
+     "winning_frame_satisfies": [
+      "none_left(colour 14)",
+      "vanish(colour 14, shape 9a14c8d4)"
+     ]
+    },
+    {
+     "level": 4,
+     "instantiated": 16,
+     "alive_after_falsification": 11,
+     "winning_frame_satisfies": [
+      "none_left(colour 14)",
+      "vanish(colour 14, shape 9a14c8d4)"
+     ]
+    },
+    {
+     "level": 5,
+     "instantiated": 16,
+     "alive_after_falsification": 9,
+     "winning_frame_satisfies": []
+    }
+   ]
+  },
+  {
+   "game": "vc33",
+   "source": "oracle",
+   "levels_solved": 4,
+   "terminal_layer": [
+    "layers[0] of 2",
+    "layers[0] of 2",
+    "layers[0] of 2",
+    "layers[0] of 2"
+   ],
+   "levels": [
+    {
+     "level": 1,
+     "n_neg": 10,
+     "actions": 3,
+     "baseline": 7,
+     "survivors": [
+      "aligned(colour 11)",
+      "every_same_columns(colour 11, colour 11)",
+      "same_columns(colour 11, colour 11)"
+     ],
+     "near": [
+      "every_same_columns(colour 4, colour 9)",
+      "same_columns(colour 4, colour 9)",
+      "same_columns(colour 9, colour 4)"
+     ]
+    },
+    {
+     "level": 2,
+     "n_neg": 55,
+     "actions": 7,
+     "baseline": 18,
+     "survivors": [
+      "aligned(colour 14)",
+      "every_same_columns(colour 14, colour 14)",
+      "same_columns(colour 14, colour 14)"
+     ],
+     "near": []
+    },
+    {
+     "level": 3,
+     "n_neg": 625,
+     "actions": 23,
+     "baseline": 44,
+     "survivors": [],
+     "near": []
+    },
+    {
+     "level": 4,
+     "n_neg": 623,
+     "actions": 21,
+     "baseline": 61,
+     "survivors": [
+      "aligned(colour 11)",
+      "every_same_rows(colour 11, colour 11)",
+      "same_rows(colour 11, colour 11)",
+      "same_rows(colour 4, colour 5)",
+      "same_rows(colour 5, colour 4)"
+     ],
+     "near": [
+      "count(colour 0) == 2",
+      "every_same_rows(colour 5, colour 0)"
+     ]
+    }
+   ],
+   "l1_survivors": 3,
+   "l1_survivors_existing_grammar": 2,
+   "l1_survivors_forall": 1,
+   "transfer": {
+    "aligned(colour 11)": [
+     false,
+     false,
+     true
+    ],
+    "every_same_columns(colour 11, colour 11)": [
+     false,
+     false,
+     false
+    ],
+    "same_columns(colour 11, colour 11)": [
+     false,
+     false,
+     false
+    ]
+   },
+   "l1_survivors_holding_on_all_later": [],
+   "joint_survivors": [],
+   "l1_kinds": [
+    "('aligned', False)",
+    "('every_same_columns', True)",
+    "('same_columns', True)"
+   ],
+   "lifted_transfer": [
+    [
+     "('aligned', False)",
+     "('every_same_columns', True)",
+     "('same_columns', True)"
+    ],
+    [],
+    [
+     "('aligned', False)"
+    ]
+   ],
+   "lifted_instantiation": [
+    {
+     "level": 2,
+     "instantiated": 8,
+     "alive_after_falsification": 6,
+     "winning_frame_satisfies": [
+      "aligned(colour 14)",
+      "every_same_columns(colour 14, colour 14)",
+      "same_columns(colour 14, colour 14)"
+     ]
+    },
+    {
+     "level": 3,
+     "instantiated": 19,
+     "alive_after_falsification": 15,
+     "winning_frame_satisfies": []
+    },
+    {
+     "level": 4,
+     "instantiated": 13,
+     "alive_after_falsification": 13,
+     "winning_frame_satisfies": [
+      "aligned(colour 11)"
+     ]
+    }
+   ]
+  }
+ ]
+}

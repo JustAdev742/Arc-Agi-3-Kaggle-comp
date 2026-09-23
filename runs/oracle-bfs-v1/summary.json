@@ -1,0 +1,665 @@
+{
+ "max_nodes": 30000,
+ "max_s": 150.0,
+ "wall_s": 969.6,
+ "games": [
+  {
+   "game": "ar25",
+   "levels": [
+    {
+     "level": 1,
+     "baseline": 32,
+     "status": "found",
+     "optimal": 15,
+     "expanded": 263,
+     "seen": 283,
+     "secs": 10.0,
+     "branching": 6.0
+    },
+    {
+     "level": 2,
+     "baseline": 50,
+     "status": "exhausted",
+     "expanded": 21,
+     "seen": 21,
+     "secs": 0.9
+    }
+   ],
+   "win_levels": 8,
+   "level1_budget": null
+  },
+  {
+   "game": "bp35",
+   "levels": [
+    {
+     "level": 1,
+     "baseline": 21,
+     "status": "exhausted",
+     "expanded": 1,
+     "seen": 1,
+     "secs": 0.0
+    }
+   ],
+   "win_levels": 9,
+   "level1_budget": null
+  },
+  {
+   "game": "cd82",
+   "levels": [
+    {
+     "level": 1,
+     "baseline": 55,
+     "status": "found",
+     "optimal": 5,
+     "expanded": 23,
+     "seen": 43,
+     "secs": 0.2,
+     "branching": 5.0
+    },
+    {
+     "level": 2,
+     "baseline": 8,
+     "status": "exhausted",
+     "expanded": 272,
+     "seen": 272,
+     "secs": 2.6
+    }
+   ],
+   "win_levels": 6,
+   "level1_budget": null
+  },
+  {
+   "game": "cn04",
+   "levels": [
+    {
+     "level": 1,
+     "baseline": 29,
+     "status": "budget",
+     "expanded": 14548,
+     "seen": 27492,
+     "secs": 151.1
+    }
+   ],
+   "win_levels": 6,
+   "level1_budget": null
+  },
+  {
+   "game": "dc22",
+   "levels": [
+    {
+     "level": 1,
+     "baseline": 59,
+     "status": "found",
+     "optimal": 20,
+     "expanded": 118,
+     "seen": 123,
+     "secs": 3.6,
+     "branching": 6.0
+    },
+    {
+     "level": 2,
+     "baseline": 102,
+     "status": "found",
+     "optimal": 42,
+     "expanded": 710,
+     "seen": 743,
+     "secs": 27.8,
+     "branching": 7.0
+    },
+    {
+     "level": 3,
+     "baseline": 67,
+     "status": "found",
+     "optimal": 45,
+     "expanded": 977,
+     "seen": 1059,
+     "secs": 46.8,
+     "branching": 8.0
+    },
+    {
+     "level": 4,
+     "baseline": 98,
+     "status": "found",
+     "optimal": 62,
+     "expanded": 3027,
+     "seen": 3052,
+     "secs": 149.2,
+     "branching": 7.0
+    },
+    {
+     "level": 5,
+     "baseline": 324,
+     "status": "budget",
+     "expanded": 1149,
+     "seen": 1880,
+     "secs": 150.0
+    }
+   ],
+   "win_levels": 6,
+   "level1_budget": null
+  },
+  {
+   "game": "ft09",
+   "levels": [
+    {
+     "level": 1,
+     "baseline": 43,
+     "status": "exhausted",
+     "expanded": 1,
+     "seen": 1,
+     "secs": 0.0
+    }
+   ],
+   "win_levels": 6,
+   "level1_budget": null
+  },
+  {
+   "game": "g50t",
+   "levels": [
+    {
+     "level": 1,
+     "baseline": 78,
+     "status": "exhausted",
+     "expanded": 1854,
+     "seen": 1854,
+     "secs": 50.2
+    }
+   ],
+   "win_levels": 7,
+   "level1_budget": null
+  },
+  {
+   "game": "ka59",
+   "levels": [
+    {
+     "level": 1,
+     "baseline": 28,
+     "status": "found",
+     "optimal": 11,
+     "expanded": 1753,
+     "seen": 2303,
+     "secs": 19.8,
+     "branching": 6.0
+    },
+    {
+     "level": 2,
+     "baseline": 109,
+     "status": "budget",
+     "expanded": 6730,
+     "seen": 21477,
+     "secs": 150.0
+    }
+   ],
+   "win_levels": 7,
+   "level1_budget": null
+  },
+  {
+   "game": "lf52",
+   "levels": [
+    {
+     "level": 1,
+     "baseline": 32,
+     "status": "exhausted",
+     "expanded": 1,
+     "seen": 1,
+     "secs": 0.0
+    }
+   ],
+   "win_levels": 10,
+   "level1_budget": null
+  },
+  {
+   "game": "lp85",
+   "levels": [
+    {
+     "level": 1,
+     "baseline": 17,
+     "status": "found",
+     "optimal": 5,
+     "expanded": 8,
+     "seen": 9,
+     "secs": 0.1,
+     "branching": 2.0
+    },
+    {
+     "level": 2,
+     "baseline": 38,
+     "status": "budget",
+     "expanded": 1145,
+     "seen": 4571,
+     "secs": 154.9
+    }
+   ],
+   "win_levels": 8,
+   "level1_budget": null
+  },
+  {
+   "game": "ls20",
+   "levels": [
+    {
+     "level": 1,
+     "baseline": 22,
+     "status": "found",
+     "optimal": 13,
+     "expanded": 79,
+     "seen": 89,
+     "secs": 6.7,
+     "branching": 4.0
+    },
+    {
+     "level": 2,
+     "baseline": 123,
+     "status": "found",
+     "optimal": 45,
+     "expanded": 566,
+     "seen": 576,
+     "secs": 52.4,
+     "branching": 4.0
+    },
+    {
+     "level": 3,
+     "baseline": 73,
+     "status": "found",
+     "optimal": 39,
+     "expanded": 873,
+     "seen": 903,
+     "secs": 88.5,
+     "branching": 4.0
+    },
+    {
+     "level": 4,
+     "baseline": 84,
+     "status": "budget",
+     "expanded": 1334,
+     "seen": 1489,
+     "secs": 150.4
+    }
+   ],
+   "win_levels": 7,
+   "level1_budget": null
+  },
+  {
+   "game": "m0r0",
+   "levels": [
+    {
+     "level": 1,
+     "baseline": 30,
+     "status": "found",
+     "optimal": 15,
+     "expanded": 521,
+     "seen": 596,
+     "secs": 13.9,
+     "branching": 7.0
+    },
+    {
+     "level": 2,
+     "baseline": 111,
+     "status": "found",
+     "optimal": 23,
+     "expanded": 872,
+     "seen": 1064,
+     "secs": 35.3,
+     "branching": 7.0
+    },
+    {
+     "level": 3,
+     "baseline": 203,
+     "status": "budget",
+     "expanded": 3209,
+     "seen": 7067,
+     "secs": 150.0
+    }
+   ],
+   "win_levels": 6,
+   "level1_budget": null
+  },
+  {
+   "game": "r11l",
+   "levels": [
+    {
+     "level": 1,
+     "baseline": 22,
+     "status": "exhausted",
+     "expanded": 2,
+     "seen": 2,
+     "secs": 0.0
+    }
+   ],
+   "win_levels": 6,
+   "level1_budget": null
+  },
+  {
+   "game": "re86",
+   "levels": [
+    {
+     "level": 1,
+     "baseline": 26,
+     "status": "budget",
+     "expanded": 11547,
+     "seen": 16989,
+     "secs": 150.0
+    }
+   ],
+   "win_levels": 8,
+   "level1_budget": null
+  },
+  {
+   "game": "s5i5",
+   "levels": [
+    {
+     "level": 1,
+     "baseline": 20,
+     "status": "exhausted",
+     "expanded": 1,
+     "seen": 1,
+     "secs": 0.0
+    }
+   ],
+   "win_levels": 8,
+   "level1_budget": null
+  },
+  {
+   "game": "sb26",
+   "levels": [
+    {
+     "level": 1,
+     "baseline": 18,
+     "status": "budget",
+     "expanded": 1115,
+     "seen": 2891,
+     "secs": 153.0
+    }
+   ],
+   "win_levels": 8,
+   "level1_budget": null
+  },
+  {
+   "game": "sc25",
+   "levels": [
+    {
+     "level": 1,
+     "baseline": 36,
+     "status": "exhausted",
+     "expanded": 1,
+     "seen": 1,
+     "secs": 0.1
+    }
+   ],
+   "win_levels": 6,
+   "level1_budget": null
+  },
+  {
+   "game": "sk48",
+   "levels": [
+    {
+     "level": 1,
+     "baseline": 61,
+     "status": "found",
+     "optimal": 14,
+     "expanded": 417,
+     "seen": 637,
+     "secs": 20.7,
+     "branching": 6.0
+    },
+    {
+     "level": 2,
+     "baseline": 177,
+     "status": "budget",
+     "expanded": 2438,
+     "seen": 4502,
+     "secs": 150.0
+    }
+   ],
+   "win_levels": 8,
+   "level1_budget": null
+  },
+  {
+   "game": "sp80",
+   "levels": [
+    {
+     "level": 1,
+     "baseline": 39,
+     "status": "found",
+     "optimal": 4,
+     "expanded": 21,
+     "seen": 31,
+     "secs": 0.3,
+     "branching": 6.0
+    },
+    {
+     "level": 2,
+     "baseline": 58,
+     "status": "found",
+     "optimal": 9,
+     "expanded": 830,
+     "seen": 1537,
+     "secs": 21.6,
+     "branching": 8.0
+    },
+    {
+     "level": 3,
+     "baseline": 25,
+     "status": "budget",
+     "expanded": 3702,
+     "seen": 7745,
+     "secs": 150.0
+    }
+   ],
+   "win_levels": 6,
+   "level1_budget": null
+  },
+  {
+   "game": "su15",
+   "levels": [
+    {
+     "level": 1,
+     "baseline": 22,
+     "status": "exhausted",
+     "expanded": 1,
+     "seen": 1,
+     "secs": 0.0
+    }
+   ],
+   "win_levels": 9,
+   "level1_budget": null
+  },
+  {
+   "game": "tn36",
+   "levels": [
+    {
+     "level": 1,
+     "baseline": 32,
+     "status": "budget",
+     "expanded": 558,
+     "seen": 1212,
+     "secs": 151.3
+    }
+   ],
+   "win_levels": 7,
+   "level1_budget": null
+  },
+  {
+   "game": "tr87",
+   "levels": [
+    {
+     "level": 1,
+     "baseline": 54,
+     "status": "budget",
+     "expanded": 2268,
+     "seen": 4816,
+     "secs": 152.6
+    }
+   ],
+   "win_levels": 6,
+   "level1_budget": null
+  },
+  {
+   "game": "tu93",
+   "levels": [
+    {
+     "level": 1,
+     "baseline": 19,
+     "status": "found",
+     "optimal": 18,
+     "expanded": 62,
+     "seen": 62,
+     "secs": 0.4,
+     "branching": 4.0
+    },
+    {
+     "level": 2,
+     "baseline": 16,
+     "status": "found",
+     "optimal": 10,
+     "expanded": 23,
+     "seen": 29,
+     "secs": 0.1,
+     "branching": 4.0
+    },
+    {
+     "level": 3,
+     "baseline": 34,
+     "status": "found",
+     "optimal": 19,
+     "expanded": 94,
+     "seen": 102,
+     "secs": 0.6,
+     "branching": 4.0
+    },
+    {
+     "level": 4,
+     "baseline": 42,
+     "status": "found",
+     "optimal": 17,
+     "expanded": 64,
+     "seen": 69,
+     "secs": 0.4,
+     "branching": 4.0
+    },
+    {
+     "level": 5,
+     "baseline": 123,
+     "status": "found",
+     "optimal": 29,
+     "expanded": 265,
+     "seen": 279,
+     "secs": 2.1,
+     "branching": 4.0
+    },
+    {
+     "level": 6,
+     "baseline": 80,
+     "status": "found",
+     "optimal": 28,
+     "expanded": 1216,
+     "seen": 1342,
+     "secs": 11.0,
+     "branching": 4.0
+    },
+    {
+     "level": 7,
+     "baseline": 14,
+     "status": "found",
+     "optimal": 14,
+     "expanded": 43,
+     "seen": 47,
+     "secs": 0.3,
+     "branching": 4.0
+    },
+    {
+     "level": 8,
+     "baseline": 23,
+     "status": "found",
+     "optimal": 21,
+     "expanded": 63,
+     "seen": 63,
+     "secs": 0.4,
+     "branching": 4.0
+    },
+    {
+     "level": 9,
+     "baseline": 111,
+     "status": "found",
+     "optimal": 29,
+     "expanded": 72,
+     "seen": 73,
+     "secs": 0.6,
+     "branching": 4.0
+    }
+   ],
+   "win_levels": 9,
+   "level1_budget": "unbounded",
+   "later_weighted_pct": 112.6
+  },
+  {
+   "game": "vc33",
+   "levels": [
+    {
+     "level": 1,
+     "baseline": 7,
+     "status": "found",
+     "optimal": 3,
+     "expanded": 5,
+     "seen": 6,
+     "secs": 0.0,
+     "branching": 2.0
+    },
+    {
+     "level": 2,
+     "baseline": 18,
+     "status": "found",
+     "optimal": 7,
+     "expanded": 40,
+     "seen": 47,
+     "secs": 0.5,
+     "branching": 4.0
+    },
+    {
+     "level": 3,
+     "baseline": 44,
+     "status": "found",
+     "optimal": 23,
+     "expanded": 1122,
+     "seen": 1172,
+     "secs": 31.6,
+     "branching": 8.0
+    },
+    {
+     "level": 4,
+     "baseline": 61,
+     "status": "found",
+     "optimal": 21,
+     "expanded": 1313,
+     "seen": 1378,
+     "secs": 37.6,
+     "branching": 8.0
+    },
+    {
+     "level": 5,
+     "baseline": 131,
+     "status": "budget",
+     "expanded": 4007,
+     "seen": 4812,
+     "secs": 150.0
+    }
+   ],
+   "win_levels": 7,
+   "level1_budget": null
+  },
+  {
+   "game": "wa30",
+   "levels": [
+    {
+     "level": 1,
+     "baseline": 71,
+     "status": "budget",
+     "expanded": 3039,
+     "seen": 5385,
+     "secs": 150.5
+    }
+   ],
+   "win_levels": 9,
+   "level1_budget": null
+  }
+ ]
+}
