@@ -193,13 +193,12 @@
     "P1",
     "P1B",
     "P2",
-    "P3",
     "P7",
     "P12",
     "P13",
     "P17"
    ],
-   "note": "exp-042: the base's own history budget and turn yield (no P4, no output cap, 32,768-token window) with the low-token fixes only: note read from reasoning (P1/P1B), ACTION7 as UNDO (P2), goal and action models kept across levels (P3), sandbox pre-imports (P7), compile errors contained (P12), score semantics (P13), animation error keys (P17)."
+   "note": "exp-042: the base's own history budget and turn yield (no P4, no output cap, 32,768-token window) with the low-token fixes only: note read from reasoning (P1/P1B), ACTION7 as UNDO (P2), sandbox pre-imports and class support (P7), compile errors contained (P12), score semantics (P13), animation error keys (P17). P3 left out: in exp-034 it made the first move on a new level immediate (0.0 min vs 4.9) while level-2 solves took longer (44.9 vs 33.7 min)."
   },
   {
    "exp": "exp043",
