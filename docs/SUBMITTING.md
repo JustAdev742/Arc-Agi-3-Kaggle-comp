@@ -3,8 +3,9 @@
 This is a Kaggle **code competition**: you do not upload a predictions file, you submit a *notebook version*.
 Kaggle then re-runs that notebook itself, on its own machine, against the hidden games.
 
-Everything in step 1 is already done and kept current by this repo; step 2 is the part only you can do (the
-Submit button needs a logged-in browser session, the API cannot press it).
+Everything in step 1 is already done and kept current by this repo. Step 2 is the submission itself: a click in the
+browser or one CLI command. It is a one-way action (it uses one of the daily submissions and starts a 9-hour rerun),
+so this repo never runs it on its own.
 
 ## 1. The notebook (done by `make notebook` + a Save & Run All)
 
@@ -22,7 +23,20 @@ What the notebook does in that run: installs `arc-agi` from the competition whee
 (with its Apache-2.0 LICENSE), installs vLLM from the attached wheelhouse, starts the Qwen3.8-27B-FP8 server,
 plays two bundled games offline as a smoke test, and writes a placeholder `submission.parquet`.
 
-## 2. Press Submit (browser, about 30 seconds of clicking)
+## 2. Submit (browser or CLI)
+
+**CLI** (checked 2026-09-23: `kaggle competitions submit` takes a kernel and version for code competitions):
+
+```bash
+export KAGGLE_API_TOKEN=$(cat .kaggle/access_token)
+.venv/bin/kaggle competitions submit arc-prize-2026-arc-agi-3 \
+    -k scottmahony/arc-prize-2026-arc-agi-3-arc3-agent -v 3 -f submission.parquet -m "champion (exp-011 config), harness 8f3af9e"
+.venv/bin/kaggle competitions submissions arc-prize-2026-arc-agi-3      # shows it as PENDING, then COMPLETE with a score
+```
+
+Use the version number of a run that finished with a green tick (v3 passed on 2026-09-21).
+
+**Browser:**
 
 1. Open <https://www.kaggle.com/code/scottmahony/arc-prize-2026-arc-agi-3-arc3-agent>.
 2. Check the latest version shows a green tick (the Save & Run All finished). Open **Version history** if you
@@ -32,6 +46,9 @@ plays two bundled games offline as a smoke test, and writes a placeholder `submi
 4. Pick the version, add a note (for example the harness commit), and confirm.
 
 That is the whole submission. Nothing on this machine needs to run while it happens.
+
+Account history for reference: two earlier submissions from 2026-08-27 and 2026-08-28 (before this repo) scored 0.17
+and 0.10 on the public leaderboard.
 
 ## 3. What Kaggle does with it
 
