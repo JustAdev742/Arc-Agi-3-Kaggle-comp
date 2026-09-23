@@ -36,7 +36,8 @@ in `runs/` or a command in section 9; the research log has one entry per experim
     43 collected dev levels; the new rule is exact on 43 of 43).
 - **Where we stand, and what limits us:** the submitted agent scores about 1 on dev; the Kaggle leader is about 19;
   the best verified system on hidden games (GPT-6 Astra) is 62.7 with unlimited compute. Our model is not wasteful
-  on the levels it solves: across four champion dev runs it solved 34 levels at a median 0.93 of the human action
+  on the levels it solves: across the three champion dev runs and the long-horizon run of the same configuration
+  (exp-017, 3,600 s per game) it solved 34 levels at a median 0.93 of the human action
   count (2.2x the optimum), but only 3 of the 34 were beyond level 1. **The gap to 100 is levels never solved, not
   actions wasted.** The route below decomposes "100" into parts that can each be measured; the parts that need a
   strong model are named as such (section 4.4).
@@ -195,9 +196,9 @@ Level-1 exploration costs seconds of CPU per game, not model calls; the model's 
 
 ## 5. The arithmetic of 100 for one game
 
-Where our agent loses today (`runs/kaggle-repl-dev-011`, `-011b`, `-011c`, `-017`): 34 solved levels, median 0.93
-of the human count and 2.2x the optimum on the 26 with a known optimum; 31 of the 34 are level 1. Efficiency on a
-solved level is already near the target; the missing points are the levels 2+ that are never finished.
+Where our agent loses today (`runs/kaggle-repl-dev-011`, `-011b`, `-011c`, `-017`): 34 solved levels at a median
+0.93 of the human count (on the 26 with a known optimum, a median 2.2x the optimum); 31 of the 34 are level 1.
+Efficiency on a solved level is already near the target; the missing points are the levels 2+ never finished.
 
 Take a 7-level game with the dev median ratio: every later level's optimum is 0.41 of the human count, and the
 game needs levels 2 to 7 at 0.98 or less. The per-level budget for learning that level's new mechanics and for
