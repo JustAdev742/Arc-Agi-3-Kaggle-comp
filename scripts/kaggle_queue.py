@@ -23,7 +23,7 @@ import re
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,7 +32,7 @@ KAGGLE = str(ROOT / ".venv" / "bin" / "kaggle")
 
 
 def now() -> str:
-    return datetime.now(timezone.utc).strftime("%H:%M")
+    return datetime.now(UTC).strftime("%H:%M")
 
 
 def run(cmd: list[str], timeout: int = 1800) -> str:

@@ -120,9 +120,9 @@ def rates(weights: list[float], s0: float, mu: float) -> list[float]:
 def play(needs, nlev, effs, step, stall_min, s0, dt=0.5):
     """Minutes-stepped replay of one draw; returns the mean game score (percent)."""
     gids = list(needs)
-    level = {g: 0 for g in gids}
-    work = {g: 0.0 for g in gids}
-    since = {g: 0.0 for g in gids}
+    level = dict.fromkeys(gids, 0)
+    work = dict.fromkeys(gids, 0.0)
+    since = dict.fromkeys(gids, 0.0)
     t = 0.0
     while t < CAP_MIN - 1e-9:
         active = [g for g in gids if level[g] < nlev[g]]
