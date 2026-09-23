@@ -1351,3 +1351,18 @@ Measured: first-come 4.16 at any wave count (equal shares make the grouping irre
           waves of 28, +0.51 with 2 waves of 55, +0.53 with one wave of 110.
 Decision: keep 28 concurrent games. A wider pool helps the gate only by about +0.1 in the model, not worth the memory,
           process-count and per-call timeout risks of 55-110 live games.
+
+## 2026-09-23 · P21 code review (fresh-context subagent) · 3 defects FIXED before any P21 run
+Found:    (1) OURS_GATE_TURN_CALLS <= 0 made every turn yield before its first request, so a game would spin until
+          its time limit (reproduced: 0 requests, 0.00 s); (2) the gate's periodic print ran after the slot was taken
+          and outside the caller's try/finally, so a broken stdout would crash that game and leak the slot (reproduced:
+          busy 2/2 after two failed calls); (3) a call that timed out at the gate lost its accumulated wait on the
+          solver's retry, so the lightest game could starve when its wait exceeded its budget (latent at the 900 s
+          budget, real in a game's last minutes; reproduced in a gate-only simulation), and a call admitted with
+          seconds of budget left wasted its prefill. Checked correct: lock ordering, liveness, the reduced-timeout
+          closure, the stop path and drain, P19's nested call, the level lines, turn_count in the closure.
+Fixed:    0 or less turns the turn rule off; the slot count is updated last and the print happens outside the lock and
+          cannot raise; a timed-out call's retry keeps its first wait time (since=); no slot is taken with under
+          OURS_GATE_MIN_LEFT_S (30) seconds of the call's budget left (budgets under 60 s take any slot). Tests for each
+          (test_p21_*, 8 in all); the reviewer's repro scripts now pass; bed test on the real harness clean. exp-045/046/047
+          rebuilt before their first push.

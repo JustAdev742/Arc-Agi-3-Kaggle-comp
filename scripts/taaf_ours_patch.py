@@ -942,7 +942,9 @@ P20_PROMPT_NEW = P9_OLD + """            if previous_step_summary.get("no_impact
 # (default 600) the gate prints its counts to the notebook log. The base's 180 s turn yield counted wall time, which
 # with about 145 s per call meant 1-2 calls per turn (95% of turns in exp-032); behind the gate a waiting game would
 # yield after every call and a fast one after four, so while the gate is on a turn yields after OURS_GATE_TURN_CALLS
-# calls (default 2) and gate waits do not count toward the time rule.
+# calls (default 2; 0 turns the rule off) and gate waits do not count toward the time rule. Review fixes (subagent,
+# 2026-09-23): the periodic print cannot leak a slot, a retry after a gate timeout keeps its accumulated wait, and no
+# slot is taken with under OURS_GATE_MIN_LEFT_S (30) seconds of the call's budget left.
 P21_FN = '''import threading as _ours_threading
 
 _OURS_GATE_LOCK = _ours_threading.Lock()
@@ -971,31 +973,43 @@ class _OursCallGate:
                 best, best_score = ticket, score
         return best
 
-    def acquire(self, weight: float, timeout: float | None, should_stop: Callable[[], bool] | None = None) -> float:
-        """Wait for a slot; return the seconds waited. Raises requests.Timeout past ``timeout``."""
+    def acquire(self, weight: float, timeout: float | None, should_stop: Callable[[], bool] | None = None,
+                since: float | None = None) -> float:
+        """Wait for a slot; return the seconds waited. Raises requests.Timeout past ``timeout``.
+
+        ``since`` is when this call first started waiting: a retry after a timeout keeps its accumulated priority.
+        With OURS_GATE_MIN_LEFT_S (default 30) or less of the budget left no slot is taken (the call could not finish);
+        the call times out instead and its retry keeps its place. A budget under twice that takes any slot it gets.
+        """
         start = time.monotonic()
+        t0 = start if since is None else min(start, float(since))
         deadline = None if timeout is None else start + max(0.0, float(timeout))
+        min_left = _get_env_float("OURS_GATE_MIN_LEFT_S", 30.0)
+        if timeout is not None and float(timeout) < 2 * min_left:
+            min_left = 0.0
+        message, waited = "", 0.0
         with self._cv:
             ticket = self._next_ticket
             self._next_ticket += 1
-            self._waiting[ticket] = (max(0.05, float(weight)), start)
+            self._waiting[ticket] = (max(0.05, float(weight)), t0)
             try:
                 while True:
                     now = time.monotonic()
+                    if deadline is not None and now >= deadline - min_left:
+                        self.timeouts += 1
+                        raise requests.Timeout(f"waited {now - start:.0f}s for a model slot")
                     if self._busy < self.slots and self._best(now) == ticket:
-                        self._busy += 1
+                        waited = now - start
                         self.admitted += 1
-                        self.waited_s += now - start
+                        self.waited_s += waited
                         if now - self._last_print >= _get_env_float("OURS_GATE_PRINT_S", 600.0):
                             self._last_print = now
                             weights = sorted(round(w, 1) for w, _ in self._waiting.values())
-                            print(f"ours-gate: admitted {self.admitted}, mean wait "
-                                  f"{self.waited_s / max(1, self.admitted):.1f}s, timeouts {self.timeouts}, "
-                                  f"busy {self._busy}/{self.slots}, waiting weights {weights}", flush=True)
-                        return now - start
-                    if deadline is not None and now >= deadline:
-                        self.timeouts += 1
-                        raise requests.Timeout(f"waited {now - start:.0f}s for a model slot")
+                            message = (f"ours-gate: admitted {self.admitted}, mean wait "
+                                       f"{self.waited_s / self.admitted:.1f}s, timeouts {self.timeouts}, "
+                                       f"busy {self._busy + 1}/{self.slots}, waiting weights {weights}")
+                        self._busy += 1  # last: nothing between here and the caller's try/finally can raise
+                        break
                     if should_stop is not None:
                         try:
                             stop = bool(should_stop())
@@ -1003,10 +1017,17 @@ class _OursCallGate:
                             stop = False
                         if stop:
                             raise requests.RequestException("stopped while waiting for a model slot")
-                    self._cv.wait(1.0 if deadline is None else max(0.01, min(1.0, deadline - now)))
+                    left = 1.0 if deadline is None else deadline - min_left - now
+                    self._cv.wait(max(0.01, min(1.0, left)))
             finally:
                 self._waiting.pop(ticket, None)
                 self._cv.notify_all()
+        if message:  # printed outside the lock, and a broken stdout cannot cost the slot
+            try:
+                print(message, flush=True)
+            except Exception:
+                pass
+        return waited
 
     def release(self) -> None:
         with self._cv:
@@ -1048,7 +1069,14 @@ P21_CALL_NEW = """        _ours_gate = _ours_call_gate()  # ours P21: weighted f
             response = post_chat(payload)
         else:
             _ours_budget = request_timeout_seconds if request_timeout_seconds is not None else self._timeout
-            _ours_waited = _ours_gate.acquire(_ours_gate_weight(self), _ours_budget, getattr(self, "_ours_gate_stop", None))
+            _ours_since, _ours_try = getattr(self, "_ours_gate_since", None), time.monotonic()
+            try:
+                _ours_waited = _ours_gate.acquire(_ours_gate_weight(self), _ours_budget,
+                                                  getattr(self, "_ours_gate_stop", None), since=_ours_since)
+            except requests.Timeout:
+                self._ours_gate_since = _ours_try if _ours_since is None else _ours_since  # the retry keeps its place
+                raise
+            self._ours_gate_since = None
             try:
                 if _ours_budget is not None:
                     request_timeout_seconds = max(1.0, float(_ours_budget) - _ours_waited)
@@ -1066,7 +1094,8 @@ P21_YIELD_NEW = ("            _ours_gated = _ours_call_gate() is not None  # our
                  "            _ours_busy_s = time.monotonic() - turn_started_at - getattr(self, '_ours_gate_wait_turn', 0.0)\n"
                  "            if self._yield_seconds is not None and _ours_busy_s >= self._yield_seconds:\n"
                  "                return \"turn_time_budget\"\n"
-                 "            if self._yield_seconds is not None and _ours_gated and turn_count >= _get_env_int(\"OURS_GATE_TURN_CALLS\", 2):\n"
+                 "            _ours_turn_calls = _get_env_int(\"OURS_GATE_TURN_CALLS\", 2)  # 0 or less: off\n"
+                 "            if self._yield_seconds is not None and _ours_gated and 0 < _ours_turn_calls <= turn_count:\n"
                  "                return \"turn_time_budget\"\n")
 
 PATCHES.update({

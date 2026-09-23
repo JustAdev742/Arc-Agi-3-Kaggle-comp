@@ -439,3 +439,81 @@ def test_p21_chat_completion_goes_through_the_gate_and_keeps_the_time_budget(h, 
         assert h.ta._ours_call_gate() is None and seen[1] == 300
     finally:
         h.ta._OURS_GATE_STATE.clear()
+
+
+def test_p21_review_fixes_print_failure_keeps_the_slot_and_retries_keep_their_place(h, monkeypatch):
+    monkeypatch.setenv("OURS_GATE_PRINT_S", "0")
+
+    def broken_print(*args, **kwargs):
+        raise OSError("stdout closed")
+
+    monkeypatch.setattr(h.ta, "print", broken_print, raising=False)
+    gate = h.ta._OursCallGate(1)
+    gate.acquire(1.0, None)  # the print fails, yet the call gets its slot and the slot is counted once
+    assert gate._busy == 1
+    gate.release()
+    assert gate._busy == 0
+    monkeypatch.delattr(h.ta, "print")
+    # a retry after a timeout keeps its accumulated wait: weight 1 waiting 100 s beats weight 9 waiting 0.3 s
+    gate.acquire(1.0, None)
+    order = []
+
+    def wait(name, weight, since):
+        gate.acquire(weight, 30.0, since=since)
+        order.append(name)
+        gate.release()
+
+    heavy = threading.Thread(target=wait, args=("heavy", 9.0, None))
+    heavy.start()
+    time.sleep(0.1)
+    old = threading.Thread(target=wait, args=("retry", 1.0, time.monotonic() - 100.0))
+    old.start()
+    time.sleep(0.2)
+    gate.release()
+    heavy.join(10)
+    old.join(10)
+    assert order == ["retry", "heavy"]
+
+
+def test_p21_no_slot_with_too_little_budget_left(h, monkeypatch):
+    monkeypatch.setenv("OURS_GATE_MIN_LEFT_S", "0.5")
+    gate = h.ta._OursCallGate(1)
+    gate.acquire(1.0, None)
+    t0 = time.monotonic()
+    with pytest.raises(h.ta.requests.Timeout):
+        gate.acquire(1.0, 1.5)  # a 1.5 s budget with 0.5 s kept back gives up after about 1 s, not 1.5 s
+    assert time.monotonic() - t0 < 1.3
+    gate.release()
+    assert gate.acquire(1.0, 0.8) < 0.1  # a budget under twice the reserve takes a free slot at once
+
+
+@pytest.mark.parametrize("turn_calls,expect", [("2", 2), ("0", 3)])
+def test_p21_turn_rule_two_calls_and_zero_means_off(h, monkeypatch, tmp_path, turn_calls, expect):
+    import importlib
+
+    rs = importlib.import_module("inference.agent.runtime_state")
+    monkeypatch.setenv("OURS_GATE_SLOTS", "2")
+    monkeypatch.setenv("OURS_GATE_TURN_CALLS", turn_calls)
+    h.ta._OURS_GATE_STATE.clear()
+    seen = []
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        seen.append(timeout)
+        time.sleep(0.1)
+        return types.SimpleNamespace(status_code=200, text="", raise_for_status=lambda: None,
+                                     json=lambda: {"choices": [{"message": {"content": "thinking"},
+                                                                "finish_reason": "stop"}]})
+
+    monkeypatch.setattr(h.ta.requests, "post", fake_post)
+    state = tmp_path / "g_runtime_state.json"
+    frame = h.Frame(_grid({}), 0, 1)
+    rs.write_runtime_state(state, current_frame=frame, history=[h.HistoryEntry(action="", frame=frame)])
+    agent = h.ta.ToolAgent(model="mock")
+    agent._yield_seconds = 0.35  # the time rule alone would allow about three 0.1 s calls
+    try:
+        result = agent.analyze(state, 0, valid_actions=["ACTION1"], transcript_path=tmp_path / "t.txt",
+                               request_timeout_seconds=300, should_stop=lambda: False)
+    finally:
+        h.ta._OURS_GATE_STATE.clear()
+    assert getattr(result, "yielded_control", False)
+    assert len(seen) == expect if turn_calls == "2" else len(seen) >= expect
