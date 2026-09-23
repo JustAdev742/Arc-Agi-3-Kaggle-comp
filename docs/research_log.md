@@ -918,7 +918,9 @@ Why:      the control measures the champion preset at HEAD, which now includes t
 Settings: dev, 1200 s and 2000 actions per game, 8 concurrent, seed 0, Qwen3.8-27B-FP8 on vLLM 0.27.1 (same as exp-011);
           kernels scottmahony/arc3-eval-dev-p (v2, run kaggle-repl-dev-024) and scottmahony/arc3-eval-dev-q (v1, run
           kaggle-repl-dev-026).
-Measured: pending.
+Measured: exp-024 (champion at HEAD) dev 0.435, 4 levels (runs/kaggle-repl-dev-024); exp-026 (bundle) dev 0.265, 2
+          levels (runs/kaggle-repl-dev-026). Both at or below the six-run champion band (0.61-1.37). Decision: our own
+          harness stops being the submission base; the public Duck family scores 5-11 on the same games (entries below).
 
 ## 2026-09-23 · exp-030 / exp-031 · the public Tufa-harness forks, measured under our account · QUEUED (owner approved running third-party public notebooks, 07:20 UTC)
 Why:      the public leaderboard's middle pack (7-9) runs on Tufa Labs' open-source Duck harness (TAAF +
@@ -947,3 +949,33 @@ Facts found while waiting (docs/status.md): the hidden set is 110 games, all pla
           7,920 s x 28-concurrent schedule (4 waves, 8.8 h) is sized for it, so there is no idle time to reallocate.
           Forum numbers on noise and the public-to-hidden gap are in docs/lessons/0018.
 Gate:     same as exp-030/031; with the noise in lesson 0018 a single run separates arms only by more than about 2 points.
+
+## 2026-09-23 · public-harvest · other teams' public-25 runs, rescored with our scorer · MEASURED (no GPU quota)
+Why:      a public notebook's own "Save & Run All" output is downloadable; its benchmark.json holds every game's actions,
+          per-level counts, tokens and wall-clock. Repeated runs of one configuration by different people are free
+          samples of that configuration's public-25 distribution (lesson 0018: single runs vary by about 2 points).
+How:      scripts/harvest_public_runs.py (listing sorted by score, output download, rescoring with arc3.scoring,
+          configuration from the notebook's attached datasets/models and grepped knobs); runs/public-harvest/.
+Measured so far (public-25 mean, levels of 183): plain Flash-Next Duck (keithtyser serving bundle, June Duck source):
+          11.02 (44), 8.74 (38), 7.20 (32), 5.78 (35), 5.16 (33); animation-aware Duck on the same server (thui graft):
+          9.56 (39), 6.79 (36); Qwen3.8-27B-FP8 animation-aware ("LB-9"): 3.79 (25). The LB-sorted order of these
+          notebooks does not follow their public-25 scores (wuliao0 is 2nd by LB with 5.78, chiakazirim 1st with 5.16).
+          Score had every game stopped at 60 / 90 / 120 / 132 min (thui run): 3.61 / 6.50 / 8.43 / 9.56; plain Flash
+          (wuliao0): 3.66 / 5.04 / 5.20 / 5.78. The score is still rising at the cap: time is binding.
+Serving:  the thui run's vLLM log and metrics: Flash-Next NVFP4 weights take 81.8 GiB, the profile reserves 5 GiB of
+          BF16 KV cache = 105,202 tokens ("maximum concurrency for 32,768 tokens per request: 3.21x"); the scheduler
+          ran 4-6 requests while 18-21 waited; 1,346 requests in the whole run, mean queue wait 127 s, prefill 1.6 s,
+          decode 17 s (1,460 generated tokens per request, 20,600 prompt tokens); about 300 generated tokens/s for 25
+          games together; 92 preemptions. All 45 Flash-Next notebooks among the top 100 use this same profile
+          (kv5-bf16-mtp3-c8-cg32); none uses an FP8 KV cache or a different context window.
+
+## 2026-09-23 · exp-033 · FP8 KV cache on the animation-aware Flash-Next Duck · RUNNING (pushed 08:1x UTC)
+Why:      throughput is KV-bound (entry above) and every game is time-bound; FP8 halves KV bytes per token, so about 8
+          requests (the max_num_seqs cap) run instead of 4-6. Expected: 1.3-1.5x generated tokens per second, visible
+          directly in vllm-metrics-final.prom (generation_tokens_total, queue time), and a higher public-25 score if
+          FP8 attention costs no quality. Risk: the pinned vLLM build or the attention backend may reject FP8 KV for
+          this hybrid model with MTP (the setup accepts `fp8` but no public run has used it).
+Change:   one line of the exp-032 notebook: TAAF_VLLM_KV_CACHE_DTYPE "auto" -> "fp8" (kernel
+          scottmahony/arc3-taaf-anim-flashnext-kvfp8). exp-032 (unchanged copy) runs at the same time as the control.
+Gate:     throughput first (server metrics); the score only on top of the harvested distribution of the same
+          configuration (9.56, 6.79 and exp-032).

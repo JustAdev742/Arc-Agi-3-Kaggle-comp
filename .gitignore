@@ -43,3 +43,5 @@ reference/
 
 # human play recordings (ARC Prize dataset; large, never committed)
 data/human/
+!runs/public-harvest/
+!runs/public-harvest/*.json
