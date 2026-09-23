@@ -149,6 +149,8 @@ def main() -> None:
     ap.add_argument("--kv-gib", type=float, required=True)
     ap.add_argument("--minutes", type=int, default=12)
     ap.add_argument("--prefix-caching", action="store_true", help="TAAF_VLLM_ENABLE_PREFIX_CACHING=1 (MTP kept)")
+    ap.add_argument("--batched-tokens", type=int, default=None,
+                    help="TAAF_VLLM_MAX_NUM_BATCHED_TOKENS (base 8192); smaller prefill chunks use less activation memory")
     args = ap.parse_args()
     nb = json.loads(BASE.read_text())
     cells = nb["cells"][:11]
@@ -161,6 +163,10 @@ def main() -> None:
             if args.prefix_caching:
                 assert '"TAAF_VLLM_ENABLE_PREFIX_CACHING": "0"' in s
                 s = s.replace('"TAAF_VLLM_ENABLE_PREFIX_CACHING": "0"', '"TAAF_VLLM_ENABLE_PREFIX_CACHING": "1"')
+            if args.batched_tokens:
+                assert '"TAAF_VLLM_MAX_NUM_BATCHED_TOKENS": "8192"' in s
+                s = s.replace('"TAAF_VLLM_MAX_NUM_BATCHED_TOKENS": "8192"',
+                              f'"TAAF_VLLM_MAX_NUM_BATCHED_TOKENS": "{args.batched_tokens}"')
             s = s.replace("PUBLIC25_VLLM_PROFILE_NAME = 'kv5-bf16-mtp3-c8-cg32'",
                           f"PUBLIC25_VLLM_PROFILE_NAME = '{args.slug}'")
             cell["source"] = [s]
@@ -169,7 +175,8 @@ def main() -> None:
         raise SystemExit("KV anchor not found exactly once")
     cells[0]["source"] = [f"# {args.slug}: serving stress test (team scottmahony)\n\nFlash-Next NVFP4 vLLM server "
                           f"(Keith Tyser's bundle) with a {args.kv_gib} GiB KV cache"
-                          f"{' and prefix caching on' if args.prefix_caching else ''} under a synthetic Duck-shaped "
+                          f"{' and prefix caching on' if args.prefix_caching else ''}"
+                          f"{f' and {args.batched_tokens}-token prefill chunks' if args.batched_tokens else ''} under a synthetic Duck-shaped "
                           f"load for {args.minutes} minutes; no games are played. Built by scripts/build_kv_stress_nb.py."]
     code = lambda src: {"cell_type": "code", "execution_count": None, "metadata": {}, "outputs": [], "source": [src]}  # noqa: E731
     cells += [code(STRESS.replace("__MINUTES__", str(args.minutes))), code(TEARDOWN)]
