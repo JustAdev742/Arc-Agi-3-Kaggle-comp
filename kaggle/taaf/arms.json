@@ -312,7 +312,8 @@
     "kv_gib": 6.5,
     "batched_tokens": 4096
    },
-   "note": "exp-048: the combined candidate: exp-042's fixes (10.89 in one run) with the P21 gate (mechanism confirmed in exp-045) on the 6.5 GiB KV / 4,096-token profile (stress test +25% running requests)."
+   "note": "exp-048: the combined candidate: exp-042's fixes (10.89 in one run) with the P21 gate (mechanism confirmed in exp-045) on the 6.5 GiB KV / 4,096-token profile (stress test +25% running requests).",
+   "pushed": 1
   },
   {
    "exp": "exp042r",
@@ -327,7 +328,8 @@
     "P17",
     "P22"
    ],
-   "note": "exp-042r: an unchanged repeat of exp-042 (10.89 on its first run, 95th percentile of the base) under a new slug."
+   "note": "exp-042r: an unchanged repeat of exp-042 (10.89 on its first run, 95th percentile of the base) under a new slug.",
+   "pushed": 1
   }
  ]
 }

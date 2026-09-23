@@ -6,7 +6,8 @@
 The public-25 mean is dominated by a few games whose score swings by 10-25 points between identical runs (ft09, lp85,
 ar25), so one lucky game moves the mean by a point. Here each game's score is standardized against that game's
 distribution over the reference runs (mean and sd per game, sd floored at 2 points so near-constant games cannot
-dominate), and the 25 z-scores are summed. The null distribution of that sum comes from the reference runs themselves,
+dominate) and clipped to +-3 (a single breakthrough game, such as sb26's 6 levels against a reference sd of 2,
+would otherwise carry the whole sum), and the 25 z-scores are summed. The null distribution of that sum comes from the reference runs themselves,
 each scored leave-one-out against the others. Reference: scripts/compare_to_harvest.load_reference (stock-cap
 Flash-Next Duck runs). Prints each run's z-sum, its percentile among the reference runs, and the mean-based rank for
 comparison.
@@ -23,6 +24,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from compare_to_harvest import load_reference  # noqa: E402
 
 SD_FLOOR = 2.0
+Z_CLIP = 3.0
 
 
 def per_game(run: dict) -> dict[str, float]:
@@ -37,7 +39,7 @@ def zsum(scores: dict[str, float], refs: list[dict[str, float]]) -> float:
             continue
         mean = statistics.fmean(vals)
         sd = max(SD_FLOOR, statistics.pstdev(vals))
-        total += (value - mean) / sd
+        total += max(-Z_CLIP, min(Z_CLIP, (value - mean) / sd))
     return total
 
 

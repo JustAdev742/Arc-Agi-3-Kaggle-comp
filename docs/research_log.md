@@ -1446,3 +1446,19 @@ Measured: exp-042 (fixes) +18.5 = +2.7 sd, above all 39 reference runs (its mean
 Reading:  the strongest evidence so far that a change helps. Eight arms were tested today, so one extreme result is
           expected about 20% of the time by chance; exp-042r (an unchanged repeat) and exp-048 (fixes + P21 + 6.5 GiB)
           are the first runs after Saturday's quota reset. Use the z-sum next to the mean from now on.
+
+## 2026-09-23 · exp-046 (P21 + 6.5 GiB KV) and exp-043 (all patches but P4/P11) · MEASURED
+exp-046:  6.75, 36 levels (runs/exp046-gate-kv65); z-sum +0.5 sd. The larger KV cache works in a real run: 1,651
+          requests (+22% on the control's 1,356), 4.19 running (3.1), vLLM queue 8 s, 0 gate timeouts, no crash;
+          151 preemptions (the bigger cache admits more). Calls/min per game L1 0.38 / L2 0.48 / L3+ 0.76. More calls
+          did not show up as score in this one run. Fails the submission rule's score condition (6.75 < 7.15).
+exp-043:  6.63, 29 levels (runs/exp043-ours-h); z-sum -0.7 sd with per-game z clipped at 3 (+2.9 sd unclipped: sb26
+          reached 6 levels, 58.3 against a reference mean of 3.1 and sd 2.0). Throughput collapsed: 865 requests,
+          2,793 generated tokens per request, 535 preemptions, queue 193 s. Cause: P19's supervisor calls. 74 of them
+          (865 server requests vs 791 agent responses) account for about 1.25M of the 2.42M generated tokens, about
+          17k each: they run at the template's default xhigh effort with no max_tokens, so each holds KV for minutes.
+          P19 as built is harmful to throughput; it needs a token cap (and low effort) before any further use.
+Yardstick: scripts/zsum.py now clips each game's z at +-3 (null sd 6.2): exp-042 +2.4 sd (still above all 39 references),
+          exp-045 +0.9, exp-032 +0.8, exp-046 +0.5, exp-043 -0.7, P4 arms -1.8 to -2.6.
+Quota:    exp-048 (fixes + P21 + 6.5 GiB) and exp-042r (repeat) started at 21:10 and 21:28 with 29.3 of 30 h used; they
+          will likely be stopped when the weekly quota runs out and re-pushed after the 2026-09-26 reset.
