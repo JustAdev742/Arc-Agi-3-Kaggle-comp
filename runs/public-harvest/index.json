@@ -1823,5 +1823,234 @@
   "score_val": null,
   "levels": 0,
   "actions": 307
+ },
+ "yuriimuktarov/arc3-duck-qwen38-r16-residual6-canary": {
+  "ref": "yuriimuktarov/arc3-duck-qwen38-r16-residual6-canary",
+  "rank": "?",
+  "title": null,
+  "last_run": null,
+  "datasets": [
+   "keithtyser/duck-qwen38-nvfp4-mtp-vllm-smoke-v1",
+   "keithtyser/qwen38-flash-next-vllm-nvfp4-runtime-v1"
+  ],
+  "models": [
+   "keithtyser/qwen3-8-flash-next-nvfp4/PyTorch/radixark-modelopt-fp4/1"
+  ],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {
+   "TAAF_VLLM_MAX_NUM_SEQS": [
+    "8"
+   ],
+   "TAAF_VLLM_MTP_TOKENS": [
+    "3"
+   ],
+   "max_runtime_s_per_game": [
+    "float"
+   ],
+   "analyzer_timeout": [
+    "min"
+   ],
+   "concurrency": [
+    "1"
+   ]
+  },
+  "anim": false,
+  "status": "no-benchmark",
+  "note": [
+   "Kernel log downloaded to /tmp/harvest-4oy378bt/out/arc3-duck-qwen38-r16-residual6-canary.log"
+  ]
+ },
+ "gruvlg/duck-baseline-v3": {
+  "ref": "gruvlg/duck-baseline-v3",
+  "rank": "?",
+  "title": null,
+  "last_run": null,
+  "datasets": [
+   "driessmit1/arc3-vllm-h100-wheelhouse-v3",
+   "jeroencottaar/taaf-kaggle-source-share",
+   "driessmit1/vrfai-qwen3-6-27b-fp8-hf-snapshot"
+  ],
+  "models": [],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {},
+  "anim": false,
+  "status": "ok",
+  "games": 25,
+  "score_all": 2.197,
+  "score_dev": 2.598,
+  "score_val": 0.927,
+  "levels": 21,
+  "actions": 3340
+ },
+ "mayakaripel/tufa-labs-duck-harness-june-30-milestone-winner": {
+  "ref": "mayakaripel/tufa-labs-duck-harness-june-30-milestone-winner",
+  "rank": "?",
+  "title": null,
+  "last_run": null,
+  "datasets": [
+   "driessmit1/arc3-vllm-h100-wheelhouse-v3",
+   "jeroencottaar/taaf-kaggle-source-share",
+   "driessmit1/vrfai-qwen3-6-27b-fp8-hf-snapshot"
+  ],
+  "models": [],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {},
+  "anim": false,
+  "status": "ok",
+  "games": 25,
+  "score_all": 0.954,
+  "score_dev": 0.981,
+  "score_val": 0.87,
+  "levels": 16,
+  "actions": 4482
+ },
+ "juliancamilovilla/arc-agi3-nvfp4-vision2-long": {
+  "ref": "juliancamilovilla/arc-agi3-nvfp4-vision2-long",
+  "rank": "?",
+  "title": null,
+  "last_run": null,
+  "datasets": [
+   "keithtyser/duck-qwen38-nvfp4-mtp-vllm-smoke-v1",
+   "keithtyser/qwen38-flash-next-vllm-nvfp4-runtime-v1"
+  ],
+  "models": [
+   "keithtyser/qwen3-8-flash-next-nvfp4/PyTorch/radixark-modelopt-fp4/1"
+  ],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {
+   "TAAF_VLLM_MAX_NUM_SEQS": [
+    "8"
+   ],
+   "TAAF_VLLM_MTP_TOKENS": [
+    "3"
+   ],
+   "max_runtime_s_per_game": [
+    "7920.0"
+   ],
+   "analyzer_timeout": [
+    "900.0"
+   ],
+   "concurrency": [
+    "28"
+   ]
+  },
+  "anim": false,
+  "status": "ok",
+  "games": 25,
+  "score_all": 4.295,
+  "score_dev": 4.804,
+  "score_val": 2.684,
+  "levels": 23,
+  "actions": 960
+ },
+ "juliancamilovilla/arc-agi3-nvfp4-vision-long": {
+  "ref": "juliancamilovilla/arc-agi3-nvfp4-vision-long",
+  "rank": "?",
+  "title": null,
+  "last_run": null,
+  "datasets": [
+   "keithtyser/duck-qwen38-nvfp4-mtp-vllm-smoke-v1",
+   "keithtyser/qwen38-flash-next-vllm-nvfp4-runtime-v1"
+  ],
+  "models": [
+   "keithtyser/qwen3-8-flash-next-nvfp4/PyTorch/radixark-modelopt-fp4/1"
+  ],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {
+   "TAAF_VLLM_MAX_NUM_SEQS": [
+    "8"
+   ],
+   "TAAF_VLLM_MTP_TOKENS": [
+    "3"
+   ],
+   "max_runtime_s_per_game": [
+    "7920.0"
+   ],
+   "analyzer_timeout": [
+    "900.0"
+   ],
+   "concurrency": [
+    "28"
+   ]
+  },
+  "anim": false,
+  "status": "ok",
+  "games": 25,
+  "score_all": 3.385,
+  "score_dev": 3.793,
+  "score_val": 2.094,
+  "levels": 21,
+  "actions": 1119
+ },
+ "vladimiryakunin/arc-prize-2026-lcld-qwen-v10": {
+  "ref": "vladimiryakunin/arc-prize-2026-lcld-qwen-v10",
+  "rank": "?",
+  "title": null,
+  "last_run": null,
+  "datasets": [
+   "rahim3/qwen3-8-27b-bf16",
+   "vladimiryakunin/vllm-028-cuda"
+  ],
+  "models": [],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {
+   "concurrency": [
+    "4"
+   ]
+  },
+  "anim": false,
+  "status": "no-benchmark",
+  "note": [
+   "Kernel log downloaded to /tmp/harvest-afrngjou/out/arc-prize-2026-lcld-qwen-v10.log"
+  ]
+ },
+ "evgendvorkin/arc-3-2026": {
+  "ref": "evgendvorkin/arc-3-2026",
+  "rank": "?",
+  "title": null,
+  "last_run": null,
+  "datasets": [
+   "driessmit1/arc3-vllm-h100-wheelhouse-v3",
+   "raist321/duck-qwen38-nvfp4-bundle-v1",
+   "keithtyser/duck-qwen38-nvfp4-mtp-vllm-smoke-v1",
+   "keithtyser/qwen38-flash-next-vllm-nvfp4-runtime-v1",
+   "keithtyser/taaf-duck-qwen38-serving-v1",
+   "jakobbrggen/taaf-kaggle-source-anim-20260807-anim",
+   "ruichardliu/vllm-0230-offline"
+  ],
+  "models": [
+   "google/gemma-4/Transformers/gemma-4-31b-it/1",
+   "foysalemonshanto/qwen3-8-27b-fp8-repacked-v1/PyTorch/hf-fp8/1",
+   "keithtyser/qwen3-8-flash-next-nvfp4/PyTorch/radixark-modelopt-fp4/1"
+  ],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {},
+  "anim": true,
+  "status": "no-benchmark",
+  "note": [
+   "Kernel log downloaded to /tmp/harvest-uqiooj8k/out/arc-3-2026.log"
+  ]
+ },
+ "baopv051/xla-eval-harness-ours": {
+  "ref": "baopv051/xla-eval-harness-ours",
+  "rank": "?",
+  "title": null,
+  "last_run": null,
+  "datasets": [
+   "baopv051/ai-genbench-v1",
+   "ngovanphuong2604/bfree-viral-images",
+   "ngovanphuong2604/synthwildx-dataset",
+   "ngovanphuong2604/wildrf-dataset"
+  ],
+  "models": [
+   "baopv051/bfree-baseline-weights/PyTorch/default/1"
+  ],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {},
+  "anim": false,
+  "status": "no-benchmark",
+  "note": [
+   "Kernel log downloaded to /tmp/harvest-9zpgfrmb/out/xla-eval-harness-ours.log"
+  ]
  }
 }
