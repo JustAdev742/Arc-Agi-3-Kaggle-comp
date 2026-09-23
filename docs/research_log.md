@@ -969,7 +969,7 @@ Serving:  the thui run's vLLM log and metrics: Flash-Next NVFP4 weights take 81.
           games together; 92 preemptions. All 45 Flash-Next notebooks among the top 100 use this same profile
           (kv5-bf16-mtp3-c8-cg32); none uses an FP8 KV cache or a different context window.
 
-## 2026-09-23 · exp-033 · FP8 KV cache on the animation-aware Flash-Next Duck · RUNNING (pushed 08:1x UTC)
+## 2026-09-23 · exp-033 · FP8 KV cache on the animation-aware Flash-Next Duck · FAILED AT STARTUP (not supported)
 Why:      throughput is KV-bound (entry above) and every game is time-bound; FP8 halves KV bytes per token, so about 8
           requests (the max_num_seqs cap) run instead of 4-6. Expected: 1.3-1.5x generated tokens per second, visible
           directly in vllm-metrics-final.prom (generation_tokens_total, queue time), and a higher public-25 score if
@@ -979,3 +979,9 @@ Change:   one line of the exp-032 notebook: TAAF_VLLM_KV_CACHE_DTYPE "auto" -> "
           scottmahony/arc3-taaf-anim-flashnext-kvfp8). exp-032 (unchanged copy) runs at the same time as the control.
 Gate:     throughput first (server metrics); the score only on top of the harvested distribution of the same
           configuration (9.56, 6.79 and exp-032).
+Measured (exp-033): the server never started. vLLM worker: `NotImplementedError: Qwen3.8-Flash-Next QSA requires a BF16
+          main KV cache` (runs/exp033-kvfp8/kernel-output/vllm-openai-server.log, not committed). About 6 minutes of
+          quota. This is why no public notebook uses an FP8 KV cache with this model. Remaining KV levers: a larger
+          kv_cache_memory_bytes (after the 81.8 GiB of weights 12.6 GiB are free; 5 GiB go to KV, the rest to CUDA graphs,
+          MoE workspace and 8,192 batched tokens; the MoE autotuner already hit one OOM at 5 GiB) or shorter prompts
+          (20,600 prompt tokens per request on average).
