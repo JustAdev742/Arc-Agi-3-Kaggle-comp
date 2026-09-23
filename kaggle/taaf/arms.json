@@ -58,7 +58,8 @@
     "P6",
     "P12"
    ],
-   "note": "exp-036: exp-035 plus board diff (P9), level-1 probing note (P10) and persisted helpers (P6)."
+   "note": "exp-036: exp-035 plus board diff (P9), level-1 probing note (P10) and persisted helpers (P6).",
+   "pushed": 1
   },
   {
    "exp": "exp037",
