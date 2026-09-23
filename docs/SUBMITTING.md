@@ -65,8 +65,9 @@ public leaderboard leader is about 19. A submission now will land in the low sin
 for the leaderboard position and for the end-to-end validation on the hidden set; it is not worth doing if you
 expect a competitive number today.
 
-Submission limits: the competition page's Rules tab has the daily allowance (recorded as 5 per day in
-`docs/status.md`, still unconfirmed). Each real submission consumes one of those and about 9 hours of run time.
+Submission limits: the competition page's Rules tab has the daily allowance; observed on 2026-09-23 as **1 per
+day** (after one submission the CLI answered "0 submissions remaining today"; `docs/status.md`). Each real
+submission consumes it and up to 9 hours of run time.
 
 ## 5. Milestone 2 (only if you want prize eligibility)
 
