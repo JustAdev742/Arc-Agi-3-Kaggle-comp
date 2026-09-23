@@ -1331,3 +1331,14 @@ Bed test: real harness, mock server with 2 s latency, 4 games, 2 slots: one gate
 Arms:     exp-045 = base + P21 (arc3-taaf-gate); exp-046 = exp-045 on the 6.5 GiB KV / 4,096-token profile if its stress
           test passes (arc3-taaf-gate-kv65). One queue runner (scripts/kaggle_queue.py) now pushes in priority order:
           5 GiB and 6.5 GiB stress tests, exp-045, exp-042, exp-046, the prefix-caching stress test, exp-043.
+
+## 2026-09-23 · the Qwen3.8-27B public fork's serving, read from its vLLM log · MEASURED (no GPU)
+Measured: runs/pub-foysalemonshanto_lb-9-arc3-duck-v12-with-qwen-3-8-27b (vLLM 0.19, 27B FP8, no speculative decoding):
+          weights 28.5 GiB, KV 48.8 GiB = 199,136 tokens, 24.7 requests running on average (every game at once, none
+          waiting), prefix cache hit rate about 65%, yet 1,233 requests in the run (Flash-Next exp-032: 1,356 with 3.1
+          running) and a public-25 score of 3.79 (25 levels). The smaller model buys concurrency but not more calls
+          per game, and each call is worth less: Flash-Next stays the model.
+Also:     the 65% prefix-cache hit rate shows how much of each Duck prompt repeats the game's previous one. Flash-Next's
+          public profile has prefix caching off; the stress test kvstress-5g-pc checks it works for this model, and
+          exp-047 (P21 + prefix caching) is queued behind it: a game the gate serves again within a minute or so may
+          still find its prefix cached, which removes most of that call's prefill.

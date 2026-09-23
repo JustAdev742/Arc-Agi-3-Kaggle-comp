@@ -266,6 +266,22 @@
     "batched_tokens": 4096
    },
    "note": "exp-046: exp-045 on a 6.5 GiB KV cache with 4,096-token prefill chunks (the kvstress65b4k profile); pushed only if that stress test passed."
+  },
+  {
+   "exp": "exp047",
+   "slug": "arc3-taaf-gate-pc",
+   "patches": [
+    "P21"
+   ],
+   "knobs": {
+    "OURS_GATE_SLOTS": "6",
+    "OURS_GATE_LEVEL_WEIGHT": "2",
+    "OURS_GATE_STALL_MIN": "45"
+   },
+   "serving": {
+    "prefix_caching": true
+   },
+   "note": "exp-047: exp-045 with vLLM prefix caching on (5 GiB KV): the Duck's prompts extend the previous call's, so a game served again soon (the gate's fast lane) can reuse its cached prefix; pushed only if the prefix-caching stress test passed. The public 27B fork ran with prefix caching at a 64.5% hit rate."
   }
  ]
 }
