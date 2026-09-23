@@ -1091,3 +1091,20 @@ Arms:     exp-037 = the unmodified base notebook + P11 at medium (scottmahony/ar
 Expected: shorter calls, more calls per game, more levels, unless per-call quality drops more than the extra calls buy.
           Our own effort ablation (exp-013/014, a different model and harness) found medium over low gave more levels
           but lower RHAE; here the comparison is xhigh against medium/low.
+
+## 2026-09-23 · harvest analysis: when levels get solved, and where the score comes from · MEASURED (no GPU)
+Data:     benchmark.json (per-action wall-clock) of 19 stock-cap Flash-Next public-25 runs (16 downloaded with
+          `kaggle kernels output --file-pattern '^benchmark\.json$'`, 3 pulled earlier) and the one run with a 27,000 s
+          per-game cap (defiaudit/agi3-duck-qwen38-anim-v2); per-game results of 37 stock-cap runs from
+          runs/public-harvest. Script: session scratchpad level_timing.py (same scorer, arc3.scoring).
+Time:     mean score had every game stopped at 30 / 60 / 90 / 120 / 132 min: 2.10 / 3.92 / 5.12 / 6.05 / 6.34 (n=19).
+          Concave: 0.061 points/min in 30-60, 0.040 in 60-90, 0.029 in 90-132. The 27,000 s run: 9.92 at 132 min,
+          9.97 at 180, 10.26 at 240, 10.83 at 300, 11.47 at 360, 13.31 at 450. So more time per game still pays, with
+          diminishing returns; a 2x faster call is worth less than 2x the score (the effort arms measure how much).
+Stuck games: stopping a game that has no level by minute T would lose 23% (T=30), 7.6% (60), 3.2% (90) of the score
+          while freeing 2,909 / 1,365 / 611 game-seconds per game: 43% of games without a level at 60 min solve one
+          later. Not worth building.
+Depth:    level 1 is solved in >= 80% of runs in 19 of 25 games (never-solved: sk48 5%, g50t 30%, tn36 35%, sp80 51%).
+          The score comes from later levels (weight k for level k) in a few games: ft09 39.2 (3.57 of 6 levels),
+          lp85 21.1, vc33 17.5, re86 16.0, ar25 10.9; mean levels per game 0.05-3.57. Carrying what a level taught into
+          the next (P3, P8) and more calls per game (P4, P11, KV) are the levers this points at.
