@@ -1,0 +1,17 @@
+{
+ "run_name": "kvstress-5g",
+ "kernel": "scottmahony/arc3-kv-stress-5g",
+ "status": "ok",
+ "kv_bytes": "5368709120",
+ "minutes": 12,
+ "clients": 28,
+ "elapsed_s": 775,
+ "ok": 408,
+ "errors": 0,
+ "error_samples": [],
+ "generated_tokens_per_s": 130.4,
+ "mean_prompt_tokens": 18335,
+ "mean_latency_s": 51.3,
+ "running_mean": 3.93,
+ "running_max": 4.0
+}

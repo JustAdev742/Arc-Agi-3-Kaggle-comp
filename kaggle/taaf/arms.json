@@ -199,7 +199,8 @@
     "P17",
     "P22"
    ],
-   "note": "exp-042: the base's own history budget and turn yield (no P4, no output cap, 32,768-token window) with the low-token fixes only: note read from reasoning (P1/P1B), ACTION7 as UNDO (P2), sandbox pre-imports and class support (P7), compile errors contained (P12), score semantics (P13), animation error keys (P17). P3 left out: in exp-034 it made the first move on a new level immediate (0.0 min vs 4.9) while level-2 solves took longer (44.9 vs 33.7 min). Plus P22: no previous_frame across a level-up (level-transition study)."
+   "note": "exp-042: the base's own history budget and turn yield (no P4, no output cap, 32,768-token window) with the low-token fixes only: note read from reasoning (P1/P1B), ACTION7 as UNDO (P2), sandbox pre-imports and class support (P7), compile errors contained (P12), score semantics (P13), animation error keys (P17). P3 left out: in exp-034 it made the first move on a new level immediate (0.0 min vs 4.9) while level-2 solves took longer (44.9 vs 33.7 min). Plus P22: no previous_frame across a level-up (level-transition study).",
+   "pushed": 1
   },
   {
    "exp": "exp043",
@@ -249,7 +250,8 @@
     "OURS_GATE_LEVEL_WEIGHT": "2",
     "OURS_GATE_STALL_MIN": "45"
    },
-   "note": "exp-045: the unmodified base plus the model-call gate (P21): at most 6 calls in flight at the server, the waiting call with the largest weight x wait next, weight 1 + 2 x (level - 1) fading after 45 stalled minutes. Replay model (scripts/sim_call_share.py, 19 base runs): +0.64 expected, paired sd 0.84."
+   "note": "exp-045: the unmodified base plus the model-call gate (P21): at most 6 calls in flight at the server, the waiting call with the largest weight x wait next, weight 1 + 2 x (level - 1) fading after 45 stalled minutes. Replay model (scripts/sim_call_share.py, 19 base runs): +0.64 expected, paired sd 0.84.",
+   "pushed": 1
   },
   {
    "exp": "exp046",
@@ -282,7 +284,8 @@
    "serving": {
     "prefix_caching": true
    },
-   "note": "exp-047: exp-045 with vLLM prefix caching on (5 GiB KV): the Duck's prompts extend the previous call's, so a game served again soon (the gate's fast lane) can reuse its cached prefix; pushed only if the prefix-caching stress test passed. The public 27B fork ran with prefix caching at a 64.5% hit rate."
+   "note": "exp-047: exp-045 with vLLM prefix caching on (5 GiB KV): the Duck's prompts extend the previous call's, so a game served again soon (the gate's fast lane) can reuse its cached prefix; pushed only if the prefix-caching stress test passed. The public 27B fork ran with prefix caching at a 64.5% hit rate.",
+   "dropped": "not run: the prefix-caching stress test (kvstress-5g-pc) gave 19% fewer generated tokens/s and 14% fewer running requests than the 5 GiB control, with no errors"
   }
  ]
 }

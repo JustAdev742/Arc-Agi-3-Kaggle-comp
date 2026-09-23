@@ -1385,3 +1385,23 @@ Change:   P22: a transition that crosses a level boundary is no longer offered a
           last_transition and last_action_frame are None on a new level until its first action, as at a game's start;
           `transitions` keeps everything). Sandbox test added. Added to exp-042 (fixes) and exp-043 before either ran.
           Not in the P21 arms, which stay single-change.
+
+## 2026-09-23 · exp-036 and exp-039 (both with P4) · MEASURED, confirm P4's harm
+Measured: exp-036 (P4 base + board diff P9, level-1 note P10, persisted helpers P6): 3.94, 21 levels
+          (runs/exp036-ours-c); exp-039 (+ P13-P17): 3.50, 19 levels (runs/exp039-ours-d). With exp-035 (3.58) the
+          three P4 arms average 3.67 against the base's harvest mean of about 7.0; all three show the same signature:
+          prompts 10.2-10.3k tokens, 4.2 running, replies about 2,020 tokens, 496-616 preemptions, acting share
+          0.37-0.39. Nothing added on top of P4 recovered it; the effect of P6/P9/P10/P13-P17 cannot be read from these.
+
+## 2026-09-23 · serving stress tests: 6.5 GiB KV passes; prefix caching and the b12x MoE kernels do not help · MEASURED
+Setup:    scripts/build_kv_stress_nb.py: the Flash-Next server under a synthetic Duck-shaped load (28 clients, about
+          18.3k-token prompts with a board image, thinking on, 1,500-token cap) for 12 minutes; about 26 min of quota each.
+Measured (runs/kvstress-*/summary.json):
+          5 GiB control:              408 ok, 0 errors, 130.4 generated tok/s, 3.93 running (max 4), 51.3 s per call
+          6.5 GiB KV, 4,096 chunks:   414 ok, 0 errors, 148.8 tok/s (+14%), 4.92 running (max 5, +25%), 50.6 s
+          5 GiB + prefix caching:     359 ok, 0 errors, 105.7 tok/s (-19%), 3.38 running (-14%), 59.2 s
+          5 GiB + flashinfer_b12x:    server never started: "moe_backend='flashinfer_b12x' is not supported for
+                                      unquantized MoE" (the launcher waited its full 1,500 s before failing)
+Decision: exp-046 (P21 on the 6.5 GiB / 4,096-token profile) stays queued; exp-047 (P21 + prefix caching) dropped
+          before it ran; b12x dropped. Prefix caching costs capacity on this hybrid model under memory pressure, even
+          though the Duck's prompts share long prefixes; revisit only with more free KV.
