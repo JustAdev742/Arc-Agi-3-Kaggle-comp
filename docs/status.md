@@ -248,7 +248,8 @@ this repo can influence. Practical consequences: GPU experiments are blocked unt
 - **GPU runs this session:** exp-024/026 (done), exp-032 = unchanged copy of the public anim + Flash-Next notebook
   (running), exp-033 FP8 KV (failed at startup: the model needs a BF16 KV cache), exp-034 = our fork without history
   compression (running). Queue, pushed as the two slots free: exp-037 (reasoning effort medium), 8 GiB KV stress
-  test, exp-035 (history compression), exp-038 (effort low), 5 GiB stress test; exp-036 after the P6 fix below.
+  test, exp-035 (history compression), exp-036 (+ board diff, level-1 note, persisted helpers), exp-039 (+ the
+  stall-analysis patches P13-P16), 5 GiB stress test; exp-038 (effort low) only if exp-037 beats the default.
 - **Found 2026-09-23:** the served chat template runs at reasoning effort "xhigh" unless told otherwise (it prepends
   "think carefully ... consider plausible alternatives" to the system prompt) and accepts medium/low; every public
   Flash-Next notebook plays at xhigh. Patch P11 makes it a knob; exp-037/038 measure it. Harvest analysis: the score
