@@ -20,7 +20,7 @@ from .. import dsl
 from ..entities import Tracker
 from ..env import Action, Frame, GameState
 from . import register
-from .base import Agent, AgentContext
+from .base import Agent, AgentContext, stable_seed
 
 KEY_IDS = {"UP": 1, "DOWN": 2, "LEFT": 3, "RIGHT": 4}
 ACTION_NAMES = {1: "UP", 2: "DOWN", 3: "LEFT", 4: "RIGHT", 5: "ACT", 6: "CLICK", 7: "UNDO", 0: "RESET"}
@@ -47,7 +47,7 @@ class RulesAgent(Agent):
     def __init__(self, ctx: AgentContext):
         super().__init__(ctx)
         cfg = ctx.config
-        self.rng = random.Random(ctx.seed * 7919 + (hash(ctx.game_id) & 0xFFFF))
+        self.rng = random.Random(ctx.seed * 7919 + stable_seed(ctx.game_id))
         self.max_probe_clicks = int(cfg.get("max_probe_clicks", 10))
         self.max_plan_len = int(cfg.get("max_plan_len", 80))
         self.max_level_actions = int(cfg.get("max_level_actions", 300))

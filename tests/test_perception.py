@@ -65,3 +65,30 @@ def test_tile_map_is_one_char_per_tile():
     rows = t.split("\n")
     assert len(rows) == 16 and all(len(r) == 16 for r in rows)
     assert rows[0][0] == "9" and rows[1][1] == "3" and rows[0][1] == "0"
+
+
+def _board(fill: int, n: int) -> np.ndarray:
+    g = np.zeros((64, 64), dtype=np.int16)
+    g.flat[:n] = fill
+    return g
+
+
+def test_terminal_layer_animated_win_then_level_switch():
+    before = _board(3, 10)
+    anim = [_board(3, 10 + 5 * k) for k in range(1, 6)]  # a pour spreading 5 cells per internal step
+    nxt = _board(7, 900)  # the next level's start: a jump
+    layers = [before.copy(), *anim, nxt]
+    assert P.terminal_layer(layers, before) == len(layers) - 2  # the last animated board, not layers[0]
+
+
+def test_terminal_layer_switch_pending_and_single_layer():
+    before = _board(3, 10)
+    layers = [_board(3, 15), _board(3, 20), _board(3, 25)]  # no jump at the end: the switch shows on the next action
+    assert P.terminal_layer(layers, before) == 2
+    assert P.terminal_layer([_board(3, 12)], before) == 0
+
+
+def test_terminal_layer_two_layers_uses_the_winning_move_as_scale():
+    before = _board(3, 10)
+    assert P.terminal_layer([_board(3, 12), _board(9, 600)], before) == 0  # small move, then the new level
+    assert P.terminal_layer([_board(3, 400), _board(3, 420)], before) == 1  # big move, small follow-up: no switch

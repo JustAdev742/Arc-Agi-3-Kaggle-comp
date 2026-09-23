@@ -13,6 +13,14 @@ actions tried from each node. Policy each step:
   4. Nothing left to try -> random fallback (coarse click grid + simple actions).
 Level completion clears the graph but keeps per-action "changed something" stats,
 which carry over as a cheap prior for the next level.
+
+State keys (``mask_volatile``, default on since 2026-09-23): a frame hash counts every cell, so a step-counter bar
+or a blinking indicator makes every step a new state and the graph never closes (ls20's bar shrinks by one cell per
+action). Cells that change in at least ``volatile_cell`` (0.5) of the observed transitions, and edge-band rows/columns
+that change in at least ``volatile_line`` (0.4) of them, are masked out of the key once ``volatile_min`` transitions
+are seen; the graph is re-keyed when the mask grows (nodes that differ only in masked cells merge). Statistics carry
+over between levels by default (the HUD stays put; ``volatile_per_level`` restarts them). A 0.2 cell threshold masked
+the avatar's own path on ls20 (253-328 cells, 23 states, graph exhausted); 0.5 does not.
 """
 from __future__ import annotations
 
@@ -27,7 +35,7 @@ from arcengine import GameAction, GameState
 from ..env import Action, Frame
 from ..perception import background_color, components, grid_hash
 from . import register
-from .base import Agent, AgentContext
+from .base import Agent, AgentContext, stable_seed
 
 ActionKey = tuple  # (action_id,) or (6, x, y)
 
@@ -63,7 +71,7 @@ class ExplorerAgent(Agent):
     def __init__(self, ctx: AgentContext):
         super().__init__(ctx)
         cfg = ctx.config
-        self.rng = random.Random(ctx.seed * 7919 + (hash(ctx.game_id) & 0xFFFF))
+        self.rng = random.Random(ctx.seed * 7919 + stable_seed(ctx.game_id))
         self.max_click_targets = int(cfg.get("max_click_targets", 16))
         self.clicks_always = bool(cfg.get("clicks_always", False))
         self.shape_changed: dict[str, tuple[int, int]] = {}
@@ -84,6 +92,19 @@ class ExplorerAgent(Agent):
         self.n_replans = 0
         self.n_actions = 0
         self.keys_probed: set[int] = set()
+        # volatility-masked state keys
+        self.mask_volatile = bool(cfg.get("mask_volatile", True))
+        self.volatile_cell = float(cfg.get("volatile_cell", 0.5))
+        self.volatile_line = float(cfg.get("volatile_line", 0.4))
+        self.volatile_min = int(cfg.get("volatile_min", 12))
+        self.edge_band = int(cfg.get("edge_band", 6))
+        self.cell_changes = np.zeros((64, 64), dtype=np.int32)
+        self.row_changes = np.zeros(64, dtype=np.int32)
+        self.col_changes = np.zeros(64, dtype=np.int32)
+        self.n_trans = 0
+        self.mask = np.zeros((64, 64), dtype=bool)
+        self.n_rekeys = 0
+        self.volatile_per_level = bool(cfg.get("volatile_per_level", False))  # carry-over measured better on ls20 (2 levels vs 1)
 
     # ---------- candidate actions ----------
     def _candidates(self, frame: Frame) -> list[ActionKey]:
@@ -128,9 +149,64 @@ class ExplorerAgent(Agent):
         n, c = self.changed[action_id][1], self.changed[action_id][0]
         return 1.0 if n == 0 else (c + 0.5) / (n + 1.0)
 
+    # ---------- state keys ----------
+    def _key_of(self, grid: np.ndarray) -> str:
+        g = np.asarray(grid)
+        if not self.mask_volatile or not self.mask.any() or g.shape != self.mask.shape:
+            return grid_hash(g)
+        return grid_hash(np.where(self.mask, -1, g).astype(np.int16))
+
+    def _update_volatility(self, before: np.ndarray, after: np.ndarray) -> None:
+        b, a = np.asarray(before), np.asarray(after)
+        if b.shape != (64, 64) or a.shape != (64, 64):
+            return
+        d = b != a
+        self.n_trans += 1
+        self.cell_changes += d
+        self.row_changes += d.any(axis=1)
+        self.col_changes += d.any(axis=0)
+        if self.n_trans < self.volatile_min or self.n_trans % 4:
+            return
+        n = float(self.n_trans)
+        m = self.cell_changes / n >= self.volatile_cell
+        band = np.zeros(64, dtype=bool)
+        band[: self.edge_band] = True
+        band[-self.edge_band:] = True
+        rows = band & (self.row_changes / n >= self.volatile_line)
+        cols = band & (self.col_changes / n >= self.volatile_line)
+        m[rows, :] = True
+        m[:, cols] = True
+        if (m & ~self.mask).any():
+            self.mask = self.mask | m
+            self._rekey()
+
+    def _rekey(self) -> None:
+        """Merge nodes whose frames differ only in (newly) masked cells and re-point every edge."""
+        self.n_rekeys += 1
+        remap = {h: self._key_of(n.grid) for h, n in self.nodes.items()}
+        merged: dict[str, Node] = {}
+        for h, n in self.nodes.items():
+            nk = remap[h]
+            m = merged.get(nk)
+            if m is None:
+                m = Node(nk, n.grid, list(n.untried), {}, set(n.noop))
+                merged[nk] = m
+            else:
+                m.untried = [k for k in m.untried if k in n.untried]
+                m.noop |= n.noop
+            for k, tgt in n.edges.items():
+                m.edges[k] = remap.get(tgt, tgt)
+        for m in merged.values():
+            m.untried = [k for k in m.untried if k not in m.edges]
+            m.noop = {k for k in m.noop if m.edges.get(k) == m.h}
+        self.nodes = merged
+        self.cur = remap.get(self.cur, self.cur) if self.cur else self.cur
+        self.root = remap.get(self.root, self.root) if self.root else self.root
+        self.plan.clear()  # paths were computed on the old keys
+
     # ---------- graph ----------
     def _node(self, frame: Frame) -> Node:
-        h = grid_hash(frame.grid)
+        h = self._key_of(frame.grid)
         n = self.nodes.get(h)
         if n is None:
             n = Node(h, frame.grid.copy(), self._candidates(frame))
@@ -147,6 +223,12 @@ class ExplorerAgent(Agent):
 
     def _new_level(self, frame: Frame) -> None:
         self.level = frame.levels_completed
+        if self.volatile_per_level:
+            self.cell_changes[:] = 0
+            self.row_changes[:] = 0
+            self.col_changes[:] = 0
+            self.n_trans = 0
+            self.mask[:] = False
         self.keys_probed = set()
         self.level_key_probe_done = False
         self.nodes.clear()
@@ -223,6 +305,9 @@ class ExplorerAgent(Agent):
         k = self.pending or _key(action)
         self.pending = None
         changed = not np.array_equal(before.grid, after.grid)
+        if self.mask_volatile and action.action is not GameAction.RESET and after.levels_completed == before.levels_completed \
+                and not after.game_over:
+            self._update_volatility(before.grid, after.grid)
         self.changed[action.action.value][1] += 1
         self.changed[action.action.value][0] += int(changed)
         if action.action is GameAction.ACTION6 and action.x is not None:
@@ -252,4 +337,5 @@ class ExplorerAgent(Agent):
 
     def stats(self) -> dict:
         return {"nodes_last_level": len(self.nodes), "replans": self.n_replans, "fallbacks": self.n_fallback,
+                "masked_cells": int(self.mask.sum()), "rekeys": self.n_rekeys,
                 "change_rate": {a: round(c / n, 3) for a, (c, n) in self.changed.items() if n}}

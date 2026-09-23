@@ -3,11 +3,18 @@ from __future__ import annotations
 
 import logging
 import time
+import zlib
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from ..env import Action, Frame
+
+
+def stable_seed(game_id: str) -> int:
+    """A per-game seed component that is the same in every process (``hash(str)`` is salted per process unless
+    PYTHONHASHSEED is set, which made explorer, rules and random runs unrepeatable; found 2026-09-23)."""
+    return zlib.crc32(game_id.encode()) & 0xFFFF
 
 
 @dataclass

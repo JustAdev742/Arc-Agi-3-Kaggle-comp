@@ -7,14 +7,14 @@ from arcengine import GameAction, GameState
 
 from ..env import Action, Frame
 from . import register
-from .base import Agent, AgentContext
+from .base import Agent, AgentContext, stable_seed
 
 
 @register("random")
 class RandomAgent(Agent):
     def __init__(self, ctx: AgentContext):
         super().__init__(ctx)
-        self.rng = random.Random(ctx.seed * 1_000_003 + (hash(ctx.game_id) & 0xFFFF))
+        self.rng = random.Random(ctx.seed * 1_000_003 + stable_seed(ctx.game_id))
 
     def act(self, frame: Frame) -> Action:
         if frame.state in (GameState.NOT_PLAYED, GameState.GAME_OVER):

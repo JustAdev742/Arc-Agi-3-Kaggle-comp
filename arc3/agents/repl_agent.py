@@ -34,7 +34,7 @@ from ..env import Action, Frame
 from ..llm import ChatClient, ChatResponse
 from ..memory import Lessons, level_signature, load_skills, match_skills, render_skills
 from ..perception import ascii as grid_ascii
-from ..perception import detect_scale, diff, grid_hash, render_png, tile_map
+from ..perception import detect_scale, diff, grid_hash, render_png, terminal_layer, tile_map
 from ..prompts import ACTION_NAMES, NAME_TO_ID, SYSTEM_PROMPT, TOOLS
 from ..sandbox import PersistentSandbox
 from . import register
@@ -383,13 +383,14 @@ class ReplAgent(Agent):
             n_level = int(before.level_step) + 1
             last = ", ".join(self.recent_actions[-8:])
             observed_terminal = False
-            if (len(after.layers) > 1 or after.done) and after.layers[0].shape == before.grid.shape:
-                # The engine returns the completed level's terminal frame first and the next level's start last
-                # (checked on vc33/ls20/ar25 replays, 2026-09-16): the winning move is tracked on the real terminal
-                # frame, so the level archive and the goal predicates use observed evidence, not a simulation. The
-                # final WIN comes as a single layer that is the terminal itself (human ls20 recording, 2026-09-17).
+            term = after.layers[terminal_layer(after.layers, before.grid)] if after.layers else None
+            if term is not None and term.shape == before.grid.shape:
+                # The winning move is tracked on the real terminal frame, so the level archive and the goal predicates
+                # use observed evidence, not a simulation. Which layer that is: perception.terminal_layer (an animated
+                # win puts it late, e.g. cd82's pour at layers[14] of 16 where layers[0] is still the board before the
+                # pour; exp-028, 2026-09-23). The 2026-09-16 rule "layers[0]" held only for one-frame wins.
                 try:
-                    rec = self.tracker.update(after.layers[0], label0)
+                    rec = self.tracker.update(term, label0)
                     win_summary = Tracker.describe({**rec, "action": str(action)}, self.tracker)
                     observed_terminal = True
                 except Exception:  # noqa: BLE001
@@ -438,10 +439,12 @@ class ReplAgent(Agent):
         self.pending = None
         if req is not None and not req.auto:
             req.result = {**res, **(req.result or {})}
-            if res["level_completed"] and (len(after.layers) > 1 or after.done) and after.layers[0].shape == after.grid.shape:
+            if res["level_completed"] and after.layers:
                 # The completed level's observed winning frame rides on this request only (the sandbox pops it into its
                 # level archive); it must not enter last_result, which every cell receives as `last`.
-                req.result["terminal"] = after.layers[0].tolist()
+                term = after.layers[terminal_layer(after.layers, before.grid)]
+                if term.shape == after.grid.shape:
+                    req.result["terminal"] = term.tolist()
             self.result_q.put(req)
         elif req is not None and req.auto and getattr(self, "_unblocked_request", None) is not None:
             # The model asked for X during game over; we sent RESET instead. Unblock it with the RESET outcome.

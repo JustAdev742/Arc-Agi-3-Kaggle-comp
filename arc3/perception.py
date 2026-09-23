@@ -299,3 +299,27 @@ def moved_objects(before: Sequence[Obj], after: Sequence[Obj]) -> list[tuple[Obj
             used.add(c.id)
             out.append((o, c, c.x0 - o.x0, c.y0 - o.y0))
     return out
+
+
+def terminal_layer(layers: Sequence[np.ndarray], before: np.ndarray | None = None, *, jump: float = 3.0,
+                   min_jump: int = 20) -> int:
+    """Index of the completed level's final board among the layers of the step that completed the level.
+
+    The engine renders one layer per internal step. When the game declares the level won it renders the finished
+    board; a level switch inside the same action then renders the next level's start after it. An animated win puts
+    the finished board late (cd82's pour, 2026-09-23: layers[14] of 16, while layers[0] is still the board before the
+    pour), so the first layer is not the terminal frame. Rule: when the last consecutive change is a jump (at least
+    ``jump`` times every earlier change in this step, the winning move's own change from ``before`` included, and at
+    least ``min_jump`` cells), the last layer is the next level and the terminal is the one before it; otherwise the
+    switch is still pending (the next action shows the new level) and the terminal is the last layer.
+    """
+    n = len(layers)
+    if n <= 1:
+        return 0
+    changes = [int(np.count_nonzero(np.asarray(layers[i]) != np.asarray(layers[i - 1]))) for i in range(1, n)]
+    if before is not None and np.shape(before) == np.shape(layers[0]):
+        changes.insert(0, int(np.count_nonzero(np.asarray(layers[0]) != np.asarray(before))))
+    last, earlier = changes[-1], changes[:-1]
+    if last >= min_jump and last >= jump * max(earlier or [0]):
+        return n - 2
+    return n - 1

@@ -809,3 +809,37 @@ def test_postmortem_call_at_the_end_of_an_unsolved_game(tmp_path):
     finally:
         agent2.close()
         env2.close()
+
+
+def test_animated_win_archives_the_final_board_not_the_first_layer():
+    import numpy as np
+
+    mock = MockClient(lambda messages: MockClient.tool("act('UP')"))
+    ctx = AgentContext(game_id="fake", deadline=time.time() + 300, config={"client": mock, "image": False})
+    agent = get("repl")(ctx)
+    try:
+        g0 = np.zeros((64, 64), dtype=np.int16)
+        g0[10:14, 10:14] = 9
+        g1 = g0.copy()
+        g1[10:14, 10:14] = 0
+        g1[6:10, 10:14] = 9
+        f0, f1 = _frame(g0), _frame(g1, level_step=1)
+        agent.act(f0)
+        agent.observe(Action.simple(1), f0, f1)
+        # An animated winning move (cd82's pour, 2026-09-23): the first layer is still the board before the move, the
+        # finished board is second to last, the next level's start is last.
+        g_mid = g1.copy()
+        g_mid[6:10, 10:14] = 0
+        g_mid[4:8, 10:14] = 9
+        g_term = g1.copy()
+        g_term[6:10, 10:14] = 0
+        g_term[2:6, 10:14] = 9
+        g2 = np.zeros((64, 64), dtype=np.int16)
+        g2[30:50, 30:50] = 9
+        f2 = Frame(grid=g2, layers=[g1.copy(), g_mid, g_term, g2], state=GameState.NOT_FINISHED, levels_completed=1,
+                   win_levels=3, available_actions=[1, 2, 3, 4], game_id="fake", step=2, level_step=0)
+        agent.observe(Action.simple(1), f1, f2)
+        final = agent.level_archive[0][0][-1]
+        assert any(e.color == 9 and e.y0 == 2 for e in final)  # the archived winning frame is the finished board
+    finally:
+        agent.close()
