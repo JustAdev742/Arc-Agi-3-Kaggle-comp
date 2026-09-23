@@ -1183,3 +1183,11 @@ P17 (added to exp-039 before its push): animation() error replies carried only "
           only after a new transient animation. Checked: a bed mock requesting an invalid frame and reading `steps` got
           312 KeyErrors in 12 s unpatched and none patched; a stub hint sequence fired at turns 6, 12, 18, 24, 30, 36
           unpatched and at 6 and 20 (the new animation) patched.
+
+## 2026-09-23 · behaviour metrics for Duck runs (scripts/taaf_mechanisms.py) · reference values from public runs
+What:     per run, from transcripts: share of turns that act, longest action-free stretch per level (median over game,
+          level pairs), minutes to the first move on levels 2+, tool errors per model response by type, share of turns
+          whose carried note changed. These are what P1-P17 target, and they are far less noisy than the score.
+Reference (public anim/plain Flash-Next runs): thui acting 0.564, idle 48.4 min, first move L2+ 5.1 min, errors 0.027
+          per response (NameError 12, IndexError 9, KeyError 7), note updated 0.23; wuliao0 0.560 / 41.2 / 2.9 / 0.021 /
+          0.266; chiakazirim 0.538 / 29.7 / 3.4 / 0.020 / 0.217.
