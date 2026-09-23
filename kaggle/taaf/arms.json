@@ -288,6 +288,46 @@
    },
    "note": "exp-047: exp-045 with vLLM prefix caching on (5 GiB KV): the Duck's prompts extend the previous call's, so a game served again soon (the gate's fast lane) can reuse its cached prefix; pushed only if the prefix-caching stress test passed. The public 27B fork ran with prefix caching at a 64.5% hit rate.",
    "dropped": "not run: the prefix-caching stress test (kvstress-5g-pc) gave 19% fewer generated tokens/s and 14% fewer running requests than the 5 GiB control, with no errors"
+  },
+  {
+   "exp": "exp048",
+   "slug": "arc3-taaf-fix-gate-kv65",
+   "patches": [
+    "P1",
+    "P1B",
+    "P2",
+    "P7",
+    "P12",
+    "P13",
+    "P17",
+    "P22",
+    "P21"
+   ],
+   "knobs": {
+    "OURS_GATE_SLOTS": "6",
+    "OURS_GATE_LEVEL_WEIGHT": "2",
+    "OURS_GATE_STALL_MIN": "45"
+   },
+   "serving": {
+    "kv_gib": 6.5,
+    "batched_tokens": 4096
+   },
+   "note": "exp-048: the combined candidate: exp-042's fixes (10.89 in one run) with the P21 gate (mechanism confirmed in exp-045) on the 6.5 GiB KV / 4,096-token profile (stress test +25% running requests)."
+  },
+  {
+   "exp": "exp042r",
+   "slug": "arc3-taaf-ours-g-r2",
+   "patches": [
+    "P1",
+    "P1B",
+    "P2",
+    "P7",
+    "P12",
+    "P13",
+    "P17",
+    "P22"
+   ],
+   "note": "exp-042r: an unchanged repeat of exp-042 (10.89 on its first run, 95th percentile of the base) under a new slug."
   }
  ]
 }

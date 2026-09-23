@@ -95,7 +95,7 @@ def main() -> None:
     while True:
         items = json.loads(qpath.read_text())  # re-read: the queue may be edited while this runs
         for it in items:
-            state.setdefault(it["name"], {})
+            state.setdefault(it["name"], {})  # keys starting with "_" are the runner's own
             if it.get("pull_only") and not state[it["name"]].get("pushed"):
                 state[it["name"]]["pushed"] = "elsewhere"
         pending = [it for it in items if not state[it["name"]].get("done") and not state[it["name"]].get("skipped")]
@@ -113,7 +113,8 @@ def main() -> None:
                     print(f"{now()} {it['name']}: {status[0]}", flush=True)
                     print(pull(it), flush=True)
                     st["done"] = now()
-        for it in pending:
+        pushable = time.time() >= state.get("_quota_wait_until", 0)
+        for it in pending if pushable else []:
             st = state[it["name"]]
             if st.get("pushed"):
                 continue
@@ -142,6 +143,8 @@ def main() -> None:
                 if reason != st.get("refused"):
                     st["refused"] = reason
                     print(f"{now()} {it['name']}: push refused: {reason}", flush=True)
+                if "quota" in reason.lower():  # the weekly quota is spent: try again in 30 minutes, not every 2
+                    state["_quota_wait_until"] = time.time() + 1800
             break  # one push attempt per cycle, in priority order
         spath.write_text(json.dumps(state, indent=1))
         time.sleep(120)
