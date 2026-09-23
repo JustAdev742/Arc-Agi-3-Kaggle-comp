@@ -261,7 +261,7 @@ def _compress_history_message(message: dict[str, Any]) -> dict[str, Any]:
         return message
     cut = text.find(_HISTORY_USER_CUT_MARKER)
     if cut > 0:
-        text = text[:cut] + "\\n[Earlier turn; its standing instructions, world-model copy and image are omitted.]"
+        text = text[:cut] + "\\n[older turn: instructions, note and image omitted]"
     elif isinstance(content, str):
         return message
     compressed = dict(message)
