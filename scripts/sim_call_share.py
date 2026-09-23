@@ -117,14 +117,14 @@ def rates(weights: list[float], s0: float, mu: float) -> list[float]:
     return [1.0 / (hi / w + s0) for w in weights]
 
 
-def play(needs, nlev, effs, step, stall_min, s0, dt=0.5):
-    """Minutes-stepped replay of one draw; returns the mean game score (percent)."""
+def play(needs, nlev, effs, step, stall_min, s0, dt=0.5, cap_min=CAP_MIN):
+    """Minutes-stepped replay of one draw (one wave); returns the mean game score (percent)."""
     gids = list(needs)
     level = dict.fromkeys(gids, 0)
     work = dict.fromkeys(gids, 0.0)
     since = dict.fromkeys(gids, 0.0)
     t = 0.0
-    while t < CAP_MIN - 1e-9:
+    while t < cap_min - 1e-9:
         active = [g for g in gids if level[g] < nlev[g]]
         ws = []
         for g in active:
@@ -147,11 +147,19 @@ def main() -> None:
     ap.add_argument("--draws", type=int, default=400)
     ap.add_argument("--s0", type=float, default=0.85, help="shortest cycle in minutes (in-server queue + decode + tools)")
     ap.add_argument("--seed", type=int, default=7)
+    ap.add_argument("--hidden", type=int, default=0, metavar="N",
+                    help="model a hidden set of N games (each a random public game) played in waves; see --waves")
+    ap.add_argument("--waves", type=int, nargs="*", default=[4, 2, 1], help="wave counts to compare with --hidden")
+    ap.add_argument("--hazard-scale", type=float, default=1.0, help="multiply every hazard (below 1: harder games)")
     args = ap.parse_args()
     runs = load_runs(args.bench_glob)
     nlev, hazard, mean_eff = fit(runs)
+    hazard = {k: v * args.hazard_scale for k, v in hazard.items()}
     print(f"{len(runs)} stock-cap runs; {len(nlev)} games; levels with a solve: {sum(1 for k in mean_eff)}")
     rng = random.Random(args.seed)
+    if args.hidden:
+        hidden_waves(args, rng, nlev, hazard, mean_eff)
+        return
     arms = [("first-come (control)", 0.0, 0.0), ("step 0.5", 0.5, 0.0), ("step 1", 1.0, 0.0), ("step 1, fade 45", 1.0, 45.0),
             ("step 2", 2.0, 0.0), ("step 2, fade 45", 2.0, 45.0), ("step 4, fade 45", 4.0, 45.0)]
     totals = {a[0]: [] for a in arms}
@@ -168,6 +176,37 @@ def main() -> None:
         md = sum(diff) / len(diff)
         sd = math.sqrt(sum((d - md) ** 2 for d in diff) / max(1, len(diff) - 1))
         print(f"{name:22s} mean {m:5.2f}  paired diff {md:+.2f} (sd {sd:.2f}, P(diff>0) {sum(d > 0 for d in diff) / len(diff):.0%})")
+
+
+def hidden_waves(args, rng, nlev, hazard, mean_eff) -> None:
+    """N games in W sequential waves of N/W concurrent games, each wave given 528 / W minutes (the Duck's 4 x 132)."""
+    publics = list(nlev)
+    arms = [("first-come", 0.0, 0.0), ("P21 step 2, fade 45", 2.0, 45.0)]
+    out = {(w, a[0]): [] for w in args.waves for a in arms}
+    for _ in range(args.draws):
+        picks = [rng.choice(publics) for _ in range(args.hidden)]
+        needs = {f"{g}#{i}": [rng.expovariate(hazard.get((g, k), 0.02)) for k in range(nlev[g])]
+                 for i, g in enumerate(picks)}
+        levs = {f"{g}#{i}": nlev[g] for i, g in enumerate(picks)}
+        effs = {f"{g}#{i}": [mean_eff.get((g, k), 0.8) for k in range(nlev[g])] for i, g in enumerate(picks)}
+        keys = list(needs)
+        for w in args.waves:
+            size = -(-len(keys) // w)
+            for name, step, fade in arms:
+                total = 0.0
+                for j in range(w):
+                    wave = keys[j * size:(j + 1) * size]
+                    if not wave:
+                        continue
+                    sub = {k: needs[k] for k in wave}
+                    total += play(sub, {k: levs[k] for k in wave}, {k: effs[k] for k in wave}, step, fade, args.s0,
+                                  cap_min=CAP_MIN * 4 / w) * len(wave)
+                out[(w, name)].append(total / len(keys))
+    for w in args.waves:
+        for name, _, _ in arms:
+            v = out[(w, name)]
+            print(f"{w} wave(s) of {-(-args.hidden // w)}: {name:22s} mean {sum(v) / len(v):5.2f}  vs first-come 4 waves "
+                  f"{sum(a - b for a, b in zip(v, out[(4, arms[0][0])])) / len(v):+.2f}" if (4, arms[0][0]) in out else "")
 
 
 if __name__ == "__main__":

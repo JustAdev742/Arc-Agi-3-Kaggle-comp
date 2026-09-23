@@ -1342,3 +1342,12 @@ Also:     the 65% prefix-cache hit rate shows how much of each Duck prompt repea
           public profile has prefix caching off; the stress test kvstress-5g-pc checks it works for this model, and
           exp-047 (P21 + prefix caching) is queued behind it: a game the gate serves again within a minute or so may
           still find its prefix cached, which removes most of that call's prefill.
+
+## 2026-09-23 · replay model of the hidden set: P21 and the wave structure · MEASURED (model only, no GPU)
+Method:   scripts/sim_call_share.py --hidden 110 --waves 4 2 1 --hazard-scale 0.5 --draws 30: 110 games drawn from the
+          public 25's per-level hazards, halved (Duck-family scores roughly halve from the public games to the LB,
+          lesson 0018), played in 4, 2 or 1 waves with 528 min of play split evenly.
+Measured: first-come 4.16 at any wave count (equal shares make the grouping irrelevant); P21 +0.42 with the Duck's 4
+          waves of 28, +0.51 with 2 waves of 55, +0.53 with one wave of 110.
+Decision: keep 28 concurrent games. A wider pool helps the gate only by about +0.1 in the model, not worth the memory,
+          process-count and per-call timeout risks of 55-110 live games.
