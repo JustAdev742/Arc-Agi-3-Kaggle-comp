@@ -939,7 +939,10 @@ P20_PROMPT_NEW = P9_OLD + """            if previous_step_summary.get("no_impact
 # OURS_GATE_SLOTS calls in flight (default 8, the server's max_num_seqs; 0 turns it off) and lets the waiting call with
 # the largest weight x wait go next, so no game starves. Weight 1 + OURS_GATE_LEVEL_WEIGHT x (level - 1) (default
 # step 1), fading as a level stalls past OURS_GATE_STALL_MIN minutes (default 45). Every OURS_GATE_PRINT_S seconds
-# (default 600) the gate prints its counts to the notebook log.
+# (default 600) the gate prints its counts to the notebook log. The base's 180 s turn yield counted wall time, which
+# with about 145 s per call meant 1-2 calls per turn (95% of turns in exp-032); behind the gate a waiting game would
+# yield after every call and a fast one after four, so while the gate is on a turn yields after OURS_GATE_TURN_CALLS
+# calls (default 2) and gate waits do not count toward the time rule.
 P21_FN = '''import threading as _ours_threading
 
 _OURS_GATE_LOCK = _ours_threading.Lock()
@@ -1052,12 +1055,26 @@ P21_CALL_NEW = """        _ours_gate = _ours_call_gate()  # ours P21: weighted f
                 response = post_chat(payload)
             finally:
                 _ours_gate.release()
+            self._ours_gate_wait_turn = getattr(self, "_ours_gate_wait_turn", 0.0) + _ours_waited
 """
+P21_TURN_OLD = "        turn_started_at = time.monotonic()\n"
+P21_TURN_NEW = ("        turn_started_at = time.monotonic()\n"
+                "        self._ours_gate_wait_turn = 0.0  # ours P21: gate waits do not count toward the turn yield\n")
+P21_YIELD_OLD = ("            if self._yield_seconds is not None and (time.monotonic() - turn_started_at) >= self._yield_seconds:\n"
+                 "                return \"turn_time_budget\"\n")
+P21_YIELD_NEW = ("            _ours_gated = _ours_call_gate() is not None  # ours P21: the base's turn shape behind the gate\n"
+                 "            _ours_busy_s = time.monotonic() - turn_started_at - getattr(self, '_ours_gate_wait_turn', 0.0)\n"
+                 "            if self._yield_seconds is not None and _ours_busy_s >= self._yield_seconds:\n"
+                 "                return \"turn_time_budget\"\n"
+                 "            if self._yield_seconds is not None and _ours_gated and turn_count >= _get_env_int(\"OURS_GATE_TURN_CALLS\", 2):\n"
+                 "                return \"turn_time_budget\"\n")
 
 PATCHES.update({
     "P21": [(TOOL_AGENT, "def _empty_world_model(", P21_FN + "def _empty_world_model("),
             (TOOL_AGENT, P21_LEVEL_OLD, P21_LEVEL_NEW),
-            (TOOL_AGENT, P21_CALL_OLD, P21_CALL_NEW)],
+            (TOOL_AGENT, P21_CALL_OLD, P21_CALL_NEW),
+            (TOOL_AGENT, P21_TURN_OLD, P21_TURN_NEW),
+            (TOOL_AGENT, P21_YIELD_OLD, P21_YIELD_NEW)],
     "P11": [(UTILS_COMPAT, P11_IMPORT_OLD, P11_IMPORT_NEW), (UTILS_COMPAT, P11_OLD, P11_NEW)],
     "P12": [(TOOL_AGENT, P12_OLD, P12_NEW)],
     "P13": [(PROMPTS, PROMPTS_SCORE_OLD, PROMPTS_SCORE_NEW)],
