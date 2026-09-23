@@ -1191,3 +1191,23 @@ What:     per run, from transcripts: share of turns that act, longest action-fre
 Reference (public anim/plain Flash-Next runs): thui acting 0.564, idle 48.4 min, first move L2+ 5.1 min, errors 0.027
           per response (NameError 12, IndexError 9, KeyError 7), note updated 0.23; wuliao0 0.560 / 41.2 / 2.9 / 0.021 /
           0.266; chiakazirim 0.538 / 29.7 / 3.4 / 0.020 / 0.217.
+
+## 2026-09-23 · the systems at 100, and patches P18 (predict before acting) and P19 (supervisor) · BUILT; exp-040 queued
+Survey:   docs/research/frontier-100-systems.md. NVIDIA AVO, MIT's VISTA and Tycho all report 100 on the 25 public
+          games with Claude Opus 5 (or GPT-5.6 Sol at 98-100) called over the internet (Tycho: 600-1,800 calls per game,
+          2.99k-5.78k USD per run); on ARC Prize's semi-private set the same class of models scores 30-63; the best
+          documented open-weight result is 19.8 (self-reported); the Kaggle leaderboard top is 19.40. None of the 100
+          systems can run in the competition (no internet at rerun, one GPU, 9 h for 110 unseen games).
+Shared structures we lacked: stating the expected change before each action and comparing after (VISTA; arc3cb's
+          plan queue with expectations), and a supervisor that watches for stagnation and redirects (AVO).
+P18:      a standing prompt line: before each action() print `expect: ...`, compare after, fix the model on a mismatch;
+          test hypotheses on history/transitions in Python before spending actions.
+P19:      after OURS_SUPERVISOR_MIN minutes (default 30, above the 24-31 min median of a solved level) without leaving a
+          level, one extra call to the same model as a reviewer (text only: notes, earlier levels' records, this level's
+          actions run-length encoded, untried actions, the board as colour letters) asking what is most likely wrong and
+          for two alternative hypotheses with one cheap probe each; the reply stays in the prompt until the next review
+          or level. At most one review per 30 minutes on a level (about 4 per stuck game).
+Bed:      expect line in 107 of 107 prompts; supervisor calls every bed interval (1 message each) with the review in the
+          following prompts; the prompt carries the notes, "level 1 took 13 actions; the last 13: ...", 55 actions of
+          level 2 run-length encoded and the 4,160-character board; exact notebook tree clean on ft09.
+Arm:      exp-040 = exp-039 + P18 + P19 (scottmahony/arc3-taaf-ours-e), queued after exp-039.

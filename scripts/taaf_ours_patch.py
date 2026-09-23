@@ -755,6 +755,83 @@ P17_HINT_NEW = """        _last_hint = getattr(self, "_ours_hint_anims", None)
         self._ours_hint_anims = (current_level, self._animation_transient_animations)
 """ + P17_HINT_OLD
 
+# P18 (from VISTA and arc3cb, the frontier harnesses at 100 on the public games): before each action the model states
+# the change it expects, and the next prompt's board diff (P9) shows what happened, so a wrong model is caught by
+# one action instead of by a stalled level.
+P18_OLD = ('                "When ready, call `action(actions)` from inside the `python` tool with the best valid action or ordered '
+           'batch selected by your code. If your code has found a reliable short sequence, prefer batching it in one call.",\n')
+P18_NEW = (P18_OLD
+           + '                "Before each `action(...)` call, print one line starting with `expect:` that states the change you '
+             'predict (for example `expect: the red block moves one cell left`); afterwards compare it with what happened and '
+             'fix your world model where they differ. Where you can, test a hypothesis on `history`/`transitions` in Python '
+             'before spending an action on it.",\n')
+
+# P19 (from NVIDIA AVO's supervisor): when a level has made no progress for OURS_SUPERVISOR_MIN minutes (default 30,
+# above the 24-31 min median time of a solved level), the harness makes one extra call to the same model, as a
+# reviewer that sees the notes, this level's actions, the untried actions and the board, and asks what is most likely
+# wrong and for two alternative hypotheses with a cheap probe each. Its reply stays in the prompt until the next
+# review or level. At most one review per OURS_SUPERVISOR_MIN minutes on a level; 0 turns it off.
+P19_FN = '''def _ours_supervisor_review(agent: Any, history_entries: list[Any], current_frame: Any, level: int,
+                            valid_actions: list[str] | None, minutes: float) -> str:
+    """One reviewer call on a stalled level; returns its reply as one line (empty on any failure)."""
+    from inference.utils.grid_utils import format_grid_ascii
+
+    names = [str(history_entries[i].action or "") for i in range(1, len(history_entries))
+             if getattr(history_entries[i - 1], "frame", None) is not None
+             and history_entries[i - 1].frame.level == level]
+    runs: list[list[Any]] = []
+    for name in names[-60:]:
+        if runs and runs[-1][0] == name:
+            runs[-1][1] += 1
+        else:
+            runs.append([name, 1])
+    used = {str(getattr(e, "action", "") or "").split("(", 1)[0].strip().upper() for e in history_entries}
+    valid = _normalize_valid_actions(valid_actions)
+    untried = [a for a in valid if a.upper() not in used and a.upper() != "RESET"]
+    records = getattr(agent, "_ours_level_records", None) or {}
+    board = format_grid_ascii(current_frame.grid) if current_frame is not None else "(no board)"
+    prompt = (
+        f"You are reviewing an agent that plays a grid puzzle game (a 64x64 board of colour letters; actions: "
+        f"{', '.join(valid)}). It has been on level {level} for {minutes:.0f} minutes without completing it.\\n\\n"
+        "Its current notes:\\n" + ("\\n".join(agent._summarized_knowledge_lines()) or "(empty)") + "\\n\\n"
+        + ("How earlier levels ended: " + "; ".join(records[k] for k in sorted(records)) + "\\n\\n" if records else "")
+        + f"Actions on this level so far ({len(names)}, last 60 run-length encoded): "
+        + (", ".join(f"{n} x{k}" if k > 1 else n for n, k in runs) or "none") + "\\n"
+        + f"Actions never tried in this game: {', '.join(untried) or 'none'}\\n\\n"
+        + "Current board:\\n" + board + "\\n\\n"
+        "Say what is most likely wrong: which assumption in the notes was never tested, which hypothesis keeps failing, "
+        "what the agent keeps repeating. Then give two different hypotheses about the goal or the mechanics that fit "
+        "the evidence, each with one cheap probe (at most 3 actions) that would confirm or refute it. Reply in at most "
+        "8 short lines of plain text."
+    )
+    result = agent._chat_completion([{"role": "user", "content": prompt}], tools=None, request_timeout_seconds=900)
+    text = str((result.message or {}).get("content") or "").strip()
+    return " | ".join(line.strip() for line in text.splitlines() if line.strip())[:1500]
+
+
+'''
+P19_OLD = '        lines.append("end of world model. ")\n'
+P19_NEW = (P19_OLD
+           + '        try:  # ours P19: a reviewer call on a stalled level (prompt building runs outside the analyzer\'s try)\n'
+           + '            _now_s = time.monotonic()\n'
+           + '            if getattr(self, "_ours_sup_level", None) != current_level:\n'
+           + '                self._ours_sup_level, self._ours_sup_t, self._ours_sup_note = current_level, _now_s, ""\n'
+           + '            _sup_min = float(os.environ.get("OURS_SUPERVISOR_MIN", "30"))\n'
+           + '            if _sup_min > 0 and (_now_s - self._ours_sup_t) / 60.0 >= _sup_min:\n'
+           + '                _minutes = (_now_s - getattr(self, "_ours_sup_level_t0", {}).get(current_level, self._ours_sup_t)) / 60.0\n'
+           + '                self._ours_sup_t = _now_s\n'
+           + '                self._ours_sup_note = _ours_supervisor_review(self, history_entries, current_frame, current_level,\n'
+           + '                                                              valid_actions, max(_minutes, _sup_min))\n'
+           + '                self._ours_sup_calls = getattr(self, "_ours_sup_calls", 0) + 1\n'
+           + '            _t0s = getattr(self, "_ours_sup_level_t0", {})\n'
+           + '            _t0s.setdefault(current_level, _now_s)\n'
+           + '            self._ours_sup_level_t0 = _t0s\n'
+           + '            if self._ours_sup_note:\n'
+           + '                lines.append("Supervisor review of this stalled level (a second opinion; test it, do not trust it "\n'
+           + '                             "blindly): " + self._ours_sup_note)\n'
+           + '        except Exception:\n'
+           + '            pass\n')
+
 PATCHES.update({
     "P11": [(UTILS_COMPAT, P11_IMPORT_OLD, P11_IMPORT_NEW), (UTILS_COMPAT, P11_OLD, P11_NEW)],
     "P12": [(TOOL_AGENT, P12_OLD, P12_NEW)],
@@ -764,6 +841,9 @@ PATCHES.update({
     "P15": [(TOOL_AGENT, P15_OLD, P15_NEW)],
     "P16": [(TOOL_AGENT, P16_OLD, P16_NEW)],
     "P17": [(TOOL_AGENT, P17_VIEW_OLD, P17_VIEW_NEW), (TOOL_AGENT, P17_HINT_OLD, P17_HINT_NEW)],
+    "P18": [(TOOL_AGENT, P18_OLD, P18_NEW)],
+    "P19": [(TOOL_AGENT, "def _empty_world_model(", P19_FN + "def _empty_world_model("),
+            (TOOL_AGENT, P19_OLD, P19_NEW)],
     "P6": [
         (TOOL_AGENT, "def _empty_world_model(", P6_FN + "def _empty_world_model("),
         (SANDBOX, P6_SANDBOX_CHILD_OLD, P6_SANDBOX_CHILD_NEW),
