@@ -903,4 +903,8 @@ Reading:  the reach goals come out as "the marker disappears" (dc22: colour 11 o
           clue rules, brackets drawn as four corner pieces, twin merge). Contrast leaves about a dozen live candidates
           per level: the rest is experiment selection or a model's judgement.
 Kept:     dsl.forall_distance / every_<relation> kinds (goal_predicates(forall=True)), dsl.goal_signature,
-          dsl.instantiate_goals; all opt-in, so no agent's behaviour changed. Tests in tests/test_dsl.py.
+          dsl.instantiate_goals; all opt-in, so no agent's behaviour changed. Tests in tests/test_dsl.py. The REPL
+          knobs goal_forall / goal_lifted (off in CHAMPION, on in BUNDLE; tests/test_repl_agent.py) put them in the
+          model's goal-hypotheses line; unmeasured with a model (next bundle run). With 1 percent of the negatives
+          allowed to satisfy a candidate (gated win checks), the optimal-play data also gives m0r0's goal
+          ("count(colour 10) == 1": the twins merged).
