@@ -1241,3 +1241,10 @@ Suspect:  the 600 s yield. A yield only restarts the turn with a fresh prompt (s
 Decision: the four queued arms (exp-035, 036, 039, 040; none pushed yet) are rebuilt with the base 180 s yield; the
           output cap, P1-P3 and P7 stay (they do what they target). Tonight's submission is chosen among exp-032,
           exp-037 and the arms that finish before 23:30.
+
+## 2026-09-23 · KV cache 8 GiB stress test · FAILED AT STARTUP (out of memory)
+Measured: scottmahony/arc3-kv-stress-8g v1 (10:50-11:05 UTC, about 11 minutes of quota): vLLM died in warm-up inside the
+          GDN linear-attention layer with torch.OutOfMemoryError (96 MiB requested, 46 MiB free of 94.97 GiB; 94.22 GiB in
+          use). runs/kvstress-8g/summary.json. As the headroom analysis predicted, the 5 GiB profile leaves no room for
+          3 more GiB of KV. Remaining throughput levers: shorter prompts (P4, exp-035), shorter outputs (P11, exp-037),
+          prefix caching (stress test queued; it shares the 4-5k-token system prompt across requests).

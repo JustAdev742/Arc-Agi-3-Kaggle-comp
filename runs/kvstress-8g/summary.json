@@ -1,0 +1,8 @@
+{
+ "run_name": "kvstress-8g",
+ "kernel": "scottmahony/arc3-kv-stress-8g",
+ "kv_bytes": 8589934592,
+ "status": "startup_oom",
+ "error": "torch.OutOfMemoryError during vLLM warm-up (qwen_gdn_linear_attn): tried to allocate 96 MiB, 46 MiB free of 94.97 GiB; process using 94.22 GiB",
+ "wall_minutes": 11
+}
