@@ -1,0 +1,28 @@
+{
+ "_doc": "Every Duck-fork arm: kernel slug, source patches (scripts/taaf_ours_patch.py), analyzer knobs and builder flags. scripts/build_arms.py builds them with scripts/build_taaf_nb.py, so a rebuild after a patch change is the same command for every arm. 'pushed' records the kernel version that ran; an arm with a version is history and is not rebuilt unless --force.",
+ "defaults": {"wavefit": true, "knobs": {"LOCAL_ANALYZER_YIELD_SECONDS": "180", "LOCAL_ANALYZER_MAX_OUTPUT": "6144", "LOCAL_ANALYZER_CONTEXT_WINDOW": "22528"}},
+ "arms": [
+  {"exp": "exp034", "slug": "arc3-taaf-ours-a", "pushed": 1,
+   "patches": ["P1", "P1B", "P2", "P3", "P7"],
+   "knobs": {"LOCAL_ANALYZER_YIELD_SECONDS": "600", "LOCAL_ANALYZER_CONTEXT_WINDOW": null},
+   "note": "exp-034: carried-note fixes, ACTION7 as UNDO, notes kept across levels, pre-imports, 600 s turn yield, 6,144-token output cap."},
+  {"exp": "exp035", "slug": "arc3-taaf-ours-b", "pushed": 1,
+   "patches": ["P1", "P1B", "P2", "P3", "P7", "P4", "P8", "P12"],
+   "note": "exp-035: exp-034's patches plus history compression (P4) and the cross-level note request (P8); compile errors contained (P12); turn yield back to the base 180 s after exp-034."},
+  {"exp": "exp036", "slug": "arc3-taaf-ours-c",
+   "patches": ["P1", "P1B", "P2", "P3", "P7", "P4", "P8", "P9", "P10", "P6", "P12"],
+   "note": "exp-036: exp-035 plus board diff (P9), level-1 probing note (P10) and persisted helpers (P6)."},
+  {"exp": "exp037", "slug": "arc3-taaf-effort-medium", "pushed": 1, "wavefit": false,
+   "patches": ["P11"], "knobs": {"LOCAL_ANALYZER_YIELD_SECONDS": null, "LOCAL_ANALYZER_MAX_OUTPUT": null, "LOCAL_ANALYZER_CONTEXT_WINDOW": null, "OURS_REASONING_EFFORT": "medium"},
+   "note": "exp-037: the served template's reasoning effort set to medium (default xhigh); nothing else changed."},
+  {"exp": "exp038", "slug": "arc3-taaf-effort-low", "wavefit": false,
+   "patches": ["P11"], "knobs": {"LOCAL_ANALYZER_YIELD_SECONDS": null, "LOCAL_ANALYZER_MAX_OUTPUT": null, "LOCAL_ANALYZER_CONTEXT_WINDOW": null, "OURS_REASONING_EFFORT": "low"},
+   "note": "exp-038: the served template's reasoning effort set to low (default xhigh); nothing else changed."},
+  {"exp": "exp039", "slug": "arc3-taaf-ours-d",
+   "patches": ["P1", "P1B", "P2", "P3", "P7", "P4", "P8", "P9", "P10", "P6", "P12", "P13", "P14", "P15", "P16", "P17"],
+   "note": "exp-039: exp-036 plus the stall-analysis patches P13-P17."},
+  {"exp": "exp040", "slug": "arc3-taaf-ours-e",
+   "patches": ["P1", "P1B", "P2", "P3", "P7", "P4", "P8", "P9", "P10", "P6", "P12", "P13", "P14", "P15", "P16", "P17", "P18", "P19"],
+   "note": "exp-040: exp-039 plus predict-before-act (P18) and a supervisor review of a stalled level (P19)."}
+ ]
+}

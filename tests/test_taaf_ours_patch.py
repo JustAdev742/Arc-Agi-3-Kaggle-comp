@@ -293,3 +293,15 @@ def test_builder_inlines_the_patch_source_and_every_requested_patch_applies(tmp_
     assert len(applied) == sum(len(tp.PATCHES[n]) for n in names)
     meta = json.loads((out / "kernel-metadata.json").read_text())
     assert meta["is_private"] is True and meta["enable_internet"] is False
+
+
+def test_arm_registry_names_only_known_patches_and_builds(tmp_path):
+    registry = json.loads((ROOT / "kaggle" / "taaf" / "arms.json").read_text())
+    for arm in registry["arms"]:
+        assert set(arm["patches"]) <= set(tp.PATCHES), arm["exp"]
+    out = tmp_path / "arms"
+    subprocess.run([sys.executable, str(ROOT / "scripts" / "build_arms.py"), "--out", str(out), "--force",
+                    "--arms", "exp040"], check=True, capture_output=True, text=True)
+    nb = json.loads((out / "exp040" / "arc3-taaf-ours-e.ipynb").read_text())
+    text = "\n".join("".join(c["source"]) for c in nb["cells"])
+    assert "'LOCAL_ANALYZER_YIELD_SECONDS': '180'" in text and "P19" in text
