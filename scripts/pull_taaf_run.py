@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -21,6 +22,34 @@ sys.path.insert(0, str(ROOT))
 
 from arc3.scoring import game_score  # noqa: E402
 from arc3.splits import resolve  # noqa: E402
+
+
+def server_metrics(dl: Path) -> dict:
+    """Totals from the vLLM Prometheus dump (vllm-metrics-final.prom) and the running/waiting counts in the server log."""
+    out: dict = {}
+    prom = next(iter(sorted(dl.rglob("vllm-metrics-final.prom"))), None)
+    if prom is not None:
+        vals: dict[str, float] = {}
+        for line in prom.read_text().splitlines():
+            m = re.match(r"^(vllm:[a-z0-9_]+)(?:\{[^}]*\})? ([0-9.eE+-]+)$", line)
+            if m:
+                vals[m.group(1)] = vals.get(m.group(1), 0.0) + float(m.group(2))
+        n = vals.get("vllm:e2e_request_latency_seconds_count") or 0.0
+        out = {"requests": int(n),
+               "prompt_tokens_per_request": round(vals.get("vllm:request_prompt_tokens_sum", 0) / n) if n else None,
+               "generated_tokens_per_request": round(vals.get("vllm:request_generation_tokens_sum", 0) / n) if n else None,
+               "queue_s_per_request": round(vals.get("vllm:request_queue_time_seconds_sum", 0) / n, 1) if n else None,
+               "e2e_s_per_request": round(vals.get("vllm:e2e_request_latency_seconds_sum", 0) / n, 1) if n else None,
+               "decode_s_per_request": round(vals.get("vllm:request_decode_time_seconds_sum", 0) / n, 1) if n else None,
+               "generation_tokens_total": int(vals.get("vllm:generation_tokens_total", 0)),
+               "preemptions": int(vals.get("vllm:num_preemptions_total", 0))}
+    log = next(iter(sorted(dl.rglob("vllm-openai-server.log"))), None)
+    if log is not None:
+        running = [int(x) for x in re.findall(r"Running: (\d+) reqs", log.read_text(errors="replace"))]
+        if running:
+            out["running_mean"] = round(sum(running) / len(running), 2)
+            out["running_max"] = max(running)
+    return out
 
 
 def main() -> None:
@@ -86,7 +115,9 @@ def main() -> None:
                                  g["baselines"]))
         return round(sum(xs) / len(xs), 4) if xs else 0.0
 
+    summary_server = server_metrics(dl)
     summary = {"run_name": run_name, "kernel": kernel, "source": str(bench[-1].relative_to(dl)), "games": len(games),
+               "server": summary_server,
                "score_all": mean({g["game_id"] for g in games}), "score_dev": mean(dev), "score_val": mean(val),
                "levels_completed": sum(g["levels_completed"] for g in games),
                "levels_total": sum(g["levels_total"] for g in games),
@@ -96,6 +127,7 @@ def main() -> None:
     print(f"{run_name}: all {summary['score_all']}  dev {summary['score_dev']}  val {summary['score_val']}  "
           f"levels {summary['levels_completed']}/{summary['levels_total']}")
     print("  score had every game stopped at N minutes:", summary["score_if_stopped_at_min"])
+    print("  server:", summary["server"])
     for g in sorted(games, key=lambda g: -g["score"]):
         if g["levels_completed"]:
             print(f"  {g['game_id']}: {g['levels_completed']}/{g['levels_total']} score {g['score']:.2f} "

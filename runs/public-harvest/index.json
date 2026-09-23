@@ -502,5 +502,950 @@
   "score_val": 3.624,
   "levels": 44,
   "actions": 3522
+ },
+ "yocybercode/thui-fast-b78-mtp0-full25-r1": {
+  "ref": "yocybercode/thui-fast-b78-mtp0-full25-r1",
+  "rank": "13",
+  "title": "thui-fast-b78-mtp0-full25-r1",
+  "last_run": "2026-09-10 09:46:52.077000",
+  "datasets": [
+   "keithtyser/duck-qwen38-nvfp4-mtp-vllm-smoke-v1",
+   "keithtyser/qwen38-flash-next-vllm-nvfp4-runtime-v1"
+  ],
+  "models": [
+   "keithtyser/qwen3-8-flash-next-nvfp4/PyTorch/radixark-modelopt-fp4/1"
+  ],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {
+   "TAAF_VLLM_MAX_NUM_SEQS": [
+    "8"
+   ],
+   "TAAF_VLLM_MTP_TOKENS": [
+    "0"
+   ],
+   "max_runtime_s_per_game": [
+    "7920.0"
+   ],
+   "analyzer_timeout": [
+    "900.0"
+   ],
+   "concurrency": [
+    "28"
+   ]
+  },
+  "anim": false,
+  "status": "ok",
+  "games": 25,
+  "score_all": 6.961,
+  "score_dev": 7.458,
+  "score_val": 5.388,
+  "levels": 40,
+  "actions": 4049
+ },
+ "rakbidb/sukirman-verified-exact-profile-flash-next-mtp3": {
+  "ref": "rakbidb/sukirman-verified-exact-profile-flash-next-mtp3",
+  "rank": "15",
+  "title": "sukirman - Verified Exact-Profile Flash-Next MTP3",
+  "last_run": "2026-09-02 01:45:43.910000",
+  "datasets": [
+   "keithtyser/duck-qwen38-nvfp4-mtp-vllm-smoke-v1",
+   "keithtyser/qwen38-flash-next-vllm-nvfp4-runtime-v1"
+  ],
+  "models": [
+   "keithtyser/qwen3-8-flash-next-nvfp4/PyTorch/radixark-modelopt-fp4/1"
+  ],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {
+   "TAAF_VLLM_MAX_NUM_SEQS": [
+    "8"
+   ],
+   "TAAF_VLLM_MTP_TOKENS": [
+    "3"
+   ],
+   "max_runtime_s_per_game": [
+    "7920.0"
+   ],
+   "analyzer_timeout": [
+    "900.0"
+   ],
+   "concurrency": [
+    "28"
+   ]
+  },
+  "anim": false,
+  "status": "ok",
+  "games": 25,
+  "score_all": 8.486,
+  "score_dev": 10.067,
+  "score_val": 3.478,
+  "levels": 39,
+  "actions": 4399
+ },
+ "akhileshgodugu/duck-qwen3-8-flash-next-nvfp4-mtp-aacb81": {
+  "ref": "akhileshgodugu/duck-qwen3-8-flash-next-nvfp4-mtp-aacb81",
+  "rank": "16",
+  "title": "Duck Qwen3.8 Flash Next NVFP4 MTP aacb81",
+  "last_run": "2026-09-04 12:20:03.077000",
+  "datasets": [
+   "keithtyser/duck-qwen38-nvfp4-mtp-vllm-smoke-v1",
+   "keithtyser/qwen38-flash-next-vllm-nvfp4-runtime-v1"
+  ],
+  "models": [
+   "keithtyser/qwen3-8-flash-next-nvfp4/PyTorch/radixark-modelopt-fp4/1"
+  ],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {
+   "TAAF_VLLM_MAX_NUM_SEQS": [
+    "8"
+   ],
+   "TAAF_VLLM_MTP_TOKENS": [
+    "3"
+   ],
+   "max_runtime_s_per_game": [
+    "7920.0"
+   ],
+   "analyzer_timeout": [
+    "900.0"
+   ],
+   "concurrency": [
+    "28"
+   ]
+  },
+  "anim": false,
+  "status": "ok",
+  "games": 25,
+  "score_all": 6.744,
+  "score_dev": 7.636,
+  "score_val": 3.916,
+  "levels": 34,
+  "actions": 3267
+ },
+ "fanglimo/arc3-flash-next-full": {
+  "ref": "fanglimo/arc3-flash-next-full",
+  "rank": "17",
+  "title": "Arc3-Flash-Next-Full",
+  "last_run": "2026-09-11 03:35:07.780000",
+  "datasets": [
+   "keithtyser/duck-qwen38-nvfp4-mtp-vllm-smoke-v1",
+   "keithtyser/qwen38-flash-next-vllm-nvfp4-runtime-v1"
+  ],
+  "models": [
+   "keithtyser/qwen3-8-flash-next-nvfp4/PyTorch/radixark-modelopt-fp4/1"
+  ],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {
+   "TAAF_VLLM_MAX_NUM_SEQS": [
+    "8"
+   ],
+   "TAAF_VLLM_MTP_TOKENS": [
+    "3"
+   ],
+   "max_runtime_s_per_game": [
+    "7920.0"
+   ],
+   "analyzer_timeout": [
+    "900.0"
+   ],
+   "concurrency": [
+    "28"
+   ]
+  },
+  "anim": false,
+  "status": "ok",
+  "games": 25,
+  "score_all": 6.177,
+  "score_dev": 6.983,
+  "score_val": 3.627,
+  "levels": 35,
+  "actions": 4315
+ },
+ "dantelok/duck-qwen3-8-flash-next-nvfp4-mtp": {
+  "ref": "dantelok/duck-qwen3-8-flash-next-nvfp4-mtp",
+  "rank": "18",
+  "title": "Duck Qwen3.8 Flash Next NVFP4 MTP",
+  "last_run": "2026-09-03 09:35:00.147000",
+  "datasets": [
+   "keithtyser/duck-qwen38-nvfp4-mtp-vllm-smoke-v1",
+   "keithtyser/qwen38-flash-next-vllm-nvfp4-runtime-v1"
+  ],
+  "models": [
+   "keithtyser/qwen3-8-flash-next-nvfp4/PyTorch/radixark-modelopt-fp4/1"
+  ],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {
+   "TAAF_VLLM_MAX_NUM_SEQS": [
+    "8"
+   ],
+   "TAAF_VLLM_MTP_TOKENS": [
+    "3"
+   ],
+   "max_runtime_s_per_game": [
+    "7920.0"
+   ],
+   "analyzer_timeout": [
+    "900.0"
+   ],
+   "concurrency": [
+    "28"
+   ]
+  },
+  "anim": false,
+  "status": "ok",
+  "games": 25,
+  "score_all": 7.184,
+  "score_dev": 8.249,
+  "score_val": 3.812,
+  "levels": 36,
+  "actions": 3688
+ },
+ "keithtyser/duck-qwen3-8-flash-next-nvfp4-mtp": {
+  "ref": "keithtyser/duck-qwen3-8-flash-next-nvfp4-mtp",
+  "rank": "19",
+  "title": "Duck Qwen3.8 Flash Next NVFP4 MTP",
+  "last_run": "2026-09-01 02:36:59.830000",
+  "datasets": [
+   "keithtyser/duck-qwen38-nvfp4-mtp-vllm-smoke-v1",
+   "keithtyser/qwen38-flash-next-vllm-nvfp4-runtime-v1"
+  ],
+  "models": [
+   "keithtyser/qwen3-8-flash-next-nvfp4/PyTorch/radixark-modelopt-fp4/1"
+  ],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {
+   "TAAF_VLLM_MAX_NUM_SEQS": [
+    "8"
+   ],
+   "TAAF_VLLM_MTP_TOKENS": [
+    "3"
+   ],
+   "max_runtime_s_per_game": [
+    "7920.0"
+   ],
+   "analyzer_timeout": [
+    "900.0"
+   ],
+   "concurrency": [
+    "28"
+   ]
+  },
+  "anim": false,
+  "status": "ok",
+  "games": 25,
+  "score_all": 6.759,
+  "score_dev": 7.545,
+  "score_val": 4.271,
+  "levels": 36,
+  "actions": 3695
+ },
+ "ayodejiibrahimlateef/arc3-v124-observed-probe-memory-rtx6000": {
+  "ref": "ayodejiibrahimlateef/arc3-v124-observed-probe-memory-rtx6000",
+  "rank": "20",
+  "title": "ARC3 v124 Observed Probe Memory RTX6000",
+  "last_run": "2026-09-07 16:18:12.490000",
+  "datasets": [
+   "keithtyser/duck-qwen38-nvfp4-mtp-vllm-smoke-v1",
+   "keithtyser/qwen38-flash-next-vllm-nvfp4-runtime-v1"
+  ],
+  "models": [
+   "keithtyser/qwen3-8-flash-next-nvfp4/PyTorch/radixark-modelopt-fp4/1"
+  ],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {
+   "TAAF_VLLM_MAX_NUM_SEQS": [
+    "8"
+   ],
+   "TAAF_VLLM_MTP_TOKENS": [
+    "3"
+   ],
+   "max_runtime_s_per_game": [
+    "7920.0"
+   ],
+   "analyzer_timeout": [
+    "900.0"
+   ],
+   "concurrency": [
+    "28"
+   ]
+  },
+  "anim": false,
+  "status": "ok",
+  "games": 25,
+  "score_all": 8.429,
+  "score_dev": 9.789,
+  "score_val": 4.123,
+  "levels": 42,
+  "actions": 2789
+ },
+ "juliancamilovilla/arc-agi3-animfast-long": {
+  "ref": "juliancamilovilla/arc-agi3-animfast-long",
+  "rank": "21",
+  "title": "arc agi3 animfast long",
+  "last_run": "2026-09-21 11:51:20.997000",
+  "datasets": [
+   "keithtyser/duck-qwen38-nvfp4-mtp-vllm-smoke-v1",
+   "keithtyser/qwen38-flash-next-vllm-nvfp4-runtime-v1",
+   "jakobbrggen/taaf-kaggle-source-anim-20260807-anim"
+  ],
+  "models": [
+   "keithtyser/qwen3-8-flash-next-nvfp4/PyTorch/radixark-modelopt-fp4/1"
+  ],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {
+   "LOCAL_ANALYZER_YIELD_SECONDS": [
+    "180"
+   ],
+   "LOCAL_ANALYZER_SEED": [
+    "20260825"
+   ],
+   "TAAF_VLLM_MAX_NUM_SEQS": [
+    "8"
+   ],
+   "TAAF_VLLM_MTP_TOKENS": [
+    "3"
+   ],
+   "max_runtime_s_per_game": [
+    "7920.0"
+   ],
+   "analyzer_timeout": [
+    "900.0"
+   ],
+   "concurrency": [
+    "28"
+   ]
+  },
+  "anim": true,
+  "status": "ok",
+  "games": 25,
+  "score_all": 4.613,
+  "score_dev": 4.785,
+  "score_val": 4.069,
+  "levels": 26,
+  "actions": 904
+ },
+ "woguoat/arc3-keith-repro-qwen38next": {
+  "ref": "woguoat/arc3-keith-repro-qwen38next",
+  "rank": "22",
+  "title": "arc3-keith-repro-qwen38next",
+  "last_run": "2026-09-22 10:50:50.250000",
+  "datasets": [
+   "keithtyser/duck-qwen38-nvfp4-mtp-vllm-smoke-v1",
+   "keithtyser/qwen38-flash-next-vllm-nvfp4-runtime-v1"
+  ],
+  "models": [
+   "keithtyser/qwen3-8-flash-next-nvfp4/PyTorch/radixark-modelopt-fp4/1"
+  ],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {
+   "TAAF_VLLM_MAX_NUM_SEQS": [
+    "8"
+   ],
+   "TAAF_VLLM_MTP_TOKENS": [
+    "3"
+   ],
+   "max_runtime_s_per_game": [
+    "7920.0"
+   ],
+   "analyzer_timeout": [
+    "900.0"
+   ],
+   "concurrency": [
+    "28"
+   ]
+  },
+  "anim": false,
+  "status": "no-benchmark",
+  "note": []
+ },
+ "sahasawatt/thui-fast-v0": {
+  "ref": "sahasawatt/thui-fast-v0",
+  "rank": "23",
+  "title": "thui-fast-v0",
+  "last_run": "2026-09-07 09:10:41.570000",
+  "datasets": [
+   "keithtyser/duck-qwen38-nvfp4-mtp-vllm-smoke-v1",
+   "keithtyser/qwen38-flash-next-vllm-nvfp4-runtime-v1"
+  ],
+  "models": [
+   "keithtyser/qwen3-8-flash-next-nvfp4/PyTorch/radixark-modelopt-fp4/1"
+  ],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {
+   "TAAF_VLLM_MAX_NUM_SEQS": [
+    "8"
+   ],
+   "TAAF_VLLM_MTP_TOKENS": [
+    "3"
+   ],
+   "max_runtime_s_per_game": [
+    "7920.0"
+   ],
+   "analyzer_timeout": [
+    "900.0"
+   ],
+   "concurrency": [
+    "28"
+   ]
+  },
+  "anim": false,
+  "status": "ok",
+  "games": 25,
+  "score_all": 9.317,
+  "score_dev": 10.724,
+  "score_val": 4.86,
+  "levels": 41,
+  "actions": 3553
+ },
+ "nitish5236goel/arc3-duck-baseline-v1": {
+  "ref": "nitish5236goel/arc3-duck-baseline-v1",
+  "rank": "24",
+  "title": "ARC3 duck baseline v1",
+  "last_run": "2026-09-12 12:14:34.097000",
+  "datasets": [
+   "keithtyser/duck-qwen38-nvfp4-mtp-vllm-smoke-v1",
+   "keithtyser/qwen38-flash-next-vllm-nvfp4-runtime-v1"
+  ],
+  "models": [
+   "keithtyser/qwen3-8-flash-next-nvfp4/PyTorch/radixark-modelopt-fp4/1"
+  ],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {
+   "TAAF_VLLM_MAX_NUM_SEQS": [
+    "8"
+   ],
+   "TAAF_VLLM_MTP_TOKENS": [
+    "3"
+   ],
+   "max_runtime_s_per_game": [
+    "7920.0"
+   ],
+   "analyzer_timeout": [
+    "900.0"
+   ],
+   "concurrency": [
+    "28"
+   ]
+  },
+  "anim": false,
+  "status": "ok",
+  "games": 25,
+  "score_all": 8.611,
+  "score_dev": 10.848,
+  "score_val": 1.526,
+  "levels": 38,
+  "actions": 3376
+ },
+ "nihilisticneuralnet/arc-agi-3-retained-reasoning": {
+  "ref": "nihilisticneuralnet/arc-agi-3-retained-reasoning",
+  "rank": "25",
+  "title": "ARC-AGI-3: retained_reasoning",
+  "last_run": "2026-09-11 23:45:50.103000",
+  "datasets": [
+   "",
+   "keithtyser/qwen38-flash-next-vllm-nvfp4-runtime-v1"
+  ],
+  "models": [
+   "keithtyser/qwen3-8-flash-next-nvfp4/PyTorch/radixark-modelopt-fp4/1"
+  ],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {},
+  "anim": false,
+  "status": "ok",
+  "games": 25,
+  "score_all": 5.827,
+  "score_dev": 7.398,
+  "score_val": 0.852,
+  "levels": 29,
+  "actions": 1935
+ },
+ "anhadmahajan06/arc-agi-3-fluid-intelligence-agent": {
+  "ref": "anhadmahajan06/arc-agi-3-fluid-intelligence-agent",
+  "rank": "26",
+  "title": "ARC-AGI-3 Fluid Intelligence Agent",
+  "last_run": "2026-09-11 15:01:44.157000",
+  "datasets": [
+   "driessmit1/arc3-vllm-h100-wheelhouse-v3",
+   "keithtyser/taaf-duck-qwen38-serving-v1"
+  ],
+  "models": [
+   "foysalemonshanto/qwen3-8-27b-fp8-repacked-v1/PyTorch/hf-fp8/1"
+  ],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {
+   "MULTIMODAL_UPSCALE": [
+    "4"
+   ],
+   "LOCAL_ANALYZER_TEMPERATURE": [
+    "0.6"
+   ],
+   "max_runtime_s_per_game": [
+    "7920.0"
+   ],
+   "analyzer_timeout": [
+    "900.0"
+   ],
+   "concurrency": [
+    "8",
+    "max"
+   ]
+  },
+  "anim": false,
+  "status": "ok",
+  "games": 25,
+  "score_all": 4.234,
+  "score_dev": 5.213,
+  "score_val": 1.136,
+  "levels": 28,
+  "actions": 2869
+ },
+ "samrishb/duck-qwen3-8-anim-base": {
+  "ref": "samrishb/duck-qwen3-8-anim-base",
+  "rank": "27",
+  "title": "Duck Qwen3.8 Anim Base",
+  "last_run": "2026-09-06 21:13:36.273000",
+  "datasets": [
+   "keithtyser/duck-qwen38-nvfp4-mtp-vllm-smoke-v1",
+   "keithtyser/qwen38-flash-next-vllm-nvfp4-runtime-v1"
+  ],
+  "models": [
+   "keithtyser/qwen3-8-flash-next-nvfp4/PyTorch/radixark-modelopt-fp4/1"
+  ],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {
+   "TAAF_VLLM_MAX_NUM_SEQS": [
+    "8"
+   ],
+   "TAAF_VLLM_MTP_TOKENS": [
+    "3"
+   ],
+   "max_runtime_s_per_game": [
+    "7920.0"
+   ],
+   "analyzer_timeout": [
+    "900.0"
+   ],
+   "concurrency": [
+    "28"
+   ]
+  },
+  "anim": false,
+  "status": "ok",
+  "games": 25,
+  "score_all": 7.099,
+  "score_dev": 8.503,
+  "score_val": 2.651,
+  "levels": 35,
+  "actions": 3866
+ },
+ "analyticaobscura/i-guess-it-s-just-luck-thanks-foysal": {
+  "ref": "analyticaobscura/i-guess-it-s-just-luck-thanks-foysal",
+  "rank": "28",
+  "title": "I guess it's just luck Thanks Foysal",
+  "last_run": "2026-08-19 03:47:05.080000",
+  "datasets": [
+   "driessmit1/arc3-vllm-h100-wheelhouse-v3",
+   "jakobbrggen/taaf-kaggle-source-anim-20260807-anim"
+  ],
+  "models": [
+   "foysalemonshanto/qwen3-8-27b-fp8-repacked-v1/PyTorch/hf-fp8/1"
+  ],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {
+   "max_runtime_s_per_game": [
+    "7920.0"
+   ],
+   "concurrency": [
+    "28"
+   ]
+  },
+  "anim": true,
+  "status": "ok",
+  "games": 25,
+  "score_all": 3.832,
+  "score_dev": 3.85,
+  "score_val": 3.775,
+  "levels": 24,
+  "actions": 1537
+ },
+ "kaiwalyaatulraut/arc-agi-3-solution": {
+  "ref": "kaiwalyaatulraut/arc-agi-3-solution",
+  "rank": "29",
+  "title": "ARC-AGI-3 Solution",
+  "last_run": "2026-09-06 16:19:37.853000",
+  "datasets": [
+   "keithtyser/duck-qwen38-nvfp4-mtp-vllm-smoke-v1",
+   "keithtyser/qwen38-flash-next-vllm-nvfp4-runtime-v1"
+  ],
+  "models": [
+   "keithtyser/qwen3-8-flash-next-nvfp4/PyTorch/radixark-modelopt-fp4/1"
+  ],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {
+   "TAAF_VLLM_MAX_NUM_SEQS": [
+    "8"
+   ],
+   "TAAF_VLLM_MTP_TOKENS": [
+    "3"
+   ],
+   "max_runtime_s_per_game": [
+    "7920.0"
+   ],
+   "analyzer_timeout": [
+    "900.0"
+   ],
+   "concurrency": [
+    "28"
+   ]
+  },
+  "anim": false,
+  "status": "ok",
+  "games": 25,
+  "score_all": 7.459,
+  "score_dev": 9.463,
+  "score_val": 1.114,
+  "levels": 37,
+  "actions": 2932
+ },
+ "prvsiyan/arc-agi-3-stock-taaf-action7-shadow": {
+  "ref": "prvsiyan/arc-agi-3-stock-taaf-action7-shadow",
+  "rank": "30",
+  "title": "ARC-AGI-3 Stock TAAF Action7 Shadow",
+  "last_run": "2026-09-22 09:49:10.900000",
+  "datasets": [
+   "keithtyser/duck-qwen38-nvfp4-mtp-vllm-smoke-v1",
+   "keithtyser/qwen38-flash-next-vllm-nvfp4-runtime-v1",
+   "jakobbrggen/taaf-kaggle-source-anim-20260807-anim"
+  ],
+  "models": [
+   "keithtyser/qwen3-8-flash-next-nvfp4/PyTorch/radixark-modelopt-fp4/1"
+  ],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {
+   "LOCAL_ANALYZER_YIELD_SECONDS": [
+    "180"
+   ],
+   "LOCAL_ANALYZER_SEED": [
+    "20260825"
+   ],
+   "TAAF_VLLM_MAX_NUM_SEQS": [
+    "8"
+   ],
+   "TAAF_VLLM_MTP_TOKENS": [
+    "3"
+   ],
+   "max_runtime_s_per_game": [
+    "7920.0"
+   ],
+   "analyzer_timeout": [
+    "900.0"
+   ],
+   "concurrency": [
+    "28"
+   ]
+  },
+  "anim": true,
+  "status": "ok",
+  "games": 25,
+  "score_all": 3.333,
+  "score_dev": 3.537,
+  "score_val": 2.684,
+  "levels": 20,
+  "actions": 820
+ },
+ "juliancamilovilla/arc-agi3-nvfp4-batch-long": {
+  "ref": "juliancamilovilla/arc-agi3-nvfp4-batch-long",
+  "rank": "31",
+  "title": "arc agi3 nvfp4 batch long",
+  "last_run": "2026-09-16 20:57:08.873000",
+  "datasets": [
+   "keithtyser/duck-qwen38-nvfp4-mtp-vllm-smoke-v1",
+   "keithtyser/qwen38-flash-next-vllm-nvfp4-runtime-v1"
+  ],
+  "models": [
+   "keithtyser/qwen3-8-flash-next-nvfp4/PyTorch/radixark-modelopt-fp4/1"
+  ],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {
+   "TAAF_VLLM_MAX_NUM_SEQS": [
+    "8"
+   ],
+   "TAAF_VLLM_MTP_TOKENS": [
+    "3"
+   ],
+   "max_runtime_s_per_game": [
+    "7920.0"
+   ],
+   "analyzer_timeout": [
+    "900.0"
+   ],
+   "concurrency": [
+    "28"
+   ]
+  },
+  "anim": false,
+  "status": "ok",
+  "games": 25,
+  "score_all": 4.62,
+  "score_dev": 5.733,
+  "score_val": 1.097,
+  "levels": 26,
+  "actions": 1398
+ },
+ "uninhibitedscholar/arc3-wuliao-replica-v1": {
+  "ref": "uninhibitedscholar/arc3-wuliao-replica-v1",
+  "rank": "32",
+  "title": "ARC3 Wuliao Replica V1",
+  "last_run": "2026-09-13 16:55:36.517000",
+  "datasets": [
+   "keithtyser/duck-qwen38-nvfp4-mtp-vllm-smoke-v1",
+   "keithtyser/qwen38-flash-next-vllm-nvfp4-runtime-v1"
+  ],
+  "models": [
+   "keithtyser/qwen3-8-flash-next-nvfp4/PyTorch/radixark-modelopt-fp4/1"
+  ],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {
+   "TAAF_VLLM_MAX_NUM_SEQS": [
+    "8"
+   ],
+   "TAAF_VLLM_MTP_TOKENS": [
+    "3"
+   ],
+   "max_runtime_s_per_game": [
+    "7920.0"
+   ],
+   "analyzer_timeout": [
+    "900.0"
+   ],
+   "concurrency": [
+    "28"
+   ]
+  },
+  "anim": false,
+  "status": "ok",
+  "games": 25,
+  "score_all": 7.242,
+  "score_dev": 8.196,
+  "score_val": 4.221,
+  "levels": 35,
+  "actions": 3822
+ },
+ "iamjasonfeng/cotrd-enhanced": {
+  "ref": "iamjasonfeng/cotrd-enhanced",
+  "rank": "33",
+  "title": "CoTRD Enhanced",
+  "last_run": "2026-09-19 23:57:27.800000",
+  "datasets": [
+   "keithtyser/duck-qwen38-nvfp4-mtp-vllm-smoke-v1",
+   "keithtyser/qwen38-flash-next-vllm-nvfp4-runtime-v1"
+  ],
+  "models": [
+   "keithtyser/qwen3-8-flash-next-nvfp4/PyTorch/radixark-modelopt-fp4/1"
+  ],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {
+   "TAAF_VLLM_MAX_NUM_SEQS": [
+    "8"
+   ],
+   "TAAF_VLLM_MTP_TOKENS": [
+    "0"
+   ],
+   "analyzer_timeout": [
+    "900.0"
+   ],
+   "concurrency": [
+    "28"
+   ]
+  },
+  "anim": false,
+  "status": "no-benchmark",
+  "note": [
+   "Kernel log downloaded to /tmp/harvest-l9o73vih/out/cotrd-enhanced.log"
+  ]
+ },
+ "lucifer19/duck-qwen3-8-efficient-agent-c17": {
+  "ref": "lucifer19/duck-qwen3-8-efficient-agent-c17",
+  "rank": "34",
+  "title": "Duck Qwen3.8 Efficient Agent C17",
+  "last_run": "2026-09-06 11:33:06.670000",
+  "datasets": [
+   "keithtyser/duck-qwen38-nvfp4-mtp-vllm-smoke-v1",
+   "keithtyser/qwen38-flash-next-vllm-nvfp4-runtime-v1"
+  ],
+  "models": [
+   "keithtyser/qwen3-8-flash-next-nvfp4/PyTorch/radixark-modelopt-fp4/1"
+  ],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {
+   "TAAF_VLLM_MAX_NUM_SEQS": [
+    "8"
+   ],
+   "TAAF_VLLM_MTP_TOKENS": [
+    "3"
+   ],
+   "max_runtime_s_per_game": [
+    "7920.0"
+   ],
+   "analyzer_timeout": [
+    "900.0"
+   ],
+   "concurrency": [
+    "28"
+   ]
+  },
+  "anim": false,
+  "status": "ok",
+  "games": 25,
+  "score_all": 7.111,
+  "score_dev": 8.653,
+  "score_val": 2.229,
+  "levels": 36,
+  "actions": 3881
+ },
+ "kunaldesale2408/duck-harness-fast-eval": {
+  "ref": "kunaldesale2408/duck-harness-fast-eval",
+  "rank": "35",
+  "title": "duck-harness-fast-eval",
+  "last_run": "2026-09-18 08:09:33.867000",
+  "datasets": [
+   "keithtyser/duck-qwen38-nvfp4-mtp-vllm-smoke-v1",
+   "keithtyser/qwen38-flash-next-vllm-nvfp4-runtime-v1"
+  ],
+  "models": [
+   "keithtyser/qwen3-8-flash-next-nvfp4/PyTorch/radixark-modelopt-fp4/1"
+  ],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {
+   "TAAF_VLLM_MAX_NUM_SEQS": [
+    "8"
+   ],
+   "TAAF_VLLM_MTP_TOKENS": [
+    "3"
+   ],
+   "max_runtime_s_per_game": [
+    "7920.0"
+   ],
+   "analyzer_timeout": [
+    "1200.0"
+   ],
+   "concurrency": [
+    "28"
+   ]
+  },
+  "anim": false,
+  "status": "ok",
+  "games": 25,
+  "score_all": 7.43,
+  "score_dev": 8.982,
+  "score_val": 2.514,
+  "levels": 36,
+  "actions": 3352
+ },
+ "kashyapsinhgohil/duck-qwen3-8-flash-next-nvfp4-mtp": {
+  "ref": "kashyapsinhgohil/duck-qwen3-8-flash-next-nvfp4-mtp",
+  "rank": "36",
+  "title": "Duck Qwen3.8 Flash Next NVFP4 MTP",
+  "last_run": "2026-09-01 17:03:21.550000",
+  "datasets": [
+   "keithtyser/duck-qwen38-nvfp4-mtp-vllm-smoke-v1",
+   "keithtyser/qwen38-flash-next-vllm-nvfp4-runtime-v1"
+  ],
+  "models": [
+   "keithtyser/qwen3-8-flash-next-nvfp4/PyTorch/radixark-modelopt-fp4/1"
+  ],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {
+   "TAAF_VLLM_MAX_NUM_SEQS": [
+    "8"
+   ],
+   "TAAF_VLLM_MTP_TOKENS": [
+    "3"
+   ],
+   "max_runtime_s_per_game": [
+    "7920.0"
+   ],
+   "analyzer_timeout": [
+    "900.0"
+   ],
+   "concurrency": [
+    "28"
+   ]
+  },
+  "anim": false,
+  "status": "ok",
+  "games": 25,
+  "score_all": 6.422,
+  "score_dev": 7.936,
+  "score_val": 1.627,
+  "levels": 32,
+  "actions": 3777
+ },
+ "denizeryilmaz/arc3-qwen38-flash-next-v29a-exact-exp": {
+  "ref": "denizeryilmaz/arc3-qwen38-flash-next-v29a-exact-exp",
+  "rank": "37",
+  "title": "arc3-qwen38-flash-next-v29a-exact-exp",
+  "last_run": "2026-09-04 12:32:45.013000",
+  "datasets": [
+   "keithtyser/duck-qwen38-nvfp4-mtp-vllm-smoke-v1",
+   "keithtyser/qwen38-flash-next-vllm-nvfp4-runtime-v1"
+  ],
+  "models": [
+   "keithtyser/qwen3-8-flash-next-nvfp4/PyTorch/radixark-modelopt-fp4/1"
+  ],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {
+   "TAAF_VLLM_MAX_NUM_SEQS": [
+    "8"
+   ],
+   "TAAF_VLLM_MTP_TOKENS": [
+    "3"
+   ],
+   "max_runtime_s_per_game": [
+    "7920.0"
+   ],
+   "analyzer_timeout": [
+    "900.0"
+   ],
+   "concurrency": [
+    "28"
+   ]
+  },
+  "anim": false,
+  "status": "no-benchmark",
+  "note": [
+   "Kernel log downloaded to /tmp/harvest-w5tv_lz_/out/arc3-qwen38-flash-next-v29a-exact-exp.log"
+  ]
+ },
+ "iamjasonfeng/cotrd": {
+  "ref": "iamjasonfeng/cotrd",
+  "rank": "38",
+  "title": "CoTRD",
+  "last_run": "2026-09-19 18:33:21.337000",
+  "datasets": [
+   "keithtyser/duck-qwen38-nvfp4-mtp-vllm-smoke-v1",
+   "keithtyser/qwen38-flash-next-vllm-nvfp4-runtime-v1"
+  ],
+  "models": [
+   "keithtyser/qwen3-8-flash-next-nvfp4/PyTorch/radixark-modelopt-fp4/1"
+  ],
+  "machine": "NvidiaRtxPro6000",
+  "knobs": {
+   "TAAF_VLLM_MAX_NUM_SEQS": [
+    "8"
+   ],
+   "TAAF_VLLM_MTP_TOKENS": [
+    "0"
+   ],
+   "analyzer_timeout": [
+    "900.0"
+   ],
+   "concurrency": [
+    "28"
+   ]
+  },
+  "anim": false,
+  "status": "no-benchmark",
+  "note": [
+   "Kernel log downloaded to /tmp/harvest-ohdwqznb/out/cotrd.log"
+  ]
  }
 }

@@ -1,0 +1,402 @@
+{
+ "ref": "juliancamilovilla/arc-agi3-nvfp4-batch-long",
+ "rank": "31",
+ "title": "arc agi3 nvfp4 batch long",
+ "last_run": "2026-09-16 20:57:08.873000",
+ "datasets": [
+  "keithtyser/duck-qwen38-nvfp4-mtp-vllm-smoke-v1",
+  "keithtyser/qwen38-flash-next-vllm-nvfp4-runtime-v1"
+ ],
+ "models": [
+  "keithtyser/qwen3-8-flash-next-nvfp4/PyTorch/radixark-modelopt-fp4/1"
+ ],
+ "machine": "NvidiaRtxPro6000",
+ "knobs": {
+  "TAAF_VLLM_MAX_NUM_SEQS": [
+   "8"
+  ],
+  "TAAF_VLLM_MTP_TOKENS": [
+   "3"
+  ],
+  "max_runtime_s_per_game": [
+   "7920.0"
+  ],
+  "analyzer_timeout": [
+   "900.0"
+  ],
+  "concurrency": [
+   "28"
+  ]
+ },
+ "anim": false,
+ "status": "ok",
+ "games": 25,
+ "score_all": 4.62,
+ "score_dev": 5.733,
+ "score_val": 1.097,
+ "levels": 26,
+ "actions": 1398,
+ "results": [
+  {
+   "game_id": "tn36",
+   "levels": 0,
+   "levels_total": 7,
+   "level_actions": [],
+   "baselines": [],
+   "score": 0.0,
+   "actions": 62,
+   "tok_per_action": 514.3,
+   "wall_s": 3099.1623809440002
+  },
+  {
+   "game_id": "lf52",
+   "levels": 1,
+   "levels_total": 10,
+   "level_actions": [
+    17
+   ],
+   "baselines": [
+    32
+   ],
+   "score": 1.818,
+   "actions": 74,
+   "tok_per_action": 286.8,
+   "wall_s": 3098.2221729830003
+  },
+  {
+   "game_id": "cn04",
+   "levels": 0,
+   "levels_total": 6,
+   "level_actions": [],
+   "baselines": [],
+   "score": 0.0,
+   "actions": 49,
+   "tok_per_action": 799.3,
+   "wall_s": 3099.1221759439995
+  },
+  {
+   "game_id": "bp35",
+   "levels": 0,
+   "levels_total": 9,
+   "level_actions": [],
+   "baselines": [],
+   "score": 0.0,
+   "actions": 24,
+   "tok_per_action": 913.7,
+   "wall_s": 3098.1920762130003
+  },
+  {
+   "game_id": "wa30",
+   "levels": 1,
+   "levels_total": 9,
+   "level_actions": [
+    62
+   ],
+   "baselines": [
+    71
+   ],
+   "score": 2.222,
+   "actions": 70,
+   "tok_per_action": 449.5,
+   "wall_s": 3098.1745214840003
+  },
+  {
+   "game_id": "lp85",
+   "levels": 3,
+   "levels_total": 8,
+   "level_actions": [
+    10,
+    13,
+    20
+   ],
+   "baselines": [
+    17,
+    38,
+    31
+   ],
+   "score": 16.667,
+   "actions": 87,
+   "tok_per_action": 483.0,
+   "wall_s": 3099.1121918249996
+  },
+  {
+   "game_id": "r11l",
+   "levels": 1,
+   "levels_total": 6,
+   "level_actions": [
+    7
+   ],
+   "baselines": [
+    22
+   ],
+   "score": 4.762,
+   "actions": 15,
+   "tok_per_action": 2719.5,
+   "wall_s": 3098.102549464
+  },
+  {
+   "game_id": "tu93",
+   "levels": 2,
+   "levels_total": 9,
+   "level_actions": [
+    18,
+    24
+   ],
+   "baselines": [
+    19,
+    16
+   ],
+   "score": 4.451,
+   "actions": 42,
+   "tok_per_action": 749.3,
+   "wall_s": 3099.0243039249995
+  },
+  {
+   "game_id": "sp80",
+   "levels": 0,
+   "levels_total": 6,
+   "level_actions": [],
+   "baselines": [],
+   "score": 0.0,
+   "actions": 132,
+   "tok_per_action": 264.1,
+   "wall_s": 3099.061226595
+  },
+  {
+   "game_id": "m0r0",
+   "levels": 1,
+   "levels_total": 6,
+   "level_actions": [
+    20
+   ],
+   "baselines": [
+    30
+   ],
+   "score": 4.762,
+   "actions": 68,
+   "tok_per_action": 370.3,
+   "wall_s": 3099.0246397649994
+  },
+  {
+   "game_id": "vc33",
+   "levels": 2,
+   "levels_total": 7,
+   "level_actions": [
+    15,
+    13
+   ],
+   "baselines": [
+    7,
+    18
+   ],
+   "score": 8.992,
+   "actions": 36,
+   "tok_per_action": 532.2,
+   "wall_s": 3099.006074725
+  },
+  {
+   "game_id": "ar25",
+   "levels": 2,
+   "levels_total": 8,
+   "level_actions": [
+    17,
+    40
+   ],
+   "baselines": [
+    32,
+    50
+   ],
+   "score": 8.333,
+   "actions": 67,
+   "tok_per_action": 441.8,
+   "wall_s": 3099.0147580850003
+  },
+  {
+   "game_id": "ka59",
+   "levels": 2,
+   "levels_total": 7,
+   "level_actions": [
+    23,
+    44
+   ],
+   "baselines": [
+    28,
+    109
+   ],
+   "score": 10.714,
+   "actions": 75,
+   "tok_per_action": 600.5,
+   "wall_s": 3098.944861216
+  },
+  {
+   "game_id": "sc25",
+   "levels": 0,
+   "levels_total": 6,
+   "level_actions": [],
+   "baselines": [],
+   "score": 0.0,
+   "actions": 53,
+   "tok_per_action": 425.2,
+   "wall_s": 3098.895894186
+  },
+  {
+   "game_id": "sk48",
+   "levels": 1,
+   "levels_total": 8,
+   "level_actions": [
+    34
+   ],
+   "baselines": [
+    61
+   ],
+   "score": 2.778,
+   "actions": 39,
+   "tok_per_action": 1161.1,
+   "wall_s": 3098.8871935859997
+  },
+  {
+   "game_id": "dc22",
+   "levels": 1,
+   "levels_total": 6,
+   "level_actions": [
+    43
+   ],
+   "baselines": [
+    59
+   ],
+   "score": 4.762,
+   "actions": 47,
+   "tok_per_action": 591.0,
+   "wall_s": 3097.970361355
+  },
+  {
+   "game_id": "cd82",
+   "levels": 0,
+   "levels_total": 6,
+   "level_actions": [],
+   "baselines": [],
+   "score": 0.0,
+   "actions": 101,
+   "tok_per_action": 283.0,
+   "wall_s": 3098.867190366
+  },
+  {
+   "game_id": "ft09",
+   "levels": 3,
+   "levels_total": 6,
+   "level_actions": [
+    7,
+    7,
+    26
+   ],
+   "baselines": [
+    43,
+    12,
+    23
+   ],
+   "score": 27.608,
+   "actions": 40,
+   "tok_per_action": 666.8,
+   "wall_s": 3098.783548507
+  },
+  {
+   "game_id": "g50t",
+   "levels": 0,
+   "levels_total": 7,
+   "level_actions": [],
+   "baselines": [],
+   "score": 0.0,
+   "actions": 28,
+   "tok_per_action": 1439.9,
+   "wall_s": 3098.7441911370006
+  },
+  {
+   "game_id": "ls20",
+   "levels": 1,
+   "levels_total": 7,
+   "level_actions": [
+    28
+   ],
+   "baselines": [
+    22
+   ],
+   "score": 2.205,
+   "actions": 48,
+   "tok_per_action": 518.2,
+   "wall_s": 3098.7457238470006
+  },
+  {
+   "game_id": "re86",
+   "levels": 2,
+   "levels_total": 8,
+   "level_actions": [
+    23,
+    36
+   ],
+   "baselines": [
+    26,
+    42
+   ],
+   "score": 8.333,
+   "actions": 60,
+   "tok_per_action": 408.5,
+   "wall_s": 3097.8354743860004
+  },
+  {
+   "game_id": "s5i5",
+   "levels": 1,
+   "levels_total": 8,
+   "level_actions": [
+    23
+   ],
+   "baselines": [
+    20
+   ],
+   "score": 2.1,
+   "actions": 45,
+   "tok_per_action": 512.1,
+   "wall_s": 3097.7674785070003
+  },
+  {
+   "game_id": "sb26",
+   "levels": 1,
+   "levels_total": 8,
+   "level_actions": [
+    17
+   ],
+   "baselines": [
+    18
+   ],
+   "score": 2.778,
+   "actions": 61,
+   "tok_per_action": 511.6,
+   "wall_s": 3098.668122548
+  },
+  {
+   "game_id": "su15",
+   "levels": 1,
+   "levels_total": 9,
+   "level_actions": [
+    16
+   ],
+   "baselines": [
+    22
+   ],
+   "score": 2.222,
+   "actions": 49,
+   "tok_per_action": 398.5,
+   "wall_s": 3097.7211821869996
+  },
+  {
+   "game_id": "tr87",
+   "levels": 0,
+   "levels_total": 6,
+   "level_actions": [],
+   "baselines": [],
+   "score": 0.0,
+   "actions": 26,
+   "tok_per_action": 1620.5,
+   "wall_s": 3098.684829298
+  }
+ ]
+}
