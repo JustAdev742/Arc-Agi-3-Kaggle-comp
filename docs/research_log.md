@@ -1490,3 +1490,18 @@ Rule (pre-registered 14:15 Sep 23, amended 22:32 before exp-048's result only to
 with pooled L2+/L1 calls per minute >= 1.5 and a score >= 7.15; the highest such score. exp-048: 0 crashed games, 0 gate
 timeouts, 86 preemptions (6.5 GiB KV; exp-046 had 151), ratio 1.68, 15.50 -> submitted scottmahony/arc3-taaf-fix-gate-kv65
 v1 at 00:04 UTC. exp-045 (7.59) also passed; exp-046 (6.75) did not. Previous public LB score: 0.68 (our old harness).
+
+## 2026-09-24 · submission 56506396 (exp-048) scored 4.23 on the public LB · MEASURED; below the Duck pack
+Measured: public LB 4.23 (previous best 0.68). Public-25 of the same notebook: 15.50. Public LB at 09:30 UTC: Lord Han
+          Solo 19.40, Tufa Labs 18.81, NVARC3 16.07, Yi-Chia Chen 15.98, Daniel Franzen 13.12, ... Tong Hui Kang 10.78
+          (likely the thui base author), Third Intelligence 8.21, Son Pham & Mark Barney 7.36 (lever L1), 20th place 6.96.
+Reading:  Duck-family teams show 7-11 as their best of several submissions; ours is one draw at 4.23, about half of
+          what the public-25 result predicts. Candidate explanations: (1) leaderboard noise (identical notebooks vary
+          1.5-2.3x, lesson 0018) plus exp-048's public-25 15.50 being a lucky single run; (2) a component that helps on
+          the public games but not on the harder hidden set (P21 shifts calls toward games already on later levels;
+          if few hidden games leave level 1 it mostly slows the level-1 games); (3) something specific to the rerun
+          (110 games, 4 waves of 28, wave-fit caps, gateway) interacting with the gate or the 6.5 GiB KV profile. We
+          cannot see the rerun's logs.
+Plan:     separate the components on the leaderboard, one submission a day: Sep 25 exp-042 (fixes only, stock serving,
+          no gate); then the unmodified base (exp-032) for our own calibration; then exp-045 (gate only). The final two
+          selections come from the configurations whose leaderboard AND public-25 evidence agree.
