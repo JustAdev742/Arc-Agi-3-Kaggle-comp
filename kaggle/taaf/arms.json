@@ -330,6 +330,31 @@
    ],
    "note": "exp-042r: an unchanged repeat of exp-042 (10.89 on its first run, 95th percentile of the base) under a new slug.",
    "pushed": 1
+  },
+  {
+   "exp": "exp048r",
+   "slug": "arc3-taaf-fix-gate-kv65-r2",
+   "patches": [
+    "P1",
+    "P1B",
+    "P2",
+    "P7",
+    "P12",
+    "P13",
+    "P17",
+    "P22",
+    "P21"
+   ],
+   "knobs": {
+    "OURS_GATE_SLOTS": "6",
+    "OURS_GATE_LEVEL_WEIGHT": "2",
+    "OURS_GATE_STALL_MIN": "45"
+   },
+   "serving": {
+    "kv_gib": 6.5,
+    "batched_tokens": 4096
+   },
+   "note": "exp-048r: an unchanged repeat of exp-048 (15.50 on its first run; submitted as 56506396) under a new slug."
   }
  ]
 }
