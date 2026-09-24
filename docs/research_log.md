@@ -1484,3 +1484,9 @@ Reading:  the fixes (P1 P1B P2 P7 P12 P13 P17 P22) raise the base on both runs; 
           reference run shows). One run of the combination; its components: P21 alone 7.59, P21 + KV 6.75, fixes alone
           10.89 / 8.87. Repeats after the quota reset decide how much is the combination and how much luck.
 Decision: tonight's submission by the pre-registered rule is exp-048 (a passing P21 arm with the highest score).
+
+## 2026-09-24 00:04 · competition submission 56506396 = exp-048 · SUBMITTED (pending)
+Rule (pre-registered 14:15 Sep 23, amended 22:32 before exp-048's result only to list it): a P21 arm that ran clean,
+with pooled L2+/L1 calls per minute >= 1.5 and a score >= 7.15; the highest such score. exp-048: 0 crashed games, 0 gate
+timeouts, 86 preemptions (6.5 GiB KV; exp-046 had 151), ratio 1.68, 15.50 -> submitted scottmahony/arc3-taaf-fix-gate-kv65
+v1 at 00:04 UTC. exp-045 (7.59) also passed; exp-046 (6.75) did not. Previous public LB score: 0.68 (our old harness).
