@@ -1505,3 +1505,7 @@ Reading:  Duck-family teams show 7-11 as their best of several submissions; ours
 Plan:     separate the components on the leaderboard, one submission a day: Sep 25 exp-042 (fixes only, stock serving,
           no gate); then the unmodified base (exp-032) for our own calibration; then exp-045 (gate only). The final two
           selections come from the configurations whose leaderboard AND public-25 evidence agree.
+Note:     on the six held-out validation games exp-048 scored 2.68, the lowest of the recent runs (exp-032 5.88, exp-042
+          5.73, exp-042r 4.08, exp-045 6.24, exp-046 7.04); its gain came from three dev games that ran deep (lp85,
+          sb26, ft09). Consistent with hypothesis (2) above, not proof of it (six games; exp-046, also gated, has the
+          best val score). The component submissions decide.
