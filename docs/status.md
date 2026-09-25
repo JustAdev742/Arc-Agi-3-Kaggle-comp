@@ -138,6 +138,9 @@ champion preset are superseded by the move to the Duck family; they are in this 
    notebooks score about 5-8 on the leaderboard) against a leader at about 19, so a prize is out of reach, and
    publishing our fork would give away our only differentiated work (the P21 gate, if it proves out). Say so if you
    want an entry anyway for the visibility; making anything public waits for your word.
+   **The other side of Milestone 2:** entries must be public notebooks by 2026-09-30, so the top teams' current
+   notebooks may become readable this week. If one scores well above our Duck base, adopting it (within its
+   license) is worth more than any patch of ours; I check the public notebook list at each daily check-in.
 2. **GPU quota is the binding constraint: 30 h per week, resetting Saturdays 00:00 UTC.** A full public-25 run costs
    about 2.5 h, so about 10 full runs a week; single runs differ by about 2.3 points (sd of a difference), so only
    large effects or clear mechanism changes can be read from one run. Nothing to decide unless you can add GPU time
