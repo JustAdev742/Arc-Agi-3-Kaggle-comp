@@ -1509,3 +1509,8 @@ Note:     on the six held-out validation games exp-048 scored 2.68, the lowest o
           5.73, exp-042r 4.08, exp-045 6.24, exp-046 7.04); its gain came from three dev games that ran deep (lp85,
           sb26, ft09). Consistent with hypothesis (2) above, not proof of it (six games; exp-046, also gated, has the
           best val score). The component submissions decide.
+
+## 2026-09-25 00:05 · competition submission 56534663 = exp-042 (fixes only) · SUBMITTED (pending)
+Pre-registered on Sep 23 19:25: scottmahony/arc3-taaf-ours-g v1 (fixes P1 P1B P2 P7 P12 P13 P17 P22, stock serving, no
+gate; public-25 10.89 and, repeated, 8.87). Its purpose: the first component comparison on the leaderboard against
+exp-048's 4.23 (the same fixes plus the P21 gate and the 6.5 GiB KV cache).
