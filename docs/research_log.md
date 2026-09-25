@@ -1560,3 +1560,11 @@ Arms:     exp-049 (arc3-taaf-fix-kv65) = exp-042's fixes on the 6.5 GiB / 4,096-
 Rule (pre-registered): keep P23/P24 if exp-050's z-sum is not below exp-049's and exp-050 solves at least as many
           level 1s on the 8 hard games; with a difference inside one run's noise (z-sum sd about 6), repeat both before
           a submission uses P23/P24.
+
+## 2026-09-25 · yardstick: level-1 solves on the 8 hard public games · INSTRUMENT
+scripts/arm_table.py now prints the validation-split score and `hardL1` (hard games whose level 1 was solved, median
+minutes to it). Reference, 39 harvested base runs: mean 4.5 of 8, sd 1.4, range 2-7. Ours: exp-042 5 and exp-042r 7
+(fixes); the gated arms exp-045 2, exp-046 3, exp-048 4 (pooled 9/24 against the reference's 56%); exp-043 (every patch
+but P4) 1, below every reference run; the P4 arms 0-3. exp-048's leaderboard 4.23 against its public-25 15.50 fits a
+hidden set that rewards level 1 on hard games. From now on an arm is judged on this column and the validation score as
+well as the public-25 mean.
