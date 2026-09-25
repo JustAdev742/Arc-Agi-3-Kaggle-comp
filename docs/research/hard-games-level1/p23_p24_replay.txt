@@ -1,0 +1,70 @@
+== g50t
+
+[RIGHT] (0.008s)
+- RIGHT: b 5x5 (24 px) moved right 6 (8,14)->(8,20).
+[RIGHT] (0.011s)
+- RIGHT: b 5x5 (24 px) moved right 6 (8,20)->(8,26); w 1x1 appeared at (63,63); b 1x64 at (63,0) became 1x63.
+[RIGHT] (0.008s)
+- RIGHT: b 5x5 (24 px) moved right 6 (8,26)->(8,32).
+[RIGHT] (0.025s)
+- RIGHT: b 5x5 (24 px) moved right 6 (8,32)->(8,38); B 1x1 appeared at (10,40); R 34x28 (82 px) at (9,14) became 30x21 (66 px); b 1x63 at (63,0) became 1x62; 1 more object changes; 14 cells changed in large areas. During its animation (13 frames): B 1x1 showed at (10,39) from frame 6, gone at the end.
+[SPACE] (0.024s)
+- SPACE: b 1x3 moved right 4 (5,1)->(5,5); b 5x5 (24 px) moved left 24 (8,38)->(8,14); b 3x3 (8 px) appeared at (1,5); w 3x3 vanished from (1,5); 3 more object changes; 14 cells changed in large areas.
+[DOWN] (0.014s)
+- DOWN: b 5x5 (24 px) moved down 6 (8,14)->(14,14); g 5x5 (24 px) appeared at (8,20); b 1x62 at (63,0) became 1x61; w 1x2 at (63,62) became 1x3. During its animation (9 frames): g 1x5 showed at (8,14) from frame 2, gone at the end; g 5x5 (16 px) showed at (8,15) from frame 4, gone at the end; g 5x5 (21 px) showed at (8,16) from frame 5, gone at the end; 1 more.
+[DOWN] (0.012s)
+- DOWN: g 5x5 (24 px) moved right 6 (8,20)->(8,26); b 5x5 (24 px) moved down 6 (14,14)->(20,14).
+[RIGHT] (0.014s)
+- RIGHT: g 5x5 (24 px) moved right 6 (8,26)->(8,32); b 5x5 (24 px) moved right 6 (20,14)->(20,20); b 1x61 at (63,0) became 1x60; w 1x3 at (63,61) became 1x4.
+[RIGHT] (0.024s)
+- RIGHT: g 5x5 (24 px) moved right 6 (8,32)->(8,38); b 5x5 (24 px) moved right 6 (20,20)->(20,26); B 1x1 appeared at (10,40); R 34x28 (82 px) at (9,14) became 30x21 (66 px); 14 cells changed in large areas. During its animation (15 frames): B 1x1 showed at (10,39) from frame 8, gone at the end.
+== tn36
+Objects with the same shape up to rotation, reflection or colour (exact; non-rectangular objects of 5-49 px; (row,col) is the top-left of each object's box; the rotation or mirror is relative to the first object in its group): [1] 15 px: B (37,26), B (37,34) rotated 270; [2] 14 px: Y (13,30), B (33,30).
+[CLICK(36,55)] (0.013s)
+- CLICK(36,55): G 1x1 appeared at (1,61); b 1x61 at (1,1) became 1x60. During its animation (7 frames): Y 4x4 (14 px) at (13,30) moved as far as down 8 (frame 4) and was back in place at the end; c 4x4 at (21,30) moved as far as up 8 (frame 4) and was back in place at the end; S 9x9 (69 px) showed at (51,32) from frame 1, gone at the end; 1 more.
+== tr87
+Objects with the same shape up to rotation, reflection or colour (exact; non-rectangular objects of 5-49 px; (row,col) is the top-left of each object's box; the rotation or mirror is relative to the first object in its group): [1] 15 px: B (5,13), B (41,29) rotated 90; [2] 15 px: B (5,36), B (41,36) rotated 90; [3] 11 px: B (14,13), B (41,43) rotated 90; [4] 14 px: B (14,23), B (52,15) rotated 90; [5] 13 px: B (14,36), B (41,15) rotated 90; [6] 19 px: B (23,23), B (52,29) rotated 90; [7] 15 px: B (23,46), B (52,22) rotated 90; [8] 5 px: P (24,24), P (53,30) rotated 90; [9] 7 px: W (48,15), W (59,15) rotated 180.
+[RIGHT] (0.002s)
+- RIGHT: W 2x5 (7 px) moved right 7 (48,15)->(48,22); W 2x5 (7 px) moved right 7 (59,15)->(59,22).
+[UP] (0.002s)
+- UP: c 1x1 appeared at (63,63); P 7x35 (141 px) at (51,14) became 3x3 (7 px); B 5x5 (15 px) at (52,22) became 5x5 (16 px); w 1x64 at (63,0) became 1x63.
+== ls20
+
+[UP] (0.002s)
+- UP: O 2x5 moved up 5 (45,34)->(40,34); b 3x5 moved up 5 (47,34)->(42,34); G 2x1 appeared at (61,13); Y 2x42 at (61,13) became 2x41.
+[LEFT] (0.001s)
+- LEFT: Y 2x41 at (61,14) became 2x40; G 2x1 at (61,13) became 2x2.
+[LEFT] (0.001s)
+- LEFT: Y 2x40 at (61,15) became 2x39; G 2x2 at (61,13) became 2x3.
+== m0r0
+
+[RIGHT] (0.001s)
+- RIGHT: S 5x5 moved right 5 (49,19)->(49,24); S 5x5 moved left 5 (49,39)->(49,34).
+[LEFT] (0.001s)
+- LEFT: S 5x5 moved left 5 (49,24)->(49,19); S 5x5 moved right 5 (49,34)->(49,39); 2 x W 1x1 appeared at (0,63), (63,0).
+== bp35
+
+[RIGHT] (0.009s)
+- RIGHT: b 4x2 (6 px) moved right 6 (37,20)->(37,26); Y 2x1 moved right 6 (38,22)->(38,28); p 1x1 appeared at (63,0); W 1x64 at (63,0) became 1x63; 30 cells changed in large areas.
+[LEFT] (0.009s)
+- LEFT: Y 2x1 moved left 8 (38,28)->(38,20); b 4x2 (6 px) moved left 5 and rotated 180 (37,26)->(37,21); W 1x63 at (63,1) became 1x62; p 1x1 at (63,0) became 1x2; 30 cells changed in large areas.
+[UP] (0.007s)
+- UP: b 4x2 (6 px) moved left 6 (37,21)->(37,15); Y 2x1 moved left 6 (38,20)->(38,14); W 1x62 at (63,2) became 1x61; p 1x2 at (63,0) became 1x3; 30 cells changed in large areas.
+== ft09
+Objects with the same shape up to rotation, reflection or colour (exact; non-rectangular objects of 5-49 px; (row,col) is the top-left of each object's box; the rotation or mirror is relative to the first object in its group): [1] 20 px: g (32,32), g (32,56) rotated 90, g (56,32) rotated 270, g (56,56) rotated 180.
+[CLICK(10,10)] (0.001s)
+- CLICK(10,10): no change. During its animation (5 frames): 4 x W 6x6 (20 px) showed at (32,32), (32,56), (56,32), (56,56) from frame 2, gone at the end.
+[CLICK(30,30)] (0.001s)
+- CLICK(30,30): no change. During its animation (5 frames): 4 x W 6x6 (20 px) showed at (32,32), (32,56), (56,32), (56,56) from frame 2, gone at the end.
+== sb26
+Objects with the same shape up to rotation, reflection or colour (exact; non-rectangular objects of 5-49 px; (row,col) is the top-left of each object's box; the rotation or mirror is relative to the first object in its group): [1] 5 px: W (24,17), W (24,44) rotated 90, W (33,17) rotated 270, W (33,44) rotated 180; [2] 20 px: b (1,18), N (1,25), Y (1,32), p (1,39).
+[CLICK(20,50)] (0.000s)
+- CLICK(20,50): no change.
+[SPACE] (0.017s)
+- SPACE: G 1x1 appeared at (53,63); g 1x64 at (53,0) became 1x63. During its animation (42 frames): G 6x6 (20 px) showed at (27,20) from frame 2, gone at the end; G 8x8 (28 px) showed at (0,17) from frame 3, gone at the end; g 6x6 (20 px) showed at (27,20) from frame 3, gone at the end; 7 more.
+== sk48
+
+[RIGHT, DOWN, RIGHT, RIGHT, UP] (0.009s)
+- net over the 5 actions: 10 objects moved up 6 together (now rows 30-35, cols 11-22); G 2x2 moved down 2 (34,13)->(36,13); 12 x g 1x1 appeared at (32,23), (32,26), (32,29), (32,32), ...; 6 x w 2x3 (4 px) appeared at (32,23), (32,26), (32,29), (32,32), ...; 5 more object changes.
+- during UP (action 5 of 5): g 1x2 showed at (39,13) from frame 1, gone at the end.
+- last action (UP): 28 objects moved up 6 together (now rows 30-35, cols 11-40); G 2x2 moved down 2 (34,13)->(36,13); g 2x2 at (32,13) turned M; M 2x2 at (38,13) turned g; 1 more object changes.

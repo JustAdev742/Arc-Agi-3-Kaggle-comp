@@ -1514,3 +1514,49 @@ Note:     on the six held-out validation games exp-048 scored 2.68, the lowest o
 Pre-registered on Sep 23 19:25: scottmahony/arc3-taaf-ours-g v1 (fixes P1 P1B P2 P7 P12 P13 P17 P22, stock serving, no
 gate; public-25 10.89 and, repeated, 8.87). Its purpose: the first component comparison on the leaderboard against
 exp-048's 4.23 (the same fixes plus the P21 gate and the 6.5 GiB KV cache).
+
+## 2026-09-25 · hard public games, level 1: what went wrong (8 games x 5 runs) · ANALYSIS
+Source: docs/research/hard-games-level1.md (subagent study of the transcripts of exp-032, 042, 042r, 045, 048 on sk48,
+bp35, g50t, dc22, tn36, ls20, tr87, m0r0; su15 separately; plus three offline engine checks).
+Found:    of 40 level-1 attempts, 18 were never solved and 13 were solved late (90+ min) or inefficiently (level score
+          under 0.5); 9 were clean. Primary failure modes: goal misread or found late 11; an action's effect
+          misunderstood (delayed, only visible mid-animation, or far from the actor) 9, involved in 16; objects
+          misperceived (rotated identities, own sprite read as wall, scroll) 5; 40+ minutes without an action 2
+          (involved in 9). On hard level 1s the model acts in 38% of its tool calls (51% on the other games) and 24% of
+          its calls re-derive diffs from previous_frame/history by hand.
+Gate:     the gated runs (exp-045, exp-048) solved 6 of 16 hard level 1s; the ungated runs 16 of 24 (Fisher p = 0.11;
+          same direction within the base pair and the fixes pair; gated runs averaged 30-31 level-1 calls per hard game
+          against 37-44). This supports hypothesis (2) of the 2026-09-24 entry: on a hidden set where most games stay
+          on level 1, P21 takes away the calls those games need. Confounded by run, one run per arm.
+Engine:   g50t: after SPACE the next moves make a gray 5x5 clone appear and replay the path (runs took 57 min to never
+          to see it). tn36: the piece descends 8 rows during the run animation and snaps back (exp-042 called the
+          animation "canned"). tr87: glyphs are drawn at random rotations; a rotation/reflection-invariant key pairs all
+          5 source glyphs with their rule glyphs, the translation-only hash pairs 2.
+Decision: build R1 (object-level effect report including animations) and R2 (rotation/reflection shape matches) as
+          P23/P24 (next entry); drop the gate from new candidates (exp-048r, the gated repeat, is not run).
+
+## 2026-09-25 · P23 object-level change report + P24 shape matches; exp-049 / exp-050 queued · BUILT, NOT MEASURED
+Hypothesis: stating each action's object-level effect (moved with offset, turned, appeared, vanished, recoloured,
+          reshaped, and what happened only mid-animation: moved and came back, showed and was gone) and, at each level
+          start, which objects are the same shape up to rotation, reflection or colour, shortens or prevents the
+          failure modes B and E above at no action cost. Brief priority 1: never ask the model for what code computes.
+Built:    scripts/taaf_ours_patch.py P23 (tool_agent `_build_user_prompt`, after the animation line; once per executed
+          sequence; up to 3 actions one by one, longer sequences as net + last action; animation frames read through
+          the solver's existing `animation` query, which executes nothing) and P24 (first prompt of each level, objects
+          of 5-49 cells, solid rectangles left out). Objects: 4-connected same-colour areas of up to 400 cells that
+          contain a changed cell; the board's most common colour is floor. Shared helpers are inserted once
+          (new `<ONCE>` anchor in apply()). 7 new tests; the registry test now builds exp-050 and uses --force for the
+          pushed exp-043 (it failed at HEAD because exp-043 was marked pushed).
+Checks:   engine replay with the patched code (docs/research/hard-games-level1/p23_p24_replay.txt): g50t "g 5x5 appeared
+          at (8,20)" on the first DOWN after SPACE, "g 5x5 moved right 6" on the next; tn36 "Y 4x4 at (13,30) moved as
+          far as down 8 (frame 4) and was back in place at the end"; tr87 all 9 glyph pairs "rotated 90"; bp35 "b 4x2
+          moved left 5 and rotated 180". Real-harness bed (mock model, 8 games, 60 s): 348 requests, 339 with a P23
+          block (median 275 chars, p90 406, max 522, about 80-150 tokens), P24 on the 4 games with rotated or
+          recoloured copies (300-620 chars once), no errors; 0.001-0.03 s per report; a 64x64 full redraw is
+          summarised in < 1 s.
+Arms:     exp-049 (arc3-taaf-fix-kv65) = exp-042's fixes on the 6.5 GiB / 4,096-token profile, no gate: the control, and
+          the candidate if the gate is what cost exp-048 on the LB. exp-050 (arc3-taaf-fix-kv65-obj) = exp-049 + P23 +
+          P24. Both queued to push together at the 2026-09-26 00:00 UTC quota reset.
+Rule (pre-registered): keep P23/P24 if exp-050's z-sum is not below exp-049's and exp-050 solves at least as many
+          level 1s on the 8 hard games; with a difference inside one run's noise (z-sum sd about 6), repeat both before
+          a submission uses P23/P24.

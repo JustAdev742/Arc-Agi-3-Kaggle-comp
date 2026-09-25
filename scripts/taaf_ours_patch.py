@@ -1117,8 +1117,455 @@ P22_NEW = """            if last_transition is not None and getattr(last_transit
             )
 """
 
+# P23 and P24 (hard-games level-1 study, 2026-09-25: 40 level-1 attempts on the 8 hardest public games, 18 unsolved).
+# The most common primary failure (9 of 31 problem runs, involved in 16) was a misread action effect: g50t's SPACE
+# makes a gray clone appear on the next move and replay the path, and tn36's piece moves 8 rows during the run
+# animation and comes back, both invisible in a cell count or in the final board. P23 states, after every executed
+# sequence, what each action did at the object level: objects (4-connected same-colour areas of up to 400 cells that
+# contain a changed cell) that moved (with the offset), turned, appeared, vanished, changed colour or changed shape,
+# and what happened only during the action's animation (moved and came back, showed up and was gone). Six or more
+# objects moving by the same offset are one phrase (a scroll). Up to 3 actions are reported one by one, a longer
+# sequence as its net change plus its last action. P24: every glyph in tr87 is drawn at a random rotation, and all 5
+# runs stalled on pairing them (a rotation-invariant key pairs all 5 source glyphs; the translation-only hash pairs 2).
+# At the first prompt of each level the harness lists the objects of 5-49 cells (solid rectangles left out) whose shapes
+# are equal up to rotation, reflection or colour, with the rotation or mirror of each. Both cost no actions and about
+# 100-300 prompt tokens; each report is given once (P23 once per sequence, P24 once per level).
+OURS_OBJECTS_FN = '''from inference.utils.grid_utils import ARC_COLOR_CHARS as _OURS_COLOUR_CHARS  # ours: shared by P23 and P24
+
+_OURS_OBJ_MAX_PX = 400  # a same-colour area larger than this is floor, wall or background, not an object
+_OURS_D4 = ((1, 0, 0, 1), (0, 1, -1, 0), (-1, 0, 0, -1), (0, -1, 1, 0),   # identity, rotations 90/180/270 clockwise
+            (1, 0, 0, -1), (-1, 0, 0, 1), (0, 1, 1, 0), (0, -1, -1, 0))  # mirror left-right, up-down, two diagonals
+_OURS_D4_NAMES = ("same", "rotated 90", "rotated 180", "rotated 270", "mirrored left-right", "mirrored up-down",
+                  "mirrored on a diagonal", "mirrored on a diagonal")
+
+
+def _ours_norm(cells: Any, t: int = 0) -> tuple:
+    a, b, c, d = _OURS_D4[t]
+    pts = [(a * r + b * col, c * r + d * col) for r, col in cells]
+    r0 = min(r for r, _ in pts)
+    c0 = min(col for _, col in pts)
+    return tuple(sorted((r - r0, col - c0) for r, col in pts))
+
+
+def _ours_d4_key(cells: Any) -> tuple:
+    """Shape key that ignores position, rotation and reflection."""
+    return min(_ours_norm(cells, t) for t in range(8))
+
+
+def _ours_d4_relation(cells_a: Any, cells_b: Any) -> str:
+    """How shape b relates to shape a ('same', 'rotated 90', ...), or '' when they differ."""
+    base = _ours_norm(cells_b)
+    for t in range(8):
+        if _ours_norm(cells_a, t) == base:
+            return _OURS_D4_NAMES[t]
+    return ""
+
+
+def _ours_component(grid: Any, start: tuple, seen: set, limit: int = _OURS_OBJ_MAX_PX) -> tuple:
+    """(colour, cells) of the 4-connected same-colour area at `start`; cells is None when it has over `limit` cells.
+    The whole area is added to `seen` either way, so a large area is flooded once, not once per cell."""
+    colour = grid[start[0]][start[1]]
+    height, width = len(grid), len(grid[0])
+    cells = {start}
+    stack = [start]
+    while stack:
+        r, c = stack.pop()
+        for nr, nc in ((r - 1, c), (r + 1, c), (r, c - 1), (r, c + 1)):
+            if 0 <= nr < height and 0 <= nc < width and (nr, nc) not in cells and grid[nr][nc] == colour:
+                cells.add((nr, nc))
+                stack.append((nr, nc))
+    seen.update(cells)
+    return int(colour), (frozenset(cells) if len(cells) <= limit else None)
+
+
+def _ours_box(cells: Any) -> tuple:
+    rows = [r for r, _ in cells]
+    cols = [c for _, c in cells]
+    return min(rows), min(cols), max(rows), max(cols)
+
+
+def _ours_obj_text(colour: int, cells: Any) -> str:
+    r0, c0, r1, c1 = _ours_box(cells)
+    size = f"{r1 - r0 + 1}x{c1 - c0 + 1}"
+    if len(cells) != (r1 - r0 + 1) * (c1 - c0 + 1):
+        size += f" ({len(cells)} px)"
+    return f"{_OURS_COLOUR_CHARS[max(0, min(15, colour))]} {size}"
+
+
+'''
+P23_FN = '''def _ours_changed_objects(grid: Any, changed: Any) -> list:
+    """The objects (colour, cells) of one board that contain a changed cell. The board's most common colour (the
+    floor) and areas of over _OURS_OBJ_MAX_PX cells are not objects."""
+    counts: dict = {}
+    for row in grid:
+        for value in row:
+            counts[value] = counts.get(value, 0) + 1
+    floor = max(counts, key=counts.get)
+    seen: set = set()
+    out = []
+    for cell in sorted(changed):
+        if cell in seen or grid[cell[0]][cell[1]] == floor:
+            continue
+        colour, cells = _ours_component(grid, cell, seen)
+        if cells is not None:
+            out.append((colour, cells))
+    return out
+
+
+def _ours_move_text(dr: int, dc: int) -> str:
+    parts = []
+    if dr:
+        parts.append(f"{'down' if dr > 0 else 'up'} {abs(dr)}")
+    if dc:
+        parts.append(f"{'right' if dc > 0 else 'left'} {abs(dc)}")
+    return " ".join(parts) or "in place"
+
+
+def _ours_object_diff(before: Any, after: Any) -> dict:
+    """Object-level difference between two boards of the same size: moved, appeared, vanished, recoloured, reshaped.
+
+    Objects are 4-connected same-colour areas of up to _OURS_OBJ_MAX_PX cells that contain a changed cell. `other`
+    counts changed cells that belong to no listed object (large areas such as the floor under a moved object are not
+    counted, as they are covered by the object's old or new position)."""
+    changed = [(r, c) for r, (row_b, row_a) in enumerate(zip(before, after)) if row_b != row_a
+               for c, (vb, va) in enumerate(zip(row_b, row_a)) if vb != va]
+    result = {"changed": len(changed), "moved": [], "appeared": [], "vanished": [], "recoloured": [],
+              "turned": [], "reshaped": [], "other": 0}
+    if not changed:
+        return result
+    old = _ours_changed_objects(before, changed)
+    new = _ours_changed_objects(after, changed)
+    if len(old) + len(new) > 120:  # a scroll of a textured board or a full redraw: too many objects to pair or list
+        result["other"] = len(changed)
+        result["crowded"] = True
+        return result
+    covered = set()
+    for _, cells in old + new:
+        covered |= cells
+    result["other"] = sum(1 for cell in changed if cell not in covered)
+    # recoloured: the same cells, another colour
+    by_cells = {cells: i for i, (_, cells) in enumerate(new)}
+    used_old, used_new = set(), set()
+    for i, (colour, cells) in enumerate(old):
+        j = by_cells.get(cells)
+        if j is not None and j not in used_new:
+            result["recoloured"].append((colour, new[j][0], cells))
+            used_old.add(i)
+            used_new.add(j)
+    # moved (the same colour and shape elsewhere), then turned (the same colour and shape up to rotation or
+    # reflection: a sprite that turned as it moved); nearest first
+    tops_old = [_ours_box(cells)[:2] for _, cells in old]
+    tops_new = [_ours_box(cells)[:2] for _, cells in new]
+    for kind, keyf in (("moved", _ours_norm), ("turned", _ours_d4_key)):
+        buckets: dict = {}
+        for j, (colour, cells) in enumerate(new):
+            if j not in used_new:
+                buckets.setdefault((colour, len(cells), keyf(cells)), []).append(j)
+        pairs = []
+        for i, (colour, cells) in enumerate(old):
+            if i in used_old:
+                continue
+            (r0, c0) = tops_old[i]
+            for j in buckets.get((colour, len(cells), keyf(cells)), ()):
+                r1, c1 = tops_new[j]
+                pairs.append((abs(r1 - r0) + abs(c1 - c0), i, j, r1 - r0, c1 - c0))
+        for _, i, j, dr, dc in sorted(pairs):
+            if i in used_old or j in used_new:
+                continue
+            used_old.add(i)
+            used_new.add(j)
+            result[kind].append((old[i][0], old[i][1], new[j][1], dr, dc))
+    # reshaped: the same colour, overlapping boxes (grew, shrank, rotated in place)
+    for i, (colour, cells) in enumerate(old):
+        if i in used_old:
+            continue
+        a0, b0, a1, b1 = _ours_box(cells)
+        for j, (colour2, cells2) in enumerate(new):
+            if j in used_new or colour2 != colour:
+                continue
+            p0, q0, p1, q1 = _ours_box(cells2)
+            if p0 <= a1 + 1 and a0 <= p1 + 1 and q0 <= b1 + 1 and b0 <= q1 + 1:
+                used_old.add(i)
+                used_new.add(j)
+                result["reshaped"].append((colour, cells, cells2))
+                break
+    # grew or shrank without its remaining cells changing: the object still has unchanged cells on the other board
+    for objects, index_used, other, other_grid, forward in ((old, used_old, new, after, True),
+                                                         (new, used_new, old, before, False)):
+        for i, (colour, cells) in enumerate(objects):
+            if i in index_used:
+                continue
+            anchor = next((cell for cell in cells if other_grid[cell[0]][cell[1]] == colour), None)
+            if anchor is None:
+                continue
+            colour2, cells2 = _ours_component(other_grid, anchor, set())
+            if cells2 is None or any(cells2 == c for _, c in other):
+                continue
+            index_used.add(i)
+            result["reshaped"].append((colour, cells, cells2) if forward else (colour, cells2, cells))
+    result["vanished"] = [old[i] for i in range(len(old)) if i not in used_old]
+    result["appeared"] = [new[j] for j in range(len(new)) if j not in used_new]
+    return result
+
+
+def _ours_diff_phrases(diff: dict, limit: int = 4) -> list:
+    """Short phrases for one object diff, most informative first, at most `limit` (+ a count of the rest)."""
+    phrases = []
+    groups: dict = {}
+    for colour, cells, cells2, dr, dc in diff["moved"]:
+        groups.setdefault((dr, dc), []).append((colour, cells, cells2))
+    for (dr, dc), members in sorted(groups.items(), key=lambda kv: -len(kv[1])):
+        if len(members) >= 6:  # many objects with one displacement: the view scrolled or a group moved together
+            box = _ours_box(set().union(*(m[2] for m in members)))
+            phrases.append(f"{len(members)} objects moved {_ours_move_text(dr, dc)} together "
+                           f"(now rows {box[0]}-{box[2]}, cols {box[1]}-{box[3]})")
+            continue
+        for colour, cells, cells2 in members:
+            r0, c0 = _ours_box(cells)[:2]
+            r1, c1 = _ours_box(cells2)[:2]
+            phrases.append(f"{_ours_obj_text(colour, cells)} moved {_ours_move_text(dr, dc)} ({r0},{c0})->({r1},{c1})")
+    for colour, cells, cells2, dr, dc in diff["turned"]:
+        r0, c0 = _ours_box(cells)[:2]
+        r1, c1 = _ours_box(cells2)[:2]
+        where = f"moved {_ours_move_text(dr, dc)} and " if dr or dc else ""
+        phrases.append(f"{_ours_obj_text(colour, cells)} {where}{_ours_d4_relation(cells, cells2)} ({r0},{c0})->({r1},{c1})")
+    for verb, objects in (("appeared at", diff["appeared"]), ("vanished from", diff["vanished"])):
+        alike: dict = {}  # identical objects are one phrase
+        for colour, cells in objects:
+            alike.setdefault((colour, _ours_norm(cells)), []).append(cells)
+        for (colour, _), members in alike.items():
+            where = ", ".join(f"({_ours_box(c)[0]},{_ours_box(c)[1]})" for c in members[:4])
+            where += ", ..." if len(members) > 4 else ""
+            count = f"{len(members)} x " if len(members) > 1 else ""
+            phrases.append(f"{count}{_ours_obj_text(colour, members[0])} {verb} {where}")
+    recolours: dict = {}
+    for colour, colour2, cells in diff["recoloured"]:
+        recolours.setdefault((colour, colour2), []).append(cells)
+    for (colour, colour2), members in recolours.items():
+        r0, c0 = _ours_box(members[0])[:2]
+        to = _OURS_COLOUR_CHARS[max(0, min(15, colour2))]
+        if len(members) == 1:
+            phrases.append(f"{_ours_obj_text(colour, members[0])} at ({r0},{c0}) turned {to}")
+        else:
+            phrases.append(f"{len(members)} {_OURS_COLOUR_CHARS[max(0, min(15, colour))]} objects turned {to} "
+                           f"(first at ({r0},{c0}))")
+    for colour, cells, cells2 in diff["reshaped"]:
+        r0, c0 = _ours_box(cells)[:2]
+        how = _ours_d4_relation(cells, cells2)
+        how = how if how and how != "same" else f"became {_ours_obj_text(colour, cells2).split(' ', 1)[1]}"
+        phrases.append(f"{_ours_obj_text(colour, cells)} at ({r0},{c0}) {how}")
+    if len(phrases) > limit:
+        phrases = phrases[:limit] + [f"{len(phrases) - limit} more object changes"]
+    if diff.get("crowded"):
+        phrases.append(f"{diff['other']} cells changed, too many objects to list")
+    elif diff["other"]:
+        phrases.append(f"{diff['other']} cells changed in large areas")
+    return phrases
+
+
+def _ours_dedupe(frames: Any, limit: int = 16) -> list:
+    out = []
+    for frame in frames:
+        if not out or frame != out[-1]:
+            out.append(frame)
+    if len(out) > limit:  # keep the first and last, sample the rest evenly
+        step = (len(out) - 1) / (limit - 1)
+        out = [out[round(i * step)] for i in range(limit)]
+    return out
+
+
+def _ours_transient_phrases(before: Any, frames: Any, limit: int = 3) -> list:
+    """What happened during an animation that the final board does not show: objects that moved and were back in
+    place at the end, and objects that showed up and were gone at the end."""
+    dedup = _ours_dedupe(frames)
+    inner, final = dedup[:-1], dedup[-1] if dedup else None
+    if not inner or not before or final is None or len(final) != len(before):
+        return []
+
+    def present(grid: Any, colour: int, cells: Any) -> bool:
+        cell = min(cells)
+        if grid[cell[0]][cell[1]] != colour:
+            return False
+        return _ours_component(grid, cell, set())[1] == cells
+
+    farthest: dict = {}
+    flashes: dict = {}
+    for index, frame in enumerate(inner, 1):
+        if len(frame) != len(before):
+            continue
+        diff = _ours_object_diff(before, frame)
+        for colour, cells, _, dr, dc in diff["moved"]:
+            if abs(dr) + abs(dc) > farthest.get(cells, (0,))[0]:
+                farthest[cells] = (abs(dr) + abs(dc), dr, dc, colour, index)
+        shown = [(colour, cells) for colour, cells in diff["appeared"]]
+        shown += [(colour2, cells) for _, colour2, cells in diff["recoloured"]]
+        for colour, cells in shown:
+            key = (colour, _ours_box(cells)[:2])
+            if key not in flashes:
+                flashes[key] = (colour, cells, index)
+    phrases = []
+    for cells, (_, dr, dc, colour, index) in sorted(farthest.items(), key=lambda kv: -kv[1][0]):
+        if present(final, colour, cells):  # back where it started
+            r0, c0 = _ours_box(cells)[:2]
+            phrases.append(f"{_ours_obj_text(colour, cells)} at ({r0},{c0}) moved as far as "
+                           f"{_ours_move_text(dr, dc)} (frame {index}) and was back in place at the end")
+    same: dict = {}
+    for colour, cells, index in flashes.values():
+        if not present(final, colour, cells):
+            same.setdefault((colour, _ours_d4_key(cells)), []).append((cells, index))
+    for (colour, _), members in same.items():
+        cells, index = members[0]
+        r0, c0 = _ours_box(cells)[:2]
+        if len(members) == 1:
+            phrases.append(f"{_ours_obj_text(colour, cells)} showed at ({r0},{c0}) from frame {index}, gone at the end")
+        else:
+            where = ", ".join(f"({_ours_box(c)[0]},{_ours_box(c)[1]})" for c, _ in members[:4])
+            where += ", ..." if len(members) > 4 else ""
+            phrases.append(f"{len(members)} x {_ours_obj_text(colour, cells)} showed at {where} from frame {index}, "
+                           "gone at the end")
+    if len(phrases) > limit:
+        phrases = phrases[:limit] + [f"{len(phrases) - limit} more"]
+    return phrases
+
+
+def _ours_effect_lines(grids: list, names: list, animations: dict) -> list:
+    """The object-change report for one executed sequence: `grids` holds the board before the sequence and after each
+    action, `names` the action names, `animations` maps an action's index to its animation frames."""
+    count = len(names)
+    lines = []
+
+    def one(label: str, before: Any, after: Any, frames: Any = None) -> None:
+        diff = _ours_object_diff(before, after)
+        phrases = _ours_diff_phrases(diff) or ["no change"]
+        text = f"- {label}: " + "; ".join(phrases)
+        if frames:
+            during = _ours_transient_phrases(before, frames)
+            if during:
+                text += f". During its animation ({len(frames)} frames): " + "; ".join(during)
+        lines.append(text + ".")
+
+    if count <= 3:
+        for i in range(count):
+            one(names[i], grids[i], grids[i + 1], animations.get(i))
+    else:
+        one(f"net over the {count} actions", grids[0], grids[-1])
+        for i in range(count):
+            if animations.get(i) and len(lines) < 3:
+                during = _ours_transient_phrases(grids[i], animations[i])
+                if during:
+                    lines.append(f"- during {names[i]} (action {i + 1} of {count}): " + "; ".join(during) + ".")
+        one(f"last action ({names[-1]})", grids[-2], grids[-1])
+    return lines
+
+
+def _ours_effect_report(step_env: Any, summary: dict, history_entries: list, current_frame: Any) -> list:
+    """P23's prompt lines for the last executed sequence (none after a level change or a game over)."""
+    try:
+        executed = int(summary.get("executed_count") or 0)
+    except (TypeError, ValueError):
+        return []
+    if (executed <= 0 or summary.get("level_transition") or summary.get("game_over") or current_frame is None
+            or len(history_entries) <= executed):
+        return []
+    entries = history_entries[-executed - 1:]
+    if any(getattr(e, "frame", None) is None or e.frame.level != current_frame.level for e in entries):
+        return []
+    grids = [e.frame.grid for e in entries]
+    if not grids[0] or any(len(g) != len(grids[0]) or len(g[0]) != len(grids[0][0]) for g in grids):
+        return []
+    names = [str(e.action or "?") for e in entries[1:]]
+    animations: dict = {}
+    start = summary.get("start_action_num")
+    if step_env is not None and start is not None:
+        for i in range(executed):  # the stored frames of each animated action; this executes nothing
+            try:
+                raw = step_env({"query": "animation", "action_num": int(start) + i})
+            except Exception:
+                continue
+            record = raw.get("record") if isinstance(raw, dict) else None
+            frames = record.get("frames") if isinstance(record, dict) else None
+            if frames and len(frames) > 1 and all(len(f) == len(grids[0]) for f in frames):
+                animations[i] = list(frames)
+    return ["Object changes from your last actions (exact, computed by the harness from the frames; (row,col) is "
+            "the top-left of an object's box):"] + _ours_effect_lines(grids, names, animations)
+
+
+'''
+P24_FN = '''def _ours_shape_match_line(grid: Any, min_px: int = 5, max_px: int = 49, max_groups: int = 10) -> str:
+    """Objects on one board with the same shape up to rotation, reflection or colour (solid rectangles left out)."""
+    seen: set = set()
+    objects = []
+    for r in range(len(grid)):
+        for c in range(len(grid[0])):
+            if (r, c) in seen:
+                continue
+            colour, cells = _ours_component(grid, (r, c), seen, limit=max_px + 1)
+            if cells is None or not min_px <= len(cells) <= max_px:
+                continue
+            r0, c0, r1, c1 = _ours_box(cells)
+            if len(cells) == (r1 - r0 + 1) * (c1 - c0 + 1):
+                continue
+            objects.append((colour, cells, r0, c0))
+    groups: dict = {}
+    for obj in objects:
+        groups.setdefault(_ours_d4_key(obj[1]), []).append(obj)
+    kept = []
+    for members in groups.values():
+        variants = {(colour, _ours_norm(cells)) for colour, cells, _, _ in members}
+        if len(members) >= 2 and len(variants) >= 2:
+            kept.append(members)
+    if not kept:
+        return ""
+    kept.sort(key=lambda m: (-len({_ours_norm(c) for _, c, _, _ in m}), -len(m), m[0][2], m[0][3]))
+    parts = []
+    for n, members in enumerate(kept[:max_groups], 1):
+        first = members[0]
+        items = [f"{_OURS_COLOUR_CHARS[first[0]]} ({first[2]},{first[3]})"]
+        for colour, cells, r0, c0 in members[1:8]:
+            rel = _ours_d4_relation(first[1], cells)
+            items.append(f"{_OURS_COLOUR_CHARS[colour]} ({r0},{c0})" + ("" if rel == "same" else f" {rel}"))
+        if len(members) > 8:
+            items.append(f"{len(members) - 8} more")
+        parts.append(f"[{n}] {len(first[1])} px: " + ", ".join(items))
+    more = f" ({len(kept) - max_groups} more groups not listed)" if len(kept) > max_groups else ""
+    return ("Objects with the same shape up to rotation, reflection or colour (exact; non-rectangular objects of "
+            f"{min_px}-{max_px} px; (row,col) is the top-left of each object's box; the rotation or mirror is "
+            "relative to the first object in its group): " + "; ".join(parts) + more + ".")
+
+
+'''
+P23_NEW = P9_OLD + """            _p23_key = (self._session_runtime_dir, previous_step_summary.get("start_action_num"),
+                        previous_step_summary.get("end_action_num"))
+            if getattr(self, "_ours_p23_key", None) != _p23_key:  # ours P23: once per executed sequence
+                self._ours_p23_key = _p23_key
+                try:  # prompt building runs outside the analyzer's try: a bad entry must not end the game
+                    lines.extend(_ours_effect_report(self._step_env_callback, previous_step_summary, history_entries,
+                                                     current_frame))
+                except Exception:
+                    pass
+"""
+P24_OLD = "        hint_line = self._animation_hint_line(previous_step_summary, current_level)\n"
+P24_NEW = """        _p24_key = (self._session_runtime_dir, current_level)
+        if (current_frame is not None and getattr(self, "_ours_p24_key", None) != _p24_key
+                and (not previous_step_summary or previous_step_summary.get("level_transition"))):
+            self._ours_p24_key = _p24_key  # ours P24: once per level, at its first prompt
+            try:
+                _p24 = _ours_shape_match_line(current_frame.grid)
+            except Exception:
+                _p24 = ""
+            if _p24:
+                lines.append(_p24)
+""" + P24_OLD
+
+
 PATCHES.update({
     "P22": [(SANDBOX, P22_OLD, P22_NEW)],
+    "P23": [(TOOL_AGENT, "<ONCE>def _empty_world_model(", OURS_OBJECTS_FN),
+            (TOOL_AGENT, "def _empty_world_model(", P23_FN + "def _empty_world_model("),
+            (TOOL_AGENT, P9_OLD, P23_NEW)],
+    "P24": [(TOOL_AGENT, "<ONCE>def _empty_world_model(", OURS_OBJECTS_FN),
+            (TOOL_AGENT, "def _empty_world_model(", P24_FN + "def _empty_world_model("),
+            (TOOL_AGENT, P24_OLD, P24_NEW)],
     "P21": [(TOOL_AGENT, "def _empty_world_model(", P21_FN + "def _empty_world_model("),
             (TOOL_AGENT, P21_LEVEL_OLD, P21_LEVEL_NEW),
             (TOOL_AGENT, P21_CALL_OLD, P21_CALL_NEW),
@@ -1177,6 +1624,14 @@ def apply(bundle_dir: Path | str, names: list[str] | None = None) -> list[str]:
         for rel, old, new in PATCHES[name]:
             path = root / rel
             text = path.read_text(encoding="utf-8")
+            if old.startswith("<ONCE>"):  # a block shared by several patches: insert it before the anchor unless present
+                if new not in text:
+                    anchor = old[len("<ONCE>"):]
+                    if text.count(anchor) != 1:
+                        raise RuntimeError(f"patch {name}: expected exactly one match in {rel}, found {text.count(anchor)}")
+                    path.write_text(text.replace(anchor, new + anchor, 1), encoding="utf-8")
+                applied.append(f"{name}:{rel}")
+                continue
             if old == "<EOF>":  # append to the end of the file, once
                 if new in text:
                     raise RuntimeError(f"patch {name}: already appended to {rel}")

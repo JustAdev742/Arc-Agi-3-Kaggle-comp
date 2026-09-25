@@ -214,6 +214,12 @@ champion preset are superseded by the move to the Duck family; they are in this 
   stress tests 5 GiB, 6.5 GiB + 4k chunks, the b12x MoE kernels, prefix caching; then exp-045 (base + P21), exp-042
   (low-token fixes), exp-046 (P21 + 6.5 GiB, if its stress test passes), exp-047 (P21 + prefix caching, if its stress
   test passes), exp-043 (all patches but P4/P11). GPU quota: 13.3 of 30 h used at 13:37 UTC, resets 2026-09-26 00:00.
+- **2026-09-25 (morning):** a study of level 1 on the 8 hardest public games (`docs/research/hard-games-level1.md`)
+  found the P21 gate starves hard level 1s (gated runs solved 6 of 16, ungated 16 of 24) and that the most common
+  failure is a misread action effect. Built P23 (object-level change report per action, including what happens
+  only mid-animation) and P24 (shape matches up to rotation/reflection/colour at each level start); tests, engine
+  replay and a real-harness bed pass. Queued for the 2026-09-26 quota reset: exp-049 (fixes + 6.5 GiB KV, no gate)
+  and exp-050 (exp-049 + P23 + P24). exp-048r (gated repeat) dropped.
 - **Best configuration so far (2026-09-23 23:36): exp-048 = fixes (P1 P1B P2 P7 P12 P13 P17 P22) + P21 gate + 6.5 GiB
   KV cache: 15.50 on the public 25, 47 levels, above all 39 reference base runs (max 11.02); lp85 8/8, sb26 7, ft09 6
   levels.** The fixes alone repeat (10.89, 8.87). **Submitted 2026-09-24 00:04 UTC as competition submission 56506396: public LB 4.23** (previous 0.68; Duck-family teams show 7-11 as their best; leader 19.40). One draw at about half the expected level: the next submissions separate the components (fixes only, base, gate only). **2026-09-25 00:05: submission 56534663 = exp-042 (fixes only), pending.**

@@ -354,7 +354,48 @@
     "kv_gib": 6.5,
     "batched_tokens": 4096
    },
-   "note": "exp-048r: an unchanged repeat of exp-048 (15.50 on its first run; submitted as 56506396) under a new slug."
+   "note": "exp-048r: an unchanged repeat of exp-048 (15.50 on its first run; submitted as 56506396) under a new slug.",
+   "dropped": "not run: exp-048 scored 4.23 on the public LB (15.50 on the public games), and in the hard-games study the gated runs solved 6 of 16 hard level 1s against 16 of 24 ungated; replaced by exp-049 (the same fixes and serving without the gate)"
+  },
+  {
+   "exp": "exp049",
+   "slug": "arc3-taaf-fix-kv65",
+   "patches": [
+    "P1",
+    "P1B",
+    "P2",
+    "P7",
+    "P12",
+    "P13",
+    "P17",
+    "P22"
+   ],
+   "serving": {
+    "kv_gib": 6.5,
+    "batched_tokens": 4096
+   },
+   "note": "exp-049: exp-042's fixes on the 6.5 GiB KV / 4,096-token profile, without the P21 gate (exp-048 minus the gate). The control for exp-050 and a submission candidate if the gate is what cost exp-048 on the LB."
+  },
+  {
+   "exp": "exp050",
+   "slug": "arc3-taaf-fix-kv65-obj",
+   "patches": [
+    "P1",
+    "P1B",
+    "P2",
+    "P7",
+    "P12",
+    "P13",
+    "P17",
+    "P22",
+    "P23",
+    "P24"
+   ],
+   "serving": {
+    "kv_gib": 6.5,
+    "batched_tokens": 4096
+   },
+   "note": "exp-050: exp-049 plus the object-level change report (P23) and the rotation/reflection shape matches at each level start (P24), from the hard-games level-1 study (misread action effects: 9 of 31 problem runs primary, 16 involved; tr87's rotated glyphs: 5 of 5 runs stalled)."
   }
  ]
 }
