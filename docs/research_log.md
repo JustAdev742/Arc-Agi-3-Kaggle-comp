@@ -1595,3 +1595,20 @@ on real games. Reworked, each case now a unit test:
 Re-measured: replays of exp-042 and exp-048's recorded actions (458 and 488 reports) median 222 / 226 chars, max
 831 / 711, <= 121 ms; the real-harness bed (8 games) 346 reports, no errors. exp-049 and exp-050 were rebuilt from this
 code before their push.
+
+## 2026-09-25 09:31 · submission 56534663 (exp-042, fixes only, no gate) scored 3.81 on the public LB · MEASURED
+Measured: public LB 3.81, against exp-048's 4.23 (the same fixes + P21 gate + 6.5 GiB KV). Public-25 of the two
+          notebooks: 10.89 (repeat 8.87) and 15.50.
+Reading:  the gate is not what held exp-048 down on the leaderboard: without it the score is no higher. Hypothesis
+          (2) of the 2026-09-24 entry (the gate starves hard level-1 games) may still hold on the public games (6/16
+          against 16/24), but it does not explain the LB. Both of our forks draw about 4 while the public-25 predicts
+          9-15; hard-game level-1 solves (exp-042 5/8, exp-048 4/8, base reference 4.5) predicted "about the base"
+          better than the public-25 mean did.
+Open:     (1) leaderboard noise plus selection: other Duck-family teams show their best of many submissions (7-11);
+          identical notebooks vary 1.5-2.3x (lesson 0018); (3) something in our forks' rerun path that the public-25
+          runs cannot see: the wave-fit per-game cap (all our forks; about 7,600 s per game against the stock 7,920 s
+          with the last wave cut at the soft deadline) and the runtime patching of a copied bundle. Tomorrow's
+          pre-registered submission is the unmodified base exp-032 (stock timing, no patches, no wave-fit): if it
+          scores well above 4, our fork path costs score on the hidden set and is the first thing to bisect; if it
+          scores about 4, the gap to other teams is noise and selection, and arms should be judged on hard-game
+          level-1 solves and repeated LB draws, not the public-25 mean.

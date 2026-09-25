@@ -225,7 +225,7 @@ champion preset are superseded by the move to the Duck family; they are in this 
   and exp-050 (exp-049 + P23 + P24). exp-048r (gated repeat) dropped.
 - **Best configuration so far (2026-09-23 23:36): exp-048 = fixes (P1 P1B P2 P7 P12 P13 P17 P22) + P21 gate + 6.5 GiB
   KV cache: 15.50 on the public 25, 47 levels, above all 39 reference base runs (max 11.02); lp85 8/8, sb26 7, ft09 6
-  levels.** The fixes alone repeat (10.89, 8.87). **Submitted 2026-09-24 00:04 UTC as competition submission 56506396: public LB 4.23** (previous 0.68; Duck-family teams show 7-11 as their best; leader 19.40). One draw at about half the expected level: the next submissions separate the components (fixes only, base, gate only). **2026-09-25 00:05: submission 56534663 = exp-042 (fixes only), pending.**
+  levels.** The fixes alone repeat (10.89, 8.87). **Submitted 2026-09-24 00:04 UTC as competition submission 56506396: public LB 4.23** (previous 0.68; Duck-family teams show 7-11 as their best; leader 19.40). One draw at about half the expected level: the next submissions separate the components (fixes only, base, gate only). **2026-09-25 00:05: submission 56534663 = exp-042 (fixes only, no gate): public LB 3.81** (09:31). The gate did not cost exp-048 its LB score; both forks draw about 4. Sep 26 00:04: the unmodified base exp-032 (stock timing, no patches) decides between LB noise and a cost in our forks' rerun path.
 - **Results this evening (public 25, one run each; base harvest n=39, mean 6.98, sd 1.77):** exp-042 (low-token
   fixes P1 P1B P2 P7 P12 P13 P17 + P22) **10.89, 46 levels**, 95th percentile, our best run; exp-045 (P21 gate)
   7.59, 34 levels, mechanism confirmed (L2+/L1 calls-per-minute ratio 1.71 vs 0.80, 0 timeouts, same total
