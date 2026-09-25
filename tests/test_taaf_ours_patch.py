@@ -558,26 +558,58 @@ def _place(shape, r, c, colour):
     return {(r + dr, c + dc): colour for dr, dc in shape}
 
 
+def _phrases(h, before, after):
+    return h.ta._ours_diff_phrases(h.ta._ours_object_diff(before, after))
+
+
 def test_p23_object_diff_names_moves_turns_appearances_and_bar_changes(h):
     before = _board({**_place(L_SHAPE, 2, 2, 9), (8, 8): 11, **{(15, c): 12 for c in range(10)}})
     turned = [(c, 3 - r) for r, c in L_SHAPE]  # the L rotated 90 degrees clockwise
     after = _board({**_place(turned, 2, 6, 9), (9, 12): 3, **{(15, c): 12 for c in range(9)}})
-    phrases = h.ta._ours_diff_phrases(h.ta._ours_object_diff(before, after))
-    text = "; ".join(phrases)
-    assert "b 4x2 (5 px) moved right 4 and rotated 90 (2,2)->(2,6)" in text
+    text = "; ".join(_phrases(h, before, after))
+    assert "b 4x2 (5 px) moved right 4 and rotated 90 clockwise (2,2)->(2,6)" in text
     assert "Y 1x1 vanished from (8,8)" in text and "G 1x1 appeared at (9,12)" in text
     assert "O 1x10 at (15,0) became 1x9" in text  # a shrinking bar is one change, not a vanish and an appear
-    moved = _board({**_place(L_SHAPE, 5, 2, 9)})
-    assert h.ta._ours_diff_phrases(h.ta._ours_object_diff(_board(_place(L_SHAPE, 2, 2, 9)), moved)) == [
+    assert _phrases(h, _board(_place(L_SHAPE, 2, 2, 9)), _board(_place(L_SHAPE, 5, 2, 9))) == [
         "b 4x2 (5 px) moved down 3 (2,2)->(5,2)"]
-    recoloured = _board(_place(L_SHAPE, 2, 2, 14))
-    assert h.ta._ours_diff_phrases(h.ta._ours_object_diff(_board(_place(L_SHAPE, 2, 2, 9)), recoloured)) == [
-        "b 4x2 (5 px) at (2,2) turned N"]
+    assert _phrases(h, _board(_place(L_SHAPE, 2, 2, 9)), _board(_place(L_SHAPE, 2, 2, 14))) == [
+        "b 4x2 (5 px) at (2,2) changed colour to N"]
     many = {(r, c): 9 for r in range(0, 14, 2) for c in range(0, 6, 2)}
-    shifted = {(r, c + 1): 9 for r, c in many}
-    assert h.ta._ours_diff_phrases(h.ta._ours_object_diff(_board(many), _board(shifted)))[0].startswith(
+    assert _phrases(h, _board(many), _board({(r, c + 1): 9 for r, c in many}))[0].startswith(
         "21 objects moved right 1 together")
-    assert h.ta._ours_diff_phrases(h.ta._ours_object_diff(before, before)) == []
+    assert _phrases(h, before, before) == []
+
+
+def test_p23_review_cases_pairing_by_shared_offset_and_moves_before_colour_changes(h):
+    blocks = {(5 + i, c + j): 3 for c in (0, 7) for i in range(2) for j in range(2)}
+    moved = {(r, c + 5): v for (r, c), v in blocks.items()}
+    assert _phrases(h, _board(blocks), _board(moved)) == ["G 2x2 at (5,0), G 2x2 at (5,7) all moved right 5"]
+    dots = {(10, c): 3 for c in range(0, 21, 3)}
+    assert _phrases(h, _board(dots, size=32), _board({(10, c + 2): 3 for c in range(0, 21, 3)}, size=32)) == [
+        "7 objects moved right 2 together (now rows 10-10, cols 2-20)"]
+    # g50t: the player moves on and a gray copy appears where it stood: a move and an appearance, not a colour change
+    player = _place(L_SHAPE, 2, 2, 9)
+    after = _board({**_place(L_SHAPE, 2, 8, 9), **_place(L_SHAPE, 2, 2, 2)})
+    assert _phrases(h, _board(player), after) == ["b 4x2 (5 px) moved right 6 (2,2)->(2,8)", "g 4x2 (5 px) appeared at (2,2)"]
+    # a selection that moves from one tile to another stays two colour changes
+    tiles = {**_place(L_SHAPE, 2, 2, 9), **_place(L_SHAPE, 2, 8, 2)}
+    swapped = {**_place(L_SHAPE, 2, 2, 2), **_place(L_SHAPE, 2, 8, 9)}
+    assert sorted(_phrases(h, _board(tiles), _board(swapped))) == [
+        "b 4x2 (5 px) at (2,2) changed colour to g", "g 4x2 (5 px) at (2,8) changed colour to b"]
+
+
+def test_p23_review_cases_a_panel_around_a_changed_glyph_is_not_news(h):
+    panel = {(r, c): 12 for r in range(2, 9) for c in range(2, 14)}
+    ring = {(r, c): 9 for r in range(4, 7) for c in range(5, 8)}
+    ring[(5, 6)] = 12
+    plus = {(4, 6): 9, (5, 5): 9, (5, 6): 9, (5, 7): 9, (6, 6): 9}
+    phrases = _phrases(h, _board({**panel, **ring}, bg=0), _board({**panel, **plus}, bg=0))
+    assert "b 3x3 (8 px) at (4,5) became 3x3 (5 px)" in phrases
+    assert not any(p.startswith("O 7x12") for p in phrases)
+    # a room the sprite moves inside keeps its box and size: not reported
+    room = {(r, c): 12 for r in range(2, 8) for c in range(2, 8)}
+    inside = _phrases(h, _board({**room, (4, 4): 9}, bg=0), _board({**room, (4, 5): 9}, bg=0))
+    assert inside == ["b 1x1 moved right 1 (4,4)->(4,5)"]
 
 
 def test_p23_crowded_boards_are_summarised_and_fast(h):
@@ -587,12 +619,22 @@ def test_p23_crowded_boards_are_summarised_and_fast(h):
     diff = h.ta._ours_object_diff(checker, flipped)
     assert time.time() - t0 < 1.0
     assert diff.get("crowded") and h.ta._ours_diff_phrases(diff) == ["4096 cells changed, too many objects to list"]
-    floor = tuple(tuple(0 for _ in range(64)) for _ in range(64))
-    lit = tuple(tuple(1 if r < 60 else 0 for _ in range(64)) for r in range(64))  # one large area repainted
-    frames = [lit, floor] * 30 + [lit]
+    # three actions with 42-frame animations of about 110 flashing pixels over a board of objects
+    base = [[0] * 64 for _ in range(64)]
+    for r in range(4, 60, 6):
+        for c in range(4, 60, 6):
+            base[r][c] = base[r][c + 1] = 1 + (r + c) % 7
+    base = tuple(tuple(row) for row in base)
+    frames = []
+    for k in range(42):
+        g = [list(row) for row in base]
+        for i in range(110):
+            g[(i * 7 + k) % 64][(i * 13 + 3 * k) % 64] = 9
+        frames.append(tuple(tuple(row) for row in g))
+    frames.append(base)
     t0 = time.time()
-    h.ta._ours_effect_lines([floor, lit], ["ACTION5"], {0: frames})
-    assert time.time() - t0 < 2.0
+    lines = h.ta._ours_effect_lines([base, base, base, base], ["A", "B", "C"], {0: frames, 1: frames, 2: frames})
+    assert time.time() - t0 < 3.0 and len(lines) == 3
 
 
 def test_p23_animation_that_moves_a_piece_and_brings_it_back(h):
@@ -600,16 +642,22 @@ def test_p23_animation_that_moves_a_piece_and_brings_it_back(h):
     down2 = _board({**_place(L_SHAPE, 4, 2, 9)})
     down4 = _board({**_place(L_SHAPE, 6, 2, 9)})
     flash = _board({**_place(L_SHAPE, 2, 2, 9), (12, 12): 8})
-    lines = h.ta._ours_effect_lines([start, start], ["ACTION6 (5,5)"], {0: [down2, down4, flash, start]})
-    assert lines == ["- ACTION6 (5,5): no change. During its animation (4 frames): b 4x2 (5 px) at (2,2) moved as far "
+    lines = h.ta._ours_effect_lines([start, start], ["ACTION6 (5,5)"], {0: [start, down2, down4, flash, start]})
+    assert lines == ["- ACTION6 (5,5): no change. During its animation (5 frames): b 4x2 (5 px) at (2,2) moved as far "
                      "as down 4 (frame 2) and was back in place at the end; R 1x1 showed at (12,12) from frame 3, "
-                     "gone at the end."]
+                     "gone at the end."]  # frame numbers are those of animation(frame=k)
     # a piece that glides to where it stays is an ordinary move, not something that came back
-    lines = h.ta._ours_effect_lines([start, down4], ["DOWN"], {0: [down2, down4]})
-    assert lines == ["- DOWN: b 4x2 (5 px) moved down 4 (2,2)->(6,2)."]
+    assert h.ta._ours_effect_lines([start, down4], ["DOWN"], {0: [start, down2, down4]}) == [
+        "- DOWN: b 4x2 (5 px) moved down 4 (2,2)->(6,2)."]
+    # objects that grow or fall into place during the animation are not "gone at the end"
+    beam = [_board({(5, c): 2 for c in range(n)}) for n in (0, 2, 5, 8)]
+    assert h.ta._ours_effect_lines([beam[0], beam[-1]], ["SPACE"], {0: beam}) == ["- SPACE: g 1x8 appeared at (5,0)."]
+    fall = [_board({(r + i, 7 + j): 3 for i in range(2) for j in range(2)}) for r in (0, 3, 6, 9, 12)]
+    assert h.ta._ours_effect_lines([_board({}), fall[-1]], ["DROP"], {0: [_board({})] + fall}) == [
+        "- DROP: G 2x2 appeared at (12,7)."]
 
 
-def test_p23_prompt_reports_each_sequence_once_and_never_across_a_level_change(h):
+def test_p23_prompt_reports_each_sequence_once_unless_the_turn_was_dropped(h):
     agent = h.ta.ToolAgent(model="mock")
     b0 = _board(_place(L_SHAPE, 2, 2, 9))
     b1 = _board(_place(L_SHAPE, 2, 4, 9))
@@ -620,26 +668,33 @@ def test_p23_prompt_reports_each_sequence_once_and_never_across_a_level_change(h
 
     def step_env(args):
         queries.append(args)
-        if args.get("action_num") == 2:
+        if args.get("action_num") == 1:
             raise RuntimeError("no record")  # a failing lookup costs the animation part only
-        return {"executed": False, "query": "animation", "record": None}
+        flash = _board({**_place(L_SHAPE, 2, 4, 9), (12, 1): 8})  # shaped like the solver's animation record
+        return {"executed": False, "query": "animation",
+                "record": {"action_num": 2, "before": b1, "frames": [b1, flash, b2], "summary": {}}}
 
     agent._step_env_callback = step_env
     summary = {"executed_count": 2, "executed_actions": ["RIGHT", "SPACE"], "level": 1, "start_action_num": 1,
                "end_action_num": 2}
-    prompt = agent._build_user_prompt(2, valid_actions=["ACTION3", "ACTION5"], current_frame=hist[-1].frame,
-                                      history_entries=hist, previous_step_summary=summary)
-    assert "Object changes from your last actions (exact" in prompt
-    assert "- RIGHT: b 4x2 (5 px) moved right 2 (2,2)->(2,4).\n- SPACE: G 1x1 appeared at (10,10)." in prompt
+
+    def build(n, entries, s):
+        return agent._build_user_prompt(n, valid_actions=["ACTION3", "ACTION5"], current_frame=entries[-1].frame,
+                                        history_entries=entries, previous_step_summary=s)
+
+    prompt = build(2, hist, summary)
+    assert "Object changes from your last actions 1-2 (computed by the harness" in prompt
+    assert ("- RIGHT: b 4x2 (5 px) moved right 2 (2,2)->(2,4).\n- SPACE: G 1x1 appeared at (10,10). During its "
+            "animation (3 frames): R 1x1 showed at (12,1) from frame 1, gone at the end.") in prompt
     assert [q["action_num"] for q in queries] == [1, 2] and all(q["query"] == "animation" for q in queries)
-    again = agent._build_user_prompt(2, valid_actions=["ACTION3", "ACTION5"], current_frame=hist[-1].frame,
-                                     history_entries=hist, previous_step_summary=summary)
-    assert "Object changes" not in again  # the same sequence is reported once
-    up = dict(summary, start_action_num=3, end_action_num=4, level_transition=True, level=2)
+    assert "Object changes" in build(2, hist, summary)  # the first turn was dropped (a retry): the report comes again
+    agent._history_messages = [{"role": "user", "content": [{"type": "text", "text": prompt}]},
+                               {"role": "assistant", "content": "ok"}]
+    assert "Object changes" not in build(2, hist, summary)  # kept in history: not repeated
+    up = {"executed_count": 1, "executed_actions": ["UP"], "level": 2, "start_action_num": 3, "end_action_num": 3,
+          "level_transition": True}
     hist2 = hist + [h.HistoryEntry("UP", h.Frame(b0, 3, 2))]
-    prompt = agent._build_user_prompt(3, valid_actions=["ACTION3"], current_frame=hist2[-1].frame,
-                                      history_entries=hist2, previous_step_summary=up)
-    assert "Object changes" not in prompt
+    assert "Object changes" not in build(3, hist2, up)
 
 
 def test_p24_shape_match_line_pairs_rotated_and_recoloured_copies_once_per_level(h):
@@ -648,32 +703,40 @@ def test_p24_shape_match_line_pairs_rotated_and_recoloured_copies_once_per_level
     board = _board({**_place(L_SHAPE, 1, 1, 9), **_place(turned, 1, 8, 9), **_place(mirrored, 8, 1, 12),
                     **{(8 + r, 8 + c): 11 for r in range(2) for c in range(3)},   # a solid 2x3 rectangle: left out
                     **{(12 + r, 12 + c): 11 for r in range(3) for c in range(2)}})
-    line = h.ta._ours_shape_match_line(board)
-    assert "[1] 5 px: b (1,1), b (1,8) rotated 90, O (8,1) mirrored left-right." in line
+    line = h.ta._ours_shape_match_line(board, 1)
+    assert line.startswith("Harness shape matches, level 1: objects with the same shape up to rotation")
+    assert "[1] 5 px: b (1,1), b (1,8) rotated 90 clockwise, O (8,1) mirrored left-right." in line
     assert "Y" not in line.split("):", 1)[1]
     assert h.ta._ours_shape_match_line(_board({})) == ""
     agent = h.ta.ToolAgent(model="mock")
     frame = h.Frame(board, 0, 1)
-    first = agent._build_user_prompt(0, valid_actions=["ACTION1"], current_frame=frame, history_entries=[],
-                                     previous_step_summary=None)
-    assert "Objects with the same shape up to rotation, reflection or colour" in first
-    second = agent._build_user_prompt(0, valid_actions=["ACTION1"], current_frame=frame, history_entries=[],
-                                      previous_step_summary=None)
-    assert "Objects with the same shape" not in second
-    level2 = agent._build_user_prompt(
-        5, valid_actions=["ACTION1"], current_frame=h.Frame(board, 5, 2), history_entries=[],
-        previous_step_summary={"executed_count": 1, "executed_actions": ["UP"], "level": 2, "level_transition": True})
-    assert "Objects with the same shape" in level2
+
+    def build(n, f, s):
+        return agent._build_user_prompt(n, valid_actions=["ACTION1"], current_frame=f, history_entries=[],
+                                        previous_step_summary=s)
+
+    first = build(0, frame, None)
+    assert "Harness shape matches, level 1" in first
+    agent._history_messages = [{"role": "user", "content": first}]
+    assert "Harness shape matches" not in build(0, frame, None)  # once per level while that turn is in history
+    level2 = build(5, h.Frame(board, 5, 2), {"executed_count": 1, "executed_actions": ["UP"], "level": 2,
+                                              "level_transition": True})
+    assert "Harness shape matches, level 2" in level2
+    many = {}
+    for k in range(40):  # 40 pentomino pairs in two orientations: the line stays within its length cap
+        r, c = 1 + (k // 8) * 12, 1 + (k % 8) * 8
+        shape = [(0, 0), (1, 0), (1, 1), (2, 1), (2, 2 + k % 2)]
+        many.update(_place(shape, r, c, k % 16))
+        many.update(_place([(b, a) for a, b in shape], r + 5, c, k % 16))
+    assert len(h.ta._ours_shape_match_line(_board(many, size=64, bg=0))) < 1700
 
 
 def test_p23_identical_objects_that_vanish_together_are_one_phrase(h):
     dots = {(12, c): 3 for c in (1, 4, 7, 10, 13)}
-    phrases = h.ta._ours_diff_phrases(h.ta._ours_object_diff(_board(dots), _board({})))
-    assert phrases == ["5 x G 1x1 vanished from (12,1), (12,4), (12,7), (12,10), ..."]
+    assert _phrases(h, _board(dots), _board({})) == ["5 x G 1x1 vanished from (12,1), (12,4), (12,7), (12,10), ..."]
 
 
 def test_p23_far_apart_dots_are_not_one_moving_object(h):
-    phrases = h.ta._ours_diff_phrases(h.ta._ours_object_diff(_board({(1, 1): 0}), _board({(14, 14): 0})))
-    assert phrases == ["W 1x1 appeared at (14,14)", "W 1x1 vanished from (1,1)"]
-    near = h.ta._ours_diff_phrases(h.ta._ours_object_diff(_board({(1, 1): 0}), _board({(1, 4): 0})))
-    assert near == ["W 1x1 moved right 3 (1,1)->(1,4)"]
+    assert _phrases(h, _board({(1, 1): 0}), _board({(14, 14): 0})) == ["W 1x1 appeared at (14,14)",
+                                                                       "W 1x1 vanished from (1,1)"]
+    assert _phrases(h, _board({(1, 1): 0}), _board({(1, 4): 0})) == ["W 1x1 moved right 3 (1,1)->(1,4)"]

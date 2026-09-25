@@ -1568,3 +1568,30 @@ minutes to it). Reference, 39 harvested base runs: mean 4.5 of 8, sd 1.4, range 
 but P4) 1, below every reference run; the P4 arms 0-3. exp-048's leaderboard 4.23 against its public-25 15.50 fits a
 hidden set that rewards level 1 on hard games. From now on an arm is judged on this column and the validation score as
 well as the public-25 mean.
+
+## 2026-09-25 · P23/P24 review and rework (before exp-050 runs) · FIXED
+A fresh-context review (fuzz of 3,000 random cases, 25-game engine scan, the reviewer's own repro scripts) found no
+crash or hang path (0 exceptions; worst prompt build 0.17 s) but found the report making false or misleading statements
+on real games. Reworked, each case now a unit test:
+- a background panel or room paired with a pocket by bounding box ("P 7x35 became 3x3" on every tr87 glyph change):
+  box pairing removed; grow/shrink is followed through a kept cell; a large area (20+ cells, 4x the enclosed object)
+  that only frames other changes, or keeps its box and size, is not reported; the same for in-place "rotations" of a
+  room whose hole moved.
+- "showed ..., gone at the end" for objects that grew or slid into place (g50t's clone sliding in contradicted the
+  final-board part of the same line): in-between frames near or of the colour of a final change are left out; dots
+  are not followed through animations.
+- identical objects paired by nearest distance (two blocks moving right 5 read as "left 2" and "right 12"): pairs now
+  take the offset most candidates share first.
+- recolour matched before moves (g50t: "b 5x5 at (8,20) turned g" when the player moved and the clone appeared): a
+  colour change that coincides with a same-shape object of the old colour appearing elsewhere is a move plus an
+  appearance; a swap of two colours stays two colour changes.
+- the 4-phrase limit hid the main sprite behind dots: objects moving by one offset are one phrase, ordered moves >
+  appear/vanish > colour > size, larger first.
+- frame numbers are now the raw indices `animation(frame=k)` takes; "rotated 90 clockwise"/"counter-clockwise", both
+  diagonal mirrors named; "changed colour to"; the header no longer says "exact".
+- a report built for a turn that was then dropped (a request error reverts history) was never shown again: "once" is
+  now decided by whether a kept user message carries it (the header names the action numbers); the same for P24.
+- P24 capped at about 1,200 characters and clamps colour indices.
+Re-measured: replays of exp-042 and exp-048's recorded actions (458 and 488 reports) median 222 / 226 chars, max
+831 / 711, <= 121 ms; the real-harness bed (8 games) 346 reports, no errors. exp-049 and exp-050 were rebuilt from this
+code before their push.
