@@ -670,3 +670,10 @@ def test_p23_identical_objects_that_vanish_together_are_one_phrase(h):
     dots = {(12, c): 3 for c in (1, 4, 7, 10, 13)}
     phrases = h.ta._ours_diff_phrases(h.ta._ours_object_diff(_board(dots), _board({})))
     assert phrases == ["5 x G 1x1 vanished from (12,1), (12,4), (12,7), (12,10), ..."]
+
+
+def test_p23_far_apart_dots_are_not_one_moving_object(h):
+    phrases = h.ta._ours_diff_phrases(h.ta._ours_object_diff(_board({(1, 1): 0}), _board({(14, 14): 0})))
+    assert phrases == ["W 1x1 appeared at (14,14)", "W 1x1 vanished from (1,1)"]
+    near = h.ta._ours_diff_phrases(h.ta._ours_object_diff(_board({(1, 1): 0}), _board({(1, 4): 0})))
+    assert near == ["W 1x1 moved right 3 (1,1)->(1,4)"]

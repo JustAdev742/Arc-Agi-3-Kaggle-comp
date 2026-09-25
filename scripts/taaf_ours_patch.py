@@ -1268,6 +1268,8 @@ def _ours_object_diff(before: Any, after: Any) -> dict:
             (r0, c0) = tops_old[i]
             for j in buckets.get((colour, len(cells), keyf(cells)), ()):
                 r1, c1 = tops_new[j]
+                if len(cells) <= 2 and abs(r1 - r0) + abs(c1 - c0) > 8:
+                    continue  # a dot has no identity: far apart, it is one vanishing and another appearing
                 pairs.append((abs(r1 - r0) + abs(c1 - c0), i, j, r1 - r0, c1 - c0))
         for _, i, j, dr, dc in sorted(pairs):
             if i in used_old or j in used_new:
@@ -1450,7 +1452,7 @@ def _ours_effect_lines(grids: list, names: list, animations: dict) -> list:
     else:
         one(f"net over the {count} actions", grids[0], grids[-1])
         for i in range(count):
-            if animations.get(i) and len(lines) < 3:
+            if animations.get(i) and len(lines) < 2:
                 during = _ours_transient_phrases(grids[i], animations[i])
                 if during:
                     lines.append(f"- during {names[i]} (action {i + 1} of {count}): " + "; ".join(during) + ".")
