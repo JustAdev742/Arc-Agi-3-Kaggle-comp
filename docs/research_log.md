@@ -1612,3 +1612,16 @@ Open:     (1) leaderboard noise plus selection: other Duck-family teams show the
           scores well above 4, our fork path costs score on the hidden set and is the first thing to bisect; if it
           scores about 4, the gap to other teams is noise and selection, and arms should be judged on hard-game
           level-1 solves and repeated LB draws, not the public-25 mean.
+
+## 2026-09-25 22:50 · pre-registered: reading the base's leaderboard draw (submission of Sep 26 00:04) · PLAN
+The Sep 26 submission is exp-032's notebook, verified line-for-line identical to the base our forks are built from
+(kaggle/taaf/base-thui-animfast.ipynb), so the draw compares our changes only (patches, wave-fit, serving).
+Two diagnostic arms are built but not queued: exp-051 (base + wave-fit only) and exp-052 (exp-042's fixes, no
+wave-fit). Rule, fixed before the result:
+- base >= 6.0: our fork path costs score on the hidden set. Queue exp-051 and exp-052 behind exp-049/050, submit
+  exp-051 on the next free day and exp-052 the day after, and hold other leaderboard experiments until the cost is
+  located.
+- base <= 5.0: about 4 is this configuration family's level for our draws; the gap to other teams is noise and
+  selection. Later slots give the leading candidates repeated draws; the final two are chosen on the mean of at least
+  3 draws each, with hard-game level-1 solves and the validation score as tie-breaks.
+- 5.0 < base < 6.0: undecided; submit the base once more before acting.

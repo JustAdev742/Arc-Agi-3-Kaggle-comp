@@ -396,6 +396,28 @@
     "batched_tokens": 4096
    },
    "note": "exp-050: exp-049 plus the object-level change report (P23) and the rotation/reflection shape matches at each level start (P24), from the hard-games level-1 study (misread action effects: 9 of 31 problem runs primary, 16 involved; tr87's rotated glyphs: 5 of 5 runs stalled)."
+  },
+  {
+   "exp": "exp051",
+   "slug": "arc3-taaf-base-wavefit",
+   "patches": [],
+   "note": "exp-051: the unmodified base (exp-032's notebook) plus only the wave-fit per-game cap. Diagnostic for the leaderboard: our forks draw about 4 (exp-042 3.81, exp-048 4.23); if the base (Sep 26 submission) draws well above that, this arm tells whether the wave-fit cap is the cost."
+  },
+  {
+   "exp": "exp052",
+   "slug": "arc3-taaf-fix-nowavefit",
+   "patches": [
+    "P1",
+    "P1B",
+    "P2",
+    "P7",
+    "P12",
+    "P13",
+    "P17",
+    "P22"
+   ],
+   "wavefit": false,
+   "note": "exp-052: exp-042's fixes without the wave-fit cap (stock 7,920 s per game in a rerun). The other half of the leaderboard bisection with exp-051."
   }
  ]
 }
