@@ -544,6 +544,51 @@
     "batched_tokens": 2048
    },
    "note": "exp-054r: an unchanged repeat of exp-054 under a new slug."
+  },
+  {
+   "exp": "exp055",
+   "slug": "arc3-taaf-kv775-obj-rec",
+   "patches": [
+    "P1",
+    "P1B",
+    "P2",
+    "P7",
+    "P12",
+    "P13",
+    "P17",
+    "P22",
+    "P23",
+    "P24",
+    "P16"
+   ],
+   "serving": {
+    "kv_gib": 7.75,
+    "batched_tokens": 2048
+   },
+   "note": "exp-055: exp-054 + P16 (a harness record of how each completed level ended: action count and last actions, kept in every prompt). Level-transition study recommendation (b); never measured alone (only inside exp-043)."
+  },
+  {
+   "exp": "exp056",
+   "slug": "arc3-taaf-kv775-obj-lvl",
+   "patches": [
+    "P1",
+    "P1B",
+    "P2",
+    "P7",
+    "P12",
+    "P13",
+    "P17",
+    "P22",
+    "P23",
+    "P24",
+    "P14",
+    "P16"
+   ],
+   "serving": {
+    "kv_gib": 7.75,
+    "batched_tokens": 2048
+   },
+   "note": "exp-056: exp-054 + P14 (at a level start: colours and small object kinds new or gone against the previous level's first board, actions never tried, a cheap-probe nudge) + P16. For levels 2+."
   }
  ]
 }
