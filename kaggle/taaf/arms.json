@@ -458,6 +458,50 @@
     "batched_tokens": 4096
    },
    "note": "exp050r: an unchanged repeat of exp050 under a new slug (run only if exp-050 against exp-049 is inside one run's noise)."
+  },
+  {
+   "exp": "exp053",
+   "slug": "arc3-taaf-fix-kv65-obj-act",
+   "patches": [
+    "P1",
+    "P1B",
+    "P2",
+    "P7",
+    "P12",
+    "P13",
+    "P17",
+    "P22",
+    "P23",
+    "P24",
+    "P25"
+   ],
+   "serving": {
+    "kv_gib": 6.5,
+    "batched_tokens": 4096
+   },
+   "note": "exp-053: exp-050 + P25 (the P23 object report also in action() results as object_changes, so the call that acted can print it). Judged against exp-050's pair (10.98, 9.64; hard level 1 15/16)."
+  },
+  {
+   "exp": "exp053r",
+   "slug": "arc3-taaf-fix-kv65-obj-act-r2",
+   "patches": [
+    "P1",
+    "P1B",
+    "P2",
+    "P7",
+    "P12",
+    "P13",
+    "P17",
+    "P22",
+    "P23",
+    "P24",
+    "P25"
+   ],
+   "serving": {
+    "kv_gib": 6.5,
+    "batched_tokens": 4096
+   },
+   "note": "exp-053r: an unchanged repeat of exp-053 under a new slug."
   }
  ]
 }

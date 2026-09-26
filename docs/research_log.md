@@ -1661,3 +1661,17 @@ Rule:     pre-registered in the 03:15 check-in (keep if the pooled z-sum is high
           draws; its leaderboard draw decides whether public-25 gains carry over at all (both earlier forks drew ~4).
 Cost:     P23/P24 add about 240 prompt tokens per request (21,240 vs 20,870) and 5% fewer requests; no errors.
 GPU:      4 full runs this week (about 10.5 h of 30).
+
+## 2026-09-26 06:20 · P25 (object report inside action() results) · BUILT; exp-053 / exp-053r pushed
+Hypothesis: P23's report reaches the model only in the next turn's prompt; within a turn the model acts inside a
+          `python` call and diffs frames by hand. Giving the same exact report in the `action()` result
+          (`object_changes`, a list of lines; `animation()` already uses `changes`) plus one prompt line should cut
+          those hand diffs and the calls they cost, and help more of the same level-1 failures P23 helped.
+Built:    scripts/taaf_ours_patch.py P25 (wraps the sandbox's action handler; never raises; needs P23). End-to-end
+          test through the real sandbox: `r = action(['RIGHT'])` returns object_changes and last_action_result carries
+          it. Real-harness bed: 4 games, no errors.
+Arms:     exp-053 = exp-050 + P25 and exp-053r (a same-code repeat), pushed 06:19 / 06:21 UTC (5 GPU-h; 15.5 h
+          used this week after these).
+Rule (pre-registered): keep P25 if the exp-053 pair's mean z-sum is at least exp-050 pair's (+14.3) minus 3 (P25 is
+          cheap and should not be dropped on noise) AND its hard-game level-1 total is at least 14/16, AND at least
+          one transcript per run shows the model printing object_changes; otherwise drop it.

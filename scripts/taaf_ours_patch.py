@@ -1639,11 +1639,52 @@ P24_NEW = """        if current_frame is not None and (not previous_step_summary
 """ + P24_OLD
 
 
+# P25 (after P23 was kept, 2026-09-26: with the report 10.31 mean / 15 of 16 hard level 1s, without 7.95 / 10 of 16):
+# P23's report reaches the model only in the next turn's prompt, while within a turn the model acts inside a `python`
+# call and diffs frames by hand (24% of hard level-1 calls read previous_frame or history for that). P25 adds the same
+# per-action report to what `action()` returns, as `object_changes` (a list of lines; `animation()` already uses `changes`), so the code that acted can print it,
+# and says so in one prompt line. Needs P23 (its report functions).
+P25_FN = """def _ours_action_changes(agent: Any, state_path: Any, result: Any) -> Any:
+    \"\"\"P25: add P23's per-action object report to an action() result as `object_changes`; never raises.\"\"\"
+    try:
+        compact = result.get("action_result") if isinstance(result, dict) else None
+        if not isinstance(compact, dict) or not compact.get("executed"):
+            return result
+        executed = int(compact.get("executed_count") or 1)
+        end = int(compact.get("action_num"))
+        _, history_entries = load_runtime_state(state_path)
+        current = history_entries[-1].frame if history_entries else None
+        summary = {"executed_count": executed, "start_action_num": end - executed + 1, "end_action_num": end,
+                   "game_over": bool(compact.get("game_over")), "level_transition": bool(compact.get("level_completed"))}
+        lines = _ours_effect_report(agent._step_env_callback, summary, history_entries, current)
+        if lines:
+            compact["object_changes"] = [line[2:] if line.startswith("- ") else line for line in lines[1:]]
+            state = result.get("state")
+            if isinstance(state, dict) and isinstance(state.get("last_action_result"), dict):
+                state["last_action_result"]["object_changes"] = list(compact["object_changes"])
+    except Exception:
+        pass
+    return result
+
+
+"""
+P25_CALL_OLD = "            action_handler=_handle_action,\n"
+P25_CALL_NEW = ("            action_handler=lambda _acts: _ours_action_changes(self, state_path, _handle_action(_acts)),"
+                "  # ours P25\n")
+P25_PROMPT_OLD = ('                "Only tool: `python`. It receives `current_frame`, `previous_frame`, `history`, `transitions`, '
+                  '`last_transition`, `valid_actions`, `last_action_result`, and `action(actions)`.",\n')
+P25_PROMPT_NEW = (P25_PROMPT_OLD
+                  + '                "Each `action(...)` result has `object_changes`: the harness\'s exact object-level report of what '
+                    'each executed action moved, turned, created or removed (print it instead of diffing frames).",\n')
+
 PATCHES.update({
     "P22": [(SANDBOX, P22_OLD, P22_NEW)],
     "P23": [(TOOL_AGENT, "<ONCE>def _empty_world_model(", OURS_OBJECTS_FN),
             (TOOL_AGENT, "def _empty_world_model(", P23_FN + "def _empty_world_model("),
             (TOOL_AGENT, P9_OLD, P23_NEW)],
+    "P25": [(TOOL_AGENT, "def _empty_world_model(", P25_FN + "def _empty_world_model("),
+            (TOOL_AGENT, P25_CALL_OLD, P25_CALL_NEW),
+            (TOOL_AGENT, P25_PROMPT_OLD, P25_PROMPT_NEW)],
     "P24": [(TOOL_AGENT, "<ONCE>def _empty_world_model(", OURS_OBJECTS_FN),
             (TOOL_AGENT, "def _empty_world_model(", P24_FN + "def _empty_world_model("),
             (TOOL_AGENT, P24_OLD, P24_NEW)],

@@ -740,3 +740,37 @@ def test_p23_far_apart_dots_are_not_one_moving_object(h):
     assert _phrases(h, _board({(1, 1): 0}), _board({(14, 14): 0})) == ["W 1x1 appeared at (14,14)",
                                                                        "W 1x1 vanished from (1,1)"]
     assert _phrases(h, _board({(1, 1): 0}), _board({(1, 4): 0})) == ["W 1x1 moved right 3 (1,1)->(1,4)"]
+
+
+def test_p25_action_results_carry_the_object_report(h, tmp_path):
+    import importlib
+
+    rs = importlib.import_module("inference.agent.runtime_state")
+    state = tmp_path / "g_runtime_state.json"
+    b0 = _board(_place(L_SHAPE, 2, 2, 9))
+    b1 = _board(_place(L_SHAPE, 2, 5, 9))
+    start = h.Frame(b0, 0, 1)
+    rs.write_runtime_state(state, current_frame=start, history=[h.HistoryEntry(action="", frame=start)])
+
+    def step_env(args):  # a one-action environment that moves the L right by 3, as the solver would record it
+        if args.get("query") == "animation":
+            return {"executed": False, "query": "animation", "record": None}
+        after = h.Frame(b1, 1, 1)
+        rs.write_runtime_state(state, current_frame=after, history=[h.HistoryEntry(action="", frame=start),
+                                                                    h.HistoryEntry(action="RIGHT", frame=after)])
+        return {"executed": True, "action_num": 1, "level": 1, "score": 0, "state": "NOT_FINISHED",
+                "valid_actions": ["ACTION4"], "board_changed": True, "action_display": "RIGHT"}
+
+    agent = h.ta.ToolAgent(model="mock")
+    agent._step_env_callback = step_env
+    agent._current_valid_actions = ["RIGHT"]
+    out = agent._run_python_tool(state, {"code": "r = action(['RIGHT'])\nprint(r['object_changes'])\n"
+                                                 "print(last_action_result.get('object_changes'))"})
+    text = str(getattr(out, "content", out))
+    assert text.count("RIGHT: b 4x2 (5 px) moved right 3 (2,2)->(2,5).") == 2, text
+    # a failing report never breaks the action: the result comes back without `object_changes`
+    assert h.ta._ours_action_changes(agent, tmp_path / "missing.json", {"action_result": {"executed": True}}) == {
+        "action_result": {"executed": True}}
+    prompt = agent._build_user_prompt(1, valid_actions=["ACTION4"], current_frame=h.Frame(b1, 1, 1),
+                                      history_entries=[], previous_step_summary=None)
+    assert "Each `action(...)` result has `object_changes`" in prompt
