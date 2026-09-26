@@ -1625,3 +1625,7 @@ wave-fit). Rule, fixed before the result:
   selection. Later slots give the leading candidates repeated draws; the final two are chosen on the mean of at least
   3 draws each, with hard-game level-1 solves and the validation score as tie-breaks.
 - 5.0 < base < 6.0: undecided; submit the base once more before acting.
+
+## 2026-09-26 00:05 · competition submission 56563791 = exp-032 (unmodified base) · SUBMITTED (pending)
+Pre-registered on Sep 25 00:06 (before exp-042's score) and read by the rule of 2026-09-25 22:50:
+scottmahony/arc3-taaf-anim-flashnext v1 (public-25 7.86), the notebook our forks are built from, unchanged.
