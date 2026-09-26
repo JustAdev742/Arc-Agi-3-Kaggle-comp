@@ -1629,3 +1629,22 @@ wave-fit). Rule, fixed before the result:
 ## 2026-09-26 00:05 · competition submission 56563791 = exp-032 (unmodified base) · SUBMITTED (pending)
 Pre-registered on Sep 25 00:06 (before exp-042's score) and read by the rule of 2026-09-25 22:50:
 scottmahony/arc3-taaf-anim-flashnext v1 (public-25 7.86), the notebook our forks are built from, unchanged.
+
+## 2026-09-26 · exp-049 (fixes + 6.5 GiB KV, no gate) and exp-050 (+ P23/P24) · MEASURED: P23/P24 pass the rule
+exp-049: public-25 9.60, 42 levels (dev 9.79, val 8.99); runs/exp049-fix-kv65 (scottmahony/arc3-taaf-fix-kv65 v1,
+         00:16-02:50 UTC). z-sum +8.5 (+1.4 sd); hard-game level 1 6/8 (median 54 min); 1,570 requests, 4.19 running.
+exp-050: public-25 10.98, 51 levels (dev 13.31, val 3.63); runs/exp050-fix-kv65-obj (scottmahony/arc3-taaf-fix-kv65-obj
+         v1, 00:18-02:52). z-sum +19.0 (+3.1 sd), the highest of any run (39 base references and all our arms);
+         hard-game level 1 **8/8** (no reference run above 7; mean 4.5), sk48's level 1 solved for the first time in
+         the runs studied (31 actions, baseline 61); every one of the 25 games solved at least level 1. 1,494 requests
+         (-5% vs exp-049: prompts +240 tokens, replies +100), acting share 0.70 (0.65), preemptions 95 (117).
+         P23 reports in every game (11-41 per game); P24 lines in 14 games (tr87: all 9 glyph pairs at level 1).
+         No harness errors; the only tracebacks are the known vLLM teardown gate after the run (also in exp-049).
+Rule:    pre-registered 2026-09-25 (keep if exp-050's z-sum is not below exp-049's and its hard level-1 solves are not
+         fewer): +19.0 vs +8.5, 8/8 vs 6/8 -> KEPT. The difference (10.5) is 1.2 sd of a two-run difference.
+But:     the brief's dev->val test does not hold in this pair: dev 9.79 -> 13.31, val 8.99 -> 3.63. The val gap is one
+         game: r11l 3 levels (28.6) in exp-049, 0 in exp-050; across eight runs r11l scored 1 level five times, 0 twice
+         and 3 once, so exp-049's r11l is the outlier. The other five val games are within a point or two. exp-050's
+         r11l reports read correctly (sprite moves, the timer bar shrinking).
+Next:    repeats exp-049r / exp-050r queued now (5 GPU-h) to settle it on public-25; exp-050 is the leading candidate
+         for leaderboard draws, subject to the base's draw (rule of 2026-09-25 22:50).
