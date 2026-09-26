@@ -1758,4 +1758,4 @@ Also:     exp-055 (P16 alone) dropped before running: P16 only displays records 
 Arms:     exp-057 / exp-057r = exp-054 + P26 (7.75 GiB), built, queued for the Oct 3 quota (or earlier with this week's
           last ~4 GPU-h if no Milestone 2 notebook needs them by Sep 30).
 Rule (pre-registered): keep P26 if the exp-057 pair's mean z-sum is not below exp-054's pair (+12.45) by more than 2 AND
-          its levels 2+ solved (total over the pair) exceed exp-054's pair's (49 + 46 levels minus level 1s solved).
+          its levels 2+ solved (total over the pair) exceed exp-054's pair's 47 (24 + 23).
