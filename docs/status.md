@@ -146,6 +146,14 @@ public 25 (scripts/arm_table.py), then the validation score. If the top two are 
 noise, the second slot goes to the best configuration that differs from it (diversification against the private half).
 If fewer than two configurations reach 3 draws, the unmodified base fills the second slot.
 
+### Week of 2026-10-03 (next quota; written 2026-09-26 13:40)
+- Leading candidate: exp-054 (fixes + P23/P24 on 7.75 GiB KV; pair 12.87 / 10.70). LB draws: Sep 27 exp-054, then
+  alternate exp-054 with the next best configuration so each reaches 3 draws (final-selection rule above).
+- GPU: exp-055 pair (exp-054 + P16, level record) and exp-056 pair (+ P14 + P16, level-start comparison), from the
+  level-transition study's recommendation (b); judged against exp-054's pair on z-sum, levels 2+ and hard level 1.
+- Held: about 4 GPU-h of this week for a top team's Milestone 2 notebook (entries close Sep 30).
+- Measured and dropped this week: P21 gate (hard level 1s starved), P25 (report inside action() results).
+
 ## Open items (need you)
 
 Current as of 2026-09-23 14:30 UTC. (The earlier items about our own REPL harness, the rtx6000 queue stall and the
