@@ -128,6 +128,24 @@ fitted rule set explains: mean 0.50 over 25 games; ar25 1.00, ft09 1.00, m0r0 1.
 re86 0.96, cn04 0.86, g50t 0.72, dc22 0.70, ka59 0.63; two games at 0. Lower bound, not a score. Details: `runs/rule-coverage/summary.json`,
 research log exp-006a.
 
+## Plan for the week of 2026-09-26 and the final-selection rule (pre-registered 2026-09-26 00:20 UTC)
+
+GPU (30 h, about 12 public-25 runs of 2.5 h):
+1. exp-049 (fixes + 6.5 GiB KV, no gate) and exp-050 (+ P23/P24): pushed 00:16 / next cycle.
+2. If the base's LB draw (submission 56563791) is >= 6.0: exp-051 (base + wave-fit) and exp-052 (fixes, no wave-fit),
+   then their LB draws (research log, 2026-09-25 22:50).
+3. If exp-050 against exp-049 is inside one run's noise: one repeat of each before any submission uses P23/P24.
+4. Reserve about 8 h for a Milestone 2 notebook from a top team (if one is published by Sep 30) or the next change.
+
+Leaderboard slots (1 a day, 37 left): calibration first (base, then the bisection arms if needed), then repeated
+draws of the leading candidates, alternating, so each has at least 3 draws by late October.
+
+Final two selections (the rule is fixed now, before the data): the two configurations with the highest mean public-LB
+score over at least 3 draws each. A difference under 0.5 points is a tie, broken by hard-game level-1 solves on the
+public 25 (scripts/arm_table.py), then the validation score. If the top two are variants of one configuration within
+noise, the second slot goes to the best configuration that differs from it (diversification against the private half).
+If fewer than two configurations reach 3 draws, the unmodified base fills the second slot.
+
 ## Open items (need you)
 
 Current as of 2026-09-23 14:30 UTC. (The earlier items about our own REPL harness, the rtx6000 queue stall and the
