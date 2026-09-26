@@ -565,7 +565,8 @@
     "kv_gib": 7.75,
     "batched_tokens": 2048
    },
-   "note": "exp-055: exp-054 + P16 (a harness record of how each completed level ended: action count and last actions, kept in every prompt). Level-transition study recommendation (b); never measured alone (only inside exp-043)."
+   "note": "exp-055: exp-054 + P16 (a harness record of how each completed level ended: action count and last actions, kept in every prompt). Level-transition study recommendation (b); never measured alone (only inside exp-043).",
+   "dropped": "not run: P16 only displays the level records that P14 collects (P14_NEW stores them), so P16 alone is a no-op; exp-056 (P14 + P16) and the level-win record (P26) cover it"
   },
   {
    "exp": "exp056",
