@@ -241,6 +241,7 @@ champion preset are superseded by the move to the Duck family; they are in this 
   only mid-animation) and P24 (shape matches up to rotation/reflection/colour at each level start); tests, engine
   replay and a real-harness bed pass. Queued for the 2026-09-26 quota reset: exp-049 (fixes + 6.5 GiB KV, no gate)
   and exp-050 (exp-049 + P23 + P24). exp-048r (gated repeat) dropped.
+- **2026-09-26 09:31: the unmodified base drew 2.72 on the LB** (ours: fixes 3.81, fixes + gate + KV 4.23): our changes help on the hidden set; about 3-4 is this family's level on our draws. No bisection needed. **Sep 27 00:04 submission: exp-050** (P23/P24). P25 (the report inside action() results) was dropped by its rule (pair 8.24 vs exp-050's 10.31).
 - **2026-09-26 03:30: exp-050 (fixes + 6.5 GiB KV + P23 object-change report + P24 shape matches) is the leading candidate:** public-25 10.98 / 51 levels, z-sum +3.1 sd (best of every run), level 1 solved on all 8 hard games (no reference run above 7). Its control exp-049 (no P23/P24): 9.60 / 42, +1.4 sd, 6/8. Validation went the other way (8.99 vs 3.63) on one noisy game (r11l). **Repeats (06:30): exp-050r 9.64 (7/8 hard L1), exp-049r 6.30 (4/8); pooled with/without P23/P24: mean 10.31 vs 7.95, z-sum +14.3 vs +2.8, hard L1 15/16 vs 10/16 -> P23/P24 kept.**
 - **Best configuration so far (2026-09-23 23:36): exp-048 = fixes (P1 P1B P2 P7 P12 P13 P17 P22) + P21 gate + 6.5 GiB
   KV cache: 15.50 on the public 25, 47 levels, above all 39 reference base runs (max 11.02); lp85 8/8, sb26 7, ft09 6

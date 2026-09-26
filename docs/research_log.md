@@ -1675,3 +1675,22 @@ Arms:     exp-053 = exp-050 + P25 and exp-053r (a same-code repeat), pushed 06:1
 Rule (pre-registered): keep P25 if the exp-053 pair's mean z-sum is at least exp-050 pair's (+14.3) minus 3 (P25 is
           cheap and should not be dropped on noise) AND its hard-game level-1 total is at least 14/16, AND at least
           one transcript per run shows the model printing object_changes; otherwise drop it.
+
+## 2026-09-26 09:31 · submission 56563791 (the unmodified base exp-032) scored 2.72 on the public LB · MEASURED
+Our three leaderboard draws: base 2.72, fixes (exp-042) 3.81, fixes + gate + 6.5 GiB KV (exp-048) 4.23. The base,
+line-for-line the notebook our forks are built from, draws below both forks: our changes are not what costs score on
+the hidden set, and about 3-4 is this configuration family's level on our draws (other teams' 7-11 are best-of-many
+and/or other configurations; identical notebooks vary 1.5-2.3x, lesson 0018).
+Rule (2026-09-25 22:50): base <= 5.0 -> no bisection (exp-051/052 stay unrun); the leading candidates get repeated
+draws. Sep 27 00:04: exp-050 (scottmahony/arc3-taaf-fix-kv65-obj v1: fixes + 6.5 GiB KV + P23/P24; public-25 10.98
+and, repeated, 9.64; hard level 1 15/16), pre-registered here before its result.
+
+## 2026-09-26 09:40 · exp-053 / exp-053r (P25: object report inside action() results) · DROPPED by its rule
+exp-053: public-25 9.29, 45 levels (val 4.87), z-sum +13.2, hard level 1 8/8 (runs/exp053-fix-kv65-obj-act).
+exp-053r: 7.18, 39 levels (val 2.39), z-sum +6.6, hard level 1 6/8 (runs/exp053r-fix-kv65-obj-act-r2).
+Pair: mean 8.24, z-sum +9.9, hard level 1 14/16, against exp-050's pair 10.31, +14.3, 15/16.
+Rule (pre-registered 06:20): keep if the pair's z-sum >= +11.3, hard level 1 >= 14/16 and the model prints
+object_changes. It printed it (472 of 633 action-taking snippets in exp-053) and hard level 1 is 14/16, but z-sum
++9.9 < +11.3 -> DROPPED. The model used the report heavily and did not play better; the next-turn report (P23) is
+where the gain was. exp-050 stays the leading candidate.
+GPU this week: 6 full runs, about 15.5 h of 30.

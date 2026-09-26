@@ -1,0 +1,921 @@
+{
+ "run_name": "exp053r-fix-kv65-obj-act-r2",
+ "kernel": "scottmahony/arc3-taaf-fix-kv65-obj-act-r2",
+ "source": "benchmark.json",
+ "games": 25,
+ "server": {
+  "requests": 1501,
+  "prompt_tokens_per_request": 21117,
+  "generated_tokens_per_request": 1492,
+  "queue_s_per_request": 108.0,
+  "e2e_s_per_request": 130.5,
+  "decode_s_per_request": 20.5,
+  "generation_tokens_total": 2244796,
+  "preemptions": 122,
+  "running_mean": 4.17,
+  "running_max": 7
+ },
+ "score_all": 7.177,
+ "score_dev": 8.6899,
+ "score_val": 2.3864,
+ "levels_completed": 39,
+ "levels_total": 183,
+ "score_if_stopped_at_min": {
+  "15": 0.7238,
+  "30": 2.0909,
+  "60": 4.4761,
+  "90": 6.1569,
+  "120": 7.0342,
+  "132": 7.177
+ },
+ "calls": {
+  "games": 25,
+  "responses": 1501,
+  "responses_per_game_median": 60,
+  "turns_per_game_median": 39,
+  "reasoning_chars_mean": 3682,
+  "reasoning_chars_p50": 2300,
+  "reasoning_chars_p90": 8502,
+  "reasoning_chars_max": 29910,
+  "content_chars_mean": 177,
+  "finish_reasons": {
+   "tool_calls": 1491,
+   "length": 10
+  }
+ },
+ "behaviour": {
+  "turns": 998,
+  "acting_share": 0.705,
+  "responses": 1501,
+  "idle_min_median": 58.2,
+  "first_move_L2plus_min_median": 4.9,
+  "tool_errors_per_response": 0.023,
+  "top_errors": {
+   "TypeError": 10,
+   "KeyError": 9,
+   "IndexError": 5,
+   "NameError": 4,
+   "AttributeError": 3,
+   "ValueError": 2
+  },
+  "note_update_share": 0.702,
+  "calls_per_min_by_level": {
+   "L1": 0.493,
+   "L2": 0.423,
+   "L3+": 0.433
+  }
+ },
+ "results": [
+  {
+   "game_id": "tn36",
+   "state": "gave_up",
+   "levels_completed": 1,
+   "levels_total": 7,
+   "level_actions": [
+    20,
+    43,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "baselines": [
+    32,
+    72,
+    26,
+    40,
+    30,
+    55,
+    62
+   ],
+   "score": 3.5714,
+   "level_done_s": [
+    2262.7
+   ],
+   "taaf_final_score": 3.571428571428571,
+   "actions": 63,
+   "wall_s": 7920.783961715,
+   "generated_tokens": 93563,
+   "tokens_per_action": 1485.1
+  },
+  {
+   "game_id": "lf52",
+   "state": "gave_up",
+   "levels_completed": 1,
+   "levels_total": 10,
+   "level_actions": [
+    22,
+    111,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "baselines": [
+    32,
+    81,
+    60,
+    71,
+    205,
+    148,
+    244,
+    109,
+    164,
+    225
+   ],
+   "score": 1.8182,
+   "level_done_s": [
+    2534.7
+   ],
+   "taaf_final_score": 1.8181818181818181,
+   "actions": 133,
+   "wall_s": 7920.657093947001,
+   "generated_tokens": 79510,
+   "tokens_per_action": 597.8
+  },
+  {
+   "game_id": "cn04",
+   "state": "gave_up",
+   "levels_completed": 0,
+   "levels_total": 6,
+   "level_actions": [
+    40,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "baselines": [
+    29,
+    54,
+    85,
+    300,
+    208,
+    113
+   ],
+   "score": 0.0,
+   "level_done_s": [],
+   "taaf_final_score": 0.0,
+   "actions": 40,
+   "wall_s": 7920.706260147001,
+   "generated_tokens": 128328,
+   "tokens_per_action": 3208.2
+  },
+  {
+   "game_id": "bp35",
+   "state": "gave_up",
+   "levels_completed": 1,
+   "levels_total": 9,
+   "level_actions": [
+    36,
+    12,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "baselines": [
+    21,
+    48,
+    44,
+    38,
+    33,
+    87,
+    86,
+    131,
+    163
+   ],
+   "score": 0.7562,
+   "level_done_s": [
+    5170.4
+   ],
+   "taaf_final_score": 0.756172839506173,
+   "actions": 48,
+   "wall_s": 7920.959124234001,
+   "generated_tokens": 87654,
+   "tokens_per_action": 1826.1
+  },
+  {
+   "game_id": "wa30",
+   "state": "gave_up",
+   "levels_completed": 0,
+   "levels_total": 9,
+   "level_actions": [
+    167,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "baselines": [
+    71,
+    119,
+    183,
+    98,
+    368,
+    68,
+    79,
+    442,
+    415
+   ],
+   "score": 0.0,
+   "level_done_s": [],
+   "taaf_final_score": 0.0,
+   "actions": 167,
+   "wall_s": 7920.703514156,
+   "generated_tokens": 96727,
+   "tokens_per_action": 579.2
+  },
+  {
+   "game_id": "lp85",
+   "state": "gave_up",
+   "levels_completed": 4,
+   "levels_total": 8,
+   "level_actions": [
+    8,
+    12,
+    17,
+    25,
+    7,
+    0,
+    0,
+    0
+   ],
+   "baselines": [
+    17,
+    38,
+    31,
+    16,
+    41,
+    60,
+    26,
+    159
+   ],
+   "score": 23.7178,
+   "level_done_s": [
+    645.7,
+    2081.8,
+    3183.2,
+    5116.7
+   ],
+   "taaf_final_score": 23.71777777777778,
+   "actions": 69,
+   "wall_s": 7920.614297347,
+   "generated_tokens": 85859,
+   "tokens_per_action": 1244.3
+  },
+  {
+   "game_id": "r11l",
+   "state": "gave_up",
+   "levels_completed": 1,
+   "levels_total": 6,
+   "level_actions": [
+    19,
+    42,
+    0,
+    0,
+    0,
+    0
+   ],
+   "baselines": [
+    22,
+    33,
+    51,
+    26,
+    52,
+    49
+   ],
+   "score": 4.7619,
+   "level_done_s": [
+    2398.3
+   ],
+   "taaf_final_score": 4.761904761904762,
+   "actions": 61,
+   "wall_s": 7933.2388957210005,
+   "generated_tokens": 109636,
+   "tokens_per_action": 1797.3
+  },
+  {
+   "game_id": "tu93",
+   "state": "gave_up",
+   "levels_completed": 3,
+   "levels_total": 9,
+   "level_actions": [
+    18,
+    16,
+    59,
+    67,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "baselines": [
+    19,
+    16,
+    34,
+    42,
+    123,
+    80,
+    14,
+    23,
+    111
+   ],
+   "score": 9.1344,
+   "level_done_s": [
+    584.6,
+    2269.3,
+    5347.9
+   ],
+   "taaf_final_score": 9.134362159620972,
+   "actions": 160,
+   "wall_s": 7920.571324717,
+   "generated_tokens": 88634,
+   "tokens_per_action": 554.0
+  },
+  {
+   "game_id": "sp80",
+   "state": "gave_up",
+   "levels_completed": 1,
+   "levels_total": 6,
+   "level_actions": [
+    55,
+    15,
+    0,
+    0,
+    0,
+    0
+   ],
+   "baselines": [
+    39,
+    58,
+    25,
+    148,
+    96,
+    152
+   ],
+   "score": 2.3943,
+   "level_done_s": [
+    3018.6
+   ],
+   "taaf_final_score": 2.3943329397874855,
+   "actions": 70,
+   "wall_s": 7920.546027277001,
+   "generated_tokens": 48922,
+   "tokens_per_action": 698.9
+  },
+  {
+   "game_id": "m0r0",
+   "state": "gave_up",
+   "levels_completed": 2,
+   "levels_total": 6,
+   "level_actions": [
+    42,
+    50,
+    13,
+    0,
+    0,
+    0
+   ],
+   "baselines": [
+    30,
+    111,
+    203,
+    26,
+    500,
+    237
+   ],
+   "score": 13.3819,
+   "level_done_s": [
+    2186.0,
+    6870.6
+   ],
+   "taaf_final_score": 13.38192419825073,
+   "actions": 105,
+   "wall_s": 7920.760144956001,
+   "generated_tokens": 71501,
+   "tokens_per_action": 681.0
+  },
+  {
+   "game_id": "vc33",
+   "state": "gave_up",
+   "levels_completed": 3,
+   "levels_total": 7,
+   "level_actions": [
+    8,
+    15,
+    37,
+    102,
+    0,
+    0,
+    0
+   ],
+   "baselines": [
+    7,
+    18,
+    44,
+    61,
+    131,
+    34,
+    152
+   ],
+   "score": 21.4286,
+   "level_done_s": [
+    956.5,
+    1745.9,
+    3916.9
+   ],
+   "taaf_final_score": 21.428571428571427,
+   "actions": 162,
+   "wall_s": 7946.577085461,
+   "generated_tokens": 63858,
+   "tokens_per_action": 394.2
+  },
+  {
+   "game_id": "ar25",
+   "state": "gave_up",
+   "levels_completed": 3,
+   "levels_total": 8,
+   "level_actions": [
+    32,
+    19,
+    59,
+    150,
+    0,
+    0,
+    0,
+    0
+   ],
+   "baselines": [
+    32,
+    50,
+    75,
+    37,
+    89,
+    159,
+    233,
+    73
+   ],
+   "score": 16.6667,
+   "level_done_s": [
+    773.3,
+    1806.5,
+    4152.3
+   ],
+   "taaf_final_score": 16.666666666666664,
+   "actions": 260,
+   "wall_s": 7920.567029477001,
+   "generated_tokens": 68439,
+   "tokens_per_action": 263.2
+  },
+  {
+   "game_id": "ka59",
+   "state": "gave_up",
+   "levels_completed": 3,
+   "levels_total": 7,
+   "level_actions": [
+    20,
+    87,
+    84,
+    90,
+    0,
+    0,
+    0
+   ],
+   "baselines": [
+    28,
+    109,
+    51,
+    51,
+    33,
+    132,
+    326
+   ],
+   "score": 16.271,
+   "level_done_s": [
+    1444.8,
+    4542.4,
+    5614.4
+   ],
+   "taaf_final_score": 16.270954810495628,
+   "actions": 281,
+   "wall_s": 7920.545259916999,
+   "generated_tokens": 89601,
+   "tokens_per_action": 318.9
+  },
+  {
+   "game_id": "sc25",
+   "state": "gave_up",
+   "levels_completed": 1,
+   "levels_total": 6,
+   "level_actions": [
+    59,
+    12,
+    0,
+    0,
+    0,
+    0
+   ],
+   "baselines": [
+    36,
+    6,
+    32,
+    83,
+    143,
+    50
+   ],
+   "score": 1.7729,
+   "level_done_s": [
+    6866.2
+   ],
+   "taaf_final_score": 1.772889563754258,
+   "actions": 71,
+   "wall_s": 7920.390886767999,
+   "generated_tokens": 94855,
+   "tokens_per_action": 1336.0
+  },
+  {
+   "game_id": "sk48",
+   "state": "gave_up",
+   "levels_completed": 0,
+   "levels_total": 8,
+   "level_actions": [
+    39,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "baselines": [
+    61,
+    177,
+    101,
+    103,
+    230,
+    181,
+    125,
+    92
+   ],
+   "score": 0.0,
+   "level_done_s": [],
+   "taaf_final_score": 0.0,
+   "actions": 39,
+   "wall_s": 7920.390812828,
+   "generated_tokens": 115194,
+   "tokens_per_action": 2953.7
+  },
+  {
+   "game_id": "dc22",
+   "state": "gave_up",
+   "levels_completed": 0,
+   "levels_total": 6,
+   "level_actions": [
+    110,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "baselines": [
+    59,
+    102,
+    67,
+    98,
+    324,
+    578
+   ],
+   "score": 0.0,
+   "level_done_s": [],
+   "taaf_final_score": 0.0,
+   "actions": 110,
+   "wall_s": 7951.353498890001,
+   "generated_tokens": 88682,
+   "tokens_per_action": 806.2
+  },
+  {
+   "game_id": "cd82",
+   "state": "gave_up",
+   "levels_completed": 1,
+   "levels_total": 6,
+   "level_actions": [
+    28,
+    103,
+    0,
+    0,
+    0,
+    0
+   ],
+   "baselines": [
+    55,
+    8,
+    41,
+    21,
+    23,
+    23
+   ],
+   "score": 4.7619,
+   "level_done_s": [
+    3385.4
+   ],
+   "taaf_final_score": 4.761904761904762,
+   "actions": 131,
+   "wall_s": 7920.402672049,
+   "generated_tokens": 63838,
+   "tokens_per_action": 487.3
+  },
+  {
+   "game_id": "ft09",
+   "state": "gave_up",
+   "levels_completed": 3,
+   "levels_total": 6,
+   "level_actions": [
+    6,
+    7,
+    94,
+    47,
+    0,
+    0
+   ],
+   "baselines": [
+    43,
+    12,
+    23,
+    28,
+    65,
+    37
+   ],
+   "score": 17.2838,
+   "level_done_s": [
+    889.6,
+    1312.4,
+    6148.4
+   ],
+   "taaf_final_score": 17.283838841104572,
+   "actions": 154,
+   "wall_s": 7920.332275989,
+   "generated_tokens": 74509,
+   "tokens_per_action": 483.8
+  },
+  {
+   "game_id": "g50t",
+   "state": "gave_up",
+   "levels_completed": 1,
+   "levels_total": 7,
+   "level_actions": [
+    61,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "baselines": [
+    78,
+    175,
+    179,
+    230,
+    96,
+    54,
+    67
+   ],
+   "score": 3.5714,
+   "level_done_s": [
+    7717.8
+   ],
+   "taaf_final_score": 3.571428571428571,
+   "actions": 61,
+   "wall_s": 7932.846306664,
+   "generated_tokens": 109570,
+   "tokens_per_action": 1796.2
+  },
+  {
+   "game_id": "ls20",
+   "state": "gave_up",
+   "levels_completed": 1,
+   "levels_total": 7,
+   "level_actions": [
+    24,
+    107,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "baselines": [
+    22,
+    123,
+    73,
+    84,
+    96,
+    192,
+    186
+   ],
+   "score": 3.001,
+   "level_done_s": [
+    2124.0
+   ],
+   "taaf_final_score": 3.0009920634920633,
+   "actions": 131,
+   "wall_s": 7920.517831267,
+   "generated_tokens": 94440,
+   "tokens_per_action": 720.9
+  },
+  {
+   "game_id": "re86",
+   "state": "gave_up",
+   "levels_completed": 3,
+   "levels_total": 8,
+   "level_actions": [
+    22,
+    36,
+    47,
+    29,
+    0,
+    0,
+    0,
+    0
+   ],
+   "baselines": [
+    26,
+    42,
+    86,
+    108,
+    189,
+    139,
+    424,
+    241
+   ],
+   "score": 16.6667,
+   "level_done_s": [
+    445.2,
+    1340.0,
+    2978.9
+   ],
+   "taaf_final_score": 16.666666666666664,
+   "actions": 134,
+   "wall_s": 7944.8752843130005,
+   "generated_tokens": 34802,
+   "tokens_per_action": 259.7
+  },
+  {
+   "game_id": "s5i5",
+   "state": "gave_up",
+   "levels_completed": 2,
+   "levels_total": 8,
+   "level_actions": [
+    19,
+    41,
+    73,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "baselines": [
+    20,
+    89,
+    106,
+    54,
+    162,
+    38,
+    86,
+    83
+   ],
+   "score": 8.3333,
+   "level_done_s": [
+    1234.8,
+    3810.6
+   ],
+   "taaf_final_score": 8.333333333333332,
+   "actions": 133,
+   "wall_s": 7920.399395818,
+   "generated_tokens": 90011,
+   "tokens_per_action": 676.8
+  },
+  {
+   "game_id": "sb26",
+   "state": "gave_up",
+   "levels_completed": 2,
+   "levels_total": 8,
+   "level_actions": [
+    12,
+    32,
+    46,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "baselines": [
+    18,
+    28,
+    18,
+    19,
+    31,
+    23,
+    58,
+    18
+   ],
+   "score": 7.4479,
+   "level_done_s": [
+    278.1,
+    2117.3
+   ],
+   "taaf_final_score": 7.447916666666667,
+   "actions": 90,
+   "wall_s": 7920.266841179,
+   "generated_tokens": 77833,
+   "tokens_per_action": 864.8
+  },
+  {
+   "game_id": "su15",
+   "state": "gave_up",
+   "levels_completed": 1,
+   "levels_total": 9,
+   "level_actions": [
+    23,
+    39,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "baselines": [
+    22,
+    42,
+    26,
+    115,
+    36,
+    31,
+    8,
+    40,
+    41
+   ],
+   "score": 2.0332,
+   "level_done_s": [
+    907.4
+   ],
+   "taaf_final_score": 2.0331863053980257,
+   "actions": 62,
+   "wall_s": 7938.735443845,
+   "generated_tokens": 50290,
+   "tokens_per_action": 811.1
+  },
+  {
+   "game_id": "tr87",
+   "state": "gave_up",
+   "levels_completed": 1,
+   "levels_total": 6,
+   "level_actions": [
+    146,
+    8,
+    0,
+    0,
+    0,
+    0
+   ],
+   "baselines": [
+    54,
+    58,
+    40,
+    45,
+    71,
+    146
+   ],
+   "score": 0.6514,
+   "level_done_s": [
+    6714.5
+   ],
+   "taaf_final_score": 0.6514221376296813,
+   "actions": 154,
+   "wall_s": 7947.007566696,
+   "generated_tokens": 126741,
+   "tokens_per_action": 823.0
+  }
+ ]
+}
