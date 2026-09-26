@@ -1713,3 +1713,17 @@ now close to decode-bound, so the expected gain is small. By the rule the larges
 exp-054 / exp-054r (exp-050's patches on 7.75 GiB / 2,048), pushed 10:13 / 10:15. Their request counts per run (a
 low-noise measure: exp-049/050 runs 1,440-1,570) tell whether the profile adds calls in real play; the score is judged
 against exp-050's pair on z-sum and hard-game level 1. GPU this week: about 21 h of 30 after this pair.
+
+## 2026-09-26 13:30 · exp-054 / exp-054r (exp-050's patches on 7.75 GiB KV / 2,048-token chunks) · ADOPTED
+exp-054:  public-25 12.87, 49 levels (dev 14.85, val 6.59), z-sum +14.9; hard level 1 8/8 (median 48 min); 1,609
+          requests, 5.11 running, 19 preemptions (runs/exp054-fix-kv775-obj).
+exp-054r: 10.70, 46 levels (dev 12.41, val 5.27), z-sum +10.0; hard level 1 7/8 (median 34 min); 1,627 requests,
+          34 preemptions (runs/exp054r-fix-kv775-obj-r2).
+Pair vs exp-050's pair (6.5 GiB): mean 11.78 vs 10.31; requests +10% (1,618 vs 1,467); preemptions 27 vs 91;
+          z-sum 12.45 vs 14.3; hard level 1 15/16 both, solved sooner (median 48/34 min vs 63/62); val 5.93 vs 4.21.
+Rule (13:10 check-in): adopt if requests rise, nothing breaks and the z-sum is within 3 of +14.3 -> ADOPTED. The best
+          pair of any configuration; exp-054 (scottmahony/arc3-taaf-fix-kv775-obj v1) is the leading candidate.
+Amendment (before any LB result for either): the Sep 27 00:04 submission is exp-054 instead of exp-050 (the same patches;
+          the serving profile is the only difference and it measured better on every throughput number). Three clean
+          startups at 7.75 GiB (stress test + 2 runs); a startup OOM in the rerun would cost a day's slot, not a score.
+GPU this week: 10 full runs + 2 stress tests, about 26 h of 30.
