@@ -418,6 +418,46 @@
    ],
    "wavefit": false,
    "note": "exp-052: exp-042's fixes without the wave-fit cap (stock 7,920 s per game in a rerun). The other half of the leaderboard bisection with exp-051."
+  },
+  {
+   "exp": "exp049r",
+   "slug": "arc3-taaf-fix-kv65-r2",
+   "patches": [
+    "P1",
+    "P1B",
+    "P2",
+    "P7",
+    "P12",
+    "P13",
+    "P17",
+    "P22"
+   ],
+   "serving": {
+    "kv_gib": 6.5,
+    "batched_tokens": 4096
+   },
+   "note": "exp049r: an unchanged repeat of exp049 under a new slug (run only if exp-050 against exp-049 is inside one run's noise)."
+  },
+  {
+   "exp": "exp050r",
+   "slug": "arc3-taaf-fix-kv65-obj-r2",
+   "patches": [
+    "P1",
+    "P1B",
+    "P2",
+    "P7",
+    "P12",
+    "P13",
+    "P17",
+    "P22",
+    "P23",
+    "P24"
+   ],
+   "serving": {
+    "kv_gib": 6.5,
+    "batched_tokens": 4096
+   },
+   "note": "exp050r: an unchanged repeat of exp050 under a new slug (run only if exp-050 against exp-049 is inside one run's noise)."
   }
  ]
 }
