@@ -1648,3 +1648,16 @@ But:     the brief's dev->val test does not hold in this pair: dev 9.79 -> 13.31
          r11l reports read correctly (sprite moves, the timer bar shrinking).
 Next:    repeats exp-049r / exp-050r queued now (5 GPU-h) to settle it on public-25; exp-050 is the leading candidate
          for leaderboard draws, subject to the base's draw (rule of 2026-09-25 22:50).
+
+## 2026-09-26 06:30 · repeats exp-049r / exp-050r: P23/P24 KEPT on the pooled pair · MEASURED
+exp-049r: public-25 6.30, 30 levels (dev 7.94, val 1.10), z-sum -2.9; hard level 1 4/8 (runs/exp049r-fix-kv65-r2).
+exp-050r: public-25 9.64, 44 levels (dev 11.17, val 4.78), z-sum +9.6; hard level 1 7/8 (runs/exp050r-fix-kv65-obj-r2).
+Pooled:   without P23/P24 (exp-049, 049r): mean 7.95, z-sum +2.8, hard level 1 10/16, val 5.05 (8.99 / 1.10).
+          with P23/P24 (exp-050, 050r):    mean 10.31, z-sum +14.3, hard level 1 15/16, val 4.21 (3.63 / 4.78).
+          The z-sum gap (11.5) is about 1.9 sd of a difference of two-run means; the hard-game level-1 gap is 15/16
+          against 10/16. Validation is within noise (the control's two draws are 8.99 and 1.10).
+Rule:     pre-registered in the 03:15 check-in (keep if the pooled z-sum is higher and the hard level-1 total is not
+          lower): KEPT. exp-050 (scottmahony/arc3-taaf-fix-kv65-obj v1) is the leading candidate for leaderboard
+          draws; its leaderboard draw decides whether public-25 gains carry over at all (both earlier forks drew ~4).
+Cost:     P23/P24 add about 240 prompt tokens per request (21,240 vs 20,870) and 5% fewer requests; no errors.
+GPU:      4 full runs this week (about 10.5 h of 30).
