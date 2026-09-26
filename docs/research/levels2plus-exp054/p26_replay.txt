@@ -1,0 +1,12 @@
+== exp054- ls20-9607627b L1 (632 chars)
+level 1 was won by UP as its action 21 (last UP, RIGHT x2, UP x3); from the level's first board to the board just before the win: B 10x10 (76 px) rotated 90 clockwise (53,1)->(53,1); b 3x5 at (47,34), O 2x5 at (45,34) all moved up 30; b 6x6 (20 px) rotated 90 clockwise (55,3)->(55,3); G 2x18 appeared at (61,13); 2 more object changes; the 3 actions before the winning one: b 3x5 at (27,29), O 2x5 at (25,29) all moved up 10 right 5; Y 2x27 at (61,28) became 2x24; B 7x7 (43 px) at (9,33) became 7x7 (38 px); 1 more object changes; same shape up to rotation, reflection, colour or scale on that board: [1] b (11,35), b (55,3) at 2x
+
+== exp054- m0r0-492f87ba L1 (438 chars)
+level 1 was won by RIGHT as its action 25 (last UP, RIGHT x2, LEFT, RIGHT x2); from the level's first board to the board just before the win: S 5x10 appeared at (9,29); 2 x S 5x5 vanished from (49,19), (49,39); 2 x W 1x10 appeared at (0,54), (63,0); the 3 actions before the winning one: S 5x10 appeared at (9,29); 2 x S 5x5 vanished from (9,24), (9,39); W 1x9 at (0,55) became 1x10; 1 more object changes; colours new on level 2: M, R, p
+
+== exp054- tn36-ef4dde99 L1 (742 chars)
+level 1 was won by MOUSE(row=55, col=37) as its action 34 (last MOUSE(row=42, col=41), MOUSE(row=55, col=37), MOUSE(row=46, col=21), MOUSE(row=55, col=37), MOUSE(row=46, col=41), MOUSE(row=55, col=37)); from the level's first board to the board just before the win: G 1x33 appeared at (1,29); 3 x w 1x3 vanished from (42,25), (42,35), (42,40); 3 x w 3x1 vanished from (44,26), (44,36), (44,41); b 1x61 at (1,1) became 1x28; the 3 actions before the winning one: 2 x w 3x1 vanished from (44,21), (44,41); b 1x31 at (1,1) became 1x28; G 1x30 at (1,32) became 1x33; same shape up to rotation, reflection, colour or scale on that board: [1] Y (13,30), B (33,30); [2] B (37,26), B (37,34) rotated 90 counter-clockwise; colours new on level 2: w, g
+
+== exp054- sc25-635fd71a L1 (435 chars)
+level 1 was won by LEFT as its action 29 (last LEFT x6); from the level's first board to the board just before the win: W 38x2 appeared at (0,62); b 4x2 vanished from (19,39); S 4x2 vanished from (19,41); b 2x1 appeared at (19,17); 3 more object changes; the 3 actions before the winning one: b 2x1 at (19,23), S 2x1 at (19,24) all moved left 6; W 34x2 at (0,62) became 38x2; N 30x2 at (34,62) became 26x2; colours new on level 2: c, Y
+

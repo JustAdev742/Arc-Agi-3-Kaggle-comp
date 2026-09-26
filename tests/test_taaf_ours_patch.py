@@ -774,3 +774,38 @@ def test_p25_action_results_carry_the_object_report(h, tmp_path):
     prompt = agent._build_user_prompt(1, valid_actions=["ACTION4"], current_frame=h.Frame(b1, 1, 1),
                                       history_entries=[], previous_step_summary=None)
     assert "Each `action(...)` result has `object_changes`" in prompt
+
+
+def test_p26_level_win_record_states_how_the_previous_level_was_won(h):
+    square = [(r, c) for r in range(2) for c in range(2)]
+    start = _board({**_place(square, 5, 1, 9), **_place(square, 5, 11, 9)})
+    closer = _board({**_place(square, 5, 3, 9), **_place(square, 5, 9, 9)})
+    nearer = _board({**_place(square, 5, 4, 9), **_place(square, 5, 8, 9)})
+    merged = _board({(5 + r, 5 + c): 9 for r in range(2) for c in range(3)})  # the two blocks met
+    level2 = _board({(1, 1): 3, **_place(L_SHAPE, 8, 8, 9)})
+    hist = [h.HistoryEntry("", h.Frame(start, 0, 1)), h.HistoryEntry("RIGHT", h.Frame(closer, 1, 1)),
+            h.HistoryEntry("RIGHT", h.Frame(nearer, 2, 1)), h.HistoryEntry("RIGHT", h.Frame(merged, 3, 1)),
+            h.HistoryEntry("RIGHT", h.Frame(level2, 4, 2))]
+    record = h.ta._ours_win_record(hist, 1)
+    assert record.startswith("level 1 was won by RIGHT as its action 4 (last RIGHT x4)")
+    assert "from the level's first board to the board just before the win: 2 x b 2x2 vanished from (5,1), (5,11); " \
+           "b 2x3 appeared at (5,5)" in record
+    assert "colours new on level 2: G" in record
+    assert h.ta._ours_win_record(hist[:4], 1) == ""  # no level-up yet
+    agent = h.ta.ToolAgent(model="mock")
+    summary = {"executed_count": 1, "executed_actions": ["RIGHT"], "level": 2, "level_transition": True}
+    prompt = agent._build_user_prompt(4, valid_actions=["ACTION4"], current_frame=hist[-1].frame,
+                                      history_entries=hist, previous_step_summary=summary)
+    assert "Harness record of how the last levels were won (exact, from the frames" in prompt
+    assert "level 1 was won by RIGHT" in prompt
+    later = agent._build_user_prompt(9, valid_actions=["ACTION4"], current_frame=hist[-1].frame, history_entries=hist,
+                                     previous_step_summary={"executed_count": 1, "executed_actions": ["UP"], "level": 2})
+    assert "level 1 was won by RIGHT" in later  # pinned for the whole next level
+
+
+def test_p26_scaled_shape_matches(h):
+    small = [(0, 0), (1, 0), (1, 1)]
+    big = [(2 * r + i, 2 * c + j) for r, c in small for i in range(2) for j in range(2)]  # the same L at 2x
+    board = _board({**_place(small, 1, 1, 9), **_place(big, 6, 6, 9)})
+    assert h.ta._ours_base_shape(frozenset((r + 6, c + 6) for r, c in big))[1] == 2
+    assert h.ta._ours_scaled_matches(board) == ["b (1,1), b (6,6) at 2x"]

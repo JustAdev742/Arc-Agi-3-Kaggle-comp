@@ -590,6 +590,50 @@
     "batched_tokens": 2048
    },
    "note": "exp-056: exp-054 + P14 (at a level start: colours and small object kinds new or gone against the previous level's first board, actions never tried, a cheap-probe nudge) + P16. For levels 2+."
+  },
+  {
+   "exp": "exp057",
+   "slug": "arc3-taaf-kv775-obj-win",
+   "patches": [
+    "P1",
+    "P1B",
+    "P2",
+    "P7",
+    "P12",
+    "P13",
+    "P17",
+    "P22",
+    "P23",
+    "P24",
+    "P26"
+   ],
+   "serving": {
+    "kv_gib": 7.75,
+    "batched_tokens": 2048
+   },
+   "note": "exp-057: exp-054 + P26 (a pinned, exact record of how each previous level was won: winning action, level action count and last actions, P23 object report from the level's first board to the board before the win, scale-aware shape matches, new colours). From the levels-2+ study of the exp-054 pair (R1)."
+  },
+  {
+   "exp": "exp057r",
+   "slug": "arc3-taaf-kv775-obj-win-r2",
+   "patches": [
+    "P1",
+    "P1B",
+    "P2",
+    "P7",
+    "P12",
+    "P13",
+    "P17",
+    "P22",
+    "P23",
+    "P24",
+    "P26"
+   ],
+   "serving": {
+    "kv_gib": 7.75,
+    "batched_tokens": 2048
+   },
+   "note": "exp-057r: an unchanged repeat of exp-057 under a new slug."
   }
  ]
 }

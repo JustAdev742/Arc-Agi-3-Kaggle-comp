@@ -1677,11 +1677,148 @@ P25_PROMPT_NEW = (P25_PROMPT_OLD
                   + '                "Each `action(...)` result has `object_changes`: the harness\'s exact object-level report of what '
                     'each executed action moved, turned, created or removed (print it instead of diffing frames).",\n')
 
+# P26 (levels-2+ study of the exp-054 pair, docs/research/levels2plus-exp054.md: the level a game ended on took half of
+# all minutes; 5 of 48 stuck levels reused a goal the new level had grown, 4 lost or misremembered how the previous level
+# was won, e.g. ls20 "L1 solved: stepping on the plus = key collected", wa30 "in level 1 the boxes never moved at all!").
+# At each level-up the harness computes, from the frames, how the previous level was won: the winning action and the
+# level's action count and last actions; P23's object report from the level's first board to the board just before the
+# win and over the last 3 actions; objects on that board with the same shape up to rotation, reflection, colour or 2x/3x
+# scale (ls20: the legend glyph matches the socket glyph at 2x); the colours new on the next level. The records of the
+# last two levels stay in every prompt. Needs P23 (its report functions); about 150-200 tokens per record.
+P26_FN = '''def _ours_base_shape(cells: Any) -> tuple:
+    """(base cells, k): the shape with each k x k block of a k-times blow-up shrunk to one cell (k = 3 or 2), else k = 1."""
+    norm = _ours_norm(cells)
+    full = set(norm)
+    height = max(r for r, _ in norm) + 1
+    width = max(c for _, c in norm) + 1
+    for k in (3, 2):
+        if height % k or width % k:
+            continue
+        small = {(r // k, c // k) for r, c in norm}
+        if len(small) * k * k == len(full) and all((rr * k + i, cc * k + j) in full
+                                                   for rr, cc in small for i in range(k) for j in range(k)):
+            return frozenset(small), k
+    return frozenset(norm), 1
+
+
+def _ours_scaled_matches(grid: Any, max_groups: int = 3, max_px: int = 100) -> list:
+    """Groups of objects on one board with the same shape up to rotation, reflection, colour or 2x/3x scale.
+    Objects whose base shape has 3+ cells and is not a solid rectangle; only groups whose members differ somehow."""
+    seen: set = set()
+    objects = []
+    for r in range(len(grid)):
+        for c in range(len(grid[0])):
+            if (r, c) in seen:
+                continue
+            colour, cells = _ours_component(grid, (r, c), seen, limit=max_px)
+            if cells is None:
+                continue
+            base, k = _ours_base_shape(cells)
+            r0, c0, r1, c1 = _ours_box(base)
+            if len(base) < 3 or len(base) == (r1 - r0 + 1) * (c1 - c0 + 1):
+                continue
+            objects.append((colour, cells, base, k, _ours_box(cells)[:2]))
+    groups: dict = {}
+    for obj in objects:
+        groups.setdefault(_ours_d4_key(obj[2]), []).append(obj)
+    kept = [m for m in groups.values()
+            if len(m) >= 2 and len({(o[0], o[3], _ours_norm(o[2])) for o in m}) >= 2]
+    kept.sort(key=lambda m: (-len({o[3] for o in m}), -len(m), m[0][4]))
+    out = []
+    for members in kept[:max_groups]:
+        first = members[0]
+        items = []
+        for colour, cells, base, k, (r0, c0) in members[:5]:
+            text = f"{_OURS_COLOUR_CHARS[max(0, min(15, colour))]} ({r0},{c0})"
+            if k > 1:
+                text += f" at {k}x"
+            if members.index((colour, cells, base, k, (r0, c0))) > 0:
+                rel = _ours_d4_relation(first[2], base)
+                if rel and rel != "same":
+                    text += f" {rel}"
+            items.append(text)
+        out.append(", ".join(items) + (f", {len(members) - 5} more" if len(members) > 5 else ""))
+    return out
+
+
+def _ours_win_record(history_entries: list, level: int) -> str:
+    """How `level` was won, from the frames: the winning action, the level's action count and last actions, what
+    changed from the level's first board to the board just before the win, what the last 3 actions changed, the
+    shape matches on that board, and the colours new on the next level."""
+    idx = next((i for i, e in enumerate(history_entries)
+                if getattr(e, "frame", None) is not None and e.frame.level == level + 1), None)
+    if idx is None or idx == 0:
+        return ""
+    run = []
+    j = idx - 1
+    while j >= 0 and getattr(history_entries[j], "frame", None) is not None and history_entries[j].frame.level == level:
+        run.append(history_entries[j])
+        j -= 1
+    if not run:
+        return ""
+    run.reverse()
+    names = [str(history_entries[i].action or "?") for i in range(1, idx + 1)
+             if getattr(history_entries[i - 1], "frame", None) is not None
+             and history_entries[i - 1].frame.level == level]
+    tail: list = []
+    for name in names[-6:]:
+        if tail and tail[-1][0] == name:
+            tail[-1][1] += 1
+        else:
+            tail.append([name, 1])
+    parts = [f"level {level} was won by {history_entries[idx].action} as its action {len(names)} (last "
+             + ", ".join(f"{n} x{k}" if k > 1 else n for n, k in tail) + ")"]
+    first, last = run[0].frame.grid, run[-1].frame.grid
+    if len(first) == len(last) and first and len(first[0]) == len(last[0]):
+        whole = _ours_diff_phrases(_ours_object_diff(first, last), limit=4)
+        parts.append("from the level's first board to the board just before the win: "
+                     + ("; ".join(whole) if whole else "no change"))
+        if len(run) >= 4:
+            recent = _ours_diff_phrases(_ours_object_diff(run[-4].frame.grid, last), limit=3)
+            if recent:
+                parts.append("the 3 actions before the winning one: " + "; ".join(recent))
+    matches = _ours_scaled_matches(last)
+    if matches:
+        parts.append("same shape up to rotation, reflection, colour or scale on that board: "
+                     + "; ".join(f"[{i + 1}] {m}" for i, m in enumerate(matches)))
+    new_board = history_entries[idx].frame.grid
+    new_colours = sorted({v for row in new_board for v in row} - {v for row in last for v in row})
+    if new_colours:
+        parts.append(f"colours new on level {level + 1}: "
+                     + ", ".join(_OURS_COLOUR_CHARS[max(0, min(15, v))] for v in new_colours))
+    return "; ".join(parts)
+
+
+'''
+P26_LEVEL_NEW = """        if (previous_step_summary and previous_step_summary.get("level_transition")
+                and not previous_step_summary.get("run_complete")):
+            _wr = getattr(self, "_ours_win_records", None)
+            if _wr is None:
+                _wr = {}
+                self._ours_win_records = _wr
+            if current_level - 1 not in _wr:  # ours P26: how the previous level was won, once per level
+                try:
+                    _wr[current_level - 1] = _ours_win_record(history_entries, current_level - 1)
+                except Exception:
+                    _wr[current_level - 1] = ""
+""" + P24_OLD
+P26_SHOW_NEW = (P16_OLD
+                + '        _wr = getattr(self, "_ours_win_records", None) or {}\n'
+                + '        _recs = [_wr[k] for k in sorted(_wr) if _wr[k]][-2:]\n'
+                + '        if _recs:  # ours P26\n'
+                + '            lines.append("Harness record of how the last levels were won (exact, from the frames; (row,col) is "\n'
+                + '                         "the top-left of an object\'s box): " + " | ".join(_recs) + ".")\n')
+
+
 PATCHES.update({
     "P22": [(SANDBOX, P22_OLD, P22_NEW)],
     "P23": [(TOOL_AGENT, "<ONCE>def _empty_world_model(", OURS_OBJECTS_FN),
             (TOOL_AGENT, "def _empty_world_model(", P23_FN + "def _empty_world_model("),
             (TOOL_AGENT, P9_OLD, P23_NEW)],
+    "P26": [(TOOL_AGENT, "<ONCE>def _empty_world_model(", OURS_OBJECTS_FN),
+            (TOOL_AGENT, "def _empty_world_model(", P26_FN + "def _empty_world_model("),
+            (TOOL_AGENT, P24_OLD, P26_LEVEL_NEW),
+            (TOOL_AGENT, P16_OLD, P26_SHOW_NEW)],
     "P25": [(TOOL_AGENT, "def _empty_world_model(", P25_FN + "def _empty_world_model("),
             (TOOL_AGENT, P25_CALL_OLD, P25_CALL_NEW),
             (TOOL_AGENT, P25_PROMPT_OLD, P25_PROMPT_NEW)],

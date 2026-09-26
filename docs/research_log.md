@@ -1739,3 +1739,23 @@ Next:     R1 (a pinned, exact record of how the previous level was won, extendin
           is the top change; replay-test it on the pair's recorded actions before a GPU run. exp-055 (P16) and exp-056
           (P14 + P16) are built for the Oct 3 week; R1 would join exp-056. More calls help too (+20% calls: about +1.0 to
           +1.4 on the mean, extrapolated), which is why exp-054's 7.75 GiB profile counts.
+
+## 2026-09-26 23:00 · P26 level-win record built; exp-057 pair registered for the Oct 3 week · BUILT
+Hypothesis: 9 of 48 stuck levels in the exp-054 pair reused a goal the new level had grown or misremembered how the
+          previous level was won (ls20: "stepping on the plus = key collected"; wa30: "in level 1 the boxes never moved at
+          all!"). An exact, pinned record of how the previous level was won should prevent those and shorten level-2+
+          starts.
+Built:    scripts/taaf_ours_patch.py P26 (needs P23): at each level-up, the winning action, the level's action count and
+          last 6 actions, P23's object report from the level's first board to the board just before the win and over the
+          last 3 actions, scale-aware shape matches on that board (2x/3x), the colours new on the next level; the last
+          two records stay in every prompt (about 150-200 tokens each). Tests: record content and pinning (synthetic
+          two-level game), scale detection; full suite green; real-harness bed clean.
+Replay:   on the exp-054 pair's recorded boards (docs/research/levels2plus-exp054/p26_replay.txt) the records state
+          exactly the facts the model got wrong: ls20 "B 10x10 rotated 90 clockwise ... b 6x6 rotated 90 clockwise" and
+          "b (11,35), b (55,3) at 2x" (the legend glyph matches the socket glyph at 2x); m0r0 "S 5x10 appeared; 2 x S 5x5
+          vanished" (the blocks merged); wa30 the boxes moved.
+Also:     exp-055 (P16 alone) dropped before running: P16 only displays records that P14 collects, so alone it is a no-op.
+Arms:     exp-057 / exp-057r = exp-054 + P26 (7.75 GiB), built, queued for the Oct 3 quota (or earlier with this week's
+          last ~4 GPU-h if no Milestone 2 notebook needs them by Sep 30).
+Rule (pre-registered): keep P26 if the exp-057 pair's mean z-sum is not below exp-054's pair (+12.45) by more than 2 AND
+          its levels 2+ solved (total over the pair) exceed exp-054's pair's (49 + 46 levels minus level 1s solved).
