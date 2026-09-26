@@ -1694,3 +1694,12 @@ object_changes. It printed it (472 of 633 action-taking snippets in exp-053) and
 +9.9 < +11.3 -> DROPPED. The model used the report heavily and did not play better; the next-turn report (P23) is
 where the gain was. exp-050 stays the leading candidate.
 GPU this week: 6 full runs, about 15.5 h of 30.
+
+## 2026-09-26 09:40 · KV stress tests at 7.25 and 7.75 GiB with 2,048-token prefill chunks · PUSHED
+Why:      exp-050's score was still climbing at the cap (9.40 at 120 min, 10.98 at 132): more calls per game should
+          turn into levels. 5 GiB ran 3.9 requests at once in the stress test, 6.5 GiB/4,096 ran 4.9; 8 GiB/8,192
+          failed at startup short by about 50 MB. Halving the prefill chunk again should free activation memory for
+          more cache. scottmahony/arc3-kv-stress-7g25-b2k and -7g75-b2k (12-min synthetic load, 28 clients).
+Rule (pre-registered): a size passes if it starts, has 0 errors, runs >= 5.4 requests on average and keeps >= 95% of
+          the 6.5 GiB test's generated tokens/s (148.8). The largest passing size gets a full pair (exp-054 = exp-050's
+          patches on that profile), judged against exp-050's pair on z-sum and hard-game level 1.
