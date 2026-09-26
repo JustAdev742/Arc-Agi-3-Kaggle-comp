@@ -1727,3 +1727,15 @@ Amendment (before any LB result for either): the Sep 27 00:04 submission is exp-
           the serving profile is the only difference and it measured better on every throughput number). Three clean
           startups at 7.75 GiB (stress test + 2 runs); a startup OOM in the rerun would cost a day's slot, not a score.
 GPU this week: 10 full runs + 2 stress tests, about 26 h of 30.
+
+## 2026-09-26 22:20 · levels 2+ in the exp-054 pair: where they stall · ANALYSIS
+Source: docs/research/levels2plus-exp054.md (subagent study; scripts and notes in docs/research/levels2plus-exp054/).
+Found:    the level each game ended on took 54% of game-minutes and 50% of calls. Primary modes of the 48 stuck level-2+
+          levels: new element/mechanic never found or decoded 15, out of time while progressing 11, rule/map misread 7,
+          started too late 6, goal grew and the old one was reused 5, previous-level knowledge lost 4. Solved later levels
+          are efficient (median 0.73x baseline, mean level score 0.98): the score is lost to levels not reached, not to
+          actions. P23 content is used in about 61-75% of turns; the failures are misreadings, not missing facts.
+Next:     R1 (a pinned, exact record of how the previous level was won, extending P16 with P23/P24-style object facts)
+          is the top change; replay-test it on the pair's recorded actions before a GPU run. exp-055 (P16) and exp-056
+          (P14 + P16) are built for the Oct 3 week; R1 would join exp-056. More calls help too (+20% calls: about +1.0 to
+          +1.4 on the mean, extrapolated), which is why exp-054's 7.75 GiB profile counts.
