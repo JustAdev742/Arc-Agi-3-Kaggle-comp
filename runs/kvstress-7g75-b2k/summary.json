@@ -1,0 +1,17 @@
+{
+ "run_name": "kvstress-7g75-b2k",
+ "kernel": "scottmahony/arc3-kv-stress-7g75-b2k",
+ "status": "ok",
+ "kv_bytes": "8321499136",
+ "minutes": 12,
+ "clients": 28,
+ "elapsed_s": 768,
+ "ok": 421,
+ "errors": 0,
+ "error_samples": [],
+ "generated_tokens_per_s": 152.9,
+ "mean_prompt_tokens": 18335,
+ "mean_latency_s": 49.8,
+ "running_mean": 5.65,
+ "running_max": 6.0
+}

@@ -1703,3 +1703,13 @@ Why:      exp-050's score was still climbing at the cap (9.40 at 120 min, 10.98 
 Rule (pre-registered): a size passes if it starts, has 0 errors, runs >= 5.4 requests on average and keeps >= 95% of
           the 6.5 GiB test's generated tokens/s (148.8). The largest passing size gets a full pair (exp-054 = exp-050's
           patches on that profile), judged against exp-050's pair on z-sum and hard-game level 1.
+
+## 2026-09-26 10:15 · KV stress 7.25 / 7.75 GiB (2,048-token chunks) PASS; exp-054 pair pushed · MEASURED
+kvstress-7g25-b2k: 418 completions, 0 errors, 5.68 running (max 6), 148.3 generated tokens/s, latency 49.8 s.
+kvstress-7g75-b2k: 421 completions, 0 errors, 5.65 running (max 6), 152.9 tokens/s, latency 49.8 s.
+Against 6.5 GiB / 4,096: 414, 4.92 running, 148.8 tokens/s. Both pass the pre-registered rule; running requests
++15%, but generated tokens/s only +3% (6.5 GiB had given +25% running and +14% tokens/s over 5 GiB): the server is
+now close to decode-bound, so the expected gain is small. By the rule the largest passing size gets a full pair:
+exp-054 / exp-054r (exp-050's patches on 7.75 GiB / 2,048), pushed 10:13 / 10:15. Their request counts per run (a
+low-noise measure: exp-049/050 runs 1,440-1,570) tell whether the profile adds calls in real play; the score is judged
+against exp-050's pair on z-sum and hard-game level 1. GPU this week: about 21 h of 30 after this pair.
