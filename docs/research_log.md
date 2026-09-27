@@ -1773,3 +1773,10 @@ again (draw 3), both scottmahony/arc3-taaf-fix-kv775-obj v1 (a resubmission reru
 draws of one configuration give the LB's own run-to-run spread, needed to judge any later candidate and required by the
 final-selection rule. From Sep 30 the slots go to new candidates that pass their public-25 rule (exp-057 first), else to
 the second-best configuration by LB (exp-048).
+
+## 2026-09-27 09:40 · stress tests: MTP 2 and 4 speculative tokens on the 7.75 GiB profile · PUSHED
+Why:      at 7.75 GiB the server is near decode-bound (running +15% over 6.5 GiB but tokens/s +3%); the levels-2+ study
+          estimates +20% calls at about +1 point. MTP (the model's multi-token-prediction head) sets how many tokens each
+          decode step proposes; the profile uses 3. scottmahony/arc3-kv-stress-7g75-mtp2 / -mtp4 (12-min synthetic load).
+Rule (pre-registered): against the MTP-3 test at 7.75 GiB (421 completions, 152.9 tokens/s): a setting is worth a full
+          pair only with 0 errors and >= 8% more generated tokens/s; otherwise MTP stays at 3.
