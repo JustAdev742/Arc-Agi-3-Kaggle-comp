@@ -154,6 +154,8 @@ If fewer than two configurations reach 3 draws, the unmodified base fills the se
 - Held: about 4 GPU-h of this week for a top team's Milestone 2 notebook (entries close Sep 30).
 - Measured and dropped this week: P21 gate (hard level 1s starved), P25 (report inside action() results).
 
+**Leaderboard, Sep 26:** Tufa Labs 27.29, Daniel Franzen 21.01, Lord Han Solo 20.80, Tong Hui Kang 20.53; ours 4.70. The likeliest large gain is a Milestone 2 notebook published by Sep 30 (checked Oct 1 00:30).
+
 ## Open items (need you)
 
 Current as of 2026-09-23 14:30 UTC. (The earlier items about our own REPL harness, the rtx6000 queue stall and the

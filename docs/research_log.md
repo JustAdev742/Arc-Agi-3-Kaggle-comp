@@ -1793,3 +1793,11 @@ The ~3 GPU-h left this week were held for a Milestone 2 notebook. None has appea
 Oct 1 costs little against the Nov 2 deadline, while exp-057 now gives P26's first result days earlier. exp-057
 (scottmahony/arc3-taaf-kv775-obj-win) pushed 10:10; exp-057r follows at the Oct 3 quota reset; P26's keep rule
 (2026-09-26 23:00) is applied to the pair.
+
+## 2026-09-27 11:45 · leaderboard snapshot: the Duck family jumped · OBSERVED
+Public LB (latest submissions Sep 26): Tufa Labs 27.29, Daniel Franzen 21.01, Lord Han Solo 20.80, Tong Hui Kang 20.53,
+Yi-Chia Chen 18.80, NVARC3 16.07, the last dance 13.70, Third Intelligence 12.31; ours 4.70 (exp-054). Tufa (the Duck's
+authors, Milestone 1 winners, who published then) and Tong Hui Kang (the thui lineage our base copies) have private
+versions far above the public notebooks. Milestone 2 counts only solutions published by Sep 30, so the strongest path to
+a large gain is adopting a published Milestone 2 notebook (within its license) and adding our measured improvements
+(P23/P24, 7.75 GiB). An Oct 1 00:30 check-in searches for them; runs wait for the Oct 3 quota reset.
