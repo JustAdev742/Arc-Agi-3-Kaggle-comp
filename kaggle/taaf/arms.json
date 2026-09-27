@@ -686,6 +686,52 @@
     "batched_tokens": 2048
    },
    "note": "exp-058r: an unchanged repeat of exp-058 under a new slug."
+  },
+  {
+   "exp": "exp059",
+   "slug": "arc3-taaf-mtp0-kv14-obj",
+   "patches": [
+    "P1",
+    "P1B",
+    "P2",
+    "P7",
+    "P12",
+    "P13",
+    "P17",
+    "P22",
+    "P23",
+    "P24"
+   ],
+   "serving": {
+    "kv_gib": 14,
+    "batched_tokens": 2048,
+    "max_num_seqs": 16,
+    "mtp_tokens": 0
+   },
+   "note": "exp-059: exp-054's patches on an MTP-off profile (no speculative decoding, so the MTP head's ~7.5 GiB goes to a 14 GiB BF16 KV cache; 16 sequences). Push only if the kvstress-mtp0-14g stress test passes its rule (2026-09-27 research log)."
+  },
+  {
+   "exp": "exp059r",
+   "slug": "arc3-taaf-mtp0-kv14-obj-r2",
+   "patches": [
+    "P1",
+    "P1B",
+    "P2",
+    "P7",
+    "P12",
+    "P13",
+    "P17",
+    "P22",
+    "P23",
+    "P24"
+   ],
+   "serving": {
+    "kv_gib": 14,
+    "batched_tokens": 2048,
+    "max_num_seqs": 16,
+    "mtp_tokens": 0
+   },
+   "note": "exp-059r: an unchanged repeat of exp-059 under a new slug."
   }
  ]
 }

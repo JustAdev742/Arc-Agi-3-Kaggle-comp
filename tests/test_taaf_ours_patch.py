@@ -322,6 +322,14 @@ def test_arm_registry_names_only_known_patches_and_builds(tmp_path):
     # exp-035: P4 with a smaller history budget regressed, so the new arms keep the base's budget
     assert "P4" not in applied
     assert "LOCAL_ANALYZER_CONTEXT_WINDOW" not in knobs and "LOCAL_ANALYZER_MAX_OUTPUT" not in knobs
+    # exp-059: the MTP-off serving profile reaches the notebook's vLLM env
+    subprocess.run([sys.executable, str(ROOT / "scripts" / "build_arms.py"), "--out", str(out), "--arms", "exp059"],
+                   check=True, capture_output=True, text=True)
+    text59 = "\n".join("".join(c["source"]) for c in
+                       json.loads((out / "exp059" / "arc3-taaf-mtp0-kv14-obj.ipynb").read_text())["cells"])
+    for line in ('"TAAF_VLLM_MTP_TOKENS": "0"', '"TAAF_VLLM_MAX_NUM_SEQS": "16"',
+                 f'"TAAF_VLLM_KV_CACHE_MEMORY_BYTES": "{14 * 1024**3}"', '"TAAF_VLLM_MAX_NUM_BATCHED_TOKENS": "2048"'):
+        assert line in text59, line
 
 
 def test_p20_no_impact_learner_and_wrappers():

@@ -35,7 +35,7 @@ def arm_command(arm: dict, defaults: dict, out: Path) -> list[str]:
         flag = "--" + key.replace("_", "-")
         if value is True:
             cmd.append(flag)
-        elif value not in (None, False):
+        elif value is not None and value is not False:  # 0 is a value (e.g. mtp_tokens 0), not "off"
             cmd += [flag, str(value)]
     if arm.get("note"):
         cmd += ["--note", arm["note"]]

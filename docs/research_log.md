@@ -1826,3 +1826,24 @@ Arms:     exp-058 / exp-058r = exp-054 + P27 with MULTIMODAL_UPSCALE=8, MULTIMOD
           Oct 3 quota week.
 Rule (pre-registered): keep P27 if the exp-058 pair's mean z-sum is at least exp-054's pair (+12.45) AND its levels
           over the pair are at least exp-054's 95 (49 + 46).
+
+## 2026-09-27 12:50 · serving evidence from other teams; MTP-off stress tests and exp-059 built · PLAN (runs Oct 3)
+Evidence (read today, none of it ours; details in docs/research/public-code-sep27.md):
+- The forum's account of the top jump: Tufa went 4.71 (08-30) -> 11.04 -> 18.81 -> 27.29 (09-26); a participant: "a lot
+  of the improvements simply came from squeezing more tokens out of the hardware and allocating them properly". Scott Le
+  Grand: 16 vLLM sequences took the stock Duck to "the brink of the top 10%"; his harness work after that did not move
+  the LB. Teams report a 3-4x drop from public-25 to LB and identical-notebook spreads of 1.5-2.3x.
+- MTP costs memory: Flash-Next's weights are 81.8 GiB with the MTP head, 74.3 GiB without. Thuitanium's replay bench:
+  MTP off + 7 GiB KV + 28 sequences 722 generated tokens/s against 359 for the stock profile (serving only). Son Pham's
+  Flash-Next lock (LB draws 7.36 / 5.54 in that family): MTP off, 22 sequences, 6,144-token batches.
+- Our own MTP tests (2 and 4 against 3) kept the MTP head loaded, so the freed memory never went to KV; we concluded the
+  profile was "tapped out" from those. MTP 0 with the memory moved to KV is untested here.
+- Keith's launcher accepts TAAF_VLLM_MTP_TOKENS=0 and then passes no --speculative-config.
+Built:    stress notebooks scottmahony/arc3-kv-stress-mtp0-14g-s16 and -s28 (MTP 0, 14 GiB BF16 KV, 2,048-token chunks,
+          16 or 28 sequences; the 12-min 28-client synthetic load); build_taaf_nb.py --mtp-tokens; exp-059 / exp-059r =
+          exp-054's patches on MTP 0 + 14 GiB + 16 sequences. Fixed build_arms.py dropping a serving value of 0 (0 == False).
+Rule (pre-registered): against kvstress-7g75-b2k (MTP 3: 421 completions, 152.9 generated tokens/s, 5.65 running), an
+          MTP-0 profile passes with a clean start, 0 errors and >= 8% more generated tokens/s (>= 165.1). If both pass,
+          the one with more tokens/s sets exp-059's sequence count; if neither starts, retry once at 12 GiB. exp-059 is
+          pushed only after a pass and is read against exp-054's pair (z-sum 12.45, 95 levels, requests per run 1,609 /
+          1,627).
