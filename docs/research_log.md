@@ -1895,7 +1895,7 @@ Kept as noted: P27 charges 483 estimated tokens per image against ~256 real at 8
           AVO code are kept as shipped: its action-effect memory never fills (our action results have no "action"
           key) and a level note is rewritten on non-acting turns with a growing turn count.
 
-## 2026-09-27 13:05 · exp-057 (exp-054 + P26 level-win record) · MEASURED; P26 DROPPED by its rule (exp-057r not run)
+## 2026-09-27 12:57 · exp-057 (exp-054 + P26 level-win record) · MEASURED; P26 DROPPED by its rule (exp-057r not run)
 exp-057:  public-25 8.83, 41 levels (dev 10.63, val 3.14), z-sum +0.3, hard level 1 6/8 (median 99 min), levels 2+ 18;
           1,645 requests, 21.5k prompt tokens each (runs/exp057-kv775-obj-win). exp-054's pair: 12.87 / 10.70, 49 / 46
           levels, z-sum +14.9 / +10.0, levels 2+ 24 / 23. The records appeared as built (650 prompt lines in 23 games,
