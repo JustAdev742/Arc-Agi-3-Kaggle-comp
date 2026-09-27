@@ -1863,3 +1863,18 @@ Arm:      exp-060 = exp-059 (MTP 0, 14 GiB, 16 sequences) + 16 lanes (games at o
           survives between its calls; public 25 in 2 waves of 3,960 s) + P28 + prefix caching, pushed only after the MTP-0 stress test
           passes (else rebuilt on 7.75 GiB / MTP 3). Read first on its mechanism (vllm:prefix_cache_hits_total over
           queries, requests per run against exp-059), then on score against exp-059.
+
+## 2026-09-27 12:40 · P29: Tufa's AVO wrapper ported; exp-061 built · BUILT
+Why:      Tufa deployed their AVO arm (Experiment 5; benchmark label avo-kaggle, 25 games, 28 at once) to Kaggle on Sep 1,
+          between their LB draws of 4.71 (Aug 30) and 11.04 (Sep 6). No result is published, so it is one hypothesis
+          among several for that jump (a model switch is another); it is the leaders' latest published experiment.
+P29:      their six inference/avo files unchanged (MIT, credited in each header), created by a new "<NEW>" mode of
+          taaf_ours_patch.apply(), and a solver switch: OURS_AVO=1 builds AvoAgent with the solver's per-game budget.
+          One fix: AVO stores its memory at <runtime dir>/avo_memory.json, but every game's runtime state sits in the
+          same artifacts/ directory (in their solver too), so all concurrent games shared one memory file and a game
+          started later loaded another game's facts; the memory file is now per game (their docstring says "keyed by
+          game"). Bed test (real harness, mock server, ls20 + ft09): every directive appears (phases, supervisor nudges
+          and hard redirects, exploit mode past 60% of the budget), one memory file per game, no errors.
+Arm:      exp-061 = exp-054 + P29 (OURS_AVO=1), 7.75 GiB / MTP 3, for the Oct 3 week after the throughput arms. The
+          memory digest adds up to ~40 entries (each world-model revision becomes a "fact") to every prompt; watch prompt
+          tokens per request against exp-054's 21.2k.

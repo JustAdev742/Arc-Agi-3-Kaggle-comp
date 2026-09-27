@@ -906,3 +906,40 @@ def test_p28_history_grows_append_only_between_trims(tmp_path, user_chars, budge
     assert result["p28"]["stable"] > 0.7  # most calls start with the whole previous prompt
     if budget == 20000:  # trimmed to 60% of the budget, never above it
         assert result["p28"]["min"] < 0.8 * budget and result["p28"]["max"] <= budget
+
+
+def test_p29_avo_agent_wraps_the_patched_duck_agent(h, tmp_path):
+    from inference.avo.agent import AvoAgent
+    from inference.avo.memory import AvoMemory
+    from inference.avo.settings import AvoSettings
+    from inference.avo.supervisor import TurnSignal
+
+    agent = AvoAgent(model="mock", avo_settings=AvoSettings(), game_budget_s=100.0)
+    assert isinstance(agent, h.ta.ToolAgent)
+    agent._ensure_session(tmp_path / "game" / "runtime_state.json")
+    board = _board({(1, 1): 9})
+    kwargs = {"valid_actions": ["ACTION1"], "current_frame": h.Frame(board, 1, 1), "history_entries": [],
+              "previous_step_summary": None}
+    prompt = agent._build_user_prompt(1, **kwargs)
+    assert prompt.startswith("AVO PHASE 1/4 -- INSPECT") and "Current state:" in prompt
+    for _ in range(4):  # a frame seen once, then three turns without a new frame or level: the first nudge
+        agent.supervisor.observe(TurnSignal(score=0, level=0, frame_hash="same", effective_actions=0))
+    assert "SUPERVISOR -- STAGNATION" in agent._build_user_prompt(2, **kwargs)
+    agent._game_started_at -= 61.0  # past 60% of the 100 s budget: exploit instead of the phase directive
+    exploit = agent._build_user_prompt(3, **kwargs)
+    assert "AVO -- EXPLOIT MODE" in exploit and "AVO PHASE" not in exploit
+    agent.memory.record_rule("pushing a block into the hole fills it")
+    agent.memory.save()
+    assert "pushing a block into the hole fills it" in AvoMemory.load(agent.memory.path).digest()
+    # one memory file per game: every game's runtime state sits in the same directory
+    assert agent.memory.path == tmp_path / "game" / "runtime_state_avo_memory.json"
+    other = AvoAgent(model="mock", avo_settings=AvoSettings(), game_budget_s=100.0)
+    other._ensure_session(tmp_path / "game" / "other_game_runtime_state.json")
+    assert other.memory.is_empty()
+
+
+def test_p29_solver_switch_is_opt_in():
+    new = tp.P29_SOLVER_NEW
+    assert 'os.environ.get("OURS_AVO", "").strip() == "1"' in new and "_ours_cls = AvoAgent" in new
+    solver = (FIXTURE / tp.SOLVER).read_text()
+    assert solver.count(tp.P29_SOLVER_OLD) == 1

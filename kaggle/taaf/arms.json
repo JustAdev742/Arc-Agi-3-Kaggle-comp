@@ -758,6 +758,31 @@
     "lanes": 16
    },
    "note": "exp-060: the throughput package. MTP 0 (the MTP head's ~7.5 GiB goes to a 14 GiB KV cache), 16 sequences and 16 lanes (games at once, so no request queues and each game's cached prompt survives between its calls; the public 25 run in 2 waves of 3,960 s, a rerun in wave-fit waves), vLLM prefix caching, and P28 (history trimmed to 60% of the budget when over it, so calls grow append-only). In exp-054, 79% of 1,609 requests re-read over 20k prompt tokens with no cache. Push only after the MTP-0 stress test passes."
+  },
+  {
+   "exp": "exp061",
+   "slug": "arc3-taaf-kv775-obj-avo",
+   "patches": [
+    "P1",
+    "P1B",
+    "P2",
+    "P7",
+    "P12",
+    "P13",
+    "P17",
+    "P22",
+    "P23",
+    "P24",
+    "P29"
+   ],
+   "knobs": {
+    "OURS_AVO": "1"
+   },
+   "serving": {
+    "kv_gib": 7.75,
+    "batched_tokens": 2048
+   },
+   "note": "exp-061: exp-054 + P29, Tufa Labs' AVO wrapper (their Experiment 5, deployed to Kaggle Sep 1 between their LB draws of 4.71 and 11.04; no result published) with their default settings: per-game memory at the top of every prompt, rotating inspect/plan/implement/evaluate directive, text-only stagnation supervisor, exploit directive after 60% of the game's budget."
   }
  ]
 }
