@@ -154,7 +154,7 @@ move the hidden LB. The queue, in order:
    the MTP-3 7.75 GiB test (152.9).
 2. If one passes: exp-059 (exp-054 on that profile) and exp-060 (+ 16 lanes, prefix caching, P28 stable-prefix trim).
    exp-060 is read first on its prefix-cache hit rate and requests per run.
-3. exp-057r (P26 pair, rule of 2026-09-26 23:00), then exp-058 once (P27, Tufa's 8x grid-lined image; another team's
+3. exp-058 once (P27, Tufa's 8x grid-lined image; another team's
    ablation found higher-res images at or below baseline, so its repeat waits for a promising first run), then exp-061
    last (P29, Tufa's AVO wrapper; NVARC3 reports AVO-style ideas did not beat their harness).
 4. A Milestone 2 notebook if one is published by Sep 30 (Lord Han Solo said he would share if top 3 among sharers;

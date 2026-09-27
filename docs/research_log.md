@@ -1894,3 +1894,13 @@ Kept as noted: P27 charges 483 estimated tokens per image against ~256 real at 8
           history_messages) rather than prompt tokens, which the trimmer holds near the budget. Two defects in Tufa's
           AVO code are kept as shipped: its action-effect memory never fills (our action results have no "action"
           key) and a level note is rewritten on non-acting turns with a growing turn count.
+
+## 2026-09-27 13:05 · exp-057 (exp-054 + P26 level-win record) · MEASURED; P26 DROPPED by its rule (exp-057r not run)
+exp-057:  public-25 8.83, 41 levels (dev 10.63, val 3.14), z-sum +0.3, hard level 1 6/8 (median 99 min), levels 2+ 18;
+          1,645 requests, 21.5k prompt tokens each (runs/exp057-kv775-obj-win). exp-054's pair: 12.87 / 10.70, 49 / 46
+          levels, z-sum +14.9 / +10.0, levels 2+ 24 / 23. The records appeared as built (650 prompt lines in 23 games,
+          content as in the replay, no harness errors).
+Rule (2026-09-26 23:00): keep P26 if the pair's mean z-sum >= +10.45 AND levels 2+ over the pair > 47. With exp-057 at
+          +0.3 and 18, exp-057r would need z-sum >= +20.6 (the best run we have recorded is +14.9) and 30 levels 2+, so the
+          rule cannot be met: P26 is dropped and exp-057r is not run (saves about 2.8 GPU-h of the Oct 3 week). One run
+          cannot say P26 hurts (run-to-run sd of z-sum is about 3-4), only that it will not pass.
