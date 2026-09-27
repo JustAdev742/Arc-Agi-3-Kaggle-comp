@@ -1874,14 +1874,35 @@ P28_FN = '''_OURS_TRIM_FLOOR = min(1.0, max(0.1, float(os.environ.get("OURS_TRIM
 _OURS_TURN_FLOOR = max(1, int(os.environ.get("OURS_TURN_FLOOR", "") or 18))
 
 
+def _ours_turn_start(history: list[dict[str, Any]]) -> int | None:
+    # ours P28: index of the current turn's own prompt (the last user message with the "Current state:" line;
+    # the harness's follow-up nudges within a turn have no such line)
+    for index in range(len(history) - 1, -1, -1):
+        message = history[index]
+        if str(message.get("role", "")).strip() != "user":
+            continue
+        content = message.get("content")
+        if isinstance(content, list):
+            content = " ".join(str(part.get("text", "")) for part in content if isinstance(part, dict))
+        if "Current state:" in str(content or ""):
+            return index
+    return None
+
+
 '''
 P28_TRIM_OLD = """        budget_tokens = max(1, self._context_budget_tokens - max(0, extra_safety_tokens))
         while history and self._estimate_request_input_tokens([system_message, *history], tools=tools) > budget_tokens:
 """
 P28_TRIM_NEW = """        budget_tokens = max(1, self._context_budget_tokens - max(0, extra_safety_tokens))
         if history and self._estimate_request_input_tokens([system_message, *history], tools=tools) > budget_tokens:
-            # ours P28: once over budget, trim to a floor so the next calls grow append-only (a stable, cacheable prefix)
-            budget_tokens = max(1, int(budget_tokens * _OURS_TRIM_FLOOR))
+            # ours P28: once over budget, trim to a floor so the next calls grow append-only (a stable, cacheable prefix);
+            # the floor never cuts into the current turn (its prompt and everything after it)
+            _ours_floor = max(1, int(budget_tokens * _OURS_TRIM_FLOOR))
+            _ours_open = _ours_turn_start(history)
+            if _ours_open is not None:
+                _ours_floor = max(_ours_floor, self._estimate_request_input_tokens(
+                    [system_message, *history[_ours_open:]], tools=tools))
+            budget_tokens = min(budget_tokens, _ours_floor)
         while history and self._estimate_request_input_tokens([system_message, *history], tools=tools) > budget_tokens:
 """
 P28_TURNS_OLD = """        history = self._keep_recent_history_turns(

@@ -1878,3 +1878,19 @@ P29:      their six inference/avo files unchanged (MIT, credited in each header)
 Arm:      exp-061 = exp-054 + P29 (OURS_AVO=1), 7.75 GiB / MTP 3, for the Oct 3 week after the throughput arms. The
           memory digest adds up to ~40 entries (each world-model revision becomes a "fact") to every prompt; watch prompt
           tokens per request against exp-054's 21.2k.
+
+## 2026-09-27 12:55 · review of P27/P28/P29 and the builder changes (fresh-context subagent) · FIXED
+Found and fixed: (1) P28's 60% floor applied to the turn in progress too: a turn over ~13.9k estimated tokens lost its
+          own prompt, leaving [system] (the served template raises "No user query found") or [system, follow-up], and
+          the history kept after the turn was empty (reviewer's repros). In exp-054's 2,145 turns one turn crossed that
+          size at its end and 19 were within 15%. The floor now never goes below the current turn (from its prompt, the
+          last user message with the "Current state:" line) and never above the normal budget; regression test fails
+          on the old code and passes now. (2) build_taaf_nb.py recorded serving flags as applied even when their anchor
+          text was missing; each flag now fails the build unless its anchor is found once, and --lanes requires
+          --wavefit (a rerun would otherwise keep 7,920 s per game over 7 waves). Every unpushed arm rebuilds.
+Kept as noted: P27 charges 483 estimated tokens per image against ~256 real at 8x (never under-counted). P29's AVO
+          digest can reach ~2.4k (median) to 4.6k (max) estimated tokens per prompt replayed on exp-054's carried notes,
+          repeated in older turns, so exp-061 is read on retained history messages per request (ANALYZER STATUS
+          history_messages) rather than prompt tokens, which the trimmer holds near the budget. Two defects in Tufa's
+          AVO code are kept as shipped: its action-effect memory never fills (our action results have no "action"
+          key) and a level note is rewritten on non-acting turns with a growing turn count.

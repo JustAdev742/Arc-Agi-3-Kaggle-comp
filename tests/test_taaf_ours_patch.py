@@ -876,7 +876,7 @@ agent._context_budget_tokens = int(sys.argv[2])
 system = {"role": "system", "content": "s" * 3000}
 history, previous, stable, calls, sizes = [], None, 0, 0, []
 for i in range(60):
-    user = {"role": "user", "content": f"turn {i} " + "u" * int(sys.argv[3])}
+    user = {"role": "user", "content": f"Current state: step {i}, level 1. " + "u" * int(sys.argv[3])}
     request = agent._trim_messages_for_context([system, *history, user], tools=None, preserve_recent=1)
     if i >= 20:  # past the warm-up, the budget or turn cap binds
         calls += 1
@@ -943,3 +943,40 @@ def test_p29_solver_switch_is_opt_in():
     assert 'os.environ.get("OURS_AVO", "").strip() == "1"' in new and "_ours_cls = AvoAgent" in new
     solver = (FIXTURE / tp.SOLVER).read_text()
     assert solver.count(tp.P29_SOLVER_OLD) == 1
+
+
+_P28_BIG_TURN = r'''
+import json, sys
+sys.path.insert(0, sys.argv[1])
+from inference.agent import tool_agent as ta
+agent = ta.ToolAgent(model="mock")
+agent._context_budget_tokens = 20000
+system = {"role": "system", "content": "s" * 3000}
+history = []
+for i in range(6):  # earlier, small turns
+    history += [{"role": "user", "content": f"Current state: step {i}, level 1. " + "u" * 3000},
+                {"role": "assistant", "content": "a" * 3000}, {"role": "tool", "tool_call_id": str(i), "content": "t"}]
+turn = [{"role": "user", "content": "Current state: step 9, level 1. " + "u" * 3000}]
+for k in range(4):  # a long turn in progress: four calls with about 3k tokens of reasoning each
+    turn += [{"role": "assistant", "content": "r" * 9000}, {"role": "tool", "tool_call_id": f"k{k}", "content": "t" * 300}]
+turn.append({"role": "user", "content": "You have not acted yet. Investigate first."})
+request = agent._trim_messages_for_context([system, *history, *turn], tools=None)
+kept = agent._persistent_history_messages(request, tools=None)
+print(json.dumps({"first_after_system": request[1]["content"][:14], "request_len": len(request),
+                  "turn_len": len(turn), "kept": len(kept),
+                  "est": agent._estimate_request_input_tokens(request, tools=None)}))
+'''
+
+
+def test_p28_floor_never_cuts_into_the_current_turn(tmp_path):
+    """Review 2026-09-27: a long turn (13.9k+ estimated tokens) under the 60% floor lost its own prompt, leaving
+    [system] or [system, follow-up] (the served template rejects a request without a user query) and empty history."""
+    bundle = _copy(tmp_path / "b")
+    tp.apply(bundle, ["P1", "P1B", "P2", "P7", "P12", "P13", "P17", "P22", "P23", "P24", "P28"])
+    env = {**os.environ, "LOCAL_ANALYZER_MODEL_ID": "mock", "LOCAL_ANALYZER_BASE_URL": "http://127.0.0.1:9/v1"}
+    out = subprocess.run([sys.executable, "-c", _P28_BIG_TURN, str(bundle / "src" / "ARC3-Inference")], check=True,
+                         capture_output=True, text=True, env=env, timeout=120)
+    r = json.loads(out.stdout.strip().splitlines()[-1])
+    assert r["first_after_system"] == "Current state:"  # the turn's own prompt survives the trim
+    assert r["request_len"] >= 1 + r["turn_len"] and r["est"] <= 20000
+    assert r["kept"] >= r["turn_len"]  # and the history kept after the turn still holds the whole turn

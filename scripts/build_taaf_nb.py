@@ -84,6 +84,8 @@ def main() -> None:
                     help="analyzer env override applied with the thui knobs (e.g. LOCAL_ANALYZER_MAX_OUTPUT=6144)")
     ap.add_argument("--note", default="")
     args = ap.parse_args()
+    if args.lanes and not args.wavefit:
+        raise SystemExit("--lanes needs --wavefit: a rerun would otherwise keep 7,920 s per game over more waves")
 
     nb = json.loads(BASE.read_text())
     cells = nb["cells"]
@@ -101,30 +103,25 @@ def main() -> None:
         if s.startswith("# Evaluation fork (taaf-anim-flashnext)"):
             s = header
         if "PUBLIC25_VLLM_PROFILE_ENV = {" in s:
-            if args.kv_dtype:
-                s = s.replace('"TAAF_VLLM_KV_CACHE_DTYPE": "auto"', f'"TAAF_VLLM_KV_CACHE_DTYPE": "{args.kv_dtype}"')
-                changes.append(f"KV cache dtype {args.kv_dtype}")
-            if args.max_num_seqs:
-                s = s.replace('"TAAF_VLLM_MAX_NUM_SEQS": "8"', f'"TAAF_VLLM_MAX_NUM_SEQS": "{args.max_num_seqs}"')
-                changes.append(f"max_num_seqs {args.max_num_seqs}")
-            if args.kv_gib:
-                s = s.replace('"TAAF_VLLM_KV_CACHE_MEMORY_BYTES": "5368709120"',
-                              f'"TAAF_VLLM_KV_CACHE_MEMORY_BYTES": "{int(args.kv_gib * 1024**3)}"')
-                changes.append(f"KV cache {args.kv_gib} GiB")
-            if args.prefix_caching:
-                s = s.replace('"TAAF_VLLM_ENABLE_PREFIX_CACHING": "0"', '"TAAF_VLLM_ENABLE_PREFIX_CACHING": "1"')
-                changes.append("prefix caching on")
-            if args.batched_tokens:
-                s = s.replace('"TAAF_VLLM_MAX_NUM_BATCHED_TOKENS": "8192"',
-                              f'"TAAF_VLLM_MAX_NUM_BATCHED_TOKENS": "{args.batched_tokens}"')
-                changes.append(f"max_num_batched_tokens {args.batched_tokens}")
-            if args.mtp_tokens is not None:
-                s = s.replace('"TAAF_VLLM_MTP_TOKENS": "3"', f'"TAAF_VLLM_MTP_TOKENS": "{args.mtp_tokens}"')
-                changes.append(f"MTP tokens {args.mtp_tokens}")
-            if args.cudagraph:
-                s = s.replace('"TAAF_VLLM_MAX_CUDAGRAPH_CAPTURE_SIZE": "32"',
-                              f'"TAAF_VLLM_MAX_CUDAGRAPH_CAPTURE_SIZE": "{args.cudagraph}"')
-                changes.append(f"cudagraph capture {args.cudagraph}")
+            serving = [  # (requested, profile key, base value, new value, change note)
+                (args.kv_dtype, "TAAF_VLLM_KV_CACHE_DTYPE", "auto", args.kv_dtype, f"KV cache dtype {args.kv_dtype}"),
+                (args.max_num_seqs, "TAAF_VLLM_MAX_NUM_SEQS", "8", args.max_num_seqs, f"max_num_seqs {args.max_num_seqs}"),
+                (args.kv_gib, "TAAF_VLLM_KV_CACHE_MEMORY_BYTES", "5368709120",
+                 int((args.kv_gib or 0) * 1024**3), f"KV cache {args.kv_gib} GiB"),
+                (args.prefix_caching, "TAAF_VLLM_ENABLE_PREFIX_CACHING", "0", 1, "prefix caching on"),
+                (args.batched_tokens, "TAAF_VLLM_MAX_NUM_BATCHED_TOKENS", "8192", args.batched_tokens,
+                 f"max_num_batched_tokens {args.batched_tokens}"),
+                (args.mtp_tokens is not None, "TAAF_VLLM_MTP_TOKENS", "3", args.mtp_tokens, f"MTP tokens {args.mtp_tokens}"),
+                (args.cudagraph, "TAAF_VLLM_MAX_CUDAGRAPH_CAPTURE_SIZE", "32", args.cudagraph,
+                 f"cudagraph capture {args.cudagraph}"),
+            ]
+            for requested, key, base, value, note in serving:
+                if requested:
+                    anchor = f'"{key}": "{base}"'
+                    if s.count(anchor) != 1:  # a flag whose anchor moved must fail the build, not do nothing
+                        raise SystemExit(f"serving anchor {anchor} not found exactly once in the base profile")
+                    s = s.replace(anchor, f'"{key}": "{value}"')
+                    changes.append(note)
             s = s.replace("PUBLIC25_VLLM_PROFILE_NAME = 'kv5-bf16-mtp3-c8-cg32'",
                           f"PUBLIC25_VLLM_PROFILE_NAME = '{args.slug}'")
         if args.patches and ANIM_ANCHOR in s:
