@@ -1879,7 +1879,7 @@ Arm:      exp-061 = exp-054 + P29 (OURS_AVO=1), 7.75 GiB / MTP 3, for the Oct 3 
           memory digest adds up to ~40 entries (each world-model revision becomes a "fact") to every prompt; watch prompt
           tokens per request against exp-054's 21.2k.
 
-## 2026-09-27 12:55 · review of P27/P28/P29 and the builder changes (fresh-context subagent) · FIXED
+## 2026-09-27 12:40 · review of P27/P28/P29 and the builder changes (fresh-context subagent) · FIXED
 Found and fixed: (1) P28's 60% floor applied to the turn in progress too: a turn over ~13.9k estimated tokens lost its
           own prompt, leaving [system] (the served template raises "No user query found") or [system, follow-up], and
           the history kept after the turn was empty (reviewer's repros). In exp-054's 2,145 turns one turn crossed that
