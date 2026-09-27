@@ -3,7 +3,9 @@
 One-line summary: the public Duck forks all draw 3-7 on the hidden leaderboard, and the evidence from other teams points
 at tokens per hour (serving) and their allocation, not harness text, as what moves it; three serving changes follow.
 
-Sources were read, not copied: code without a license is used for ideas only, and anything we adapted is rewritten and
+Source reports (subagents, 2026-09-27): public-code-sep27/web-and-forum.md (web, arXiv, 225 forum threads read with
+`kaggle competitions topics show` / `topic-messages`), public-code-sep27/duck-lab-repos.md (four public repos),
+public-code-sep27/qwen38-rl-repo.md. Sources were read, not copied: code without a license is used for ideas only, and anything we adapted is rewritten and
 credited in `scripts/taaf_ours_patch.py`. Numbers below are other teams' unless marked "ours".
 
 ## Leaderboard context
@@ -52,6 +54,16 @@ credited in `scripts/taaf_ours_patch.py`. Numbers below are other teams' unless 
 - FP8 KV for Flash-Next: keith's runtime rejects it (our exp-033); Son Pham's overlay of four vLLM files (QSA attention and
   its Triton op) makes it work and ran on Kaggle (7 lanes x 103k context). His repo has no license; reimplementing it is
   a kernel-level change we defer until the MTP-0 and caching results are in.
+
+## Evidence against two of our arms (from the web and forum report)
+
+- AVO: NVARC3 (NVIDIA, 16.07): "We tried AVO style ideas and haven't seen them beat our current harness yet" (forum
+  thread 737617). exp-061 moves to the end of the queue.
+- Higher-resolution images: Makarov's one-change ablations on a Duck harness (thread 743723) put higher-resolution
+  board images at or below baseline; Tufa's control run uses 8x anyway. exp-058 runs once before any repeat.
+- Makarov's other finding: failures come from an early wrong goal that the model then defends; world-model scaffolds
+  were largely ignored. The Polyphony agent and the arXiv world-model papers reach high public scores only with far
+  more compute or frontier models; 2607.15439 concludes "capability and reasoning effort dominate".
 
 ## Other findings, not acted on
 
