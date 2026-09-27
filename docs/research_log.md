@@ -1780,3 +1780,10 @@ Why:      at 7.75 GiB the server is near decode-bound (running +15% over 6.5 GiB
           decode step proposes; the profile uses 3. scottmahony/arc3-kv-stress-7g75-mtp2 / -mtp4 (12-min synthetic load).
 Rule (pre-registered): against the MTP-3 test at 7.75 GiB (421 completions, 152.9 tokens/s): a setting is worth a full
           pair only with 0 errors and >= 8% more generated tokens/s; otherwise MTP stays at 3.
+
+## 2026-09-27 10:20 · MTP 2 / 4 stress tests · MEASURED: MTP stays at 3
+kvstress-7g75-mtp2: 427 completions, 0 errors, 152.7 generated tokens/s, 6.61 running. kvstress-7g75-mtp4: 417, 0 errors,
+128.8 tokens/s (-16%), 4.65 running. Against MTP 3 (421, 152.9 tokens/s): neither reaches the pre-registered +8% ->
+MTP stays at 3. With KV (6.5 -> 7.75 GiB, +3% tokens/s) and MTP both tried, the serving profile looks tapped out on this
+card; more calls per game now have to come from the harness (fewer, shorter or better-spent calls), not the server.
+GPU this week: about 27 h of 30 used.

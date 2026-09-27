@@ -1,0 +1,17 @@
+{
+ "run_name": "kvstress-7g75-mtp4",
+ "kernel": "scottmahony/arc3-kv-stress-7g75-mtp4",
+ "status": "ok",
+ "kv_bytes": "8321499136",
+ "minutes": 12,
+ "clients": 28,
+ "elapsed_s": 763,
+ "ok": 417,
+ "errors": 0,
+ "error_samples": [],
+ "generated_tokens_per_s": 128.8,
+ "mean_prompt_tokens": 18335,
+ "mean_latency_s": 49.9,
+ "running_mean": 4.65,
+ "running_max": 5.0
+}
