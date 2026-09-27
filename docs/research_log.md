@@ -1763,3 +1763,13 @@ Rule (pre-registered): keep P26 if the exp-057 pair's mean z-sum is not below ex
 ## 2026-09-27 00:05 · competition submission 56592321 = exp-054 · SUBMITTED (pending)
 Pre-registered 2026-09-26 13:30: scottmahony/arc3-taaf-fix-kv775-obj v1 (fixes + P23 + P24 on 7.75 GiB KV; public-25
 12.87 / 10.70). Our LB draws so far: base 2.72, exp-042 3.81, exp-048 4.23.
+
+## 2026-09-27 09:31 · submission 56592321 (exp-054) scored 4.70 on the public LB · MEASURED: our best draw
+LB draws so far, one each: base exp-032 2.72; fixes exp-042 3.81; fixes + P21 gate + 6.5 GiB exp-048 4.23; fixes +
+P23/P24 + 7.75 GiB exp-054 **4.70**. The order matches the public-25 evidence (base 7.86 < fixes 9.88 mean < exp-054
+11.78 mean), though each LB number is one noisy draw. Leader 19.40.
+Pre-registered next draws (written before either result): Sep 28 00:04 exp-054 again (draw 2) and Sep 29 00:04 exp-054
+again (draw 3), both scottmahony/arc3-taaf-fix-kv775-obj v1 (a resubmission reruns the notebook on the hidden set). Three
+draws of one configuration give the LB's own run-to-run spread, needed to judge any later candidate and required by the
+final-selection rule. From Sep 30 the slots go to new candidates that pass their public-25 rule (exp-057 first), else to
+the second-best configuration by LB (exp-048).
