@@ -1848,7 +1848,7 @@ Rule (pre-registered): against kvstress-7g75-b2k (MTP 3: 421 completions, 152.9 
           pushed only after a pass and is read against exp-054's pair (z-sum 12.45, 95 levels, requests per run 1,609 /
           1,627).
 
-## 2026-09-27 12:25 · P28: stable-prefix history (hysteresis trim) for prefix caching; exp-060 built · BUILT
+## 2026-09-27 12:12 · P28: stable-prefix history (hysteresis trim) for prefix caching; exp-060 built · BUILT
 Why:      exp-054's server (runs/exp054-fix-kv775-obj/kernel-output/vllm-metrics-final.prom): 1,609 requests, 34.3M prompt
           tokens (21.2k each; 79% above 20k), 2.46M generated, 0 prefix-cache queries (caching off); per request 2.0 s
           prefill, 23.3 s decode, 96 s queued. The Duck runs at its budget (31,744 estimated tokens) and drops its oldest
@@ -1864,7 +1864,7 @@ Arm:      exp-060 = exp-059 (MTP 0, 14 GiB, 16 sequences) + 16 lanes (games at o
           passes (else rebuilt on 7.75 GiB / MTP 3). Read first on its mechanism (vllm:prefix_cache_hits_total over
           queries, requests per run against exp-059), then on score against exp-059.
 
-## 2026-09-27 12:40 · P29: Tufa's AVO wrapper ported; exp-061 built · BUILT
+## 2026-09-27 12:20 · P29: Tufa's AVO wrapper ported; exp-061 built · BUILT
 Why:      Tufa deployed their AVO arm (Experiment 5; benchmark label avo-kaggle, 25 games, 28 at once) to Kaggle on Sep 1,
           between their LB draws of 4.71 (Aug 30) and 11.04 (Sep 6). No result is published, so it is one hypothesis
           among several for that jump (a model switch is another); it is the leaders' latest published experiment.
