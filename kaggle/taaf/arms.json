@@ -732,6 +732,31 @@
     "mtp_tokens": 0
    },
    "note": "exp-059r: an unchanged repeat of exp-059 under a new slug."
+  },
+  {
+   "exp": "exp060",
+   "slug": "arc3-taaf-mtp0-kv14-pc-obj",
+   "patches": [
+    "P1",
+    "P1B",
+    "P2",
+    "P7",
+    "P12",
+    "P13",
+    "P17",
+    "P22",
+    "P23",
+    "P24",
+    "P28"
+   ],
+   "serving": {
+    "kv_gib": 14,
+    "batched_tokens": 2048,
+    "max_num_seqs": 16,
+    "mtp_tokens": 0,
+    "prefix_caching": true
+   },
+   "note": "exp-060: exp-059 (MTP 0, 14 GiB KV, 16 sequences) + P28 (history trimmed to 60% of the budget when over it, so calls grow append-only) + vLLM prefix caching, so each call re-reads only its new tail. In exp-054, 79% of 1,609 requests were above 20k prompt tokens with no cache. Push only after the MTP-0 stress test passes; otherwise rebuild on the 7.75 GiB MTP-3 profile."
   }
  ]
 }

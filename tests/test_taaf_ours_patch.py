@@ -857,3 +857,44 @@ def test_p27_images_are_charged_a_flat_estimate(h):
     extra = h.ta._estimate_tokens(small) - h.ta._estimate_tokens(no_image)
     assert h.ta._OURS_IMAGE_EST_TOKENS == 470 and 470 <= extra <= 490
     assert small["messages"][0]["content"][1]["image_url"]["url"].endswith("A" * 900)  # the payload is not modified
+
+
+_P28_SIM = r'''
+import json, sys
+sys.path.insert(0, sys.argv[1])
+from inference.agent import tool_agent as ta
+agent = ta.ToolAgent(model="mock")
+agent._context_budget_tokens = int(sys.argv[2])
+system = {"role": "system", "content": "s" * 3000}
+history, previous, stable, calls, sizes = [], None, 0, 0, []
+for i in range(60):
+    user = {"role": "user", "content": f"turn {i} " + "u" * int(sys.argv[3])}
+    request = agent._trim_messages_for_context([system, *history, user], tools=None, preserve_recent=1)
+    if i >= 20:  # past the warm-up, the budget or turn cap binds
+        calls += 1
+        stable += previous is not None and request[:len(previous)] == previous
+        sizes.append(agent._estimate_request_input_tokens(request, tools=None))
+    previous = request
+    done = request + [{"role": "assistant", "content": f"a{i} " + "a" * int(sys.argv[3])},
+                      {"role": "tool", "tool_call_id": str(i), "content": "t" * 200}]
+    history = agent._persistent_history_messages(done, tools=None)
+print(json.dumps({"stable": stable / calls, "min": min(sizes), "max": max(sizes)}))
+'''
+
+
+@pytest.mark.parametrize("user_chars, budget", [(3000, 20000), (60, 60000)], ids=["token-budget", "turn-cap"])
+def test_p28_history_grows_append_only_between_trims(tmp_path, user_chars, budget):
+    exp054 = ["P1", "P1B", "P2", "P7", "P12", "P13", "P17", "P22", "P23", "P24"]
+    result = {}
+    for arm, names in (("control", exp054), ("p28", exp054 + ["P28"])):
+        bundle = _copy(tmp_path / arm)
+        tp.apply(bundle, names)
+        env = {**os.environ, "LOCAL_ANALYZER_MODEL_ID": "mock", "LOCAL_ANALYZER_BASE_URL": "http://127.0.0.1:9/v1"}
+        out = subprocess.run([sys.executable, "-c", _P28_SIM, str(bundle / "src" / "ARC3-Inference"), str(budget),
+                              str(user_chars)], check=True, capture_output=True, text=True, env=env, timeout=120)
+        result[arm] = json.loads(out.stdout.strip().splitlines()[-1])
+    print(result)
+    assert result["control"]["stable"] < 0.3  # at the ceiling most calls drop the oldest block: no shared prefix
+    assert result["p28"]["stable"] > 0.7  # most calls start with the whole previous prompt
+    if budget == 20000:  # trimmed to 60% of the budget, never above it
+        assert result["p28"]["min"] < 0.8 * budget and result["p28"]["max"] <= budget

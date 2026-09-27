@@ -1861,7 +1861,48 @@ def _estimate_tokens(value: Any) -> int:
 """
 
 
+# P28 (stable-prefix history for prefix caching; the "swap50" idea from Son Pham's public Flash-Next notes, rewritten
+# here): the Duck trims one history block whenever a request tops its token budget and caps history at 30 assistant
+# messages, and it runs at that ceiling, so every call's prompt differs from the previous call's after the system
+# prompt and a prefix cache can reuse nothing (our prefix-caching stress test lost 19%). The 12-min stress test ran about
+# 11.7k prompt tokens/s against about 150 generated: the server spends its time re-reading history. With hysteresis,
+# a request over budget is trimmed to OURS_TRIM_FLOOR (default 0.6) of the budget and a history over 30 assistant
+# messages to OURS_TURN_FLOOR (default 18); in between, each call's prompt starts with the whole previous prompt, which
+# vLLM's prefix cache (TAAF_VLLM_ENABLE_PREFIX_CACHING=1) then serves without prefill. The cost: the model sees
+# 60-100% of the budget in history instead of about 100%.
+P28_FN = '''_OURS_TRIM_FLOOR = min(1.0, max(0.1, float(os.environ.get("OURS_TRIM_FLOOR", "") or 0.6)))
+_OURS_TURN_FLOOR = max(1, int(os.environ.get("OURS_TURN_FLOOR", "") or 18))
+
+
+'''
+P28_TRIM_OLD = """        budget_tokens = max(1, self._context_budget_tokens - max(0, extra_safety_tokens))
+        while history and self._estimate_request_input_tokens([system_message, *history], tools=tools) > budget_tokens:
+"""
+P28_TRIM_NEW = """        budget_tokens = max(1, self._context_budget_tokens - max(0, extra_safety_tokens))
+        if history and self._estimate_request_input_tokens([system_message, *history], tools=tools) > budget_tokens:
+            # ours P28: once over budget, trim to a floor so the next calls grow append-only (a stable, cacheable prefix)
+            budget_tokens = max(1, int(budget_tokens * _OURS_TRIM_FLOOR))
+        while history and self._estimate_request_input_tokens([system_message, *history], tools=tools) > budget_tokens:
+"""
+P28_TURNS_OLD = """        history = self._keep_recent_history_turns(
+            trimmed_history,
+            max_turns=_PERSISTENT_HISTORY_ASSISTANT_TURNS,
+        )
+"""
+P28_TURNS_NEW = """        _ours_turns = sum(1 for m in trimmed_history if str(m.get("role", "")).strip() == "assistant")
+        history = self._keep_recent_history_turns(
+            trimmed_history,
+            # ours P28: past the cap, cut to a floor so the following calls keep a stable prefix
+            max_turns=(_PERSISTENT_HISTORY_ASSISTANT_TURNS if _ours_turns <= _PERSISTENT_HISTORY_ASSISTANT_TURNS
+                       else _OURS_TURN_FLOOR),
+        )
+"""
+
+
 PATCHES.update({
+    "P28": [(TOOL_AGENT, "def _empty_world_model(", P28_FN + "def _empty_world_model("),
+            (TOOL_AGENT, P28_TRIM_OLD, P28_TRIM_NEW),
+            (TOOL_AGENT, P28_TURNS_OLD, P28_TURNS_NEW)],
     "P27": [(VISION, P27_VISION_OLD, P27_VISION_NEW), (TOOL_AGENT, P27_EST_OLD, P27_EST_NEW)],
     "P22": [(SANDBOX, P22_OLD, P22_NEW)],
     "P23": [(TOOL_AGENT, "<ONCE>def _empty_world_model(", OURS_OBJECTS_FN),

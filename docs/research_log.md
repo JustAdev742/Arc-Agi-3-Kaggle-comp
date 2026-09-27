@@ -1802,7 +1802,7 @@ versions far above the public notebooks. Milestone 2 counts only solutions publi
 a large gain is adopting a published Milestone 2 notebook (within its license) and adding our measured improvements
 (P23/P24, 7.75 GiB). An Oct 1 00:30 check-in searches for them; runs wait for the Oct 3 quota reset.
 
-## 2026-09-27 12:20 · Tufa Labs' newer public source (Sep 1) read; P27 (their board-image settings) built · BUILT
+## 2026-09-27 11:55 · Tufa Labs' newer public source (Sep 1) read; P27 (their board-image settings) built · BUILT
 Source:   jakobbrggen/taaf-kaggle-source (updated 2026-09-01, branch experiment/avo-v2), diffed against the anim bundle
           (2026-08-07) our forks patch. New in it: (1) "Experiment 4": the animation() frame-retrieval tool is off by
           default ("across Experiments 3 and 4 it bought no score"; the model called it unprompted in 64% of calls but a
@@ -1827,7 +1827,7 @@ Arms:     exp-058 / exp-058r = exp-054 + P27 with MULTIMODAL_UPSCALE=8, MULTIMOD
 Rule (pre-registered): keep P27 if the exp-058 pair's mean z-sum is at least exp-054's pair (+12.45) AND its levels
           over the pair are at least exp-054's 95 (49 + 46).
 
-## 2026-09-27 12:50 · serving evidence from other teams; MTP-off stress tests and exp-059 built · PLAN (runs Oct 3)
+## 2026-09-27 12:05 · serving evidence from other teams; MTP-off stress tests and exp-059 built · PLAN (runs Oct 3)
 Evidence (read today, none of it ours; details in docs/research/public-code-sep27.md):
 - The forum's account of the top jump: Tufa went 4.71 (08-30) -> 11.04 -> 18.81 -> 27.29 (09-26); a participant: "a lot
   of the improvements simply came from squeezing more tokens out of the hardware and allocating them properly". Scott Le
@@ -1847,3 +1847,18 @@ Rule (pre-registered): against kvstress-7g75-b2k (MTP 3: 421 completions, 152.9 
           the one with more tokens/s sets exp-059's sequence count; if neither starts, retry once at 12 GiB. exp-059 is
           pushed only after a pass and is read against exp-054's pair (z-sum 12.45, 95 levels, requests per run 1,609 /
           1,627).
+
+## 2026-09-27 12:25 · P28: stable-prefix history (hysteresis trim) for prefix caching; exp-060 built · BUILT
+Why:      exp-054's server (runs/exp054-fix-kv775-obj/kernel-output/vllm-metrics-final.prom): 1,609 requests, 34.3M prompt
+          tokens (21.2k each; 79% above 20k), 2.46M generated, 0 prefix-cache queries (caching off); per request 2.0 s
+          prefill, 23.3 s decode, 96 s queued. The Duck runs at its budget (31,744 estimated tokens) and drops its oldest
+          history block on every call, so no two calls share a prefix past the system prompt; our 5 GiB prefix-caching
+          stress test (-19%) could only measure that overhead. Son Pham's best Flash-Next configuration trims 50% at a time
+          ("swap50") and reports caching 89% of prefill.
+P28:      a request over budget is trimmed to OURS_TRIM_FLOOR (0.6) of it, a history over 30 assistant messages to
+          OURS_TURN_FLOOR (18); between trims each prompt starts with the whole previous prompt. Test (exp-054's patches,
+          simulated calls at a 20k budget): calls whose prompt extends the previous one 0% -> 75%; at the turn cap
+          28% -> 93%; prompt size then ranges 12.6k-18.9k instead of a constant 18.9k.
+Arm:      exp-060 = exp-059 (MTP 0, 14 GiB, 16 sequences) + P28 + prefix caching, pushed only after the MTP-0 stress test
+          passes (else rebuilt on 7.75 GiB / MTP 3). Read first on its mechanism (vllm:prefix_cache_hits_total over
+          queries, requests per run against exp-059), then on score against exp-059.
