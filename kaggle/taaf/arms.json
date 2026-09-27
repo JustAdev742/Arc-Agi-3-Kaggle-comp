@@ -634,6 +634,58 @@
     "batched_tokens": 2048
    },
    "note": "exp-057r: an unchanged repeat of exp-057 under a new slug."
+  },
+  {
+   "exp": "exp058",
+   "slug": "arc3-taaf-kv775-obj-vis8",
+   "patches": [
+    "P1",
+    "P1B",
+    "P2",
+    "P7",
+    "P12",
+    "P13",
+    "P17",
+    "P22",
+    "P23",
+    "P24",
+    "P27"
+   ],
+   "knobs": {
+    "MULTIMODAL_UPSCALE": "8",
+    "MULTIMODAL_GRID_LINES": "1"
+   },
+   "serving": {
+    "kv_gib": 7.75,
+    "batched_tokens": 2048
+   },
+   "note": "exp-058: exp-054 + P27 (Tufa Labs' own control-run image settings from their 2026-09-01 bundle: board image at upscale 8 with 1-px grid lines instead of upscale 4; every image charged a flat 470 estimated tokens so the text history kept matches exp-054)."
+  },
+  {
+   "exp": "exp058r",
+   "slug": "arc3-taaf-kv775-obj-vis8-r2",
+   "patches": [
+    "P1",
+    "P1B",
+    "P2",
+    "P7",
+    "P12",
+    "P13",
+    "P17",
+    "P22",
+    "P23",
+    "P24",
+    "P27"
+   ],
+   "knobs": {
+    "MULTIMODAL_UPSCALE": "8",
+    "MULTIMODAL_GRID_LINES": "1"
+   },
+   "serving": {
+    "kv_gib": 7.75,
+    "batched_tokens": 2048
+   },
+   "note": "exp-058r: an unchanged repeat of exp-058 under a new slug."
   }
  ]
 }

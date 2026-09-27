@@ -1810,7 +1810,59 @@ P26_SHOW_NEW = (P16_OLD
                 + '                         "the top-left of an object\'s box): " + " | ".join(_recs) + ".")\n')
 
 
+# P27 (from Tufa Labs' newer source bundle jakobbrggen/taaf-kaggle-source, 2026-09-01, MIT): their own control run
+# (model-20260816-q38-anim-on, pinned by their kaggle-avo target) renders the board at upscale 8 with 1-px grid lines
+# (MULTIMODAL_UPSCALE=8, MULTIMODAL_GRID_LINES=1), where the public Flash-Next notebooks send upscale 4 without lines.
+# The line colour (128,128,128) sits between the two nearest ARC greys; each cell is painted (scale-1) px square so the
+# image stays cols*scale x rows*scale. The harness estimates an image at len(base64)/3 tokens (about 470 at upscale 4,
+# 1,240 at 8 with lines, measured on the 25 public first frames; the real cost is roughly 64-256), so the bigger image
+# would also push older text out of the 32k window. OURS_IMAGE_EST_TOKENS (default 470, the upscale-4 median) charges
+# every image a flat amount instead, so the arm keeps the control's text history and changes only the picture.
+VISION = "src/ARC3-Inference/inference/agent/vision_context.py"
+P27_VISION_OLD = """    scale = current_grid_image_upscale() if upscale is None else max(1, int(upscale))
+    image = Image.new("RGB", (cols, rows), ARC_COLOR_MAP[0])
+"""
+P27_VISION_NEW = """    scale = current_grid_image_upscale() if upscale is None else max(1, int(upscale))
+    if scale >= 4 and os.environ.get("MULTIMODAL_GRID_LINES", "").strip() == "1":  # ours P27: grid lines (Tufa)
+        image = Image.new("RGB", (cols * scale, rows * scale), (128, 128, 128))
+        pixels = image.load()
+        for row_idx, row in enumerate(frame.grid):
+            for col_idx in range(cols):
+                value = row[col_idx] if col_idx < len(row) else 0
+                color = ARC_COLOR_MAP.get(int(value), ARC_COLOR_MAP[0])
+                for dy in range(scale - 1):
+                    for dx in range(scale - 1):
+                        pixels[col_idx * scale + dx, row_idx * scale + dy] = color
+        buffer = io.BytesIO()
+        image.save(buffer, format="PNG")
+        return "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
+    image = Image.new("RGB", (cols, rows), ARC_COLOR_MAP[0])
+"""
+P27_EST_OLD = """def _estimate_tokens(value: Any) -> int:
+    try:
+"""
+P27_EST_NEW = """_OURS_IMAGE_EST_TOKENS = int(os.environ.get("OURS_IMAGE_EST_TOKENS", "") or 470)
+
+
+def _ours_flat_images(value: Any) -> Any:
+    # ours P27: charge every image a flat _OURS_IMAGE_EST_TOKENS instead of len(base64) / 3
+    if isinstance(value, dict):
+        if value.get("type") == "image_url" and isinstance(value.get("image_url"), dict):
+            return {"type": "image_url", "image_url": {"url": "x" * (3 * _OURS_IMAGE_EST_TOKENS)}}
+        return {k: _ours_flat_images(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_ours_flat_images(v) for v in value]
+    return value
+
+
+def _estimate_tokens(value: Any) -> int:
+    value = _ours_flat_images(value)
+    try:
+"""
+
+
 PATCHES.update({
+    "P27": [(VISION, P27_VISION_OLD, P27_VISION_NEW), (TOOL_AGENT, P27_EST_OLD, P27_EST_NEW)],
     "P22": [(SANDBOX, P22_OLD, P22_NEW)],
     "P23": [(TOOL_AGENT, "<ONCE>def _empty_world_model(", OURS_OBJECTS_FN),
             (TOOL_AGENT, "def _empty_world_model(", P23_FN + "def _empty_world_model("),

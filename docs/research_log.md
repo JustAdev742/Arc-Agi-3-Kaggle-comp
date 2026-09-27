@@ -1801,3 +1801,28 @@ authors, Milestone 1 winners, who published then) and Tong Hui Kang (the thui li
 versions far above the public notebooks. Milestone 2 counts only solutions published by Sep 30, so the strongest path to
 a large gain is adopting a published Milestone 2 notebook (within its license) and adding our measured improvements
 (P23/P24, 7.75 GiB). An Oct 1 00:30 check-in searches for them; runs wait for the Oct 3 quota reset.
+
+## 2026-09-27 12:20 · Tufa Labs' newer public source (Sep 1) read; P27 (their board-image settings) built · BUILT
+Source:   jakobbrggen/taaf-kaggle-source (updated 2026-09-01, branch experiment/avo-v2), diffed against the anim bundle
+          (2026-08-07) our forks patch. New in it: (1) "Experiment 4": the animation() frame-retrieval tool is off by
+          default ("across Experiments 3 and 4 it bought no score"; the model called it unprompted in 64% of calls but a
+          2.1% hit rate on the informative subset), the per-action animation summary is kept (+3.3% tokens, no harm) and
+          shown only when worth_inspecting (> 200 transient px or bbox > 25% of the board) or board_unchanged; the
+          proactive animation hint is removed. (2) "Experiment 5", AVO (after NVIDIA's AVO, 100 on the public set with a
+          frontier model): per-game memory on disk, a rotating inspect/plan/implement/evaluate directive, a text-only
+          stagnation supervisor (3 barren turns, 12 unrewarded turns, hard redirect after 3), an exploit directive after
+          60% of the game's budget; opt-in, no result published. (3) Their control run (model-20260816-q38-anim-on) is
+          Qwen3.8-27B FP8 with MULTIMODAL_UPSCALE 8 and 1-px grid lines; the public Flash-Next notebooks (and ours) send
+          upscale 4 without lines. Also read: scottlegrand/taaf-flashnext-sheetu12b-0922 (six agent fixes; its notes put
+          that fork at 3.20-3.71 on the hidden LB: the animation frames in the sandbox moved it, a text narration of them
+          did not, 2.57); U4AR/qwen38-arc3-rl (LoRA RL on 5 public games: no measured gain, 27B-only adapters): skip.
+Measured: the harness estimates an image at len(base64)/3 tokens: median 466 at upscale 4, 950 at 8, 1,244 at 8 with
+          lines, over the 25 public first frames (the real cost is roughly 64-256 vision tokens), so a bigger image alone
+          would push older text out of the 32k window. Rendering 8x with lines: 23 ms per frame.
+P27:      grid lines in vision_context (Tufa's algorithm, MIT) when MULTIMODAL_GRID_LINES=1 and upscale >= 4, and a
+          flat 470-token estimate per image (OURS_IMAGE_EST_TOKENS) so the text history kept is exp-054's. Tests: the
+          lined 512x512 render, no lines without the flag or below 4x, equal estimates for different image sizes.
+Arms:     exp-058 / exp-058r = exp-054 + P27 with MULTIMODAL_UPSCALE=8, MULTIMODAL_GRID_LINES=1 (7.75 GiB), built for the
+          Oct 3 quota week.
+Rule (pre-registered): keep P27 if the exp-058 pair's mean z-sum is at least exp-054's pair (+12.45) AND its levels
+          over the pair are at least exp-054's 95 (49 + 46).

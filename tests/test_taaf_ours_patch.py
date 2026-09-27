@@ -809,3 +809,43 @@ def test_p26_scaled_shape_matches(h):
     board = _board({**_place(small, 1, 1, 9), **_place(big, 6, 6, 9)})
     assert h.ta._ours_base_shape(frozenset((r + 6, c + 6) for r, c in big))[1] == 2
     assert h.ta._ours_scaled_matches(board) == ["b (1,1), b (6,6) at 2x"]
+
+
+def _png_pixels(url: str):
+    import base64
+    import io
+
+    from PIL import Image
+
+    image = Image.open(io.BytesIO(base64.b64decode(url.split(",", 1)[1]))).convert("RGB")
+    return image.size, image.load()
+
+
+def test_p27_grid_lines_only_when_asked(h, monkeypatch):
+    vc = sys.modules["inference.agent.vision_context"]
+    grid = [[9 if (r + c) % 2 else 8 for c in range(64)] for r in range(64)]
+    frame = types.SimpleNamespace(grid=grid)
+    monkeypatch.setenv("MULTIMODAL_GRID_LINES", "1")
+    size, px = _png_pixels(vc.frame_to_png_data_url(frame, upscale=8))
+    assert size == (512, 512)
+    assert px[0, 0] == vc.ARC_COLOR_MAP[8] and px[6, 6] == vc.ARC_COLOR_MAP[8]
+    assert px[7, 0] == (128, 128, 128) and px[0, 7] == (128, 128, 128)  # the line closes each cell
+    assert px[8, 0] == vc.ARC_COLOR_MAP[9]  # the next cell, (row 0, col 1)
+    size, px = _png_pixels(vc.frame_to_png_data_url(frame, upscale=2))
+    assert size == (128, 128) and px[1, 1] == vc.ARC_COLOR_MAP[8]  # too small for lines: plain resize
+    monkeypatch.delenv("MULTIMODAL_GRID_LINES")
+    size, px = _png_pixels(vc.frame_to_png_data_url(frame, upscale=8))
+    assert size == (512, 512) and px[7, 0] == vc.ARC_COLOR_MAP[8]  # control: no lines
+
+
+def test_p27_images_are_charged_a_flat_estimate(h):
+    def payload(url):
+        return {"messages": [{"role": "user", "content": [{"type": "text", "text": "hello"},
+                                                          {"type": "image_url", "image_url": {"url": url}}]}]}
+
+    small, big = payload("data:image/png;base64," + "A" * 900), payload("data:image/png;base64," + "B" * 9000)
+    assert h.ta._estimate_tokens(small) == h.ta._estimate_tokens(big)
+    no_image = {"messages": [{"role": "user", "content": [{"type": "text", "text": "hello"}]}]}
+    extra = h.ta._estimate_tokens(small) - h.ta._estimate_tokens(no_image)
+    assert h.ta._OURS_IMAGE_EST_TOKENS == 470 and 470 <= extra <= 490
+    assert small["messages"][0]["content"][1]["image_url"]["url"].endswith("A" * 900)  # the payload is not modified
