@@ -146,13 +146,18 @@ public 25 (scripts/arm_table.py), then the validation score. If the top two are 
 noise, the second slot goes to the best configuration that differs from it (diversification against the private half).
 If fewer than two configurations reach 3 draws, the unmodified base fills the second slot.
 
-### Week of 2026-10-03 (next quota; written 2026-09-26 13:40)
-- Leading candidate: exp-054 (fixes + P23/P24 on 7.75 GiB KV; pair 12.87 / 10.70). LB draws: Sep 27 exp-054, then
-  alternate exp-054 with the next best configuration so each reaches 3 draws (final-selection rule above).
-- GPU: exp-055 pair (exp-054 + P16, level record) and exp-056 pair (+ P14 + P16, level-start comparison), from the
-  level-transition study's recommendation (b); judged against exp-054's pair on z-sum, levels 2+ and hard level 1.
-- Held: about 4 GPU-h of this week for a top team's Milestone 2 notebook (entries close Sep 30).
-- Measured and dropped this week: P21 gate (hard level 1s starved), P25 (report inside action() results).
+### Week of 2026-10-03 (next quota; rewritten 2026-09-27 12:15 after reading other teams' code)
+Other teams' evidence (docs/research/public-code-sep27.md) says tokens per hour and their allocation, not harness text,
+move the hidden LB. The queue, in order:
+1. Stress tests scottmahony/arc3-kv-stress-mtp0-14g-s16 and -s28 (MTP off, its ~7.5 GiB moved to a 14 GiB KV cache;
+   about 30 min each). Rule pre-registered in the research log (2026-09-27 12:05): >= 8% more generated tokens/s than
+   the MTP-3 7.75 GiB test (152.9).
+2. If one passes: exp-059 (exp-054 on that profile) and exp-060 (+ 16 lanes, prefix caching, P28 stable-prefix trim).
+   exp-060 is read first on its prefix-cache hit rate and requests per run.
+3. exp-057r (P26 pair, rule of 2026-09-26 23:00) and the exp-058 pair (P27, Tufa's 8x grid-lined image).
+4. A Milestone 2 notebook if one is published by Sep 30 (Lord Han Solo said he would share if top 3 among sharers;
+   Tufa, NVARC3 and Tong Hui Kang said they would not).
+- LB draws: Sep 28 and Sep 29 are exp-054 draws 2 and 3 (pre-registered); from Sep 30 the best new configuration.
 
 **Leaderboard, Sep 26:** Tufa Labs 27.29, Daniel Franzen 21.01, Lord Han Solo 20.80, Tong Hui Kang 20.53; ours 4.70. The likeliest large gain is a Milestone 2 notebook published by Sep 30 (checked Oct 1 00:30).
 
