@@ -1787,3 +1787,9 @@ kvstress-7g75-mtp2: 427 completions, 0 errors, 152.7 generated tokens/s, 6.61 ru
 MTP stays at 3. With KV (6.5 -> 7.75 GiB, +3% tokens/s) and MTP both tried, the serving profile looks tapped out on this
 card; more calls per game now have to come from the harness (fewer, shorter or better-spent calls), not the server.
 GPU this week: about 27 h of 30 used.
+
+## 2026-09-27 10:10 · exp-057 (exp-054 + P26) pushed now instead of Oct 2 · PLAN CHANGE
+The ~3 GPU-h left this week were held for a Milestone 2 notebook. None has appeared, and testing one on Oct 3 instead of
+Oct 1 costs little against the Nov 2 deadline, while exp-057 now gives P26's first result days earlier. exp-057
+(scottmahony/arc3-taaf-kv775-obj-win) pushed 10:10; exp-057r follows at the Oct 3 quota reset; P26's keep rule
+(2026-09-26 23:00) is applied to the pair.
