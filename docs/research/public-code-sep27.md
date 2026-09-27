@@ -28,6 +28,8 @@ credited in `scripts/taaf_ours_patch.py`. Numbers below are other teams' unless 
 - Experiment 5, "AVO" (after NVIDIA's AVO): durable per-game memory, a rotating inspect/plan/implement/evaluate directive,
   a text-only stagnation supervisor, an exploit directive after 60% of the game's budget. Opt-in; no result published.
   Our P19 (supervisor) already tested the supervisor idea and cost throughput through its extra calls; AVO's is text only.
+  Deployed to Kaggle on Sep 1, between Tufa's LB draws of 4.71 and 11.04. Its memory file is shared by every game that
+  runs at once (all runtime states sit in one directory). -> **P29 / exp-061**, with the memory made per game.
 - Their control run (model-20260816-q38-anim-on, Qwen3.8-27B FP8) renders the board at upscale 8 with 1-px grid lines;
   the public Flash-Next notebooks use upscale 4 without lines. -> **P27 / exp-058**.
 
