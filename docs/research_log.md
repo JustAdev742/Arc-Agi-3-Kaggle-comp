@@ -1859,6 +1859,7 @@ P28:      a request over budget is trimmed to OURS_TRIM_FLOOR (0.6) of it, a his
           OURS_TURN_FLOOR (18); between trims each prompt starts with the whole previous prompt. Test (exp-054's patches,
           simulated calls at a 20k budget): calls whose prompt extends the previous one 0% -> 75%; at the turn cap
           28% -> 93%; prompt size then ranges 12.6k-18.9k instead of a constant 18.9k.
-Arm:      exp-060 = exp-059 (MTP 0, 14 GiB, 16 sequences) + P28 + prefix caching, pushed only after the MTP-0 stress test
+Arm:      exp-060 = exp-059 (MTP 0, 14 GiB, 16 sequences) + 16 lanes (games at once: no queue, so a game's cached prompt
+          survives between its calls; public 25 in 2 waves of 3,960 s) + P28 + prefix caching, pushed only after the MTP-0 stress test
           passes (else rebuilt on 7.75 GiB / MTP 3). Read first on its mechanism (vllm:prefix_cache_hits_total over
           queries, requests per run against exp-059), then on score against exp-059.

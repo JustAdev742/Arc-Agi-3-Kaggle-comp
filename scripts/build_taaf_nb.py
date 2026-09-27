@@ -44,6 +44,7 @@ KNOBS_ANCHOR = '_KNOBS = {"LOCAL_ANALYZER_SEED": "20260825", "LOCAL_ANALYZER_YIE
 YIELD_ASSERT = ('assert float(_tool_agent._LOCAL_ANALYZER_YIELD_SECONDS) == float("180"), '
                 '_tool_agent._LOCAL_ANALYZER_YIELD_SECONDS')
 GRAFT_PRINT = 'print(f"THUI_ANIMFAST_GRAFT ok'
+LANES_ANCHOR = "bm.solver.concurrency = 28\n"
 WAVEFIT = """
 # ours (--wavefit): in a real rerun, size the per-game cap to the waves the hidden list needs (110 games / 28 = 4
 # waves), so the last wave ends before soft_end instead of being cancelled; never above 1.25x the stock 7,920 s.
@@ -76,6 +77,9 @@ def main() -> None:
     ap.add_argument("--mtp-tokens", type=int, default=None, choices=range(0, 5),
                     help="TAAF_VLLM_MTP_TOKENS (base 3; 0 = no speculative decoding, the MTP head is not loaded)")
     ap.add_argument("--wavefit", action="store_true")
+    ap.add_argument("--lanes", type=int, default=None,
+                    help="games played at once (base 28); the public-25 run's per-game cap becomes 7,920 s / its waves so "
+                         "the run keeps its length (a real rerun sizes the cap with --wavefit)")
     ap.add_argument("--knob", action="append", default=[], metavar="KEY=VALUE",
                     help="analyzer env override applied with the thui knobs (e.g. LOCAL_ANALYZER_MAX_OUTPUT=6144)")
     ap.add_argument("--note", default="")
@@ -144,6 +148,12 @@ ANIM_BUNDLE_DIR = _OURS_BUNDLE""")
             s = s.replace(GRAFT_PRINT, "for _k, _v in _KNOBS.items():\n    assert os.environ[_k] == _v, (_k, os.environ.get(_k))\n"
                           + GRAFT_PRINT)
             changes.append(f"analyzer knobs {knobs}")
+        if args.lanes and LANES_ANCHOR in s:
+            s = s.replace(LANES_ANCHOR, f"""bm.solver.concurrency = {args.lanes}  # ours (--lanes)
+if not TRUE_SUBMISSION:  # the public 25 in waves of {args.lanes}: same total length as 25 games at once for 7,920 s
+    bm.solver.max_runtime_s_per_game = 7920.0 / -(-25 // {args.lanes})
+""")
+            changes.append(f"{args.lanes} lanes (games at once)")
         if args.wavefit and SOFT_END_ANCHOR in s:
             s = s.replace(SOFT_END_ANCHOR, SOFT_END_ANCHOR + WAVEFIT)
             changes.append("wave-fit per-game cap in real reruns")
@@ -155,7 +165,7 @@ ANIM_BUNDLE_DIR = _OURS_BUNDLE""")
                                     f"_OURS_PATCH_SOURCE = {PATCH_SRC.read_text()!r}\n"))
     expected = (bool(args.kv_dtype) + bool(args.max_num_seqs) + bool(args.cudagraph) + bool(args.patches)
                 + bool(args.wavefit) + bool(args.knob) + bool(args.kv_gib) + bool(args.prefix_caching)
-                + bool(args.batched_tokens) + (args.mtp_tokens is not None))
+                + bool(args.batched_tokens) + (args.mtp_tokens is not None) + bool(args.lanes))
     if len(changes) != expected:
         raise SystemExit(f"not every requested change found its anchor: {changes}")
     cells[0]["source"] = ["".join(cells[0]["source"]) + "\n\n**Changes in this arm:** "

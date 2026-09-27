@@ -754,9 +754,10 @@
     "batched_tokens": 2048,
     "max_num_seqs": 16,
     "mtp_tokens": 0,
-    "prefix_caching": true
+    "prefix_caching": true,
+    "lanes": 16
    },
-   "note": "exp-060: exp-059 (MTP 0, 14 GiB KV, 16 sequences) + P28 (history trimmed to 60% of the budget when over it, so calls grow append-only) + vLLM prefix caching, so each call re-reads only its new tail. In exp-054, 79% of 1,609 requests were above 20k prompt tokens with no cache. Push only after the MTP-0 stress test passes; otherwise rebuild on the 7.75 GiB MTP-3 profile."
+   "note": "exp-060: the throughput package. MTP 0 (the MTP head's ~7.5 GiB goes to a 14 GiB KV cache), 16 sequences and 16 lanes (games at once, so no request queues and each game's cached prompt survives between its calls; the public 25 run in 2 waves of 3,960 s, a rerun in wave-fit waves), vLLM prefix caching, and P28 (history trimmed to 60% of the budget when over it, so calls grow append-only). In exp-054, 79% of 1,609 requests re-read over 20k prompt tokens with no cache. Push only after the MTP-0 stress test passes."
   }
  ]
 }

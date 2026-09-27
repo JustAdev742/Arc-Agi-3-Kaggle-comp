@@ -330,6 +330,14 @@ def test_arm_registry_names_only_known_patches_and_builds(tmp_path):
     for line in ('"TAAF_VLLM_MTP_TOKENS": "0"', '"TAAF_VLLM_MAX_NUM_SEQS": "16"',
                  f'"TAAF_VLLM_KV_CACHE_MEMORY_BYTES": "{14 * 1024**3}"', '"TAAF_VLLM_MAX_NUM_BATCHED_TOKENS": "2048"'):
         assert line in text59, line
+    # exp-060: 16 lanes; the public 25 play in 2 waves of 3,960 s, a rerun sizes its cap by wave-fit on 16 at once
+    subprocess.run([sys.executable, str(ROOT / "scripts" / "build_arms.py"), "--out", str(out), "--arms", "exp060"],
+                   check=True, capture_output=True, text=True)
+    text60 = "\n".join("".join(c["source"]) for c in
+                       json.loads((out / "exp060" / "arc3-taaf-mtp0-kv14-pc-obj.ipynb").read_text())["cells"])
+    assert "bm.solver.concurrency = 16  # ours (--lanes)" in text60 and "bm.solver.concurrency = 28" not in text60
+    assert "7920.0 / -(-25 // 16)" in text60 and '"TAAF_VLLM_ENABLE_PREFIX_CACHING": "1"' in text60
+    assert 7920.0 / -(-25 // 16) == 3960.0
 
 
 def test_p20_no_impact_learner_and_wrappers():
