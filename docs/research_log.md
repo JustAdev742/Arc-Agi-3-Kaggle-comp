@@ -1759,3 +1759,7 @@ Arms:     exp-057 / exp-057r = exp-054 + P26 (7.75 GiB), built, queued for the O
           last ~4 GPU-h if no Milestone 2 notebook needs them by Sep 30).
 Rule (pre-registered): keep P26 if the exp-057 pair's mean z-sum is not below exp-054's pair (+12.45) by more than 2 AND
           its levels 2+ solved (total over the pair) exceed exp-054's pair's 47 (24 + 23).
+
+## 2026-09-27 00:05 · competition submission 56592321 = exp-054 · SUBMITTED (pending)
+Pre-registered 2026-09-26 13:30: scottmahony/arc3-taaf-fix-kv775-obj v1 (fixes + P23 + P24 on 7.75 GiB KV; public-25
+12.87 / 10.70). Our LB draws so far: base 2.72, exp-042 3.81, exp-048 4.23.
