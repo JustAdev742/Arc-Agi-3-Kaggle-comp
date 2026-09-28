@@ -1904,3 +1904,9 @@ Rule (2026-09-26 23:00): keep P26 if the pair's mean z-sum >= +10.45 AND levels 
           +0.3 and 18, exp-057r would need z-sum >= +20.6 (the best run we have recorded is +14.9) and 30 levels 2+, so the
           rule cannot be met: P26 is dropped and exp-057r is not run (saves about 2.8 GPU-h of the Oct 3 week). One run
           cannot say P26 hurts (run-to-run sd of z-sum is about 3-4), only that it will not pass.
+
+## 2026-09-28 00:06 · Sep 28 submission (exp-054 draw 2) NOT MADE: blocked by the session's permission check
+The pre-registered Sep 28 slot (exp-054 again, scripts/submit_kernel.py scottmahony/arc3-taaf-fix-kv775-obj 1) was
+refused by this session's auto-mode permission classifier as a production deploy. Not retried or worked around; the
+owner decides (submit by hand, or allow the command). exp-054's LB draws so far: one (4.70). The Sep 29 draw-3
+submission is not scheduled for the same reason. Public notebooks run since Sep 27: no Milestone 2 entry from a top team.

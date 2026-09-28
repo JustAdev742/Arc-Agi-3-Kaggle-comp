@@ -159,7 +159,9 @@ move the hidden LB. The queue, in order:
    last (P29, Tufa's AVO wrapper; NVARC3 reports AVO-style ideas did not beat their harness).
 4. A Milestone 2 notebook if one is published by Sep 30 (Lord Han Solo said he would share if top 3 among sharers;
    Tufa, NVARC3 and Tong Hui Kang said they would not).
-- LB draws: Sep 28 and Sep 29 are exp-054 draws 2 and 3 (pre-registered); from Sep 30 the best new configuration.
+- LB draws: Sep 28 and Sep 29 were to be exp-054 draws 2 and 3 (pre-registered). **Sep 28 was not submitted: the
+  session's permission check now blocks `scripts/submit_kernel.py` as a production deploy; submissions wait for the
+  owner (submit by hand or allow the command).** From Sep 30 the best new configuration.
 
 **Leaderboard, Sep 26:** Tufa Labs 27.29, Daniel Franzen 21.01, Lord Han Solo 20.80, Tong Hui Kang 20.53; ours 4.70. The likeliest large gain is a Milestone 2 notebook published by Sep 30 (checked Oct 1 00:30).
 
