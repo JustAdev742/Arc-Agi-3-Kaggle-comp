@@ -1944,3 +1944,9 @@ Strategy reviews (docs/research/strategy-sep29/, independent, same conclusion): 
 calls per game (MTP off + KV, caching with stable prefixes, the checkpoint/engine) plus compaction instead of truncation.
 Ceiling estimates: 8-15 LB without paid compute (both), 12-20 with ~$2-4k of rented training (40% chance of no gain);
 36-45 not reachable on the evidence; 60-100 not available to an open model on this hardware.
+
+## 2026-09-29 06:23 · prefix caching works on this hybrid model in Keith's runtime (Mamba "align" mode) · CHECKED (old log)
+runs/kvstress-5g-pc/kernel-output/vllm-openai-server.log: "Mamba cache mode is set to 'align' for
+Qwen4ExpForConditionalGeneration by default when prefix caching is enabled"; the synthetic load (random prompts sharing
+only the system prompt) reached a 5-8% hit rate, so the recurrent layers do not block caching and exp-060's mechanism can
+work. pull_taaf_run.py now records prefix_hit_rate (hits / queried tokens) and arm_table.py shows it ("pc").

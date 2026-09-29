@@ -46,7 +46,10 @@ def server_metrics(dl: Path) -> dict:
                "e2e_s_per_request": round(vals.get("vllm:e2e_request_latency_seconds_sum", 0) / n, 1) if n else None,
                "decode_s_per_request": round(vals.get("vllm:request_decode_time_seconds_sum", 0) / n, 1) if n else None,
                "generation_tokens_total": int(vals.get("vllm:generation_tokens_total", 0)),
-               "preemptions": int(vals.get("vllm:num_preemptions_total", 0))}
+               "preemptions": int(vals.get("vllm:num_preemptions_total", 0)),
+               # prefix-cache hits over queried tokens (0 queries when prefix caching is off)
+               "prefix_hit_rate": (round(vals["vllm:prefix_cache_hits_total"] / vals["vllm:prefix_cache_queries_total"], 3)
+                                   if vals.get("vllm:prefix_cache_queries_total") else None)}
     log = next(iter(sorted(dl.rglob("vllm-openai-server.log"))), None)
     if log is not None:
         running = [int(x) for x in re.findall(r"Running: (\d+) reqs", log.read_text(errors="replace"))]

@@ -60,13 +60,14 @@ def row(run: Path) -> str | None:
             f"{s.get('levels_completed', '?'):>3} "
             f"{sv.get('requests', '?'):>5} {sv.get('prompt_tokens_per_request', '?'):>6} "
             f"{sv.get('generated_tokens_per_request', '?'):>5} {sv.get('preemptions', '?'):>5} "
-            f"{sv.get('running_mean', '?'):>5} {b.get('acting_share', '?'):>6}  {rate_txt:28s} {gate_line(run)}")
+            f"{sv.get('running_mean', '?'):>5} {sv.get('prefix_hit_rate') or '-':>5} {b.get('acting_share', '?'):>6}  "
+            f"{rate_txt:28s} {gate_line(run)}")
 
 
 def main() -> None:
     runs = [Path(a) for a in sys.argv[1:]] or sorted(p.parent for p in (ROOT / "runs").glob("exp0[3-9]*/summary.json"))
     print(f"{'run':24s} {'score':>6} {'val':>5} {'hardL1':>8} {'lv':>3} {'reqs':>5} {'prompt':>6} {'gen':>5} {'preem':>5} {'run':>5} "
-          f"{'acting':>6}  calls/min by level")
+          f"{'pc':>5} {'acting':>6}  calls/min by level")
     for run in runs:
         line = row(run)
         if line:
