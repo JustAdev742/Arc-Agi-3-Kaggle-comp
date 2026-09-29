@@ -152,7 +152,8 @@ per game. Queue, in order (about 18 of 30 GPU-h):
 1. MTP-0 stress tests arc3-kv-stress-mtp0-14g-s16 / -s28 (~1 h; rule 2026-09-27 12:05: >= 165.1 generated tokens/s).
 2. exp-062 (exp-054 on NVIDIA's NVFP4 checkpoint with backported runtime fixes; its first 30 min are the smoke test,
    checks in the research log 2026-09-29; if the FP8 MTP path fails, rebuild with MTP 0).
-3. exp-059 and exp-060 (MTP-0 profile; exp-060 adds 16 lanes, prefix caching and P28) if a stress test passed.
+3. exp-059 and exp-060 (MTP-0 profile; exp-060 adds 16 lanes, prefix caching and P28) if a stress test passed; then
+   exp-064 (exp-060 + P31 history digest: compaction instead of truncation), read against exp-060.
 4. SGLang stress notebooks once built (docs/research/sglang-serving-plan.md; needs the reasoning_content client patch).
 5. exp-058 once (P27 images), exp-061 last (P29 AVO).
 Pairs for whatever wins; a full 540-min, 110-game-shaped run of the leader in the week of Oct 17.
