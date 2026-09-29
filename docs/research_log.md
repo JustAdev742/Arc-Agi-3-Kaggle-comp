@@ -1997,3 +1997,15 @@ Scored rule (exp-063, pair): first the mechanism (past reasoning ~35% of prompt 
           exp-054's 1,609), then keep if the pair's mean z-sum is not more than 2 below exp-054's +12.45 and no game
           lost its server.
 Queue:    after the MTP-0 stress tests and exp-062 (docs/status.md, Oct 3).
+
+## 2026-09-29 22:40 · execution hygiene (strategy review item 3) measured on the exp-054 pair: ~1% of requests · NOT BUILT
+Why: the agent/model review ranked "execution hygiene" third (+0.5-1 LB), citing g50t's 'D' for 'DOWN' and 5% of
+          turns ending in a tool error.
+Measured (docs/research/levels2plus-exp054/toolerr.py, both exp-054 runs, 2,145 turns): 170 turns (7.9%) saw a tool
+          error, but almost all are the model's own code bugs (TypeError 30, NameError 27, KeyError 25, IndexError 24,
+          AttributeError 23, ValueError 9). The harness-fixable part is small: blocked imports 24 (difflib 13, sys 5,
+          time 3, pickle/hashlib/ast 1 each), None frames at a level's first step ~18, animation() with no animation 5,
+          and one unknown action name (g50t's 'D', once). Total ~48 of ~3,200 requests (~1.5%), each costing one
+          extra request, not a lost game.
+Decision: not worth a GPU pair or an arm; if a later arm touches the sandbox, allow difflib and give the valid action
+          names in the unknown-action error in the same change. The review's +0.5-1 estimate is too high.
