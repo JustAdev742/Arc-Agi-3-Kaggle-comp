@@ -1964,8 +1964,58 @@ P29_SOLVER_NEW = """        _ours_cls: Any = ToolAgent
             model=self.model,
 """
 
+# P30 (exp-063, docs/research/sglang-serving-plan.md): SGLang 0.5.20's request model for a history message has only
+# `reasoning_content`, so the `reasoning` the Duck stores on each assistant turn is dropped at request parsing, and the
+# Flash-Next chat template renders only `message.reasoning_content`: on SGLang every past turn would be sent with an
+# empty <think></think> (the exp-035 collapse, lesson 0022). When OURS_SERVING=sglang (set by scripts/sglang_serving.py
+# once an SGLang server is up) the request copy of the history also carries each turn's reasoning as
+# `reasoning_content`. The stored history is unchanged (one key), so the token estimate, trimming, P1 and P4 read what
+# they read before; otherwise (vLLM, or the launcher's vLLM fallback) the payload is untouched. Keith's vLLM
+# (0.1.dev20073+g8e685d198, entrypoints/chat_utils.py `_parse_chat_message_content`) reads only `reasoning` and would
+# ignore the extra key anyway.
+P30_FN = '''def _ours_sglang_serving() -> bool:
+    return os.environ.get("OURS_SERVING", "").strip().lower() == "sglang"
+
+
+def _ours_with_reasoning_content(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """ours P30: the request copy of the history, each assistant turn's reasoning also under `reasoning_content`."""
+    out: list[dict[str, Any]] = []
+    for message in messages:
+        if str(message.get("role", "")).strip() == "assistant" and not message.get("reasoning_content"):
+            reasoning = message.get("reasoning")
+            if isinstance(reasoning, str) and reasoning:
+                message = {**message, "reasoning_content": reasoning}
+        out.append(message)
+    return out
+
+
+'''
+P30_OLD = """            seed=_LOCAL_ANALYZER_SEED,
+        )
+        def post_chat(request_payload: dict[str, Any]) -> requests.Response:
+"""
+P30_NEW = """            seed=_LOCAL_ANALYZER_SEED,
+        )
+        if _ours_sglang_serving():  # ours P30: SGLang renders past reasoning only from `reasoning_content`
+            payload["messages"] = _ours_with_reasoning_content(payload["messages"])
+        def post_chat(request_payload: dict[str, Any]) -> requests.Response:
+"""
+# P30b (exp-063): SGLang rejects an over-length prompt with "The input (N tokens) is longer than the model's context
+# length (M tokens)." (0.5.20 tokenizer_manager._validate_one_request); the Duck's matcher knew only vLLM's wording, so
+# the turn failed instead of trimming history and retrying. A match only widens when the harness trims and retries.
+P30B_OLD = """        "maximum context length" in message
+        or "reduce the length of the input prompt" in message
+"""
+P30B_NEW = """        "maximum context length" in message
+        or "longer than the model's context length" in message  # ours P30b: SGLang's wording
+        or "reduce the length of the input prompt" in message
+"""
+
 
 PATCHES.update({
+    "P30": [(TOOL_AGENT, "def _empty_world_model(", P30_FN + "def _empty_world_model("),
+            (TOOL_AGENT, P30_OLD, P30_NEW)],
+    "P30B": [(TOOL_AGENT, P30B_OLD, P30B_NEW)],
     "P29": [*((AVO_DIR + name, "<NEW>", text) for name, text in P29_FILES.items()),
             (AVO_DIR + "agent.py", P29_MEMORY_OLD, P29_MEMORY_NEW),
             (SOLVER, P29_SOLVER_OLD, P29_SOLVER_NEW)],

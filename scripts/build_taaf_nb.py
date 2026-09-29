@@ -19,6 +19,11 @@ animation-aware TAAF source; Tufa Labs' Duck harness, MIT). Options:
   instead of RadixArk's. The notebook inlines scripts/nvidia_serving_patch.py, copies Keith's mounted serving bundle to
   /tmp, patches the copy's serving_setup.py (model identity, ``--quantization modelopt_mixed``, three vLLM backports on
   the extracted runtime) and points BUNDLE_DIR at it, so setup, watchdog and teardown all use the patched copy.
+- ``--engine sglang --sglang-running R`` (needs ``--patches`` with P30): serve with SGLang 0.5.20 instead of Keith's
+  vLLM. The notebook inlines scripts/sglang_serving.py and swaps BUNDLE_DIR for a copy of his bundle whose setup command
+  is our launcher (hash-checked offline install from two more attached wheel datasets, rung ladder, his vLLM setup as
+  the fallback) and whose teardown runs ours before his; every other cell is unchanged. ``--sglang-hicache-gb`` and
+  ``--sglang-mamba-cache`` set the r16-hic32 profile's host cache and mamba cache (default 6R).
 
 Writes ``<out>/<slug>.ipynb`` and ``<out>/kernel-metadata.json`` (private, RTX PRO 6000); push with scripts/push_eval.py.
 """
@@ -32,10 +37,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import nvidia_serving_patch as nv  # noqa: E402
+import sglang_serving as sgl  # noqa: E402
 
 BASE = ROOT / "kaggle" / "taaf" / "base-thui-animfast.ipynb"
 PATCH_SRC = ROOT / "scripts" / "taaf_ours_patch.py"
 NV_PATCH_SRC = ROOT / "scripts" / "nvidia_serving_patch.py"
+SGL_SRC = ROOT / "scripts" / "sglang_serving.py"
 BASE_META = {
     "language": "python", "kernel_type": "notebook", "is_private": True, "enable_gpu": True, "enable_tpu": False,
     "enable_internet": False, "keywords": [], "kernel_sources": [],
@@ -114,10 +121,22 @@ def main() -> None:
                     help="analyzer env override applied with the thui knobs (e.g. LOCAL_ANALYZER_MAX_OUTPUT=6144)")
     ap.add_argument("--model", choices=["radixark", "nvidia"], default="radixark",
                     help="checkpoint to serve (base: RadixArk's, Keith's pin); nvidia patches his serving setup")
+    ap.add_argument("--engine", choices=["vllm", "sglang"], default="vllm",
+                    help="model server (base: Keith's vLLM); sglang runs scripts/sglang_serving.py with his vLLM as fallback")
+    ap.add_argument("--sglang-running", type=int, default=None, help="SGLang --max-running-requests R (default 12)")
+    ap.add_argument("--sglang-hicache-gb", type=int, default=0, help="SGLang hierarchical host cache in GB (default off)")
+    ap.add_argument("--sglang-mamba-cache", type=int, default=None, help="SGLang --max-mamba-cache-size (default 6R)")
     ap.add_argument("--note", default="")
     args = ap.parse_args()
     if args.lanes and not args.wavefit:
         raise SystemExit("--lanes needs --wavefit: a rerun would otherwise keep 7,920 s per game over more waves")
+    if args.engine == "sglang" and "P30" not in args.patches:
+        raise SystemExit("--engine sglang needs P30: without it SGLang drops every past turn's reasoning (plan section 2)")
+    if args.engine == "sglang" and args.model != "radixark":
+        raise SystemExit("--engine sglang serves RadixArk's checkpoint only")
+    sgl_profile = sgl.resolve_profile({k: v for k, v in (("running", args.sglang_running),
+                                                         ("hicache_gb", args.sglang_hicache_gb),
+                                                         ("mamba_cache", args.sglang_mamba_cache)) if v})
 
     nb = json.loads(BASE.read_text())
     cells = nb["cells"]
@@ -193,6 +212,13 @@ if not TRUE_SUBMISSION:  # the public 25 in waves of {args.lanes}: same total le
             changes.append(f"model {nv.NVIDIA_HF_REPO} (Kaggle model {nv.NVIDIA_MODEL_SOURCE}) served through "
                            "scripts/nvidia_serving_patch.py: --quantization modelopt_mixed and vLLM backports of "
                            "d4d703c (#54882, FP8 PLE) and 60ad959 (#55513, block-FP8 MTP experts) on Keith's runtime")
+        if args.engine == "sglang" and BUNDLE_ANCHOR in s:
+            if s.count(BUNDLE_ANCHOR) != 1:
+                raise SystemExit("bundle anchor found more than once in the base notebook")
+            s = s.replace(BUNDLE_ANCHOR, BUNDLE_ANCHOR + sgl.notebook_swap(sgl_profile))
+            changes.append(f"SGLang 0.5.20 server through scripts/sglang_serving.py (R={sgl_profile['running']}, "
+                           f"mamba cache {sgl_profile['mamba_cache']}, host cache {sgl_profile['hicache_gb']} GB, FP8 KV, "
+                           "MTP 3/4, rung ladder, Keith's vLLM as the fallback)")
         if args.model == "nvidia" and cell["cell_type"] == "markdown":
             for old, new in NV_MARKDOWN:
                 s = s.replace(old, new)
@@ -206,6 +232,9 @@ if not TRUE_SUBMISSION:  # the public 25 in waves of {args.lanes}: same total le
         idx = next(i for i, c in enumerate(cells) if BUNDLE_ANCHOR in "".join(c["source"]))
         cells.insert(idx, code_cell("# ours: source of scripts/nvidia_serving_patch.py, applied in the next cell\n"
                                     f"_NV_SERVING_PATCH_SOURCE = {NV_PATCH_SRC.read_text()!r}\n"))
+    if args.engine == "sglang":
+        idx = next(i for i, c in enumerate(cells) if BUNDLE_ANCHOR in "".join(c["source"]))
+        cells.insert(idx, code_cell(sgl.SOURCE_CELL_HEADER + f"_SGLANG_SERVING_SOURCE = {SGL_SRC.read_text()!r}\n"))
     if args.patches:
         idx = next(i for i, c in enumerate(cells) if ANIM_ANCHOR in "".join(c["source"]))
         cells.insert(idx, code_cell("# ours: source of scripts/taaf_ours_patch.py, applied in the next cell\n"
@@ -213,7 +242,7 @@ if not TRUE_SUBMISSION:  # the public 25 in waves of {args.lanes}: same total le
     expected = (bool(args.kv_dtype) + bool(args.max_num_seqs) + bool(args.cudagraph) + bool(args.patches)
                 + bool(args.wavefit) + bool(args.knob) + bool(args.kv_gib) + bool(args.prefix_caching)
                 + bool(args.batched_tokens) + (args.mtp_tokens is not None) + bool(args.lanes)
-                + (args.model == "nvidia"))
+                + (args.model == "nvidia") + (args.engine == "sglang"))
     if len(changes) != expected:
         raise SystemExit(f"not every requested change found its anchor: {changes}")
     cells[0]["source"] = ["".join(cells[0]["source"]) + "\n\n**Changes in this arm:** "
@@ -228,6 +257,8 @@ if not TRUE_SUBMISSION:  # the public 25 in waves of {args.lanes}: same total le
             **BASE_META}
     if args.model == "nvidia":
         meta["model_sources"] = [nv.NVIDIA_MODEL_SOURCE]
+    if args.engine == "sglang":
+        meta["dataset_sources"] = [*meta["dataset_sources"], *sgl.EXTRA_DATASET_SOURCES]
     (out / "kernel-metadata.json").write_text(json.dumps(meta, indent=1))
     print(f"built {out / (args.slug + '.ipynb')}: {changes or 'control'}")
 

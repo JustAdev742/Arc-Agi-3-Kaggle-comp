@@ -805,6 +805,31 @@
     "model": "nvidia"
    },
    "note": "exp-062: exp-054's patches and serving profile (7.75 GiB KV, 2,048 batched tokens, MTP 3) with NVIDIA's checkpoint (nvidia/Qwen3.8-Flash-Next-NVFP4, Kaggle model xiaoz259/qwen3-8-flash-next-nvfp4/PyTorch/nvidia-nvfp4/1) instead of RadixArk's: same main-model tensors and FP8 PLE table, different expert calibration (NVIDIA: MSE weight scales, cnn_dailymail + Nemotron post-training chats; RadixArk's card notes long agentic generations run longer than BF16) and an FP8 MTP head (~2.3 GiB less VRAM). Served through scripts/nvidia_serving_patch.py (--quantization modelopt_mixed plus backports of vLLM d4d703c and 60ad959 on Keith's runtime). Never run on a GPU: push only after a smoke test shows the OURS_NVIDIA_PLE_FP8 and OURS_NVIDIA_BLOCK_FP8_MOE log lines, a healthy MTP acceptance rate and coherent replies (2026-09-29 status)."
+  },
+  {
+   "exp": "exp063",
+   "slug": "arc3-taaf-sgl-r12-obj",
+   "patches": [
+    "P1",
+    "P1B",
+    "P2",
+    "P7",
+    "P12",
+    "P13",
+    "P17",
+    "P22",
+    "P23",
+    "P24",
+    "P30",
+    "P30B"
+   ],
+   "serving": {
+    "kv_gib": 7.75,
+    "batched_tokens": 2048,
+    "engine": "sglang",
+    "sglang_running": 12
+   },
+   "note": "exp-063: exp-054's patches + P30 (past reasoning also sent as reasoning_content when OURS_SERVING=sglang; SGLang 0.5.20 drops the Duck's `reasoning` key) + P30b (SGLang's over-length wording trims and retries) on SGLang 0.5.20 served by scripts/sglang_serving.py: R=12, FP8 KV, MTP 3/4, mamba cache 72, radix cache on, 32k context, rung ladder; Keith's vLLM with exp-054's profile (7.75 GiB KV, 2,048 batched tokens) is the fallback. Runs ONLY after an SGLang stress test passes its go rule (docs/research/sglang-serving-plan.md section 6; sgl_stress.json `go`): stress notebooks arc3-sgl-stress-r12 and arc3-sgl-stress-r16-hic32 (scripts/build_kv_stress_nb.py --engine sglang). If r16-hic32 is the profile that passes (or both pass and it has more tokens/s), change serving to sglang_running 16, sglang_mamba_cache 96, sglang_hicache_gb 32 before building. Never run on a GPU."
   }
  ]
 }

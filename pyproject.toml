@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "ruff", "pypdf"]
+dev = ["pytest", "ruff", "pypdf", "jinja2"]  # jinja2: the chat-template test of P30
 
 [tool.setuptools.packages.find]
 include = ["arc3", "arc3.*"]
