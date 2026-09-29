@@ -45,3 +45,6 @@ reference/
 data/human/
 !runs/public-harvest/
 !runs/public-harvest/*.json
+
+# agent git worktrees (Claude Code)
+.claude/worktrees/
