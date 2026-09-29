@@ -146,22 +146,18 @@ public 25 (scripts/arm_table.py), then the validation score. If the top two are 
 noise, the second slot goes to the best configuration that differs from it (diversification against the private half).
 If fewer than two configurations reach 3 draws, the unmodified base fills the second slot.
 
-### Week of 2026-10-03 (next quota; rewritten 2026-09-27 12:15 after reading other teams' code)
-Other teams' evidence (docs/research/public-code-sep27.md) says tokens per hour and their allocation, not harness text,
-move the hidden LB. The queue, in order:
-1. Stress tests scottmahony/arc3-kv-stress-mtp0-14g-s16 and -s28 (MTP off, its ~7.5 GiB moved to a 14 GiB KV cache;
-   about 30 min each). Rule pre-registered in the research log (2026-09-27 12:05): >= 8% more generated tokens/s than
-   the MTP-3 7.75 GiB test (152.9).
-2. If one passes: exp-059 (exp-054 on that profile) and exp-060 (+ 16 lanes, prefix caching, P28 stable-prefix trim).
-   exp-060 is read first on its prefix-cache hit rate and requests per run.
-3. exp-058 once (P27, Tufa's 8x grid-lined image; another team's
-   ablation found higher-res images at or below baseline, so its repeat waits for a promising first run), then exp-061
-   last (P29, Tufa's AVO wrapper; NVARC3 reports AVO-style ideas did not beat their harness).
-4. A Milestone 2 notebook if one is published by Sep 30 (Lord Han Solo said he would share if top 3 among sharers;
-   Tufa, NVARC3 and Tong Hui Kang said they would not).
-- LB draws: Sep 28 and Sep 29 were to be exp-054 draws 2 and 3 (pre-registered). **Sep 28 was not submitted: the
-  session's permission check now blocks `scripts/submit_kernel.py` as a production deploy; submissions wait for the
-  owner (submit by hand or allow the command).** From Sep 30 the best new configuration.
+### Week of 2026-10-03 (rewritten 2026-09-29 after the strategy reviews in docs/research/strategy-sep29/)
+Both reviews: the agent loses on reach (about 42 decisions per game, 79% of each call queued), so the week buys calls
+per game. Queue, in order (about 18 of 30 GPU-h):
+1. MTP-0 stress tests arc3-kv-stress-mtp0-14g-s16 / -s28 (~1 h; rule 2026-09-27 12:05: >= 165.1 generated tokens/s).
+2. exp-062 (exp-054 on NVIDIA's NVFP4 checkpoint with backported runtime fixes; its first 30 min are the smoke test,
+   checks in the research log 2026-09-29; if the FP8 MTP path fails, rebuild with MTP 0).
+3. exp-059 and exp-060 (MTP-0 profile; exp-060 adds 16 lanes, prefix caching and P28) if a stress test passed.
+4. SGLang stress notebooks once built (docs/research/sglang-serving-plan.md; needs the reasoning_content client patch).
+5. exp-058 once (P27 images), exp-061 last (P29 AVO).
+Pairs for whatever wins; a full 540-min, 110-game-shaped run of the leader in the week of Oct 17.
+- LB draws: exp-054 draw 2 was submitted by the owner on Sep 28 (the session's permission check blocks
+  scripts/submit_kernel.py); later draws need the owner or a permission rule.
 
 **Leaderboard, Sep 26:** Tufa Labs 27.29, Daniel Franzen 21.01, Lord Han Solo 20.80, Tong Hui Kang 20.53; ours 4.70. The likeliest large gain is a Milestone 2 notebook published by Sep 30 (checked Oct 1 00:30).
 
