@@ -1910,3 +1910,16 @@ The pre-registered Sep 28 slot (exp-054 again, scripts/submit_kernel.py scottmah
 refused by this session's auto-mode permission classifier as a production deploy. Not retried or worked around; the
 owner decides (submit by hand, or allow the command). exp-054's LB draws so far: one (4.70). The Sep 29 draw-3
 submission is not scheduled for the same reason. Public notebooks run since Sep 27: no Milestone 2 entry from a top team.
+
+## 2026-09-29 05:50 · leaderboard: Tufa 45.33, Yi-Chia Chen 36.73; two concrete serving leads · OBSERVED
+LB (Sep 29 05:47): Tufa Labs 45.33, Yi-Chia Chen 36.73, Daniel Franzen 21.01, Lord Han Solo 20.80, Tong Hui Kang 20.53,
+Third Intelligence 18.29, the last dance 16.84, NVARC3 16.07, rellik13 13.40, Son Pham & Mark Barney 12.21, ..., keithtyser
+(author of the public Flash-Next serving bundle we use) 9.17. Ours 4.70 (one draw); the owner reports rank 98.
+Leads: (1) forum thread 743952, xz (Sep 28): "much of the boost on the leaderboard is due correct vllm installation and
+using nvidia/qwen3.8-flash-next-nvfp4" plus "configuring compaction correctly rather than conversation truncation". We
+serve RadixArk's NVFP4 build; NVIDIA's is on Kaggle as model xiaoz259/qwen3-8-flash-next-nvfp4/PyTorch/nvidia-nvfp4 (132.7
+GB, license "other", from HF nvidia/Qwen3.8-Flash-Next-NVFP4). (2) Son Pham & Mark Barney went 7.36 -> 12.21; their repo's
+latest serving work (Sep 25) is "SGLang scored arms ... 5x96k / 6x79k / 7x66k": SGLang, 5-7 games at once, long contexts.
+Two subagents are preparing both for the Oct 3 quota (NVIDIA checkpoint swap in our notebook; an SGLang serving plan).
+Self-assessment: on Sep 27 I wrote that our serving profile "looks tapped out on this card" after testing KV size and MTP
+2/4 only; the model build and the engine were never varied. That conclusion was premature.
