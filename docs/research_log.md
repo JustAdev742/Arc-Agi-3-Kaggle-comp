@@ -1964,3 +1964,12 @@ Checked:  tests (fold format, digest dropped last, a 60-call simulation with P28
           present, 80% of prompts extend the previous one vs 75% for P28 alone); bed test on the real harness with a mock
           server and a 12k window (229 actions, 2 games, no errors).
 Arm:      exp-064 = exp-060 + P31, read against exp-060 (same serving), after it.
+
+## 2026-09-29 09:31 · exp-054 draw 2 on the public LB: 3.36 · MEASURED
+Submission 56655075 (the owner submitted it by hand on Sep 28 23:54 UTC; same notebook as draw 1, 56592321).
+Measured: public LB 3.36 (draw 1: 4.70). exp-054 over two draws: mean 4.03, range 3.36-4.70.
+Reading: the 1.4-point spread between identical submissions is within the 1.5-2.3x spread other teams report for
+identical notebooks (docs/research/public-code-sep27.md), so exp-054's ranking over exp-048 (4.23, one draw) and
+exp-042 (3.81, one draw) is not established; one draw per arm cannot separate these arms. Comparisons on the LB
+need at least two draws per arm, and the serving arms in the Oct 3 queue are expected to move tokens per hour by
+far more than this noise if they work.

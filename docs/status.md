@@ -157,8 +157,9 @@ per game. Queue, in order (about 18 of 30 GPU-h):
 4. SGLang stress notebooks once built (docs/research/sglang-serving-plan.md; needs the reasoning_content client patch).
 5. exp-058 once (P27 images), exp-061 last (P29 AVO).
 Pairs for whatever wins; a full 540-min, 110-game-shaped run of the leader in the week of Oct 17.
-- LB draws: exp-054 draw 2 was submitted by the owner on Sep 28 (the session's permission check blocks
-  scripts/submit_kernel.py); later draws need the owner or a permission rule.
+- LB draws: exp-054 draw 2 (submitted by the owner on Sep 28, 56655075) scored **3.36**; exp-054 is 4.70 / 3.36,
+  mean 4.03. Later draws need the owner or a permission rule (the session's permission check blocks
+  scripts/submit_kernel.py).
 
 **Leaderboard, Sep 26:** Tufa Labs 27.29, Daniel Franzen 21.01, Lord Han Solo 20.80, Tong Hui Kang 20.53; ours 4.70. The likeliest large gain is a Milestone 2 notebook published by Sep 30 (checked Oct 1 00:30).
 
@@ -257,7 +258,7 @@ champion preset are superseded by the move to the Duck family; they are in this 
   only mid-animation) and P24 (shape matches up to rotation/reflection/colour at each level start); tests, engine
   replay and a real-harness bed pass. Queued for the 2026-09-26 quota reset: exp-049 (fixes + 6.5 GiB KV, no gate)
   and exp-050 (exp-049 + P23 + P24). exp-048r (gated repeat) dropped.
-- **2026-09-26 13:30: new leading candidate exp-054** = exp-050's patches (fixes + P23 + P24) on a 7.75 GiB KV cache with 2,048-token chunks: pair 12.87 / 10.70 (mean 11.78, best of any configuration), requests +10%, preemptions 27 vs 91, hard level 1 15/16 solved sooner. **Submitted 2026-09-27 00:05 as 56592321: public LB 4.70, our best draw** (base 2.72, exp-042 3.81, exp-048 4.23). Draws 2 and 3 of exp-054 on Sep 28 and 29.
+- **2026-09-26 13:30: new leading candidate exp-054** = exp-050's patches (fixes + P23 + P24) on a 7.75 GiB KV cache with 2,048-token chunks: pair 12.87 / 10.70 (mean 11.78, best of any configuration), requests +10%, preemptions 27 vs 91, hard level 1 15/16 solved sooner. **Submitted 2026-09-27 00:05 as 56592321: public LB 4.70, our best draw** (base 2.72, exp-042 3.81, exp-048 4.23). Draw 2 (owner, Sep 28, 56655075): 3.36; mean of two 4.03.
 - **2026-09-26 09:31: the unmodified base drew 2.72 on the LB** (ours: fixes 3.81, fixes + gate + KV 4.23): our changes help on the hidden set; about 3-4 is this family's level on our draws. No bisection needed. **Sep 27 00:04 submission: exp-050** (P23/P24). P25 (the report inside action() results) was dropped by its rule (pair 8.24 vs exp-050's 10.31).
 - **2026-09-26 03:30: exp-050 (fixes + 6.5 GiB KV + P23 object-change report + P24 shape matches) is the leading candidate:** public-25 10.98 / 51 levels, z-sum +3.1 sd (best of every run), level 1 solved on all 8 hard games (no reference run above 7). Its control exp-049 (no P23/P24): 9.60 / 42, +1.4 sd, 6/8. Validation went the other way (8.99 vs 3.63) on one noisy game (r11l). **Repeats (06:30): exp-050r 9.64 (7/8 hard L1), exp-049r 6.30 (4/8); pooled with/without P23/P24: mean 10.31 vs 7.95, z-sum +14.3 vs +2.8, hard L1 15/16 vs 10/16 -> P23/P24 kept.**
 - **Best configuration so far (2026-09-23 23:36): exp-048 = fixes (P1 P1B P2 P7 P12 P13 P17 P22) + P21 gate + 6.5 GiB
