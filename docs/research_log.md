@@ -2026,3 +2026,19 @@ Checked:  tests/test_rental.py (10) incl. the box runner end to end on a fake Ka
           at import); fixed, and nothing in the repo reads /kaggle outside the notebooks.
 Not yet tested: the vast.ai create/logs/destroy calls, Kaggle's model download speed, the notebook on a non-Kaggle host.
 Next: when the owner has the account, the first batch is exp-054 unchanged (calibration against its Kaggle pair).
+
+## 2026-09-29 23:18 · rental runner: review fixes (13 findings) · FIXED (still no money spent)
+Why: a fresh-context review of scripts/rental.py and rental_box.py found problems that would waste money or lose
+          results on the first real rental.
+Main fixes: results upload as output.tar.gz.blob (Kaggle unpacks .tar.gz uploads; collect would have failed every
+          run); upload success checked by the CLI's text (it exits 0 on "Dataset creation error"); a failed upload no
+          longer ends the job (retried at the end; restarts replay nothing uploaded); offers filtered on the rental's
+          RAM share (cpu_ram x gpu_frac: some "252 GB" offers give a 63 GB share) and priced with our 500 GB disk (one
+          $1.41/h offer is $2.04/h with it, $15/day idle); after each run every process it started is killed and
+          scratch removed (the cap left vLLM holding the GPU for the next run); boot under `timeout` with a self-stop
+          trap; launch checks the uploaded job's sha, refuses duplicate labels, records before the create call and
+          recovers a lost response by label, sends cancel_unavail and env as an object (the official CLI's shape);
+          hardware gate before the downloads. Verified: 22 tests; the real boot command in a sandbox (fake Kaggle CLI,
+          papermill), including a restart that replays nothing. Unverified until a box exists: listed in
+          docs/research/rental-runner.md.
+Prices now (5 offers pass): $1.34-1.53/h with the disk for the cheapest three; ~$4-5 per public-25 run.
