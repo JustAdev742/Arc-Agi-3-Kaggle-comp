@@ -1998,7 +1998,7 @@ Scored rule (exp-063, pair): first the mechanism (past reasoning ~35% of prompt 
           lost its server.
 Queue:    after the MTP-0 stress tests and exp-062 (docs/status.md, Oct 3).
 
-## 2026-09-29 22:40 · execution hygiene (strategy review item 3) measured on the exp-054 pair: ~1% of requests · NOT BUILT
+## 2026-09-29 22:31 · execution hygiene (strategy review item 3) measured on the exp-054 pair: ~1% of requests · NOT BUILT
 Why: the agent/model review ranked "execution hygiene" third (+0.5-1 LB), citing g50t's 'D' for 'DOWN' and 5% of
           turns ending in a tool error.
 Measured (docs/research/levels2plus-exp054/toolerr.py, both exp-054 runs, 2,145 turns): 170 turns (7.9%) saw a tool
