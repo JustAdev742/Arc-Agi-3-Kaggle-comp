@@ -21,11 +21,11 @@ import rental_box  # noqa: E402
 
 
 def _offer(i, name="RTX PRO 6000 S", dph=1.4, driver="580.173.02", gpus=1, ram_gb=200, frac=1.0, days=30,
-           storage=0.2):
+           storage=0.2, down_tb=2.7):
     return {"id": i, "gpu_name": name, "dph_total": dph, "driver_version": driver, "num_gpus": gpus,
             "cpu_ram": ram_gb * 1024, "gpu_frac": frac, "cpu_cores_effective": 48, "disk_space": 800,
             "inet_down": 900, "duration": days * 86400, "storage_cost": storage,
-            "storage_total_cost": storage * 8 / 720}
+            "storage_total_cost": storage * 8 / 720, "internet_down_cost_per_tb": down_tb}
 
 
 # --- offers and prices ------------------------------------------------------------------------------------------
@@ -47,6 +47,9 @@ def test_prices_include_our_disk_and_rank_by_it():
     assert rental.run_dph(cheap_gpu_dear_disk) == pytest.approx(1.41 - 0.92 * 8 / 720 + 0.92 * 500 / 720)
     other = _offer(2, dph=1.50, storage=0.1)
     assert [o["id"] for o in rental.good_offers([cheap_gpu_dear_disk, other])] == [2, 1]
+    dear_download = _offer(3, dph=1.45, storage=0.1, down_tb=29.3)  # ~$4.7 for the ~160 GB of inputs
+    assert rental.download_cost(dear_download) == pytest.approx(29.3 * rental.SETUP_DOWNLOAD_TB)
+    assert [o["id"] for o in rental.good_offers([dear_download, other])] == [2, 3]
 
 
 # --- packing ------------------------------------------------------------------------------------------------------
@@ -189,7 +192,7 @@ def test_quote_counts_setup_runs_disk_and_the_idle_disk(rental_dir):
     offer = _offer(9, dph=1.4, storage=0.9)
     q = rental.quote("q-1", offer)
     assert q["hours_estimate"] == rental.HOURS_SETUP + 2 * rental.HOURS_PER_RUN
-    assert q["cost_estimate_usd"] == round(rental.run_dph(offer) * q["hours_estimate"], 2)
+    assert q["cost_estimate_usd"] == round(rental.run_dph(offer) * q["hours_estimate"] + rental.download_cost(offer), 2)
     assert q["disk_per_day_after_exit_usd"] == round(0.9 * 500 / 30, 2)
 
 

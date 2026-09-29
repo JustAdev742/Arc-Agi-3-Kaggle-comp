@@ -13,14 +13,16 @@ GPUs are the only source of more runs.
 
 ## What a run costs (vast.ai public offer search, 2026-09-29 23:1x UTC, with the filters below)
 
-Five offers passed: one GPU, verified host, RAM share >= 170 GB, driver >= 580, contract >= 48 h. Prices include our
-500 GB disk, which some hosts charge heavily for (one $1.41/h server-edition offer is $2.04/h with the disk, and its
-disk alone costs $15/day until the instance is destroyed). The cheapest today: $1.34/h (RTX PRO 6000 WS, 441 GB RAM
-share, disk $1.11/day), then $1.53/h and $1.91/h.
+Offers are filtered on: one GPU, verified host, RAM share >= 170 GB, driver >= 580, contract >= 48 h, and ranked by
+what a two-run job costs there. Two host charges vary a lot and are included: our 500 GB disk (one $1.41/h
+server-edition offer is $2.04/h with it, and its disk alone costs $15/day until the instance is destroyed) and
+download bandwidth (hosts ask $2.7-29 per TB; a fresh box downloads ~160 GB of inputs, so $0.43-4.70). At 23:2x UTC
+four offers passed; the best: RTX PRO 6000 WS, $1.34/h with the disk + $0.43 download, 441 GB RAM share, disk
+$1.11/day idle: **$9.13 for a two-run job** (the next three: $14.00, $14.65, $21.40).
 
 | Item | Estimate |
 |---|---|
-| Box with disk | $1.34-1.53/h today |
+| Box with disk (best offer today) + input download once per box | $1.34/h + $0.43 |
 | Fresh box: Kaggle image pull (23 GB) + inputs (111 GB model archive + runtimes) | ~1 h (estimate; the first rental measures it) |
 | One public-25 notebook (16 min serving setup, 132 min play, teardown) | ~2.75 h |
 | **First run on a box** | **~$5** |

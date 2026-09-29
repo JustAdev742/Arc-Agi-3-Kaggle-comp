@@ -64,6 +64,7 @@ HOURS_SETUP = 1.0  # image pull + ~130 GB of inputs on a fresh box (estimate unt
 CAP_SLACK_HOURS = 1.5  # the boot command's wall-clock cap = estimate + this
 MIN_RAM_SHARE_GB = 170  # the instance's share of host RAM (cpu_ram x gpu_frac); Kaggle's box has ~180 GB
 MIN_CONTRACT_HOURS = 48
+SETUP_DOWNLOAD_TB = 0.16  # per fresh box: image 23 GB + model archive 111 GB + runtime 8 GB + wheels/bundles ~12 GB
 
 # What a box must have to run the notebook like Kaggle's g4-standard-48 (1 RTX PRO 6000, 48 vCPU, ~180 GB RAM):
 # Keith's setup needs >= 64 GiB free RAM beside the 48 GiB pinned PLE table, CUDA 13.0 needs driver >= 580 (checked
@@ -134,13 +135,22 @@ def run_dph(offer: dict) -> float:
     return float(offer.get("dph_total") or 0) - float(offer.get("storage_total_cost") or 0) + disk_dph(offer)
 
 
+def download_cost(offer: dict) -> float:
+    """vast.ai bills every byte received (hosts ask $2.7-29 per TB); a fresh box downloads ~160 GB of inputs."""
+    return float(offer.get("internet_down_cost_per_tb") or 0) * SETUP_DOWNLOAD_TB
+
+
+def job_cost(offer: dict, runs: int = 2) -> float:
+    return run_dph(offer) * (HOURS_SETUP + runs * HOURS_PER_RUN) + download_cost(offer)
+
+
 def good_offers(offers: list[dict]) -> list[dict]:
-    """What the search API cannot express: driver >= 580, the RAM share, the contract length. Ranked by the real
-    price with our disk; the server edition (Kaggle's card; the workstation card is the same GB202 chip) wins ties
-    up to 10%."""
+    """What the search API cannot express: driver >= 580, the RAM share, the contract length. Ranked by what a
+    two-run job costs there (time with our disk + the input download); the server edition (Kaggle's card; the
+    workstation card is the same GB202 chip) wins ties up to 10%."""
     keep = [o for o in offers if driver_major(o) >= 580 and o.get("num_gpus") == 1
             and ram_share_gb(o) >= MIN_RAM_SHARE_GB and float(o.get("duration") or 0) >= MIN_CONTRACT_HOURS * 3600]
-    return sorted(keep, key=lambda o: run_dph(o) * (0.9 if o.get("gpu_name") == "RTX PRO 6000 S" else 1.0))
+    return sorted(keep, key=lambda o: job_cost(o) * (0.9 if o.get("gpu_name") == "RTX PRO 6000 S" else 1.0))
 
 
 def search(extra: dict | None = None, limit: int = 100) -> list[dict]:
@@ -155,8 +165,9 @@ def find_offer(offer_id: int) -> dict | None:
 
 
 def offer_line(o: dict) -> str:
-    return (f"{o['id']:>10}  {o.get('gpu_name', '?'):<16} ${run_dph(o):.2f}/h with {DISK_GB} GB disk "
-            f"(disk ${disk_dph(o) * 24:.2f}/day, billed until destroyed)  RAM {ram_share_gb(o):.0f} GB  "
+    return (f"{o['id']:>10}  {o.get('gpu_name', '?'):<16} 2-run job ${job_cost(o):.2f}  ${run_dph(o):.2f}/h with "
+            f"{DISK_GB} GB disk + ${download_cost(o):.2f} download  (disk ${disk_dph(o) * 24:.2f}/day until destroyed)  "
+            f"RAM {ram_share_gb(o):.0f} GB  "
             f"{float(o.get('cpu_cores_effective') or 0):.0f} cores  down {round(o.get('inet_down') or 0)} Mb/s  "
             f"driver {o.get('driver_version')}  rel {float(o.get('reliability2') or o.get('reliability') or 0):.3f}  "
             f"contract {float(o.get('duration') or 0) / 86400:.0f} d  {o.get('geolocation', '')}")
@@ -301,8 +312,10 @@ def quote(job: str, offer: dict) -> dict:
     dph = run_dph(offer)
     return {"job": job, "runs": [r["name"] for r in manifest["runs"]], "offer": offer.get("id"),
             "gpu": offer.get("gpu_name"), "ram_share_gb": round(ram_share_gb(offer)), "dph_with_disk": round(dph, 3),
-            "hours_estimate": round(hours, 2), "cost_estimate_usd": round(dph * hours, 2),
-            "cap_hours": round(hours + CAP_SLACK_HOURS, 2), "cost_cap_usd": round(dph * (hours + CAP_SLACK_HOURS), 2),
+            "hours_estimate": round(hours, 2), "download_usd": round(download_cost(offer), 2),
+            "cost_estimate_usd": round(dph * hours + download_cost(offer), 2),
+            "cap_hours": round(hours + CAP_SLACK_HOURS, 2),
+            "cost_cap_usd": round(dph * (hours + CAP_SLACK_HOURS) + download_cost(offer), 2),
             "disk_per_day_after_exit_usd": round(disk_dph(offer) * 24, 2),
             "contract_hours": round(float(offer.get("duration") or 0) / 3600)}
 
