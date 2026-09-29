@@ -1973,3 +1973,27 @@ identical notebooks (docs/research/public-code-sep27.md), so exp-054's ranking o
 exp-042 (3.81, one draw) is not established; one draw per arm cannot separate these arms. Comparisons on the LB
 need at least two draws per arm, and the serving arms in the Oct 3 queue are expected to move tokens per hour by
 far more than this noise if they work.
+
+## 2026-09-29 22:28 · SGLang serving arm merged: launcher, P30/P30b, stress notebooks, exp-063 · BUILT (never run on a GPU)
+What: scripts/sglang_serving.py serves RadixArk's Flash-Next checkpoint with SGLang 0.5.20: 200 wheels hash-checked
+          (size + sha256 pinned from the dataset files) and installed offline into a clean venv, a 4-rung ladder (FP8
+          KV + MTP flashinfer -> triton -> no MTP -> BF16 KV at R=8), a readiness gate (served id, one text and one
+          board-image completion), a watchdog (2 restarts, then vLLM), and Keith's vLLM setup as the fallback when no
+          rung is up 50 min after notebook start. Harness side: P30 also sends each past turn's reasoning as
+          `reasoning_content` when OURS_SERVING=sglang (SGLang's request model drops the Duck's `reasoning` key, which
+          would rerun exp-035's collapse); P30b adds SGLang's over-length wording to the trim-and-retry matcher.
+          Builders take `--engine sglang`. Written by a subagent (docs/research/sglang-serving-plan.md is its plan);
+          reviewed and merged here. Keith's in-notebook vLLM watchdog was checked against his source: it sees SGLang
+          as healthy and its restart fails before touching any process while SGLang serves (no identity file).
+Checked:  full test suite passes (the SGLang tests parse every rung's flags with SGLang 0.5.20's own CLI parser, render
+          the Flash-Next chat template to show past reasoning appears only via `reasoning_content`, and cover the
+          fallback, teardown and the bundle swap); all unpushed arms and both stress notebooks build.
+Go rule (pre-registered, copied from the plan, section 6): GO for exp-063 if one stress profile has the server up
+          within 45 min on an FP8-KV rung; all seven functional checks pass; zero request errors and server restarts
+          under load; >= 191 generated tok/s (1.25 x 152.9) with mean running >= 8; retractions < 1%; peak host RAM
+          <= 150 GiB and no GPU OOM. Both pass: the faster one. Otherwise NO-GO, keep vLLM. (The plan calls the scored
+          arm exp-062; that number went to the NVIDIA checkpoint, so it is exp-063.)
+Scored rule (exp-063, pair): first the mechanism (past reasoning ~35% of prompt tokens as in exp-054; requests >= 1.2x
+          exp-054's 1,609), then keep if the pair's mean z-sum is not more than 2 below exp-054's +12.45 and no game
+          lost its server.
+Queue:    after the MTP-0 stress tests and exp-062 (docs/status.md, Oct 3).

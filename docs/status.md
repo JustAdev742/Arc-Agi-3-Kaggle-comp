@@ -154,7 +154,8 @@ per game. Queue, in order (about 18 of 30 GPU-h):
    checks in the research log 2026-09-29; if the FP8 MTP path fails, rebuild with MTP 0).
 3. exp-059 and exp-060 (MTP-0 profile; exp-060 adds 16 lanes, prefix caching and P28) if a stress test passed; then
    exp-064 (exp-060 + P31 history digest: compaction instead of truncation), read against exp-060.
-4. SGLang stress notebooks once built (docs/research/sglang-serving-plan.md; needs the reasoning_content client patch).
+4. SGLang stress notebooks (built Sep 29: arc3-sgl-stress-r12 and arc3-sgl-stress-r16-hic32, `build_kv_stress_nb.py
+   --engine sglang`); exp-063 (exp-054 + P30/P30b on SGLang) only if one passes the go rule in the research log.
 5. exp-058 once (P27 images), exp-061 last (P29 AVO).
 Pairs for whatever wins; a full 540-min, 110-game-shaped run of the leader in the week of Oct 17.
 - LB draws: exp-054 draw 2 (submitted by the owner on Sep 28, 56655075) scored **3.36**; exp-054 is 4.70 / 3.36,

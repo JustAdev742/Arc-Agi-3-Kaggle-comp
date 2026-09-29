@@ -1310,3 +1310,573 @@ def test_p31_digest_is_the_last_thing_dropped(h):
     assert agent._drop_oldest_history_block(history, preserve_recent=1) is True  # only the digest could go
     assert history == [{"role": "user", "content": "Current state: step 9, level 1."}]
     assert agent._drop_oldest_history_block(history, preserve_recent=1) is False
+
+
+# --- SGLang serving (P30, P30b, scripts/sglang_serving.py, --engine sglang) ------------------------------------------
+
+import sglang_serving as sgl  # noqa: E402
+
+TEMPLATE = ROOT / "tests" / "fixtures" / "flashnext_chat_template" / "chat_template.jinja"
+SGL_CLI = json.loads((ROOT / "tests" / "fixtures" / "sglang_0520_cli" / "cli.json").read_text())
+# The fields SGLang 0.5.20 keeps on a history message (entrypoints/openai/protocol.py
+# ChatCompletionMessageGenericParam); anything else, such as the Duck's `reasoning`, is dropped at request parsing.
+SGLANG_MESSAGE_FIELDS = {"role", "content", "tool_call_id", "name", "phase", "reasoning_content", "tool_calls", "tools"}
+PAST = "PAST-REASONING the red block moved left when I pressed LEFT, so LEFT moves the player"
+
+
+def _render(messages: list, **kwargs) -> str:
+    """The Flash-Next template rendered as Hugging Face's apply_chat_template does (both servers call it), after the
+    servers' own normalisation of tool-call arguments from JSON strings to objects."""
+    pytest.importorskip("jinja2")
+    import jinja2.ext
+    import jinja2.sandbox
+
+    def raise_exception(message):
+        raise jinja2.exceptions.TemplateError(message)
+
+    env = jinja2.sandbox.ImmutableSandboxedEnvironment(trim_blocks=True, lstrip_blocks=True,
+                                                       extensions=[jinja2.ext.loopcontrols])
+    env.filters["tojson"] = lambda x, ensure_ascii=False, indent=None, separators=None, sort_keys=False: json.dumps(
+        x, ensure_ascii=ensure_ascii, indent=indent, separators=separators, sort_keys=sort_keys)
+    env.globals["raise_exception"] = raise_exception
+    normalised = []
+    for m in messages:
+        m = dict(m)
+        if m.get("tool_calls"):
+            m["tool_calls"] = [{**c, "function": {**c["function"], "arguments": json.loads(c["function"]["arguments"])}}
+                               for c in m["tool_calls"]]
+        normalised.append(m)
+    return env.from_string(TEMPLATE.read_text()).render(messages=normalised, add_generation_prompt=True, **kwargs)
+
+
+def _as_sglang_parses(messages: list) -> list:
+    return [{k: v for k, v in m.items() if k in SGLANG_MESSAGE_FIELDS and v is not None} for m in messages]
+
+
+def _duck_history() -> list:
+    """A turn as the Duck stores it: the reasoning under `reasoning`, a tool call, its result, the next prompt."""
+    call = {"id": "c1", "type": "function", "function": {"name": "python", "arguments": json.dumps({"code": "print(1)"})}}
+    return [{"role": "system", "content": "You play a game."}, {"role": "user", "content": "Current state: level 1."},
+            {"role": "assistant", "content": None, "reasoning": PAST, "tool_calls": [call]},
+            {"role": "tool", "tool_call_id": "c1", "content": "1"},
+            {"role": "user", "content": "Current state: level 1, step 2."}]
+
+
+def _capture_payload(h, monkeypatch, messages: list, engine: str | None) -> dict:
+    sent = []
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        sent.append(json)
+        return types.SimpleNamespace(status_code=200, text="", raise_for_status=lambda: None,
+                                     json=lambda: {"choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}]})
+
+    monkeypatch.setenv("OURS_GATE_SLOTS", "0")
+    h.ta._OURS_GATE_STATE.clear()
+    if engine is None:
+        monkeypatch.delenv("OURS_SERVING", raising=False)
+    else:
+        monkeypatch.setenv("OURS_SERVING", engine)
+    monkeypatch.setattr(h.ta.requests, "post", fake_post)
+    h.ta.ToolAgent(model="mock")._chat_completion(messages, tools=None)
+    return sent[0]
+
+
+def test_flashnext_template_renders_past_reasoning_only_from_reasoning_content():
+    assert hashlib.sha256(TEMPLATE.read_bytes()).hexdigest() == sgl.CHAT_TEMPLATE_SHA256
+    history = _duck_history()
+    with_rc = [dict(m, reasoning_content=m["reasoning"]) if "reasoning" in m else m for m in history]
+    rendered = _render(with_rc)
+    assert f"<|im_start|>assistant\n<think>\n{PAST}\n</think>\n\n<tool_call>\n<function=python>" in rendered
+    rendered_reasoning_only = _render(history)  # what SGLang renders from the Duck's own history: an empty block
+    assert PAST not in rendered_reasoning_only
+    assert "<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>" in rendered_reasoning_only
+    assert PAST not in _render(with_rc, preserve_thinking=False)  # the template's own switch still works
+
+
+def test_p30_sends_reasoning_content_only_on_sglang_and_leaves_the_stored_history_alone(h, monkeypatch):
+    history = _duck_history()
+    history.append({"role": "assistant", "content": "done", "reasoning": "own", "reasoning_content": "kept"})
+    history.append({"role": "user", "content": "next"})
+    stored = json.loads(json.dumps(history))
+    off = _capture_payload(h, monkeypatch, history, None)
+    assert off["messages"] == stored  # vLLM (no OURS_SERVING): exactly the payload it was before P30
+    assert _capture_payload(h, monkeypatch, history, "vllm-fallback")["messages"] == stored
+    on = _capture_payload(h, monkeypatch, history, "sglang")["messages"]
+    assert history == stored  # the stored history (token estimate, trimming, P1, P4) is untouched
+    assert on[2]["reasoning_content"] == on[2]["reasoning"] == PAST and on[2]["tool_calls"] == stored[2]["tool_calls"]
+    assert on[5]["reasoning_content"] == "kept"  # an existing reasoning_content is not overwritten
+    assert [m for i, m in enumerate(on) if i != 2] == [m for i, m in enumerate(stored) if i != 2]
+    # through SGLang's request parsing and the served template, the past reasoning now reaches the prompt
+    assert PAST in _render(_as_sglang_parses(on)) and PAST not in _render(_as_sglang_parses(off["messages"]))
+    # P4 strips past reasoning from stored history; with P30 on, a stripped turn stays stripped
+    stripped = h.ta._compress_history_message(history[2])
+    assert not {"reasoning", "reasoning_content"} & set(h.ta._ours_with_reasoning_content([stripped])[0])
+
+
+def test_p30_extra_key_is_ignored_by_keiths_vllm():
+    """Keith's vLLM (0.1.dev20073+g8e685d198) builds the conversation from `reasoning` alone, so the P30 payload and
+    the plain one give the same template input there (and P30 is off on vLLM anyway)."""
+    source = _functions(VLLM_RT / "vllm" / "entrypoints" / "chat_utils.py", None, {"_parse_chat_message_content"})
+    ns = {"cast": lambda _t, v: v, "_AssistantParser": lambda m: m, "_ToolParser": lambda m: m,
+          "ChatCompletionContentPartTextParam": lambda **kw: dict(kw),
+          "_parse_chat_message_content_parts": lambda role, content, *a, **k: [
+              {"role": role, "content": "".join(p.get("text", "") for p in content)}]}
+    exec("from __future__ import annotations\n" + source, ns)
+    parse = ns["_parse_chat_message_content"]
+    plain = _duck_history()
+    with_rc = [dict(m, reasoning_content=m["reasoning"]) if "reasoning" in m else m for m in plain]
+    out_plain = [parse(m, None, "string", False) for m in plain]
+    assert out_plain == [parse(m, None, "string", False) for m in with_rc]
+    assert out_plain[2][0]["reasoning_content"] == PAST  # vLLM itself renames `reasoning` for the template
+    lone = parse({"role": "assistant", "content": "x", "reasoning_content": PAST}, None, "string", False)[0]
+    assert lone.get("reasoning_content") is None  # a lone reasoning_content is ignored: P30 keeps `reasoning` too
+
+
+def test_p30b_matches_sglangs_over_length_error_through_the_request_path(h, monkeypatch):
+    body = json.dumps({"object": "error", "message": "The input (40012 tokens) is longer than the model's context "
+                       "length (32768 tokens).", "type": "BadRequestError", "param": None, "code": 400})
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        def fail():
+            raise h.ta.requests.HTTPError("400 Client Error: Bad Request for url: http://127.0.0.1:1234/v1")
+        return types.SimpleNamespace(status_code=400, text=body, raise_for_status=fail)
+
+    monkeypatch.setenv("OURS_GATE_SLOTS", "0")
+    h.ta._OURS_GATE_STATE.clear()
+    monkeypatch.setattr(h.ta.requests, "post", fake_post)
+    with pytest.raises(h.ta.requests.RequestException) as caught:
+        h.ta.ToolAgent(model="mock")._chat_completion([{"role": "user", "content": "x"}], tools=None)
+    assert h.ta._is_context_length_error(caught.value)
+    assert h.ta._is_context_length_error(RuntimeError("This model's maximum context length is 32768 tokens"))  # vLLM
+    assert not h.ta._is_context_length_error(RuntimeError("500 Internal Server Error | response: CUDA error"))
+    assert "longer than the model's context length" not in (FIXTURE / tp.TOOL_AGENT).read_text()  # upstream missed it
+
+
+# A stand-in SGLang server for the gate's harness probe: SGLang's message parsing, the served template, words as tokens.
+_FAKE_SGLANG = r'''
+import json, sys
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+sys.path.insert(0, sys.argv[1])
+import test_taaf_ours_patch as t
+
+class H(BaseHTTPRequestHandler):
+    def log_message(self, *a):
+        pass
+
+    def do_POST(self):
+        req = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        prompt = t._render(t._as_sglang_parses(req["messages"]), **req.get("chat_template_kwargs", {}))
+        n = len(prompt.split())
+        if n >= 32768:
+            status, body = 400, {"object": "error", "message": f"The input ({n} tokens) is longer than the model's "
+                                 "context length (32768 tokens).", "type": "BadRequestError", "param": None, "code": 400}
+        else:
+            status, body = 200, {"choices": [{"message": {"role": "assistant", "content": "6"}, "finish_reason": "stop"}],
+                                 "usage": {"prompt_tokens": n, "completion_tokens": 1}}
+        data = json.dumps(body).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+server = ThreadingHTTPServer(("127.0.0.1", 0), H)
+print(server.server_address[1], flush=True)
+server.serve_forever()
+'''
+
+
+def test_stress_gate_harness_probe_against_a_stand_in_sglang(tmp_path):
+    """The gate's P30/P30b checks as the stress notebook runs them (its HARNESS_PROBE code, on a bundle patched with
+    P30 and P30B) against a stand-in server that parses and renders the way SGLang 0.5.20 does."""
+    pytest.importorskip("jinja2")
+    import build_kv_stress_nb as ks
+
+    probe = re.search(r'HARNESS_PROBE = """\n(.*?)\n"""', ks.SGL_GATE, re.S).group(1)
+    bundle = _copy(tmp_path / "b")
+    tp.apply(bundle, ["P30", "P30B"])
+    server = subprocess.Popen([sys.executable, "-c", _FAKE_SGLANG, str(ROOT / "tests")], stdout=subprocess.PIPE,
+                              text=True)
+    try:
+        port = int(server.stdout.readline())
+        env = {**os.environ, "LOCAL_ANALYZER_BASE_URL": f"http://127.0.0.1:{port}/v1", "LOCAL_ANALYZER_MODEL_ID": "m"}
+        out = subprocess.run([sys.executable, "-c", probe, str(bundle / "src" / "ARC3-Inference"), " ".join(["w"] * 1000)],
+                             capture_output=True, text=True, env=env, timeout=300)
+    finally:
+        server.kill()
+    line = next((x for x in out.stdout.splitlines() if x.startswith("HARNESS_PROBE ")), None)
+    assert line, out.stderr[-2000:]
+    result = json.loads(line.split(" ", 1)[1])
+    assert result["prompt_tokens_sglang"] - result["prompt_tokens_p30_off"] >= 1000  # P30: the reasoning reached it
+    assert result["over_length_matched"] is True and "longer than the model's context length" in result["over_length"]
+
+
+def test_sglang_wheel_manifest_is_the_resolved_closure():
+    from packaging.utils import canonicalize_name, parse_wheel_filename
+
+    rows = sgl.wheels()
+    assert len(rows) == 200 and sum(r["size"] for r in rows) == 6_648_674_092
+    parsed = {canonicalize_name(parse_wheel_filename(r["wheel"])[0]): (str(parse_wheel_filename(r["wheel"])[1]), r)
+              for r in rows}  # every staged name is a valid wheel name (pip rejects the dataset's jit-cache name)
+    assert len(parsed) == 200  # one version per package
+    assert all(re.fullmatch(r"[0-9a-f]{64}", r["sha256"]) for r in rows)
+    pins = {"sglang": "0.5.20", "torch": "2.13.0+cu130", "torchvision": "0.28.0", "transformers": "5.12.1",
+            "tokenizers": "0.22.2", "triton": "3.7.1", "sglang-kernel": "0.4.7+cu130", "flashinfer-python": "0.6.18",
+            "flashinfer-cubin": "0.6.18", "flashinfer-jit-cache": "0.6.18+cu130", "nvidia-cudnn-cu13": "9.20.0.48",
+            "nvidia-nccl-cu13": "2.29.7", "nvidia-nvshmem-cu13": "3.4.5", "apache-tvm-ffi": "0.1.11",
+            "numpy": "2.3.5", "nvidia-cutlass-dsl": "4.6.2", "quack-kernels": "0.6.4", "cuda-tile": "1.6.0rc5"}
+    assert {k: parsed[k][0] for k in pins} == pins
+    assert parsed["torchvision"][1]["dataset"] == sgl.TORCHVISION_DATASET
+    assert parsed["torchvision"][1]["sha256"].startswith("028a3d48")  # the PyPI build the plan names
+    assert parsed["sglang"][1]["sha256"].startswith("ffaced7e")
+    for absent in ("sgl-kernel", "b12x", "build", "smg-grpc-servicer"):
+        assert absent not in parsed
+    assert {r["dataset"] for r in rows} == set(sgl.EXTRA_DATASET_SOURCES)
+
+
+def _cli_errors(args: list[str]) -> list[str]:
+    """What argparse (abbreviations allowed, as in SGLang's parser) would reject in ``args``."""
+    errors, i = [], 0
+    while i < len(args):
+        flag = args[i]
+        if not flag.startswith("--"):
+            errors.append(f"stray value {flag}")
+            i += 1
+            continue
+        matches = [flag] if flag in SGL_CLI else [o for o in SGL_CLI if o.startswith(flag)]
+        if len(matches) != 1:
+            errors.append(f"{flag}: {'unknown' if not matches else 'ambiguous ' + str(matches)}")
+            i += 1
+            continue
+        spec = SGL_CLI[matches[0]]
+        if spec["value"]:
+            if i + 1 >= len(args) or args[i + 1].startswith("--"):
+                errors.append(f"{flag} needs a value")
+            elif spec.get("choices") and args[i + 1] not in spec["choices"]:
+                errors.append(f"{flag} {args[i + 1]} not in {spec['choices']}")
+            i += 2
+        else:
+            i += 1
+    return errors
+
+
+@pytest.mark.parametrize("profile", [{"running": 12}, {"running": 16, "mamba_cache": 96, "hicache_gb": 32}],
+                         ids=["r12", "r16-hic32"])
+def test_sglang_every_rung_command_parses_with_sglang_0520(profile):
+    for rung in range(len(sgl.RUNGS)):
+        args = sgl.server_args(Path("/m"), profile, rung)
+        assert _cli_errors(args) == [], (rung, args)
+        flags = [a for a in args if a.startswith("--")]
+        assert all(f in SGL_CLI for f in flags) and len(set(flags)) == len(flags)  # exact names, none repeated
+    # the plan's spelling of the CUDA-graph cap is ambiguous in 0.5.20 and would have stopped every rung at parsing
+    assert "ambiguous" in _cli_errors(["--cuda-graph-max-bs", "12"])[0]
+
+
+def test_sglang_rung_ladder_follows_the_plan():
+    def opts(args):
+        out, i = {}, 0
+        while i < len(args):
+            if i + 1 < len(args) and not args[i + 1].startswith("--"):
+                out[args[i]] = args[i + 1]
+                i += 2
+            else:
+                out[args[i]] = True
+                i += 1
+        return out
+
+    one, two, three, four = (opts(sgl.server_args(Path("/m"), None, r)) for r in range(4))
+    assert one["--served-model-name"] == "Qwen/Qwen3.8-Flash-Next-NVFP4" and one["--port"] == "1234"
+    assert one["--kv-cache-dtype"] == two["--kv-cache-dtype"] == three["--kv-cache-dtype"] == "fp8_e4m3"
+    assert four["--kv-cache-dtype"] == "auto" and four["--max-running-requests"] == "8"
+    assert four["--mem-fraction-static"] == "0.90" and one["--mem-fraction-static"] == "0.94"
+    assert one["--speculative-algorithm"] == two["--speculative-algorithm"] == "NEXTN"
+    assert one["--speculative-num-steps"] == "3" and one["--speculative-num-draft-tokens"] == "4"
+    assert "--speculative-algorithm" not in three and "--speculative-algorithm" not in four
+    assert one["--linear-attn-decode-backend"] == "flashinfer" and two["--linear-attn-prefill-backend"] == "triton"
+    assert (one["--max-mamba-cache-size"], three["--max-mamba-cache-size"], four["--max-mamba-cache-size"]) == (
+        "72", "36", "24")
+    assert one["--context-length"] == "32768" and one["--cuda-graph-max-bs-decode"] == "12"
+    assert one["--chat-template"] == "/m/chat_template.jinja" and one["--tool-call-parser"] == "qwen3_coder"
+    assert one["--reasoning-parser"] == "qwen3" and "--disable-radix-cache" not in one
+    assert one["--ple-offload-embedding"] is True and "--enable-hierarchical-cache" not in one
+    hic = [opts(sgl.server_args(Path("/m"), {"running": 16, "mamba_cache": 96, "hicache_gb": 32}, r)) for r in range(4)]
+    assert hic[0]["--hicache-size"] == "32" and hic[0]["--max-mamba-cache-size"] == "96"
+    assert hic[0]["--max-running-requests"] == "16" and hic[2]["--max-mamba-cache-size"] == "48"
+    assert "--enable-hierarchical-cache" not in hic[3]  # the last rung drops the host cache
+
+
+def test_sglang_persists_the_analyzer_environment_keiths_setup_persists(tmp_path, monkeypatch):
+    monkeypatch.setenv("TAAF_KAGGLE_BUNDLE_DIR", str(KEITH))
+    monkeypatch.setenv("TAAF_KAGGLE_WORKING_DIR", str(tmp_path / "work"))
+    monkeypatch.setenv("TAAF_KAGGLE_SETUP_ENV", str(tmp_path / "his.json"))
+    spec = importlib.util.spec_from_file_location("keith_serving_setup", KEITH / "serving_setup.py")
+    his = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(his)
+    runtime = {k: f"/x/{k}" for k in ("PYTHONPATH", "PATH", "LD_LIBRARY_PATH", "CUDA_HOME", "CUDACXX")}
+    theirs = his.persist_analyzer_environment(runtime)
+    prefixes = ("LOCAL_ANALYZER_", "OPENAI_", "INFERENCE_", "MULTIMODAL_")
+    assert {k: v for k, v in theirs.items() if k.startswith(prefixes)} == sgl.ANALYZER_ENV
+    assert all(theirs[k] == v for k, v in sgl.OFFLINE_ENV.items())
+    monkeypatch.setenv("TAAF_KAGGLE_SETUP_ENV", str(tmp_path / "ours.json"))
+    (tmp_path / "ours.json").write_text(json.dumps({"TAAF_KAGGLE_INPUT_PATHS": "{}"}))
+    ours = sgl.persist_sglang(sgl.rung_settings({"running": 12}, 0))
+    # what the notebook's cell 10 asserts, and the switch for P30
+    assert ours["LOCAL_ANALYZER_MODEL_ID"] == "Qwen/Qwen3.8-Flash-Next-NVFP4"
+    assert ours["LOCAL_ANALYZER_YIELD_SECONDS"] == "60" and ours["LOCAL_ANALYZER_TEMPERATURE"] == "0.6"
+    assert ours["MULTIMODAL_UPSCALE"] == "4" and ours["OURS_SERVING"] == "sglang"
+    assert ours["TAAF_KAGGLE_INPUT_PATHS"] == "{}" and ours["OURS_SGLANG_RUNNING"] == "12"
+    assert "PYTHONPATH" not in ours and "LD_LIBRARY_PATH" not in ours  # nothing of the SGLang venv reaches the harness
+
+
+def test_sglang_server_env_isolates_the_venv(tmp_path):
+    venv = tmp_path / "venv"
+    site = sgl.venv_site(venv)
+    for lib in ("nvidia/cu13/lib", "nvidia/cudnn/lib", "torch/lib"):
+        (site / lib).mkdir(parents=True)
+    base = {"PATH": "/usr/bin", "PYTHONPATH": "/kaggle/lib", "CUDA_HOME": "/usr/local/cuda",
+            "LD_LIBRARY_PATH": "/usr/local/cuda/lib64:/opt/x", "KEEP": "1"}
+    env = sgl.server_env(venv, None, base)
+    assert "PYTHONPATH" not in env and "CUDA_HOME" not in env and env["KEEP"] == "1"
+    libs = env["LD_LIBRARY_PATH"].split(":")
+    assert libs[:3] == [str(site / "nvidia/cu13/lib"), str(site / "nvidia/cudnn/lib"), str(site / "torch/lib")]
+    assert "/usr/local/cuda/lib64" not in libs and libs[-1] == "/opt/x"  # never Kaggle's CUDA 12 toolkit
+    assert env["HF_HUB_OFFLINE"] == "1" and env["TRITON_CACHE_DIR"].startswith("/tmp/sgl-cache")
+    cuda = tmp_path / "cuda-13.0"
+    env = sgl.server_env(venv, cuda, base)
+    assert env["CUDA_HOME"] == str(cuda) and env["PATH"].split(":")[0] == str(cuda / "bin")
+
+
+def test_sglang_verify_stage_and_find_datasets(tmp_path, monkeypatch):
+    from packaging.utils import parse_wheel_filename
+
+    root = tmp_path / "input"
+    wheel_dir = root / "datasets" / "aaravbajya" / "arc-agi-sglang-workspace"
+    tv_dir = root / "some-mount" / "qwen38-vllm0272-cu130-wheelhouse-v1"
+    rows = []
+    for d, rel in ((wheel_dir, sgl.DATASET_MARKERS[sgl.WHEEL_DATASET]),
+                   (wheel_dir, "flashinfer_jit_cache-0.6.18cu130-cp39-abi3-manylinux_2_28_x86_64.whl"),
+                   (tv_dir, sgl.DATASET_MARKERS[sgl.TORCHVISION_DATASET])):
+        (d / rel).parent.mkdir(parents=True, exist_ok=True)
+        (d / rel).write_bytes(rel.encode())
+        name = rel.rsplit("/", 1)[-1]
+        rows.append({"dataset": sgl.TORCHVISION_DATASET if d == tv_dir else sgl.WHEEL_DATASET, "path": rel,
+                     "wheel": sgl.WHEEL_RENAMES.get(name, name), "size": len(rel),
+                     "sha256": hashlib.sha256(rel.encode()).hexdigest()})
+    monkeypatch.setenv("OURS_SGL_INPUT_ROOT", str(root))
+    monkeypatch.delenv("TAAF_KAGGLE_INPUT_PATHS", raising=False)
+    dirs = {ref: sgl.dataset_dir(ref) for ref in (sgl.WHEEL_DATASET, sgl.TORCHVISION_DATASET)}
+    assert dirs == {sgl.WHEEL_DATASET: wheel_dir, sgl.TORCHVISION_DATASET: tv_dir}  # usual layout, then the search
+    with pytest.raises(FileNotFoundError):
+        sgl.dataset_dir(sgl.RUNTIME_DATASET)
+    staged = sgl.stage_wheels(sgl.verify_wheels(rows, dirs), tmp_path / "stage")
+    assert staged[1].name == "flashinfer_jit_cache-0.6.18+cu130-cp39-abi3-manylinux_2_28_x86_64.whl"
+    assert all(parse_wheel_filename(p.name) and p.is_symlink() and p.resolve().is_file() for p in staged)
+    rows[0] = {**rows[0], "sha256": "0" * 64}
+    with pytest.raises(RuntimeError, match="hash mismatch"):
+        sgl.verify_wheels(rows, dirs)
+
+
+def test_sglang_board_png_is_a_256px_rgb_png():
+    import struct
+    import zlib
+
+    data = sgl.board_png()
+    assert data[:8] == b"\x89PNG\r\n\x1a\n" and data[12:16] == b"IHDR"
+    assert struct.unpack(">IIBB", data[16:26]) == (256, 256, 8, 2)
+    idat = data[data.index(b"IDAT") + 4:data.index(b"IEND") - 8]
+    assert len(zlib.decompress(idat)) == 256 * (1 + 256 * 3)
+
+
+def _prepared(tmp_path) -> Path:
+    dest = tmp_path / "copy"
+    summary = sgl.prepare_bundle(KEITH, dest, (ROOT / "scripts" / "sglang_serving.py").read_text(), {"running": 16})
+    assert summary["profile"]["running"] == 16 and summary["profile"]["mamba_cache"] == 96
+    return dest
+
+
+def test_sglang_bundle_copy_runs_our_launcher_and_keeps_his_commands(tmp_path):
+    dest = _prepared(tmp_path)
+    assert json.loads((dest / "setup_commands.json").read_text()) == [sgl.SETUP_COMMAND]
+    his_teardown = json.loads((KEITH / "teardown_commands.json").read_text())
+    assert json.loads((dest / "teardown_commands.json").read_text()) == [sgl.TEARDOWN_COMMAND, *his_teardown]
+    cfg = json.loads((dest / sgl.BUNDLE_CONFIG).read_text())
+    assert cfg["his_setup_commands"] == json.loads((KEITH / "setup_commands.json").read_text())
+    identity = json.loads((KEITH / "SOURCE_IDENTITY.json").read_text())
+    assert hashlib.sha256((KEITH / "setup_commands.json").read_bytes()).hexdigest() == identity["setup_commands_sha256"]
+    for name in ("serving_setup.py", "SOURCE_IDENTITY.json"):  # his files unchanged: the fallback's self-checks pass
+        assert (dest / name).read_bytes() == (KEITH / name).read_bytes()
+    assert (dest / "sglang_serving.py").read_text() == (ROOT / "scripts" / "sglang_serving.py").read_text()
+
+
+def test_sglang_setup_falls_back_to_his_vllm_setup_when_sglang_cannot_start(tmp_path):
+    """No wheel dataset mounted: the launcher records why, runs his setup commands from the bundle copy (a stand-in
+    here, since his needs the GPU runtime) and marks the run vllm-fallback, so P30 stays off and teardown skips."""
+    dest = _prepared(tmp_path)
+    cfg = json.loads((dest / sgl.BUNDLE_CONFIG).read_text())
+    marker = tmp_path / "his-setup-ran.txt"
+    cfg["his_setup_commands"] = [
+        '"$PYTHON" -c "import json, os, pathlib; p = pathlib.Path(os.environ[\'TAAF_KAGGLE_SETUP_ENV\']); '
+        "e = json.loads(p.read_text()); e['LOCAL_ANALYZER_MODEL_ID'] = 'vllm'; p.write_text(json.dumps(e)); "
+        f"pathlib.Path('{marker}').write_text(os.environ['TAAF_KAGGLE_BUNDLE_DIR'])\""]
+    (dest / sgl.BUNDLE_CONFIG).write_text(json.dumps(cfg))
+    work = tmp_path / "work"
+    work.mkdir()
+    (work / "env.json").write_text(json.dumps({"TAAF_KAGGLE_INPUT_PATHS": "{}"}))
+    env = {**os.environ, "PYTHON": sys.executable, "TAAF_KAGGLE_BUNDLE_DIR": str(dest),
+           "TAAF_KAGGLE_WORKING_DIR": str(work), "TAAF_KAGGLE_SETUP_ENV": str(work / "env.json"),
+           "OURS_SGL_INPUT_ROOT": str(tmp_path / "empty"), "OURS_NOTEBOOK_START_EPOCH": str(time.time())}
+    command = json.loads((dest / "setup_commands.json").read_text())[0]
+    out = subprocess.run(command, shell=True, env=env, cwd=work, capture_output=True, text=True, timeout=120)
+    assert out.returncode == 0, out.stderr
+    assert marker.read_text() == str(dest)
+    persisted = json.loads((work / "env.json").read_text())
+    assert persisted["OURS_SERVING"] == "vllm-fallback" and persisted["LOCAL_ANALYZER_MODEL_ID"] == "vllm"
+    assert "not mounted" in persisted["OURS_SGLANG_FALLBACK_REASON"]
+    report = json.loads((work / "sglang-setup.json").read_text())
+    assert report["engine"] == "vllm-fallback" and report["profile"]["running"] == 16
+    teardown = subprocess.run(sgl.TEARDOWN_COMMAND, shell=True, env=env, cwd=work, capture_output=True, text=True,
+                              timeout=60)
+    assert teardown.returncode == 0 and "SGLANG_TEARDOWN skipped" in teardown.stdout
+
+
+def test_sglang_teardown_stops_the_server_and_watchdog_groups(tmp_path, monkeypatch):
+    work = tmp_path / "work"
+    work.mkdir()
+    monkeypatch.setenv("TAAF_KAGGLE_WORKING_DIR", str(work))
+    monkeypatch.setattr(sgl, "PRIVATE", tmp_path / "private")
+    monkeypatch.setattr(sgl, "STOP_FILE", tmp_path / "private" / "stop")
+    monkeypatch.setattr(sgl, "CACHE_ROOT", tmp_path / "no-cache")
+    monkeypatch.setattr(sgl, "BASE_URL", "http://127.0.0.1:9/v1")  # nothing listens: the metrics snapshot fails fast
+    spawn = ("import subprocess, sys, time; subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(600)']); "
+             "time.sleep(600)")
+    server = subprocess.Popen([sys.executable, "-c", spawn], start_new_session=True)
+    watchdog = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(600)"], start_new_session=True)
+    time.sleep(1.0)
+    assert sgl.group_alive(server.pid)
+    sgl.write_json(sgl.state_path(), {"engine": "sglang", "pid": server.pid, "watchdog_pid": watchdog.pid})
+    sgl.teardown()
+    server.wait(10)
+    watchdog.wait(10)
+    assert not sgl.group_alive(server.pid) and not sgl.group_alive(watchdog.pid)  # the server's child went too
+    state = json.loads(sgl.state_path().read_text())
+    assert state["engine"] == "stopped" and state["teardown"]["server_stopped"] is True
+    assert sgl.STOP_FILE.exists()
+
+
+def _cells(path: Path) -> list[str]:
+    return ["".join(c["source"]) for c in json.loads(path.read_text())["cells"]]
+
+
+def test_builder_engine_sglang_changes_only_the_serving_cells(tmp_path):
+    out = tmp_path / "arms"
+    subprocess.run([sys.executable, str(ROOT / "scripts" / "build_arms.py"), "--out", str(out), "--force",
+                    "--arms", "exp054", "exp063"], check=True, capture_output=True, text=True)
+    registry = {a["exp"]: a for a in json.loads((ROOT / "kaggle" / "taaf" / "arms.json").read_text())["arms"]}
+    assert registry["exp063"]["patches"] == [*registry["exp054"]["patches"], "P30", "P30B"]
+    note = registry["exp063"]["note"]
+    assert "arc3-sgl-stress-r12" in note and "arc3-sgl-stress-r16-hic32" in note and "go rule" in note
+    meta = json.loads((out / "exp063" / "kernel-metadata.json").read_text())
+    base_meta = json.loads((out / "exp054" / "kernel-metadata.json").read_text())
+    assert meta["dataset_sources"] == [*base_meta["dataset_sources"], *sgl.EXTRA_DATASET_SOURCES]
+    assert meta["model_sources"] == base_meta["model_sources"] == [sgl.MODEL_SOURCE]
+    new, old = _cells(out / "exp063" / meta["code_file"]), _cells(out / "exp054" / base_meta["code_file"])
+    assert len(new) == len(old) + 1
+    src_idx = next(i for i, c in enumerate(new) if c.startswith(sgl.SOURCE_CELL_HEADER))
+    ns: dict = {}
+    exec(new[src_idx], ns)
+    assert ns["_SGLANG_SERVING_SOURCE"] == (ROOT / "scripts" / "sglang_serving.py").read_text()
+    rest = new[:src_idx] + new[src_idx + 1:]
+    differ = [i for i, (a, b) in enumerate(zip(rest, old)) if a != b]
+    # only the page header, the profile name (the slug) and the bundle cell (swap + patch list) differ from exp-054
+    assert [old[i].split("\n", 1)[0] for i in differ] == [
+        "# arc3-taaf-fix-kv775-obj (team scottmahony)", "import json",
+        "# Kaggle inputs attached to this notebook, plus bookkeeping paths used below."]
+    assert rest[differ[1]] == old[differ[1]].replace("PUBLIC25_VLLM_PROFILE_NAME = 'arc3-taaf-fix-kv775-obj'",
+                                                     "PUBLIC25_VLLM_PROFILE_NAME = 'arc3-taaf-sgl-r12-obj'")
+    bundle_cell = rest[differ[2]]
+    assert "'P30', 'P30B']" in bundle_cell and "OURS_NOTEBOOK_START_EPOCH" in bundle_cell
+    # run the notebook's own swap on the fixture bundle (redirected from /tmp to the test's directory)
+    swap = bundle_cell[bundle_cell.index("_sgl_ns = "):bundle_cell.index("ANIM_BUNDLE_DIR = _find_bundle_dir(")]
+    run_ns = {"Path": Path, "os": types.SimpleNamespace(environ={}), "BUNDLE_DIR": KEITH, "NOTEBOOK_START_EPOCH": 1.5,
+              "_SGLANG_SERVING_SOURCE": ns["_SGLANG_SERVING_SOURCE"]}
+    exec(swap.replace(sgl.SWAP_BUNDLE, str(tmp_path / "copy")), run_ns)
+    assert run_ns["BUNDLE_DIR"] == tmp_path / "copy" and run_ns["os"].environ["OURS_NOTEBOOK_START_EPOCH"] == "1.5"
+    assert json.loads((tmp_path / "copy" / "setup_commands.json").read_text()) == [sgl.SETUP_COMMAND]
+    assert json.loads((tmp_path / "copy" / sgl.BUNDLE_CONFIG).read_text())["profile"]["running"] == 12
+
+
+def test_builder_engine_sglang_needs_p30(tmp_path):
+    out = subprocess.run([sys.executable, str(ROOT / "scripts" / "build_taaf_nb.py"), "--out", str(tmp_path), "--slug",
+                          "t", "--patches", "P1", "--engine", "sglang"], capture_output=True, text=True)
+    assert out.returncode != 0 and "needs P30" in out.stderr
+
+
+@pytest.mark.parametrize("slug,flags,running,hicache", [
+    ("arc3-sgl-stress-r12", ["--sglang-running", "12"], 12, 0),
+    ("arc3-sgl-stress-r16-hic32", ["--sglang-running", "16", "--sglang-mamba-cache", "96", "--sglang-hicache-gb", "32"],
+     16, 32)])
+def test_stress_builder_engine_sglang(tmp_path, slug, flags, running, hicache):
+    subprocess.run([sys.executable, str(ROOT / "scripts" / "build_kv_stress_nb.py"), "--out", str(tmp_path),
+                    "--slug", slug, "--engine", "sglang", *flags], check=True, capture_output=True, text=True)
+    meta = json.loads((tmp_path / "kernel-metadata.json").read_text())
+    assert meta["dataset_sources"][-2:] == sgl.EXTRA_DATASET_SOURCES and meta["is_private"] is True
+    assert meta["enable_internet"] is False and meta["model_sources"] == [sgl.MODEL_SOURCE]
+    nb = json.loads((tmp_path / f"{slug}.ipynb").read_text())
+    cells = ["".join(c["source"]) for c in nb["cells"]]
+    for i, c in enumerate(cells):
+        if nb["cells"][i]["cell_type"] == "code":
+            compile(c, f"cell{i}", "exec")
+    bundle_cell = next(c for c in cells if "BUNDLE_DIR = _find_bundle_dir" in c)
+    profile = ast.literal_eval(re.search(r"_SGLANG_SERVING_SOURCE, (\{.*?\})\),", bundle_cell, re.S).group(1))
+    assert (profile["running"], profile["hicache_gb"], profile["mamba_cache"]) == (running, hicache, 6 * running)
+    text = "\n".join(cells)
+    for needle in ("_SGLANG_SERVING_SOURCE = ", "_OURS_PATCH_SOURCE = ", '["P30", "P30B"]', "SGL_STRESS_GO",
+                   "sgl_stress.json", "CLIENTS = 28", "MINUTES = 12", "BASELINE_TOK_S = 152.9",
+                   "teardown_commands.json", "4_reasoning_round_trip", "7_concurrency", "<= 2700",
+                   "1.25 * BASELINE_TOK_S", "<= 150"):
+        assert needle in text, needle
+    assert text.index("_OURS_PATCH_SOURCE = ") < text.index("# ours: SGLang functional gate")
+
+
+# The vLLM builds must not change with the SGLang option. The pins are the sha256 of builds made by the code before it
+# (commit aa3c525); in patched arms the inlined patch source is masked, since P30 lives in that file.
+DEFAULT_BUILD_PINS = {
+    "ctl/t-ctl.ipynb": "75655e2172d650a05808743714372f7d82c26ee7ffde93e66550f0254c26d76f",
+    "ctl/kernel-metadata.json": "ab7ffef50a413ea6b22d25bffe542e7f261d962735bbfad73ec1ac9d9fe15057",
+    "kv/arc3-kv-stress-t.ipynb": "5ccb514071b9f656c6da02ca13239223f95162d16fd081126dad2d78868d2b45",
+    "kv/kernel-metadata.json": "a5652e74d8597a9d33a1202911c38ed56342d58532f91c657f85c5f5734a85fe",
+    "arms/exp054/kernel-metadata.json": "94d3b88bbe358c7254fb19ca30f69beac5cc7474c3ddf4ecb69bc209b9cd27d1",
+    "arms/exp054/arc3-taaf-fix-kv775-obj.ipynb": "5dd9635f4ce3398f2c5363f9ef12b7bb013d744bdb9830f593e3aad6dab4a5d3",
+}
+
+
+def test_default_vllm_builds_are_unchanged(tmp_path):
+    scripts = ROOT / "scripts"
+    for cmd in (["build_taaf_nb.py", "--out", str(tmp_path / "ctl"), "--slug", "t-ctl"],
+                ["build_kv_stress_nb.py", "--out", str(tmp_path / "kv"), "--slug", "arc3-kv-stress-t", "--kv-gib",
+                 "7.75", "--batched-tokens", "2048"],
+                ["build_arms.py", "--out", str(tmp_path / "arms"), "--arms", "exp054", "--force"]):
+        subprocess.run([sys.executable, str(scripts / cmd[0]), *cmd[1:]], check=True, capture_output=True, text=True)
+    for rel, pin in DEFAULT_BUILD_PINS.items():
+        path = tmp_path / rel
+        if rel.startswith("arms/") and rel.endswith(".ipynb"):
+            nb = json.loads(path.read_text())
+            for c in nb["cells"]:
+                if "".join(c["source"]).startswith("# ours: source of scripts/taaf_ours_patch.py"):
+                    c["source"] = ["<patch source>"]
+            data = json.dumps(nb, indent=1).encode()
+        else:
+            data = path.read_bytes()
+        assert hashlib.sha256(data).hexdigest() == pin, rel
+    # and exp-054's patch list builds the same harness whether or not the registry holds P30 and P30B
+    arms = json.loads((ROOT / "kaggle" / "taaf" / "arms.json").read_text())["arms"]
+    names = next(a for a in arms if a["exp"] == "exp054")["patches"]
+    with_p30, without = _copy(tmp_path / "a"), _copy(tmp_path / "b")
+    tp.apply(with_p30, names)
+    saved = {k: tp.PATCHES.pop(k) for k in ("P30", "P30B")}
+    try:
+        tp.apply(without, names)
+    finally:
+        tp.PATCHES.update(saved)
+    for path in with_p30.rglob("*.py"):
+        assert path.read_bytes() == (without / path.relative_to(with_p30)).read_bytes(), path
