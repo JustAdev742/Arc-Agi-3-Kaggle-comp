@@ -1950,3 +1950,17 @@ runs/kvstress-5g-pc/kernel-output/vllm-openai-server.log: "Mamba cache mode is s
 Qwen4ExpForConditionalGeneration by default when prefix caching is enabled"; the synthetic load (random prompts sharing
 only the system prompt) reached a 5-8% hit rate, so the recurrent layers do not block caching and exp-060's mechanism can
 work. pull_taaf_run.py now records prefix_hit_rate (hits / queried tokens) and arm_table.py shows it ("pc").
+
+## 2026-09-29 06:27 · P31: compaction instead of truncation (history digest); exp-064 built · BUILT
+Why:      both strategy reviews rank compaction first among harness changes; a forum participant credits part of the
+          recent LB jumps to "configuring compaction correctly rather than conversation truncation"; the levels-2+ study
+          attributes 4-9 of 48 stuck levels to facts lost from earlier in the game.
+P31:      when a block is dropped to fit the context, each dropped assistant turn leaves one line in a single "Earlier
+          turns" user message at the front of history: step and level, visible text (<= 300 chars) and the last 300
+          chars of its reasoning; capped at OURS_DIGEST_CHARS (4000, oldest lines go first); the digest is dropped only when
+          nothing else can be; the assistant-turn cap folds what it cuts too. No model call. Unlike exp-035 (lesson 0022),
+          recent turns stay whole; only turns that were already being discarded are condensed.
+Checked:  tests (fold format, digest dropped last, a 60-call simulation with P28: every request within budget, digest
+          present, 80% of prompts extend the previous one vs 75% for P28 alone); bed test on the real harness with a mock
+          server and a 12k window (229 actions, 2 games, no errors).
+Arm:      exp-064 = exp-060 + P31, read against exp-060 (same serving), after it.

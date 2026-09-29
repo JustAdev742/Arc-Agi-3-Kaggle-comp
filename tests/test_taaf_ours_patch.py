@@ -1257,3 +1257,56 @@ def test_arm_exp062_builds_exp054_on_the_nvidia_checkpoint(tmp_path):
     for line in (f'"TAAF_VLLM_KV_CACHE_MEMORY_BYTES": "{int(7.75 * 1024**3)}"', '"TAAF_VLLM_MAX_NUM_BATCHED_TOKENS": "2048"',
                  '"TAAF_VLLM_MTP_TOKENS": "3"', "_NV_SERVING_PATCH_SOURCE = "):
         assert line in text, line
+
+
+_P31_SIM = r'''
+import json, sys
+sys.path.insert(0, sys.argv[1])
+from inference.agent import tool_agent as ta
+agent = ta.ToolAgent(model="mock")
+agent._context_budget_tokens = 20000
+system = {"role": "system", "content": "s" * 3000}
+history, previous, stable, digests = [], None, 0, []
+for i in range(60):
+    user = {"role": "user", "content": f"Current state: step {i}, level {1 + i // 20}. " + "u" * 3000}
+    request = agent._trim_messages_for_context([system, *history, user], tools=None, preserve_recent=1)
+    if i >= 20:
+        stable += previous is not None and request[:len(previous)] == previous
+    previous = request
+    if len(request) > 1 and str(request[1]["content"]).startswith("Earlier turns"):
+        digests.append(request[1]["content"])
+    done = request + [{"role": "assistant", "content": f"World model: note {i}. " + "a" * 400,
+                       "reasoning": "r" * 2000 + f" so the goal is to reach the door ({i})"},
+                      {"role": "tool", "tool_call_id": str(i), "content": "t" * 200}]
+    history = agent._persistent_history_messages(done, tools=None)
+    over = agent._estimate_request_input_tokens(request, tools=None) > 20000
+    assert not over, i
+print(json.dumps({"stable": stable / 40, "digests": len(digests), "last": digests[-1] if digests else "",
+                  "first_is_digest": str(history[0]["content"]).startswith("Earlier turns")}))
+'''
+
+
+def test_p31_dropped_turns_are_folded_into_a_capped_digest(tmp_path):
+    bundle = _copy(tmp_path / "b")
+    tp.apply(bundle, ["P1", "P1B", "P2", "P7", "P12", "P13", "P17", "P22", "P23", "P24", "P28", "P31"])
+    env = {**os.environ, "LOCAL_ANALYZER_MODEL_ID": "mock", "LOCAL_ANALYZER_BASE_URL": "http://127.0.0.1:9/v1"}
+    out = subprocess.run([sys.executable, "-c", _P31_SIM, str(bundle / "src" / "ARC3-Inference")], check=True,
+                         capture_output=True, text=True, env=env, timeout=120)
+    r = json.loads(out.stdout.strip().splitlines()[-1])
+    last = r["last"]
+    assert r["digests"] > 20 and r["first_is_digest"]
+    lines = last.splitlines()[1:]
+    assert all(line.startswith("- step ") for line in lines) and len(last) <= 4000 + 200
+    assert "World model: note" in last and "so the goal is to reach the door" in last and "level 3" in last
+    assert r["stable"] > 0.6  # with P28 the digest changes only at trims, so most prompts still extend the last one
+
+
+def test_p31_digest_is_the_last_thing_dropped(h):
+    agent = h.ta.ToolAgent(model="mock")
+    digest = h.ta._ours_fold(None, [{"role": "user", "content": "Current state: step 3, level 1. x"},
+                                    {"role": "assistant", "content": "Plan: go left", "reasoning": "because"}])
+    assert digest["content"].splitlines()[1] == "- step 3, level 1: Plan: go left | thought: because"
+    history = [digest, {"role": "user", "content": "Current state: step 9, level 1."}]
+    assert agent._drop_oldest_history_block(history, preserve_recent=1) is True  # only the digest could go
+    assert history == [{"role": "user", "content": "Current state: step 9, level 1."}]
+    assert agent._drop_oldest_history_block(history, preserve_recent=1) is False

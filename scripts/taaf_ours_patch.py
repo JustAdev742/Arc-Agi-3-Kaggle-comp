@@ -1965,7 +1965,100 @@ P29_SOLVER_NEW = """        _ours_cls: Any = ToolAgent
 """
 
 
+# P31 (compaction instead of truncation; both strategy reviews of 2026-09-29 rank it first among harness changes, and a
+# forum participant credits part of the recent LB jumps to it): when the harness drops the oldest history block to fit
+# the context, it no longer discards it. Each dropped assistant turn leaves one line in a single "Earlier turns" user
+# message at the front of history: the step and level it was played at, its visible text and the end of its reasoning
+# (where the model's conclusions usually are), each clipped. The digest is capped (OURS_DIGEST_CHARS, default 4000;
+# oldest lines go first) and is itself dropped only when nothing else can be. It needs no model call, and between
+# trims it sits unchanged at the front, so prompts keep a stable, cacheable prefix (with P28). exp-035 (lesson 0022)
+# failed by stripping the reasoning of every older turn on every call; this keeps recent turns whole and adds a
+# condensed trace of the ones that were already being thrown away.
+P31_FN = '''_OURS_DIGEST_HEAD = ("Earlier turns, condensed by the harness because the context was full (oldest first; for each "
+                     "dropped turn: your visible notes, then the end of your reasoning):")
+_OURS_DIGEST_CHARS = max(500, int(os.environ.get("OURS_DIGEST_CHARS", "") or 4000))
+_OURS_STATE_RE = re.compile(r"Current state: step (\\d+), level (\\d+)")
+
+
+def _ours_text(value: Any) -> str:
+    if isinstance(value, list):
+        value = " ".join(str(part.get("text", "")) for part in value if isinstance(part, dict))
+    return " ".join(str(value or "").split())
+
+
+def _ours_is_digest(message: dict[str, Any]) -> bool:
+    return str(message.get("role", "")) == "user" and _ours_text(message.get("content")).startswith(_OURS_DIGEST_HEAD)
+
+
+def _ours_fold(digest: dict[str, Any] | None, dropped: list[dict[str, Any]]) -> dict[str, Any] | None:
+    # ours P31: one digest line per dropped assistant turn, appended to the old digest's lines, capped from the oldest
+    lines = []
+    if digest is not None:
+        lines = [line for line in str(digest.get("content") or "").splitlines()[1:] if line.startswith("- ")]
+    where = ""
+    for message in dropped:
+        role = str(message.get("role", ""))
+        if role == "user":
+            if _ours_is_digest(message):
+                lines += [line for line in str(message.get("content") or "").splitlines()[1:] if line.startswith("- ")]
+                continue
+            match = _OURS_STATE_RE.search(_ours_text(message.get("content")))
+            if match:
+                where = f"step {match.group(1)}, level {match.group(2)}"
+        elif role == "assistant":
+            said = _ours_text(message.get("content"))[:300]
+            thought = _ours_text(message.get("reasoning") or message.get("reasoning_content"))
+            thought = ("..." + thought[-300:]) if len(thought) > 300 else thought
+            if said or thought:
+                lines.append(f"- {where or 'earlier'}: {said or '(no visible text)'} | thought: {thought or '-'}")
+    while lines and sum(len(line) + 1 for line in lines) > _OURS_DIGEST_CHARS:
+        lines.pop(0)
+    if not lines:
+        return None
+    return {"role": "user", "content": _OURS_DIGEST_HEAD + "\\n" + "\\n".join(lines)}
+
+
+def _ours_drop_and_fold(agent: Any, history: list[dict[str, Any]], preserve_recent: int) -> bool:
+    digest = history.pop(0) if history and _ours_is_digest(history[0]) else None
+    before = list(history)
+    dropped_any = agent._ours_drop_block_raw(history, preserve_recent=preserve_recent)
+    if not dropped_any:  # nothing else can go: the digest itself is dropped last
+        return digest is not None
+    folded = _ours_fold(digest, before[:len(before) - len(history)])
+    if folded is not None:
+        history.insert(0, folded)
+    return True
+
+
+def _ours_keep_digest(trimmed: list[dict[str, Any]], kept: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    # ours P31: the assistant-turn cap cuts history from the front too; fold what it cut instead of losing it
+    kept_ids = {id(message) for message in kept}
+    cut = [message for message in trimmed if id(message) not in kept_ids]
+    if not cut:
+        return kept
+    digest = next((message for message in cut if _ours_is_digest(message)), None)
+    folded = _ours_fold(digest, [message for message in cut if message is not digest])
+    return [folded, *kept] if folded is not None else kept
+
+
+'''
+P31_DROP_OLD = """    def _drop_oldest_history_block(self, history: list[dict[str, Any]], *, preserve_recent: int) -> bool:
+"""
+P31_DROP_NEW = """    def _drop_oldest_history_block(self, history: list[dict[str, Any]], *, preserve_recent: int) -> bool:
+        return _ours_drop_and_fold(self, history, preserve_recent)  # ours P31: fold the dropped block into a digest
+
+    def _ours_drop_block_raw(self, history: list[dict[str, Any]], *, preserve_recent: int) -> bool:
+"""
+P31_KEEP_OLD = """            if str(previous_message.get("role", "")).strip() == "user":
+                history = [previous_message, *history]
+"""
+P31_KEEP_NEW = P31_KEEP_OLD + "        history = _ours_keep_digest(trimmed_history, history)  # ours P31\n"
+
+
 PATCHES.update({
+    "P31": [(TOOL_AGENT, "def _empty_world_model(", P31_FN + "def _empty_world_model("),
+            (TOOL_AGENT, P31_DROP_OLD, P31_DROP_NEW),
+            (TOOL_AGENT, P31_KEEP_OLD, P31_KEEP_NEW)],
     "P29": [*((AVO_DIR + name, "<NEW>", text) for name, text in P29_FILES.items()),
             (AVO_DIR + "agent.py", P29_MEMORY_OLD, P29_MEMORY_NEW),
             (SOLVER, P29_SOLVER_OLD, P29_SOLVER_NEW)],
