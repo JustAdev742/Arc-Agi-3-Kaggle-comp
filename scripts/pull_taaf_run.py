@@ -2,6 +2,7 @@
 """Pull a Kaggle run of a Tufa-harness (TAAF / Duck) notebook and score it with our own scorer.
 
     .venv/bin/python scripts/pull_taaf_run.py scottmahony/arc3-taaf-q38-27b-anim taaf-q38-27b-anim-public25
+    .venv/bin/python scripts/pull_taaf_run.py --local <label> <run-name>   # output already under runs/<run-name>
 
 Downloads the kernel's output into ``runs/<run-name>/kernel-output`` (git-ignored), reads TAAF's ``benchmark.json``
 (per game: levels completed, actions per level, human baselines, TAAF's own final score), rescores every game with
@@ -70,20 +71,24 @@ def _optional(fn, path: Path) -> dict | None:
 
 
 def main() -> None:
-    if len(sys.argv) < 3:
+    local = sys.argv[1:2] == ["--local"]  # output already in runs/<run-name>/kernel-output (scripts/rental.py collect)
+    args = sys.argv[2:] if local else sys.argv[1:]
+    if len(args) < 2:
         print(__doc__)
         sys.exit(2)
-    kernel, run_name = sys.argv[1], sys.argv[2]
+    kernel, run_name = args[0], args[1]
     out = ROOT / "runs" / run_name
     dl = out / "kernel-output"
     dl.mkdir(parents=True, exist_ok=True)
-    env = dict(os.environ)
-    token = ROOT / ".kaggle" / "access_token"
-    if token.exists() and not env.get("KAGGLE_API_TOKEN"):
-        env["KAGGLE_API_TOKEN"] = token.read_text().strip()
-    kaggle = str(ROOT / ".venv" / "bin" / "kaggle")
-    r = subprocess.run([kaggle, "kernels", "output", kernel, "-p", str(dl), "-o"], env=env, capture_output=True, text=True, check=False)
-    print((r.stdout + r.stderr).strip().splitlines()[-1] if (r.stdout + r.stderr).strip() else "no output")
+    if not local:
+        env = dict(os.environ)
+        token = ROOT / ".kaggle" / "access_token"
+        if token.exists() and not env.get("KAGGLE_API_TOKEN"):
+            env["KAGGLE_API_TOKEN"] = token.read_text().strip()
+        kaggle = str(ROOT / ".venv" / "bin" / "kaggle")
+        r = subprocess.run([kaggle, "kernels", "output", kernel, "-p", str(dl), "-o"], env=env, capture_output=True,
+                           text=True, check=False)
+        print((r.stdout + r.stderr).strip().splitlines()[-1] if (r.stdout + r.stderr).strip() else "no output")
     bench = sorted(dl.rglob("benchmark.json"), key=lambda p: p.stat().st_mtime)
     if not bench:
         raise SystemExit(f"no benchmark.json under {dl}")

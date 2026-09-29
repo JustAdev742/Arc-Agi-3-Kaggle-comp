@@ -2009,3 +2009,20 @@ Measured (docs/research/levels2plus-exp054/toolerr.py, both exp-054 runs, 2,145 
           extra request, not a lost game.
 Decision: not worth a GPU pair or an arm; if a later arm touches the sandbox, allow difflib and give the valid action
           names in the unknown-action error in the same change. The review's +0.5-1 estimate is too high.
+
+## 2026-09-29 22:45 · rental runner for vast.ai (scripts/rental.py, rental_box.py) · BUILT (no money spent)
+Why: 30 GPU-h a week gives ~5 public-25 runs, and identical notebooks differ by 1.5-2.3x, so arms cannot be
+          separated with one run each; the owner is saving up to rent GPUs.
+What: our built notebooks run unchanged on rented 1-GPU RTX PRO 6000 boxes: Kaggle's GPU image (v170, public on
+          gcr.io, entrypoint /usr/bin/env), inputs downloaded once per box into both /kaggle/input layouts, papermill
+          in /kaggle/working under a 5 h cap, each run's output uploaded as a private Kaggle dataset, container exit
+          releases the GPU; `collect` scores with pull_taaf_run.py --local. 1-GPU boxes only: Keith's setup requires
+          exactly one RTX PRO 6000 in nvidia-smi. Spending is guarded (`launch` needs the owner's words for the
+          batch). Plan, costs and the owner's steps: docs/research/rental-runner.md.
+Checked:  tests/test_rental.py (10) incl. the box runner end to end on a fake Kaggle CLI and the silent-notebook cap;
+          a real papermill run through rental_box.execute (scratch venv); the image's entrypoint and size from the
+          registry; offers from vast.ai's public search (RTX PRO 6000 S, 1 GPU, >= 170 GB RAM, driver >= 580:
+          $1.40-1.55/h). A test first wrote its fake inputs to this container's real /kaggle (a default argument bound
+          at import); fixed, and nothing in the repo reads /kaggle outside the notebooks.
+Not yet tested: the vast.ai create/logs/destroy calls, Kaggle's model download speed, the notebook on a non-Kaggle host.
+Next: when the owner has the account, the first batch is exp-054 unchanged (calibration against its Kaggle pair).

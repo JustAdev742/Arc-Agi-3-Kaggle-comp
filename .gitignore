@@ -48,3 +48,6 @@ data/human/
 
 # agent git worktrees (Claude Code)
 .claude/worktrees/
+
+# vast.ai API key for scripts/rental.py
+.vast/

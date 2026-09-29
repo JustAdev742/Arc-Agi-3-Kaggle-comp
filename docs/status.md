@@ -179,9 +179,11 @@ champion preset are superseded by the move to the Duck family; they are in this 
    license) is worth more than any patch of ours; I check the public notebook list at each daily check-in.
 2. **GPU quota is the binding constraint: 30 h per week, resetting Saturdays 00:00 UTC.** A full public-25 run costs
    about 2.5 h, so about 10 full runs a week; single runs differ by about 2.3 points (sd of a difference), so only
-   large effects or clear mechanism changes can be read from one run. Nothing to decide unless you can add GPU time
-   elsewhere: the RTX PRO 6000 workstation in CLAUDE.md is not reachable from this cloud session; if you can give me
-   access (or run commands there), each experiment would stop costing Kaggle quota.
+   large effects or clear mechanism changes can be read from one run. **Rented GPUs (2026-09-29): the runner is built**
+   (scripts/rental.py, docs/research/rental-runner.md): our exact notebooks on vast.ai 1-GPU RTX PRO 6000 boxes,
+   about $4.5-5 per public-25 run. You are saving up for it; when ready: a vast.ai account with credit, its API key
+   in `.vast/api_key`, and a new Kaggle token after each rental (the token travels to the box). I quote each batch
+   and rent nothing without your OK; the first rental run is exp-054 unchanged, to calibrate against Kaggle.
 3. **Kaggle's API cannot cancel a running notebook** (the cancel call needs a session id no public call returns; the
    site's internal endpoint refuses API tokens). A run that should be stopped (like exp-036/039 today, which carry the
    harmful P4) can only be cancelled from the browser: https://www.kaggle.com/code/scottmahony/arc3-taaf-ours-c and
