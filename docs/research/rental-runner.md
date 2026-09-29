@@ -70,6 +70,19 @@ same as one 2-GPU box and need no change to the notebooks.
   exp-054 pair (12.87 / 10.70, 1,609 / 1,627 requests). Arms are then compared with each other on rentals.
 - Rental results are development evidence only; LB draws still come from Kaggle submissions (the owner submits).
 
+## Proposed first batches (each needs the owner's OK before `launch`)
+
+Measured input sizes (Kaggle API, 2026-09-29): model 135 GB, Keith's runtime 7.9 GB, the SGLang wheel datasets
+6.6 + 4.9 GB (first page of files), bundles < 0.1 GB; peak disk about 370 GB with the image, so 500 GB fits.
+
+1. **Calibration, ~$11:** exp-054 unchanged on two boxes at once (job `calib054` is packed). Read: the rental
+   public-25 score and requests per run against Kaggle's exp-054 pair (12.87 / 10.70; 1,609 / 1,627 requests), and the
+   spread between the two rental runs. Rule: if rental requests per run fall more than 15% below Kaggle's, rental
+   runs compare arms with each other only (never with Kaggle numbers).
+2. **Serving arms, ~$20-25:** the Oct 3 queue's serving candidates that passed their Kaggle stress test (exp-059/060,
+   exp-062), two runs each, packed on two boxes (setup paid once per box).
+3. Then pairs for whatever wins, and the harness arms (exp-064 compaction, exp-063 SGLang if its stress test passes).
+
 ## Tested (2026-09-29, CPU only, no money spent)
 
 - tests/test_rental.py (10 tests): offer filter (driver, 1 GPU, server edition first), both /kaggle/input layouts
