@@ -1923,3 +1923,24 @@ latest serving work (Sep 25) is "SGLang scored arms ... 5x96k / 6x79k / 7x66k": 
 Two subagents are preparing both for the Oct 3 quota (NVIDIA checkpoint swap in our notebook; an SGLang serving plan).
 Self-assessment: on Sep 27 I wrote that our serving profile "looks tapped out on this card" after testing KV size and MTP
 2/4 only; the model build and the engine were never varied. That conclusion was premature.
+
+## 2026-09-29 06:20 · NVIDIA NVFP4 checkpoint swap built (exp-062); SGLang plan; two strategy reviews · BUILT / PLAN
+NVIDIA checkpoint (Kaggle model xiaoz259/qwen3-8-flash-next-nvfp4/PyTorch/nvidia-nvfp4, 25 files, 132.7 GB): same main-
+model layout as RadixArk's (296,444 identical tensor names; experts NVFP4, attention/shared/vision BF16; PLE FP8 shards
+identical in the bytes checked), a different quant config (MIXED_PRECISION with per-layer entries) and a different MTP head
+(FP8 block-quantized experts, ~2.3 GiB less VRAM, estimated). Identical chat template and tokenizer. Keith's pinned runtime
+lacks two vLLM fixes the NVIDIA card requires (d4d703c: FP8 PLE under modelopt_mixed; 60ad959: FP8 MTP experts).
+scripts/nvidia_serving_patch.py backports both (pinned before/after hashes) and swaps the launcher's model identity;
+build_taaf_nb.py --model nvidia; 8 tests on verbatim fixtures of Keith's bundle and the three runtime files (MIT /
+Apache-2.0 notices). exp-062 = exp-054 + NVIDIA checkpoint (7.75 GiB, MTP 3). Never run on a GPU: its first 30 minutes
+are the smoke test (backport markers in the server log, PLE host RAM ~51 GB not ~102, model load ~78.7 GiB, MTP acceptance
+>= 2.5); if the FP8 MTP path fails, rerun with MTP 0.
+SGLang (docs/research/sglang-serving-plan.md): upstream SGLang 0.5.20 runs offline from two public wheel datasets on our
+checkpoint, but it drops assistant "reasoning" (only "reasoning_content" is rendered), so the Duck would lose its past
+reasoning (the exp-035 failure) without a client patch; not built yet. Son Pham's SGLang arms run on GCP; his Kaggle
+SGLang notebook is private.
+Strategy reviews (docs/research/strategy-sep29/, independent, same conclusion): the agent loses on reach, not efficiency
+(solved levels at 0.79x the human action count; ~42 decisions per game; 79% of each call's time queued); the lever is
+calls per game (MTP off + KV, caching with stable prefixes, the checkpoint/engine) plus compaction instead of truncation.
+Ceiling estimates: 8-15 LB without paid compute (both), 12-20 with ~$2-4k of rented training (40% chance of no gain);
+36-45 not reachable on the evidence; 60-100 not available to an open model on this hardware.

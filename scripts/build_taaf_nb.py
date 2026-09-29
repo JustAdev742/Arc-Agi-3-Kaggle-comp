@@ -15,6 +15,10 @@ animation-aware TAAF source; Tufa Labs' Duck harness, MIT). Options:
   prefix caching).
 - ``--wavefit``: in a real competition rerun only, size the per-game cap to the concurrency waves the hidden list needs so
   the last wave is not cancelled by the notebook's soft deadline (at most 1.25x the stock 7,920 s).
+- ``--model nvidia``: serve NVIDIA's checkpoint (Kaggle model xiaoz259/qwen3-8-flash-next-nvfp4/PyTorch/nvidia-nvfp4/1)
+  instead of RadixArk's. The notebook inlines scripts/nvidia_serving_patch.py, copies Keith's mounted serving bundle to
+  /tmp, patches the copy's serving_setup.py (model identity, ``--quantization modelopt_mixed``, three vLLM backports on
+  the extracted runtime) and points BUNDLE_DIR at it, so setup, watchdog and teardown all use the patched copy.
 
 Writes ``<out>/<slug>.ipynb`` and ``<out>/kernel-metadata.json`` (private, RTX PRO 6000); push with scripts/push_eval.py.
 """
@@ -22,11 +26,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+import nvidia_serving_patch as nv  # noqa: E402
+
 BASE = ROOT / "kaggle" / "taaf" / "base-thui-animfast.ipynb"
 PATCH_SRC = ROOT / "scripts" / "taaf_ours_patch.py"
+NV_PATCH_SRC = ROOT / "scripts" / "nvidia_serving_patch.py"
 BASE_META = {
     "language": "python", "kernel_type": "notebook", "is_private": True, "enable_gpu": True, "enable_tpu": False,
     "enable_internet": False, "keywords": [], "kernel_sources": [],
@@ -57,6 +66,27 @@ if TRUE_SUBMISSION:
     print(f"ours: wave-fit games={_n_games} concurrency={_conc} waves={_waves} "
           f"remaining_s={_remaining:.0f} per_game_s={_fit:.0f} (was {bm.solver.max_runtime_s_per_game})", flush=True)
     bm.solver.max_runtime_s_per_game = _fit"""
+BUNDLE_ANCHOR = ('BUNDLE_DIR = _find_bundle_dir("duck-harness-kaggle")          '
+                 '# his: serving_setup.py, vllm patches, watchdog, teardown')
+NV_BUNDLE = "/tmp/ours_nvidia_serving_bundle"
+NV_SWAP = f"""
+# ours (--model nvidia): serve nvidia/Qwen3.8-Flash-Next-NVFP4 instead of RadixArk's build. Patch a writable copy of his
+# serving bundle with scripts/nvidia_serving_patch.py (inlined in the previous cell); setup, watchdog and teardown all
+# read BUNDLE_DIR, so every serving step uses the patched copy.
+_nv_ns = {{"__name__": "nvidia_serving_patch"}}
+exec(compile(_NV_SERVING_PATCH_SOURCE, "nvidia_serving_patch.py", "exec"), _nv_ns)
+print("ours: nvidia serving patch", _nv_ns["apply"](BUNDLE_DIR, Path({NV_BUNDLE!r})), flush=True)
+BUNDLE_DIR = Path({NV_BUNDLE!r})"""
+NV_MARKDOWN = [  # (old, new) in the upstream description, so the page names the weights it actually serves
+    ("the pinned `RadixArk/Qwen3.8-Flash-Next-NVFP4` checkpoint (his Kaggle model asset)",
+     "the pinned `RadixArk/Qwen3.8-Flash-Next-NVFP4` checkpoint (his Kaggle model asset; **this arm serves "
+     "`nvidia/Qwen3.8-Flash-Next-NVFP4` instead**, see cell 0)"),
+    ("- **Weights** — RadixArk's NVFP4 quantisation of Qwen/Qwen3.8-Flash-Next (Qwen licence terms apply).",
+     "- **Weights** — this arm: NVIDIA's NVFP4 quantisation of Qwen/Qwen3.8-Flash-Next "
+     "([nvidia/Qwen3.8-Flash-Next-NVFP4](https://huggingface.co/nvidia/Qwen3.8-Flash-Next-NVFP4), Kaggle mirror "
+     "`xiaoz259/qwen3-8-flash-next-nvfp4`). Licensed by NVIDIA Corporation under the NVIDIA Open Model License; "
+     "Qwen Community License 1.0 for the base model."),
+]
 
 
 def code_cell(src: str) -> dict:
@@ -82,6 +112,8 @@ def main() -> None:
                          "the run keeps its length (a real rerun sizes the cap with --wavefit)")
     ap.add_argument("--knob", action="append", default=[], metavar="KEY=VALUE",
                     help="analyzer env override applied with the thui knobs (e.g. LOCAL_ANALYZER_MAX_OUTPUT=6144)")
+    ap.add_argument("--model", choices=["radixark", "nvidia"], default="radixark",
+                    help="checkpoint to serve (base: RadixArk's, Keith's pin); nvidia patches his serving setup")
     ap.add_argument("--note", default="")
     args = ap.parse_args()
     if args.lanes and not args.wavefit:
@@ -154,15 +186,34 @@ if not TRUE_SUBMISSION:  # the public 25 in waves of {args.lanes}: same total le
         if args.wavefit and SOFT_END_ANCHOR in s:
             s = s.replace(SOFT_END_ANCHOR, SOFT_END_ANCHOR + WAVEFIT)
             changes.append("wave-fit per-game cap in real reruns")
+        if args.model == "nvidia" and BUNDLE_ANCHOR in s:
+            if s.count(BUNDLE_ANCHOR) != 1:
+                raise SystemExit("bundle anchor found more than once in the base notebook")
+            s = s.replace(BUNDLE_ANCHOR, BUNDLE_ANCHOR + NV_SWAP)
+            changes.append(f"model {nv.NVIDIA_HF_REPO} (Kaggle model {nv.NVIDIA_MODEL_SOURCE}) served through "
+                           "scripts/nvidia_serving_patch.py: --quantization modelopt_mixed and vLLM backports of "
+                           "d4d703c (#54882, FP8 PLE) and 60ad959 (#55513, block-FP8 MTP experts) on Keith's runtime")
+        if args.model == "nvidia" and cell["cell_type"] == "markdown":
+            for old, new in NV_MARKDOWN:
+                s = s.replace(old, new)
         if s != orig:
             cell["source"] = [s]
+    if args.model == "nvidia":
+        text = "\n".join("".join(c["source"]) for c in cells)
+        missing = [old for old, new in NV_MARKDOWN if new not in text]
+        if missing:
+            raise SystemExit(f"--model nvidia: markdown anchors not found: {missing}")
+        idx = next(i for i, c in enumerate(cells) if BUNDLE_ANCHOR in "".join(c["source"]))
+        cells.insert(idx, code_cell("# ours: source of scripts/nvidia_serving_patch.py, applied in the next cell\n"
+                                    f"_NV_SERVING_PATCH_SOURCE = {NV_PATCH_SRC.read_text()!r}\n"))
     if args.patches:
         idx = next(i for i, c in enumerate(cells) if ANIM_ANCHOR in "".join(c["source"]))
         cells.insert(idx, code_cell("# ours: source of scripts/taaf_ours_patch.py, applied in the next cell\n"
                                     f"_OURS_PATCH_SOURCE = {PATCH_SRC.read_text()!r}\n"))
     expected = (bool(args.kv_dtype) + bool(args.max_num_seqs) + bool(args.cudagraph) + bool(args.patches)
                 + bool(args.wavefit) + bool(args.knob) + bool(args.kv_gib) + bool(args.prefix_caching)
-                + bool(args.batched_tokens) + (args.mtp_tokens is not None) + bool(args.lanes))
+                + bool(args.batched_tokens) + (args.mtp_tokens is not None) + bool(args.lanes)
+                + (args.model == "nvidia"))
     if len(changes) != expected:
         raise SystemExit(f"not every requested change found its anchor: {changes}")
     cells[0]["source"] = ["".join(cells[0]["source"]) + "\n\n**Changes in this arm:** "
@@ -175,6 +226,8 @@ if not TRUE_SUBMISSION:  # the public 25 in waves of {args.lanes}: same total le
     (out / f"{args.slug}.ipynb").write_text(json.dumps(nb, indent=1))
     meta = {"id": f"scottmahony/{args.slug}", "title": args.slug.replace("-", " "), "code_file": f"{args.slug}.ipynb",
             **BASE_META}
+    if args.model == "nvidia":
+        meta["model_sources"] = [nv.NVIDIA_MODEL_SOURCE]
     (out / "kernel-metadata.json").write_text(json.dumps(meta, indent=1))
     print(f"built {out / (args.slug + '.ipynb')}: {changes or 'control'}")
 

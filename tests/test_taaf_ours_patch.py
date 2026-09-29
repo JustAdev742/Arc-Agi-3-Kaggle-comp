@@ -7,6 +7,8 @@ harness can hang or crash games in a competition rerun. These run against a verb
 from __future__ import annotations
 
 import ast
+import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -23,6 +25,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "taaf_anim"
 sys.path.insert(0, str(ROOT / "scripts"))
+import nvidia_serving_patch as nv  # noqa: E402
 import taaf_ours_patch as tp  # noqa: E402
 
 ALL = list(tp.PATCHES)
@@ -980,3 +983,277 @@ def test_p28_floor_never_cuts_into_the_current_turn(tmp_path):
     assert r["first_after_system"] == "Current state:"  # the turn's own prompt survives the trim
     assert r["request_len"] >= 1 + r["turn_len"] and r["est"] <= 20000
     assert r["kept"] >= r["turn_len"]  # and the history kept after the turn still holds the whole turn
+
+
+# --- NVIDIA checkpoint serving (scripts/nvidia_serving_patch.py, build_taaf_nb.py --model nvidia) --------------------
+
+KEITH = ROOT / "tests" / "fixtures" / "keith_serving"
+VLLM_RT = ROOT / "tests" / "fixtures" / "vllm_qwen38_runtime"
+RADIXARK_CONFIG_SHA256 = "e765305daba0951974308f4d32c075b52a6a45974730d273f2216718a994d624"
+# NVIDIA's quantized_layers (config.json @ fc694b54): 48 NVFP4 routed-expert layers, the FP8 PLE table, the MTP experts
+NV_QUANTIZED_LAYERS = {
+    **{f"model.language_model.layers.{i}.mlp.experts": {"quant_algo": "NVFP4", "group_size": 16} for i in range(48)},
+    "model.language_model.layers.1.ple.ple_embedding.ngram_embedding": {"quant_algo": "FP8"},
+    "mtp.layers.0.mlp.experts": {"quant_algo": "FP8_PB_WO", "group_size": 128},
+}
+
+
+def _nv_setup(tmp_path, monkeypatch):
+    """His serving_setup.py after the NVIDIA patch, imported from a patched copy of the fixture bundle."""
+    dest = tmp_path / "nvbundle"
+    summary = nv.apply(KEITH, dest)
+    monkeypatch.setenv("TAAF_KAGGLE_BUNDLE_DIR", str(dest))
+    monkeypatch.setenv("TAAF_KAGGLE_WORKING_DIR", str(tmp_path / "work"))
+    monkeypatch.setenv("TAAF_KAGGLE_SETUP_ENV", str(tmp_path / "setup_env.json"))
+    spec = importlib.util.spec_from_file_location("nv_serving_setup", dest / "serving_setup.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return dest, summary, module
+
+
+def test_nvidia_patch_swaps_model_identity_and_quantization_and_leaves_no_radixark_path(tmp_path, monkeypatch):
+    dest, summary, m = _nv_setup(tmp_path, monkeypatch)
+    assert len(summary["edits"]) == 4
+    assert m.source_identity()["model"]["hf_repo"] == nv.NVIDIA_HF_REPO  # his self-hash and identity checks pass
+    assert (str(m.MODEL_KAGGLE_PATH), m.MODEL_HF_REPO, m.MODEL_HF_REVISION) == (
+        nv.NVIDIA_KAGGLE_PATH, nv.NVIDIA_HF_REPO, nv.NVIDIA_HF_REVISION)
+    assert (m.MODEL_FILE_COUNT, m.MODEL_TOTAL_BYTES) == (25, 132_734_506_847)  # the Kaggle model's listing
+    assert nv.manifest_sha256() == m.MODEL_MANIFEST_SHA256
+    cmd = m.server_command(m.MODEL_KAGGLE_PATH)
+    assert cmd[cmd.index("serve") + 1] == nv.NVIDIA_KAGGLE_PATH
+    assert cmd[cmd.index("--quantization") + 1] == "modelopt_mixed"
+    assert cmd[cmd.index("--chat-template") + 1] == nv.NVIDIA_KAGGLE_PATH + "/chat_template.jinja"
+    assert cmd[cmd.index("--served-model-name") + 1] == "Qwen/Qwen3.8-Flash-Next-NVFP4"  # the notebook asserts this id
+    joined = " ".join(cmd).lower()
+    assert "radixark" not in joined and "modelopt_fp4" not in joined
+    # the model functions in force are ours; his RadixArk versions above the block are dead code
+    text = (dest / "serving_setup.py").read_text()
+    block_line = text[: text.index(nv.BLOCK_BEGIN)].count("\n") + 1
+    for fn in (m.resolve_model_dir, m.verify_model, m.apply_nvidia_runtime_backports):
+        assert fn.__code__.co_firstlineno > block_line, fn.__name__
+    # the RadixArk pins that remain belong to his PLE patch (its gate never fires for a MIXED_PRECISION config) and to
+    # the env marker his teardown uses to find the server
+    assert m.MODEL_CONFIG_SHA256 == RADIXARK_CONFIG_SHA256
+    assert '"VLLM_RADIXARK_QWEN38_NVFP4_PLE_FP8": "1",' in text
+    assert "    if sha256_file(ple_path) != NVIDIA_PLE_FINAL_SHA256:" in text
+    assert nv.RUNTIME_BACKPORTS[0][2] == m.NVIDIA_PLE_FINAL_SHA256
+    main_src = text[text.index("def main() -> None:"):]
+    assert main_src.index("ple_patch = patch_ple_layer()") < main_src.index("apply_nvidia_runtime_backports()") \
+        < main_src.index("env, environment_check = runtime_environment(")
+    identity = json.loads((dest / "SOURCE_IDENTITY.json").read_text())
+    assert identity["serving_setup_sha256"] == hashlib.sha256((dest / "serving_setup.py").read_bytes()).hexdigest()
+    assert identity["model_manifest_sha256"] == nv.manifest_sha256()
+    assert (KEITH / "serving_setup.py").read_bytes() != (dest / "serving_setup.py").read_bytes()  # fixture untouched
+    assert hashlib.sha256((KEITH / "serving_setup.py").read_bytes()).hexdigest() == nv.KEITH_SERVING_SETUP_SHA256
+
+
+def test_nvidia_patch_refuses_a_changed_serving_setup(tmp_path):
+    bundle = shutil.copytree(KEITH, tmp_path / "k")
+    (bundle / "serving_setup.py").write_text((bundle / "serving_setup.py").read_text() + "\n# a newer version\n")
+    with pytest.raises(RuntimeError, match="not the pinned version"):
+        nv.apply(bundle, tmp_path / "out")
+
+
+def test_nvidia_manifest_matches_the_kaggle_listing():
+    rows = {p: (s, h) for p, s, h in nv.NVIDIA_MODEL_FILES}
+    assert len(rows) == 25 and sum(s for s, _ in rows.values()) == 132_734_506_847
+    assert rows["config.json"][1] == nv.NVIDIA_CONFIG_SHA256
+    assert rows["hf_quant_config.json"][1] == nv.NVIDIA_QUANT_CONFIG_SHA256
+    assert rows["model-fp8-mtp-ple.safetensors"][0] == 53_717_551_730
+    assert set(nv.NVIDIA_FAST_HASHED_FILES) <= set(rows)
+
+
+def _fake_mount(root: Path, config: dict) -> tuple:
+    """A mount with every NVIDIA file name: small synthetic contents (we keep no NVIDIA files in the repo)."""
+    root.mkdir(parents=True)
+    rows = []
+    for rel, _, _ in nv.NVIDIA_MODEL_FILES:
+        if rel == "config.json":
+            data = json.dumps(config).encode()
+        elif rel == "hf_quant_config.json":
+            data = json.dumps({"quantization": {"quant_algo": "MIXED_PRECISION"}}).encode()
+        else:
+            data = f"placeholder {rel}".encode()
+        (root / rel).write_bytes(data)
+        rows.append((rel, len(data), hashlib.sha256(data).hexdigest()))
+    return tuple(rows)
+
+
+def _point_setup_at(m, rows):
+    m.NVIDIA_MODEL_FILES = rows
+    m.MODEL_TOTAL_BYTES = sum(s for _, s, _ in rows)
+    m.NVIDIA_CONFIG_SHA256 = {p: h for p, _, h in rows}["config.json"]
+    m.MODEL_MANIFEST_SHA256 = hashlib.sha256(json.dumps(
+        {"repo": m.MODEL_HF_REPO, "revision": m.MODEL_HF_REVISION,
+         "files": [{"path": p, "size": s, "sha256": h} for p, s, h in rows], "total_bytes": m.MODEL_TOTAL_BYTES},
+        sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def test_nvidia_model_checks_accept_the_mixed_layout_and_reject_radixark_or_damaged_mounts(tmp_path, monkeypatch):
+    _, _, m = _nv_setup(tmp_path, monkeypatch)
+    good = {"architectures": ["Qwen4ExpForConditionalGeneration"], "model_type": "qwen4_exp",
+            "quantization_config": {"quant_method": "modelopt", "quant_algo": "MIXED_PRECISION",
+                                    "quantized_layers": NV_QUANTIZED_LAYERS},
+            "text_config": {"ple_layer_ids": [2], "mtp_num_hidden_layers": 1, "mtp": {"num_hidden_layers": 1}}}
+    mount = tmp_path / "mount"
+    _point_setup_at(m, _fake_mount(mount, good))
+    m.MODEL_KAGGLE_PATH = mount
+    assert m.resolve_model_dir() == mount
+    fast = m.verify_model(mount, full_file_hashes=False)
+    assert (fast["checkpoint"], fast["ple_quant_algo"], fast["mtp_experts_quant_algo"]) == ("nvidia", "FP8", "FP8_PB_WO")
+    assert fast["hashed_file_count"] == len(nv.NVIDIA_FAST_HASHED_FILES)
+    assert m.verify_model(mount, full_file_hashes=True)["hashed_file_count"] == 25
+    (mount / "vocab.json").write_bytes(b"x")  # a wrong-sized file fails even in fast start
+    with pytest.raises(RuntimeError, match="wrong-sized"):
+        m.verify_model(mount, full_file_hashes=False)
+    # RadixArk's layout (plain NVFP4, no quantized_layers) is refused, and so is a mount whose config is not NVIDIA's
+    radix = {**good, "quantization_config": {"quant_method": "modelopt", "quant_algo": "NVFP4"}}
+    other = tmp_path / "radix"
+    _point_setup_at(m, _fake_mount(other, radix))
+    with pytest.raises(RuntimeError, match="MIXED_PRECISION layout"):
+        m.verify_model(other, full_file_hashes=False)
+    m.NVIDIA_CONFIG_SHA256 = "0" * 64
+    m.MODEL_KAGGLE_PATH = other
+    with pytest.raises(FileNotFoundError, match=re.escape(nv.NVIDIA_HF_REPO)):
+        m.resolve_model_dir()
+
+
+def _runtime_site(tmp_path) -> Path:
+    """The three pinned runtime files, with his RadixArk PLE patch applied first as his setup does."""
+    site = tmp_path / "rt" / "usr" / "local" / "lib" / "python3.12" / "dist-packages"
+    shutil.copytree(VLLM_RT / "vllm", site / "vllm")
+    out = subprocess.run([sys.executable, "-B", str(KEITH / "vllm-patches" / "apply_radixark_nvfp4_ple_fp8_patch.py"),
+                          str(site)], check=True, capture_output=True, text=True)
+    assert out.stdout.strip() == "patched"
+    return site
+
+
+def test_nvidia_runtime_backports_produce_the_pinned_files(tmp_path, monkeypatch):
+    _, _, m = _nv_setup(tmp_path, monkeypatch)
+    site = _runtime_site(tmp_path)
+    m.RUNTIME_ROOT = tmp_path / "rt"
+    rows = m.apply_nvidia_runtime_backports()
+    assert set(rows) == {nv.PLE_REL, nv.MODELOPT_REL, nv.MTP_REL}
+    for rel, _, after, _ in nv.RUNTIME_BACKPORTS:
+        text = (site / rel).read_text()
+        assert hashlib.sha256(text.encode()).hexdigest() == after
+        compile(text, rel, "exec")
+    ple = (site / nv.PLE_REL).read_text()
+    assert ple.index("_is_exact_radixark_nvfp4_ple(quant_config, prefix, config)") \
+        < ple.index("isinstance(quant_config, ModelOptMixedPrecisionConfig)") \
+        < ple.index("if not isinstance(quant_config, Fp8Config):")
+    assert "return Fp8MoEMethod(self.fp8_block_config, layer)" in (site / nv.MODELOPT_REL).read_text()
+    assert m.sha256_file(site / nv.PLE_REL) == m.NVIDIA_PLE_FINAL_SHA256  # what runtime_environment() checks
+    assert set(m.apply_nvidia_runtime_backports().values()) == {"already-patched"}  # a watchdog-era rerun is a no-op
+    (site / nv.MTP_REL).write_text("# a different runtime\n")
+    with pytest.raises(RuntimeError, match="target changed"):
+        m.apply_nvidia_runtime_backports()
+
+
+def _functions(path: Path, class_name: str | None, names: set) -> str:
+    """Source of the named top-level functions (or methods of ``class_name``) of a file we cannot import (torch)."""
+    text = path.read_text()
+    tree = ast.parse(text)
+    body = tree.body if class_name is None else next(
+        n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == class_name).body
+    parts = []
+    for node in body:
+        if isinstance(node, ast.FunctionDef) and node.name in names:
+            start = (node.decorator_list[0].lineno if node.decorator_list else node.lineno) - 1
+            lines = text.splitlines()[start:node.end_lineno]
+            indent = len(lines[0]) - len(lines[0].lstrip())
+            parts.append("\n".join(line[indent:] for line in lines))
+    assert len(parts) == len(names), (path, names)
+    return "\n\n".join(parts)
+
+
+def test_nvidia_backports_resolve_the_checkpoint_layers_as_upstream_does(tmp_path, monkeypatch):
+    """The backported code, run on NVIDIA's quantized_layers: PLE -> FP8 (his RadixArk gate stays off), main experts ->
+    NVFP4, MTP experts -> block FP8 after the draft remap (checkpoint layer 0 -> draft layer 48)."""
+    _, _, m = _nv_setup(tmp_path, monkeypatch)
+    site = _runtime_site(tmp_path)
+    m.RUNTIME_ROOT = tmp_path / "rt"
+    m.apply_nvidia_runtime_backports()
+    # ModelOptMixedPrecisionConfig's lookup, exactly as the runtime has it
+    methods = _functions(site / nv.MODELOPT_REL, "ModelOptMixedPrecisionConfig",
+                         {"_resolve_quant_algo", "_quantized_layer_prefix_candidates"})
+    ns: dict = {}
+    exec("class Mixed:\n    packed_modules_mapping = {}\n"
+         "    def __init__(self, layers):\n        self.quantized_layers = layers\n"
+         + "\n".join("    " + line for line in methods.splitlines()), ns)
+    # the remap the MTP draft applies to its quant config (backported) and the PLE selector (patched twice)
+    mtp_ns: dict = {"re": re}
+    exec(_functions(site / nv.MTP_REL, None, {"_remap_ignored_layers", "_remap_quantized_layers"}), mtp_ns)
+    fake_modelopt = types.ModuleType("vllm.model_executor.layers.quantization.modelopt")
+    fake_modelopt.ModelOptMixedPrecisionConfig = ns["Mixed"]
+    for name in ("vllm", "vllm.model_executor", "vllm.model_executor.layers", "vllm.model_executor.layers.quantization"):
+        monkeypatch.setitem(sys.modules, name, sys.modules.get(name) or types.ModuleType(name))
+    monkeypatch.setitem(sys.modules, fake_modelopt.__name__, fake_modelopt)
+
+    class Fp8Method:
+        pass
+
+    ple_ns = {"QuantizationConfig": object, "QuantizeMethodBase": object, "Qwen3_8FlashNextTextConfig": object,
+              "Fp8Config": type("Fp8Config", (), {}), "is_layer_skipped": None,
+              "Qwen3_8FlashNextPLEFp8EmbeddingMethod": Fp8Method, "_is_exact_radixark_nvfp4_ple": lambda *a: False}
+    exec(_functions(site / nv.PLE_REL, None, {"_get_ple_embedding_quant_method"}), ple_ns)
+    select = ple_ns["_get_ple_embedding_quant_method"]
+    runtime_ple = "language_model.model.layers.1.ple.ple_embedding.ngram_embedding"  # his runtime's PLE prefix
+    mapped = {k.replace("model.language_model.", "language_model.model.", 1): v for k, v in NV_QUANTIZED_LAYERS.items()}
+    for layers in (NV_QUANTIZED_LAYERS, mapped):  # before and after the model's hf_to_vllm_mapper
+        cfg = ns["Mixed"](layers)
+        assert isinstance(select(cfg, runtime_ple, None), Fp8Method)
+        assert cfg._resolve_quant_algo("language_model.model.layers.7.mlp.experts") == "NVFP4"
+        assert cfg._resolve_quant_algo("language_model.model.layers.3.self_attn.qkv_proj") is None  # BF16
+        draft = ns["Mixed"](mtp_ns["_remap_quantized_layers"](layers, 48))
+        assert draft._resolve_quant_algo("mtp.layers.48.mlp.experts") == "FP8_PB_WO"
+        assert draft._resolve_quant_algo("mtp.layers.48.self_attn.qkv_proj") is None
+    assert select(ns["Mixed"]({"x": {"quant_algo": "NVFP4"}}), runtime_ple, None) is None
+    assert select(object(), runtime_ple, None) is None  # neither ModelOpt mixed nor FP8: unquantized, as before
+
+
+def test_builder_model_nvidia_attaches_nvidia_weights_and_patches_a_copy_of_his_bundle(tmp_path):
+    out = tmp_path / "nb"
+    subprocess.run([sys.executable, str(ROOT / "scripts" / "build_taaf_nb.py"), "--out", str(out), "--slug", "t-nv",
+                    "--patches", "P1", "--model", "nvidia"], check=True, capture_output=True, text=True)
+    meta = json.loads((out / "kernel-metadata.json").read_text())
+    assert meta["model_sources"] == [nv.NVIDIA_MODEL_SOURCE]
+    assert "radixark" not in json.dumps(meta).lower()
+    nb = json.loads((out / "t-nv.ipynb").read_text())
+    cells = ["".join(c["source"]) for c in nb["cells"]]
+    src_idx = next(i for i, c in enumerate(cells) if c.startswith("# ours: source of scripts/nvidia_serving_patch.py"))
+    bundle_idx = next(i for i, c in enumerate(cells) if 'BUNDLE_DIR = _find_bundle_dir("duck-harness-kaggle")' in c)
+    assert src_idx < bundle_idx
+    ns: dict = {}
+    exec(cells[src_idx], ns)
+    assert ns["_NV_SERVING_PATCH_SOURCE"] == (ROOT / "scripts" / "nvidia_serving_patch.py").read_text()
+    bundle_cell = cells[bundle_idx]
+    swap = bundle_cell[bundle_cell.index("_nv_ns = "):bundle_cell.index('ANIM_BUNDLE_DIR = _find_bundle_dir(')]
+    assert swap.rstrip().endswith("BUNDLE_DIR = Path('/tmp/ours_nvidia_serving_bundle')")
+    # run the notebook's own swap on the fixture bundle (redirected from /tmp to the test's directory)
+    run_ns = {"Path": Path, "BUNDLE_DIR": KEITH, "_NV_SERVING_PATCH_SOURCE": ns["_NV_SERVING_PATCH_SOURCE"]}
+    exec(swap.replace("/tmp/ours_nvidia_serving_bundle", str(tmp_path / "copy")), run_ns)
+    assert run_ns["BUNDLE_DIR"] == tmp_path / "copy"
+    assert "modelopt_mixed" in (tmp_path / "copy" / "serving_setup.py").read_text()
+    # no code cell other than the inlined patch source names the RadixArk checkpoint; the page names NVIDIA's weights
+    code = [c for i, c in enumerate(cells) if nb["cells"][i]["cell_type"] == "code" and i != src_idx
+            and not c.startswith("# ours: source of scripts/taaf_ours_patch.py")]
+    for ref in ("RadixArk/Qwen3.8", "radixark-modelopt-fp4", nv.RADIXARK_MODEL_SOURCE):
+        assert not any(ref.lower() in c.lower() for c in code), ref
+    markdown = "\n".join(c for i, c in enumerate(cells) if nb["cells"][i]["cell_type"] == "markdown")
+    assert "NVIDIA Open Model License" in markdown and "this arm serves `nvidia/Qwen3.8-Flash-Next-NVFP4`" in markdown
+
+
+def test_arm_exp062_builds_exp054_on_the_nvidia_checkpoint(tmp_path):
+    registry = {a["exp"]: a for a in json.loads((ROOT / "kaggle" / "taaf" / "arms.json").read_text())["arms"]}
+    assert registry["exp062"]["patches"] == registry["exp054"]["patches"]
+    out = tmp_path / "arms"
+    subprocess.run([sys.executable, str(ROOT / "scripts" / "build_arms.py"), "--out", str(out), "--arms", "exp062"],
+                   check=True, capture_output=True, text=True)
+    folder = out / "exp062"
+    meta = json.loads((folder / "kernel-metadata.json").read_text())
+    assert meta["model_sources"] == [nv.NVIDIA_MODEL_SOURCE]
+    text = "\n".join("".join(c["source"]) for c in json.loads((folder / meta["code_file"]).read_text())["cells"])
+    for line in (f'"TAAF_VLLM_KV_CACHE_MEMORY_BYTES": "{int(7.75 * 1024**3)}"', '"TAAF_VLLM_MAX_NUM_BATCHED_TOKENS": "2048"',
+                 '"TAAF_VLLM_MTP_TOKENS": "3"', "_NV_SERVING_PATCH_SOURCE = "):
+        assert line in text, line

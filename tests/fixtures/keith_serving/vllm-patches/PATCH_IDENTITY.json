@@ -1,0 +1,26 @@
+{
+  "artifact": "radixark_nvfp4_ple_fp8.patch",
+  "artifact_bytes": 3940,
+  "artifact_sha256": "e3b83f9a65e436d21d3e757ddc8dd2699f3c59de9f73967107b3b20c101d0a9f",
+  "exact_model_config": "model/RadixArk-Qwen3.8-Flash-Next-NVFP4/config.json",
+  "exact_model_config_bytes": 4983,
+  "exact_model_config_producer": {
+    "name": "modelopt",
+    "version": "0.46.0"
+  },
+  "exact_model_config_sha256": "e765305daba0951974308f4d32c075b52a6a45974730d273f2216718a994d624",
+  "modelopt_internal_gate": {
+    "checkpoint_excluded_prefix": "model.language_model.model.layers.1.ple.ple_embedding.ngram_embedding",
+    "group_size": 16,
+    "is_checkpoint_nvfp4_serialized": true,
+    "is_layer_excluded_checkpoint_prefix": true,
+    "quant_method": "NVFP4",
+    "runtime_prefix": "language_model.model.layers.1.ple.ple_embedding.ngram_embedding"
+  },
+  "patched_target_sha256": "a8a064744efc3c99eefff649f50395d77e1c36085266034d17b51722f68176ed",
+  "stock_target_sha256": "a71144c1d36e06f22a2da1b1ada900076597fe5e824a911e7ada86249a0993e7",
+  "target": "vllm/models/qwen3_8_flash_next/nvidia/ple_layer.py",
+  "vllm_image_amd64_manifest": "sha256:0aea30240f3e3d9ffae8526643950e170eb5fa07fc427016a9dd90892afa2aa3",
+  "vllm_image_index_digest": "sha256:fc120ece0a388cc0aa1caad4a9f1cd92113484ab7ec2fd0efadd62585be05bf8",
+  "vllm_version": "0.1.dev20073+g8e685d198"
+}

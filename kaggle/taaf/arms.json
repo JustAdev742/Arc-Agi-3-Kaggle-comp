@@ -783,6 +783,28 @@
     "batched_tokens": 2048
    },
    "note": "exp-061: exp-054 + P29, Tufa Labs' AVO wrapper (their Experiment 5, deployed to Kaggle Sep 1 between their LB draws of 4.71 and 11.04; no result published) with their default settings: per-game memory at the top of every prompt, rotating inspect/plan/implement/evaluate directive, text-only stagnation supervisor, exploit directive after 60% of the game's budget."
+  },
+  {
+   "exp": "exp062",
+   "slug": "arc3-taaf-kv775-obj-nvckpt",
+   "patches": [
+    "P1",
+    "P1B",
+    "P2",
+    "P7",
+    "P12",
+    "P13",
+    "P17",
+    "P22",
+    "P23",
+    "P24"
+   ],
+   "serving": {
+    "kv_gib": 7.75,
+    "batched_tokens": 2048,
+    "model": "nvidia"
+   },
+   "note": "exp-062: exp-054's patches and serving profile (7.75 GiB KV, 2,048 batched tokens, MTP 3) with NVIDIA's checkpoint (nvidia/Qwen3.8-Flash-Next-NVFP4, Kaggle model xiaoz259/qwen3-8-flash-next-nvfp4/PyTorch/nvidia-nvfp4/1) instead of RadixArk's: same main-model tensors and FP8 PLE table, different expert calibration (NVIDIA: MSE weight scales, cnn_dailymail + Nemotron post-training chats; RadixArk's card notes long agentic generations run longer than BF16) and an FP8 MTP head (~2.3 GiB less VRAM). Served through scripts/nvidia_serving_patch.py (--quantization modelopt_mixed plus backports of vLLM d4d703c and 60ad959 on Keith's runtime). Never run on a GPU: push only after a smoke test shows the OURS_NVIDIA_PLE_FP8 and OURS_NVIDIA_BLOCK_FP8_MOE log lines, a healthy MTP acceptance rate and coherent replies (2026-09-29 status)."
   }
  ]
 }
