@@ -233,6 +233,7 @@ class MockModel:
         self.latency, self.decode_tok_s, self.overflow_every = latency, decode_tok_s, overflow_every
         self.expect, self.reasoning_chars, self.think_chars = expect, reasoning_chars, think_chars
         self.lock = threading.Lock()
+        self.log_lock = threading.Lock()
         self.n = 0
         self.inflight = 0
         self.recent: deque = deque(maxlen=64)
@@ -245,8 +246,9 @@ class MockModel:
         self.serve_log.close()
 
     def _log(self, line: str) -> None:
-        self.serve_log.write(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] {line}\n")
-        self.serve_log.flush()
+        with self.log_lock:
+            self.serve_log.write(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] {line}\n")
+            self.serve_log.flush()
 
     def _cached(self, keys: list[str], cumulative: list[int]) -> int:
         best = 0
@@ -450,6 +452,9 @@ def inner(config_path: Path) -> None:
     spec = taaf.game_api.ArcadeSpec(operation_mode=arc_agi.OperationMode.OFFLINE, environments_dir=cfg["env_dir"])
     arcade = arc_agi.Arcade(operation_mode=arc_agi.OperationMode.OFFLINE, environments_dir=cfg["env_dir"])
     available = [e.game_id for e in arcade.available_environments]
+    missing = [prefix for prefix in cfg["games"] if not any(g.startswith(prefix) for g in available)]
+    if missing:
+        raise SystemExit(f"bed: no game files for {missing} under {cfg['env_dir']}")
     game_ids = [next(g for g in available if g.startswith(prefix)) for prefix in cfg["games"]]
     bm.games = [taaf.game_api.GameAPI(env_name=g, arcade_spec=spec) for g in game_ids]
     (job / "git_status.txt").write_text((bundle / "git_status.txt").read_text())
@@ -598,11 +603,14 @@ def run_bed(out: Path, *, games: list[str], seconds: float, slots: int | None = 
     with open(out / "bed.log", "w") as log:
         proc = subprocess.Popen([str(py), str(Path(__file__).resolve()), "--inner", str(out / "bed_config.json")],
                                 env=child_env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        watchdog = threading.Timer(seconds + 900, proc.kill)  # a hung harness must not hang the bed
+        watchdog.start()
         for line in proc.stdout:
             log.write(line)
             if verbose:
                 print("  | " + line, end="")
-        code = proc.wait(timeout=seconds + 900)
+        code = proc.wait()
+        watchdog.cancel()
     server.shutdown()
     model.close()
     print(f"bed: child exited {code} after {time.time() - t0:.0f} s", flush=True)
