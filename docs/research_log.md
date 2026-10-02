@@ -2057,3 +2057,13 @@ Plan:     exp-070 = his notebook unchanged as our private kernel, pushed after t
           his 10-game demo); then the owner submits it. exp-071 = the same, all 25 public games at 121 min per game
           (the hidden set's compute per game: 532 min x 10 slots / 110 games), the calibration for arms on this base.
           Our vLLM-fork arms (exp-059/060/062/063/064, the SGLang launcher) leave the queue: superseded.
+
+## 2026-10-02 23:10 · beat-Tufa research program: four reports and a plan · PLAN
+Five agents (intel, Franzen run analysis, serving, engineering, new methods); four reports are in
+docs/research/beat-tufa/ (intel.md, franzen-run-analysis.md, serving.md, new-methods.md) and the synthesis is
+docs/research/beat-tufa/plan.md. Measured on Franzen's published demo run: decode-bound (86% of game time generating,
+~765 tok/s at 10 streams, 94% prefix-cache reuse, MTP accept 2.66), losses are reach not efficiency. Tufa's true mean
+is ~46-50 (one +66% step on Sep 28; RL stack forked in early September); beating it by a few points needs a mean
+near 55, ~2.1x a Franzen draw. One-card levers (MXFP8 + more streams, REAP-448, fewer tokens per action, harness
+fixes) compound to roughly x1.4-1.9 (est.); a post-trained model is the most plausible rest. Verified: 1 submission
+per day (forum thread 705405).
