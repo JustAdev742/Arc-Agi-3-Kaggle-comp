@@ -2058,7 +2058,7 @@ Plan:     exp-070 = his notebook unchanged as our private kernel, pushed after t
           (the hidden set's compute per game: 532 min x 10 slots / 110 games), the calibration for arms on this base.
           Our vLLM-fork arms (exp-059/060/062/063/064, the SGLang launcher) leave the queue: superseded.
 
-## 2026-10-02 23:10 · beat-Tufa research program: four reports and a plan · PLAN
+## 2026-10-02 23:09 · beat-Tufa research program: four reports and a plan · PLAN
 Five agents (intel, Franzen run analysis, serving, engineering, new methods); four reports are in
 docs/research/beat-tufa/ (intel.md, franzen-run-analysis.md, serving.md, new-methods.md) and the synthesis is
 docs/research/beat-tufa/plan.md. Measured on Franzen's published demo run: decode-bound (86% of game time generating,
