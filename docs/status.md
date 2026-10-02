@@ -153,9 +153,11 @@ His open-sourced solution (LB 27.89) replaces our vLLM fork as the base; the old
    submits it** (expected: the ~27 band instead of our 4.70).
 2. exp-071 (arc3-franzen-m2-full25): all 25 public games at 121 min per game (~2.5 h), the calibration; then a repeat
    (exp-071r) for the run-to-run spread on this base.
-3. Knob arms on his base, chosen after reading exp-071's logs (admission slots with the server's request limit, the
-   drain target, guards from level 1, image scale, continuation values), each against exp-071/071r; rentals (when the
-   owner's account is ready) give the repeats.
+3. Serving gate (25 games x 25 min, read tok/s and stability, not score): exp-072a unchanged, exp-072b online MXFP8 +
+   12 streams (docs/research/beat-tufa/serving.md arm 1). Queue file: scratchpad/queue-oct3.json (kaggle_queue.py).
+4. Harness arms being built on the CPU bed (docs/research/beat-tufa/plan.md): exp-073 sandbox fixes + budget meter +
+   RESET exposed + 90 s tool timeout; exp-074 search service + win ledger. Each 25 x 121 min against exp-071;
+   rentals (when the owner's account is ready) give the repeats.
 - LB draws: exp-054 draw 2 (submitted by the owner on Sep 28, 56655075) scored **3.36**; exp-054 is 4.70 / 3.36,
   mean 4.03. Later draws need the owner or a permission rule (the session's permission check blocks
   scripts/submit_kernel.py).
