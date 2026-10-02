@@ -1,0 +1,16 @@
+diff --git a/ARC3-Inference/inference/agent/tool_agent.py b/ARC3-Inference/inference/agent/tool_agent.py
+index 84a9cdd..ccb72ae 100644
+--- a/ARC3-Inference/inference/agent/tool_agent.py
++++ b/ARC3-Inference/inference/agent/tool_agent.py
+@@ -2747,6 +2747,11 @@ def _build_system_prompt(*, tool_output_tokens: int) -> str:
+     )
+     if _level_transfer_guidance_enabled():
+         prompt = apply_level_transfer_system_guidance(prompt)
++    # ours (sample patch, tests/fixtures/franzen/sample-ours.patch): OURS_SYSTEM_PROMPT_SUFFIX, read at call time,
++    # is appended verbatim as the last line(s) of the system prompt. Empty/unset leaves the prompt unchanged.
++    _suffix = os.environ.get("OURS_SYSTEM_PROMPT_SUFFIX", "").strip()
++    if _suffix:
++        prompt = f"{prompt}\n\n{_suffix}"
+     return prompt
+ 
+ 

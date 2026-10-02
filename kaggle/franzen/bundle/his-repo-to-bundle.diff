@@ -1,0 +1,2247 @@
+diff --git a/ARC3-Inference/Makefile b/ARC3-Inference/Makefile
+index 7619d8e7ef4454d02973bec6e8b14155dde9fcb1..7e990f8e7bd0630f1cbf0df9ce64bb6a77eca383 100644
+--- a/ARC3-Inference/Makefile
++++ b/ARC3-Inference/Makefile
+@@ -6,7 +6,7 @@
+ 
+ REPO_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+ CLUSTER_USER ?= $(if $(strip $(USER)),$(USER),$(shell whoami))
+-SHARED_STORAGE_ROOT ?= /shared/$(CLUSTER_USER)
++SHARED_STORAGE_ROOT ?= /sw/$(CLUSTER_USER)
+ RUNS_DIR ?= $(REPO_ROOT)/runs
+ RUNS_ZIP ?= $(REPO_ROOT)/runs.zip
+ 
+@@ -40,85 +40,36 @@ TORCHINDUCTOR_FX_GRAPH_CACHE_DIR ?= $(SERVER_CACHE_ROOT)/torchinductor_fx_graph
+ TRITON_CACHE_DIR ?= $(SERVER_CACHE_ROOT)/triton
+ XDG_CACHE_HOME ?= $(SERVER_CACHE_ROOT)/xdg
+ 
+-ifeq ($(origin GAME),undefined)
+-GAME := $(shell $(CONFIG_VALUE) environment.games ls20-cb3b57cc)
+-endif
+-ifeq ($(origin DATASET),undefined)
+-DATASET := $(shell $(CONFIG_VALUE) environment.dataset)
+-endif
+-ifeq ($(origin GAME_TAGS),undefined)
+-GAME_TAGS := $(shell $(CONFIG_VALUE) environment.include_tags)
+-endif
+-ifeq ($(origin EXCLUDE_GAME_TAGS),undefined)
+-EXCLUDE_GAME_TAGS := $(shell $(CONFIG_VALUE) environment.exclude_tags)
+-endif
+-ifeq ($(origin ENVIRONMENTS_DIR),undefined)
+-ENVIRONMENTS_DIR := $(shell $(CONFIG_VALUE) environment.environments_dir)
+-endif
+-ifeq ($(origin MAX_ACTIONS),undefined)
+-MAX_ACTIONS := $(shell $(CONFIG_VALUE) environment.max_steps)
+-endif
+-ifeq ($(origin MAX_RUNTIME_MINUTES),undefined)
+-MAX_RUNTIME_MINUTES := $(shell $(CONFIG_VALUE) environment.max_runtime_minutes)
+-endif
+-ifeq ($(origin MAX_GENERATED_TOKENS_PER_GAME),undefined)
+-MAX_GENERATED_TOKENS_PER_GAME := $(shell $(CONFIG_VALUE) environment.max_generated_tokens_per_game)
+-endif
+-ifeq ($(origin MAX_EXPERIMENT_RUNTIME_HOURS),undefined)
+-MAX_EXPERIMENT_RUNTIME_HOURS := $(shell $(CONFIG_VALUE) environment.max_experiment_runtime_hours)
+-endif
+-ifeq ($(origin MAX_EXPERIMENT_RUNTIME_MINUTES),undefined)
+-MAX_EXPERIMENT_RUNTIME_MINUTES := $(shell $(CONFIG_VALUE) environment.max_experiment_runtime_minutes)
+-endif
++GAME ?= $(shell $(CONFIG_VALUE) environment.games ls20-cb3b57cc)
++DATASET ?= $(shell $(CONFIG_VALUE) environment.dataset)
++GAME_TAGS ?= $(shell $(CONFIG_VALUE) environment.include_tags)
++EXCLUDE_GAME_TAGS ?= $(shell $(CONFIG_VALUE) environment.exclude_tags)
++RE_ARC_ENVIRONMENTS_DIR ?= $(shell $(CONFIG_VALUE) environment.environments_dir)
++MAX_ACTIONS ?= $(shell $(CONFIG_VALUE) environment.max_steps)
++MAX_RUNTIME_MINUTES ?= $(shell $(CONFIG_VALUE) environment.max_runtime_minutes)
++MAX_EXPERIMENT_RUNTIME_HOURS ?= $(shell $(CONFIG_VALUE) environment.max_experiment_runtime_hours)
++MAX_EXPERIMENT_RUNTIME_MINUTES ?= $(shell $(CONFIG_VALUE) environment.max_experiment_runtime_minutes)
+ MAX_EXPERIMENT_RUNTIME_ARGS = $(if $(strip $(MAX_EXPERIMENT_RUNTIME_MINUTES)),--max-experiment-runtime-minutes $(MAX_EXPERIMENT_RUNTIME_MINUTES),$(if $(strip $(MAX_EXPERIMENT_RUNTIME_HOURS)),--max-experiment-runtime-hours $(MAX_EXPERIMENT_RUNTIME_HOURS),))
+-ifeq ($(origin EXPERIMENTS_DIR),undefined)
+-EXPERIMENTS_DIR := $(shell $(CONFIG_VALUE) experiments.root_dir)
+-endif
++EXPERIMENTS_DIR ?= $(shell $(CONFIG_VALUE) experiments.root_dir)
+ EXPERIMENT_DIR ?=
+-ifeq ($(origin N_PASSES),undefined)
+-N_PASSES := $(shell $(CONFIG_VALUE) environment.n_passes 1)
+-endif
+-ifeq ($(origin CONCURRENT_JOBS),undefined)
+-CONCURRENT_JOBS := $(shell $(CONFIG_VALUE) environment.concurrent_jobs 1)
+-endif
++N_PASSES ?= $(shell $(CONFIG_VALUE) environment.n_passes 1)
++CONCURRENT_JOBS ?= $(shell $(CONFIG_VALUE) environment.concurrent_jobs 1)
+ SIMULATE_COMPETITION_ARCADE ?= false
+ COMPETITION_CLONE_RUNS ?=
+-ifeq ($(origin MODEL),undefined)
+-MODEL := $(shell $(CONFIG_VALUE) analyzer.model_id $(shell $(CONFIG_VALUE) shared.model_name))
+-endif
++MODEL ?= $(shell $(CONFIG_VALUE) analyzer.model_id $(SHARED_MODEL_NAME))
+ AGENT ?= inference
+ RUN_NAME ?=
+ 
+-ifeq ($(origin DEPLOYMENT_TARGET),undefined)
+-DEPLOYMENT_TARGET := $(shell $(CONFIG_VALUE) deployment.target inline)
+-endif
+-ifeq ($(origin DEPLOYMENT_WAIT),undefined)
+-DEPLOYMENT_WAIT := $(shell $(CONFIG_VALUE) deployment.wait false)
+-endif
+-ifeq ($(origin DEPLOYMENT_SOURCE_REPOS),undefined)
+-DEPLOYMENT_SOURCE_REPOS := $(shell $(CONFIG_VALUE) deployment.source_repos [])
+-endif
+-ifeq ($(origin DEPLOYMENT_SLURM_GPU),undefined)
+-DEPLOYMENT_SLURM_GPU := $(shell $(CONFIG_VALUE) deployment.slurm.gpu B200)
+-endif
+-ifeq ($(origin DEPLOYMENT_SLURM_GPU_COUNT),undefined)
+-DEPLOYMENT_SLURM_GPU_COUNT := $(shell $(CONFIG_VALUE) deployment.slurm.gpu_count 1)
+-endif
+-ifeq ($(origin DEPLOYMENT_SLURM_TIME),undefined)
+-DEPLOYMENT_SLURM_TIME := $(shell $(CONFIG_VALUE) deployment.slurm.time 06:00:00)
+-endif
+-ifeq ($(origin DEPLOYMENT_SLURM_IMAGE),undefined)
+-DEPLOYMENT_SLURM_IMAGE := $(shell $(CONFIG_VALUE) deployment.slurm.image)
+-endif
+-ifeq ($(origin DEPLOYMENT_SLURM_PARTITION),undefined)
+-DEPLOYMENT_SLURM_PARTITION := $(shell $(CONFIG_VALUE) deployment.slurm.partition)
+-endif
+-ifeq ($(origin DEPLOYMENT_SLURM_NODELIST),undefined)
+-DEPLOYMENT_SLURM_NODELIST := $(shell $(CONFIG_VALUE) deployment.slurm.nodelist)
+-endif
+-ifeq ($(origin DEPLOYMENT_SLURM_EXTRA_SBATCH_FLAGS),undefined)
+-DEPLOYMENT_SLURM_EXTRA_SBATCH_FLAGS := $(shell $(CONFIG_VALUE) deployment.slurm.extra_sbatch_flags [])
+-endif
++DEPLOYMENT_TARGET ?= $(shell $(CONFIG_VALUE) deployment.target inline)
++DEPLOYMENT_WAIT ?= $(shell $(CONFIG_VALUE) deployment.wait false)
++DEPLOYMENT_SOURCE_REPOS ?= $(shell $(CONFIG_VALUE) deployment.source_repos [])
++DEPLOYMENT_SLURM_GPU ?= $(shell $(CONFIG_VALUE) deployment.slurm.gpu B200)
++DEPLOYMENT_SLURM_GPU_COUNT ?= $(shell $(CONFIG_VALUE) deployment.slurm.gpu_count 1)
++DEPLOYMENT_SLURM_TIME ?= $(shell $(CONFIG_VALUE) deployment.slurm.time 06:00:00)
++DEPLOYMENT_SLURM_IMAGE ?= $(shell $(CONFIG_VALUE) deployment.slurm.image)
++DEPLOYMENT_SLURM_PARTITION ?= $(shell $(CONFIG_VALUE) deployment.slurm.partition)
++DEPLOYMENT_SLURM_NODELIST ?= $(shell $(CONFIG_VALUE) deployment.slurm.nodelist)
++DEPLOYMENT_SLURM_EXTRA_SBATCH_FLAGS ?= $(shell $(CONFIG_VALUE) deployment.slurm.extra_sbatch_flags [])
+ KAGGLE_DUCK_PUBLIC_HARNESS ?= false
+ KAGGLE_MAKE_SHARE_VERSION ?= false
+ KAGGLE_USERNAME ?=
+@@ -134,16 +85,10 @@ KAGGLE_RUN_AS_SUBMISSION ?= false
+ KAGGLE_DRY_RUN ?= false
+ KAGGLE_DATASET_VERSION_MESSAGE ?=
+ 
+-ifeq ($(origin SERVER_BACKEND),undefined)
+-SERVER_BACKEND := $(shell $(CONFIG_VALUE) server.backend vllm)
+-endif
+-ifeq ($(origin SERVER_HOST),undefined)
+-SERVER_HOST := $(shell $(CONFIG_VALUE) server.host 127.0.0.1)
+-endif
++SERVER_BACKEND ?= $(shell $(CONFIG_VALUE) server.backend vllm)
++SERVER_HOST ?= $(shell $(CONFIG_VALUE) server.host 127.0.0.1)
+ SERVER_PORT_ORIGIN := $(origin SERVER_PORT)
+-ifeq ($(origin SERVER_PORT),undefined)
+-SERVER_PORT := $(shell $(CONFIG_VALUE) server.port 1234)
+-endif
++SERVER_PORT ?= $(shell $(CONFIG_VALUE) server.port 1234)
+ ARC3_SERVER_PORT_EXPLICIT ?= $(if $(filter environment command line file override,$(SERVER_PORT_ORIGIN)),true,false)
+ SERVER_START_TIMEOUT ?= 900
+ SERVER_STATUS_EVERY ?= 10
+@@ -151,64 +96,26 @@ SERVER_LOG_TAIL_LINES ?= 80
+ SERVER_TAIL_ON_WAIT ?= false
+ SERVER_HEALTH_URL ?= http://127.0.0.1:$(SERVER_PORT)/v1/models
+ 
+-ifeq ($(origin SHARED_MODEL_NAME),undefined)
+-SHARED_MODEL_NAME := $(shell $(CONFIG_VALUE) shared.model_name)
+-endif
+-ifeq ($(origin SHARED_BASE_URL),undefined)
+-SHARED_BASE_URL := $(shell $(CONFIG_VALUE) shared.base_url http://127.0.0.1:$(SERVER_PORT)/v1)
+-endif
+-ifeq ($(origin SHARED_PROVIDER),undefined)
+-SHARED_PROVIDER := $(shell $(CONFIG_VALUE) shared.provider vllm)
+-endif
+-ifeq ($(origin SHARED_CONTEXT_WINDOW),undefined)
+-SHARED_CONTEXT_WINDOW := $(shell $(CONFIG_VALUE) shared.context_window 65536)
+-endif
+-
+-ifeq ($(origin SERVER_SHARED_MODEL_NAME),undefined)
+-SERVER_SHARED_MODEL_NAME := $(shell $(CONFIG_VALUE) shared.model_name)
+-endif
+-ifeq ($(origin SERVER_SHARED_CONTEXT_WINDOW),undefined)
+-SERVER_SHARED_CONTEXT_WINDOW := $(shell $(CONFIG_VALUE) shared.context_window 65536)
+-endif
+-ifeq ($(origin SERVER_MODEL),undefined)
+-SERVER_MODEL := $(shell $(CONFIG_VALUE) server.model $(SERVER_SHARED_MODEL_NAME))
+-endif
+-ifeq ($(origin SERVER_SERVED_MODEL_NAME),undefined)
+-SERVER_SERVED_MODEL_NAME := $(shell $(CONFIG_VALUE) server.served_model_name $(SERVER_SHARED_MODEL_NAME))
+-endif
+-ifeq ($(origin SERVER_TENSOR_PARALLEL_SIZE),undefined)
+-SERVER_TENSOR_PARALLEL_SIZE := $(shell $(CONFIG_VALUE) server.tensor_parallel_size 1)
+-endif
+-ifeq ($(origin SERVER_MAX_MODEL_LEN),undefined)
+-SERVER_MAX_MODEL_LEN := $(shell $(CONFIG_VALUE) server.max_model_len $(SERVER_SHARED_CONTEXT_WINDOW))
+-endif
+-ifeq ($(origin SERVER_DTYPE),undefined)
+-SERVER_DTYPE := $(shell $(CONFIG_VALUE) server.dtype)
+-endif
+-ifeq ($(origin SERVER_GPU_MEMORY_UTILIZATION),undefined)
+-SERVER_GPU_MEMORY_UTILIZATION := $(shell $(CONFIG_VALUE) server.gpu_memory_utilization)
+-endif
+-ifeq ($(origin SERVER_TRUST_REMOTE_CODE),undefined)
+-SERVER_TRUST_REMOTE_CODE := $(shell $(CONFIG_VALUE) server.trust_remote_code false)
+-endif
+-ifeq ($(origin SERVER_GENERATION_CONFIG),undefined)
+-SERVER_GENERATION_CONFIG := $(shell $(CONFIG_VALUE) server.generation_config vllm)
+-endif
+-ifeq ($(origin SERVER_LANGUAGE_MODEL_ONLY),undefined)
+-SERVER_LANGUAGE_MODEL_ONLY := $(shell $(CONFIG_VALUE) server.language_model_only false)
+-endif
+-ifeq ($(origin SERVER_ENABLE_PREFIX_CACHING),undefined)
+-SERVER_ENABLE_PREFIX_CACHING := $(shell $(CONFIG_VALUE) server.enable_prefix_caching true)
+-endif
+-ifeq ($(origin SERVER_DEFAULT_CHAT_TEMPLATE_KWARGS),undefined)
+-SERVER_DEFAULT_CHAT_TEMPLATE_KWARGS := $(shell $(CONFIG_VALUE) server.default_chat_template_kwargs)
+-endif
+-ifeq ($(origin SERVER_TOOL_CALL_PARSER),undefined)
+-SERVER_TOOL_CALL_PARSER := $(shell $(CONFIG_VALUE) server.tool_call_parser qwen3_coder)
+-endif
+-ifeq ($(origin SERVER_REASONING_PARSER),undefined)
+-SERVER_REASONING_PARSER := $(shell $(CONFIG_VALUE) server.reasoning_parser)
+-endif
++SHARED_MODEL_NAME ?= $(shell $(CONFIG_VALUE) shared.model_name)
++SHARED_BASE_URL ?= $(shell $(CONFIG_VALUE) shared.base_url http://127.0.0.1:$(SERVER_PORT)/v1)
++SHARED_PROVIDER ?= $(shell $(CONFIG_VALUE) shared.provider vllm)
++SHARED_CONTEXT_WINDOW ?= $(shell $(CONFIG_VALUE) shared.context_window 65536)
++
++SERVER_SHARED_MODEL_NAME ?= $(shell $(CONFIG_VALUE) shared.model_name)
++SERVER_SHARED_CONTEXT_WINDOW ?= $(shell $(CONFIG_VALUE) shared.context_window 65536)
++SERVER_MODEL ?= $(shell $(CONFIG_VALUE) server.model $(SERVER_SHARED_MODEL_NAME))
++SERVER_SERVED_MODEL_NAME ?= $(shell $(CONFIG_VALUE) server.served_model_name $(SERVER_SHARED_MODEL_NAME))
++SERVER_TENSOR_PARALLEL_SIZE ?= $(shell $(CONFIG_VALUE) server.tensor_parallel_size 1)
++SERVER_MAX_MODEL_LEN ?= $(shell $(CONFIG_VALUE) server.max_model_len $(SERVER_SHARED_CONTEXT_WINDOW))
++SERVER_DTYPE ?= $(shell $(CONFIG_VALUE) server.dtype)
++SERVER_GPU_MEMORY_UTILIZATION ?= $(shell $(CONFIG_VALUE) server.gpu_memory_utilization)
++SERVER_TRUST_REMOTE_CODE ?= $(shell $(CONFIG_VALUE) server.trust_remote_code false)
++SERVER_GENERATION_CONFIG ?= $(shell $(CONFIG_VALUE) server.generation_config vllm)
++SERVER_LANGUAGE_MODEL_ONLY ?= $(shell $(CONFIG_VALUE) server.language_model_only false)
++SERVER_ENABLE_PREFIX_CACHING ?= $(shell $(CONFIG_VALUE) server.enable_prefix_caching true)
++SERVER_DEFAULT_CHAT_TEMPLATE_KWARGS ?= $(shell $(CONFIG_VALUE) server.default_chat_template_kwargs)
++SERVER_TOOL_CALL_PARSER ?= $(shell $(CONFIG_VALUE) server.tool_call_parser qwen3_coder)
++SERVER_REASONING_PARSER ?= $(shell $(CONFIG_VALUE) server.reasoning_parser)
+ SERVER_ENABLE_LORA ?= false
+ SERVER_MAX_LORAS ?= 1
+ SERVER_MAX_LORA_RANK ?= 16
+@@ -226,94 +133,38 @@ SERVER_VENV_VLLM ?= $(dir $(SERVER_VENV_PYTHON))vllm
+ SERVER_VENV_BIN ?= $(patsubst %/,%,$(dir $(SERVER_VENV_PYTHON)))
+ SERVER_LOAD_LORA_URL ?= http://127.0.0.1:$(SERVER_PORT)/v1/load_lora_adapter
+ 
+-ifeq ($(origin LOCAL_ANALYZER_BASE_URL),undefined)
+-LOCAL_ANALYZER_BASE_URL := $(shell $(CONFIG_VALUE) analyzer.base_url $(SHARED_BASE_URL))
+-endif
+-ifeq ($(origin LOCAL_ANALYZER_PROVIDER),undefined)
+-LOCAL_ANALYZER_PROVIDER := $(shell $(CONFIG_VALUE) analyzer.provider $(SHARED_PROVIDER))
+-endif
+-ifeq ($(origin LOCAL_ANALYZER_MODEL_ID),undefined)
+-LOCAL_ANALYZER_MODEL_ID := $(shell $(CONFIG_VALUE) analyzer.model_id $(SERVER_SERVED_MODEL_NAME))
+-endif
+-ifeq ($(origin LOCAL_ANALYZER_CONTEXT_WINDOW),undefined)
+-LOCAL_ANALYZER_CONTEXT_WINDOW := $(shell $(CONFIG_VALUE) analyzer.context_window $(SHARED_CONTEXT_WINDOW))
+-endif
+-ifeq ($(origin LOCAL_ANALYZER_MAX_OUTPUT),undefined)
+-LOCAL_ANALYZER_MAX_OUTPUT := $(shell $(CONFIG_VALUE) analyzer.max_output 0)
+-endif
+-ifeq ($(origin LOCAL_ANALYZER_TIMEOUT),undefined)
+-LOCAL_ANALYZER_TIMEOUT := $(shell $(CONFIG_VALUE) analyzer.timeout 120)
+-endif
+-ifeq ($(origin LOCAL_ANALYZER_TEMPERATURE),undefined)
+-LOCAL_ANALYZER_TEMPERATURE := $(shell $(CONFIG_VALUE) analyzer.temperature 0.6)
+-endif
+-ifeq ($(origin LOCAL_ANALYZER_TOP_P),undefined)
+-LOCAL_ANALYZER_TOP_P := $(shell $(CONFIG_VALUE) analyzer.top_p 0.95)
+-endif
+-ifeq ($(origin LOCAL_ANALYZER_TOP_K),undefined)
+-LOCAL_ANALYZER_TOP_K := $(shell $(CONFIG_VALUE) analyzer.top_k 20)
+-endif
+-ifeq ($(origin LOCAL_ANALYZER_TOOL_STEPS),undefined)
+-LOCAL_ANALYZER_TOOL_STEPS := $(shell $(CONFIG_VALUE) analyzer.tool_steps 0)
+-endif
+-ifeq ($(origin LOCAL_ANALYZER_TOOL_TIMEOUT),undefined)
+-LOCAL_ANALYZER_TOOL_TIMEOUT := $(shell $(CONFIG_VALUE) analyzer.tool_timeout 30)
+-endif
+-ifeq ($(origin LOCAL_ANALYZER_TOOL_OUTPUT_TOKENS),undefined)
+-LOCAL_ANALYZER_TOOL_OUTPUT_TOKENS := $(shell $(CONFIG_VALUE) analyzer.tool_output_tokens 1024)
+-endif
+-ifeq ($(origin LOCAL_ANALYZER_YIELD_SECONDS),undefined)
+-LOCAL_ANALYZER_YIELD_SECONDS := $(shell $(CONFIG_VALUE) analyzer.yield_seconds 60)
+-endif
+-ifeq ($(origin LOCAL_ANALYZER_ENABLE_THINKING),undefined)
+-LOCAL_ANALYZER_ENABLE_THINKING := $(shell $(CONFIG_VALUE) analyzer.thinking true)
+-endif
+-ifeq ($(origin LOCAL_ANALYZER_SITE_URL),undefined)
+-LOCAL_ANALYZER_SITE_URL := $(shell $(CONFIG_VALUE) analyzer.site_url)
+-endif
+-ifeq ($(origin LOCAL_ANALYZER_APP_NAME),undefined)
+-LOCAL_ANALYZER_APP_NAME := $(shell $(CONFIG_VALUE) analyzer.app_name ARC3 Agent Harness)
+-endif
+-ifeq ($(origin ANALYZER_TIMEOUT),undefined)
+-ANALYZER_TIMEOUT := $(shell $(CONFIG_VALUE) analyzer.timeout 120)
+-endif
+-ifeq ($(origin ANALYZER_SAVE_REQUEST_LOGS),undefined)
+-ANALYZER_SAVE_REQUEST_LOGS := $(shell $(CONFIG_VALUE) analyzer.save_request_logs false)
+-endif
+-ifeq ($(origin DEPLOYMENT_SLURM_START_LOCAL_SERVER),undefined)
+-DEPLOYMENT_SLURM_START_LOCAL_SERVER := $(shell $(CONFIG_VALUE) deployment.slurm.start_local_server $(if $(filter vllm,$(LOCAL_ANALYZER_PROVIDER)),true,false))
+-endif
++LOCAL_ANALYZER_BASE_URL ?= $(shell $(CONFIG_VALUE) analyzer.base_url $(SHARED_BASE_URL))
++LOCAL_ANALYZER_PROVIDER ?= $(shell $(CONFIG_VALUE) analyzer.provider $(SHARED_PROVIDER))
++LOCAL_ANALYZER_MODEL_ID ?= $(shell $(CONFIG_VALUE) analyzer.model_id $(SERVER_SERVED_MODEL_NAME))
++LOCAL_ANALYZER_CONTEXT_WINDOW ?= $(shell $(CONFIG_VALUE) analyzer.context_window $(SHARED_CONTEXT_WINDOW))
++LOCAL_ANALYZER_MAX_OUTPUT ?= $(shell $(CONFIG_VALUE) analyzer.max_output 0)
++LOCAL_ANALYZER_TIMEOUT ?= $(shell $(CONFIG_VALUE) analyzer.timeout 120)
++LOCAL_ANALYZER_TEMPERATURE ?= $(shell $(CONFIG_VALUE) analyzer.temperature 0.6)
++LOCAL_ANALYZER_TOP_P ?= $(shell $(CONFIG_VALUE) analyzer.top_p 0.95)
++LOCAL_ANALYZER_TOP_K ?= $(shell $(CONFIG_VALUE) analyzer.top_k 20)
++LOCAL_ANALYZER_TOOL_STEPS ?= $(shell $(CONFIG_VALUE) analyzer.tool_steps 0)
++LOCAL_ANALYZER_TOOL_TIMEOUT ?= $(shell $(CONFIG_VALUE) analyzer.tool_timeout 30)
++LOCAL_ANALYZER_TOOL_OUTPUT_TOKENS ?= $(shell $(CONFIG_VALUE) analyzer.tool_output_tokens 1024)
++LOCAL_ANALYZER_YIELD_SECONDS ?= $(shell $(CONFIG_VALUE) analyzer.yield_seconds 60)
++LOCAL_ANALYZER_ENABLE_THINKING ?= $(shell $(CONFIG_VALUE) analyzer.thinking true)
++LOCAL_ANALYZER_SITE_URL ?= $(shell $(CONFIG_VALUE) analyzer.site_url)
++LOCAL_ANALYZER_APP_NAME ?= $(shell $(CONFIG_VALUE) analyzer.app_name ARC3 Agent Harness)
++ANALYZER_TIMEOUT ?= $(shell $(CONFIG_VALUE) analyzer.timeout 120)
++ANALYZER_SAVE_REQUEST_LOGS ?= $(shell $(CONFIG_VALUE) analyzer.save_request_logs false)
++DEPLOYMENT_SLURM_START_LOCAL_SERVER ?= $(shell $(CONFIG_VALUE) deployment.slurm.start_local_server $(if $(filter vllm,$(LOCAL_ANALYZER_PROVIDER)),true,false))
+ DEPLOYMENT_SLURM_LOCAL_SERVER_CONFIG ?= $(CONFIG_PATH)
+ 
+-ifeq ($(origin MULTIMODAL_CONTEXT),undefined)
+-MULTIMODAL_CONTEXT := $(shell $(CONFIG_VALUE) multimodal.context)
+-endif
+-ifeq ($(origin MULTIMODAL_UPSCALE),undefined)
+-MULTIMODAL_UPSCALE := $(shell $(CONFIG_VALUE) multimodal.upscale 16)
+-endif
++MULTIMODAL_CONTEXT ?= $(shell $(CONFIG_VALUE) multimodal.context)
++MULTIMODAL_UPSCALE ?= $(shell $(CONFIG_VALUE) multimodal.upscale 16)
+ 
+-ifeq ($(origin CHAT_BASE_URL),undefined)
+-CHAT_BASE_URL := $(shell $(CONFIG_VALUE) chat.base_url $(LOCAL_ANALYZER_BASE_URL))
+-endif
+-ifeq ($(origin CHAT_PROVIDER),undefined)
+-CHAT_PROVIDER := $(shell $(CONFIG_VALUE) chat.provider $(LOCAL_ANALYZER_PROVIDER))
+-endif
++CHAT_BASE_URL ?= $(shell $(CONFIG_VALUE) chat.base_url $(LOCAL_ANALYZER_BASE_URL))
++CHAT_PROVIDER ?= $(shell $(CONFIG_VALUE) chat.provider $(LOCAL_ANALYZER_PROVIDER))
+ CHAT_MODEL ?= auto
+-ifeq ($(origin CHAT_MAX_TOKENS),undefined)
+-CHAT_MAX_TOKENS := $(shell $(CONFIG_VALUE) chat.max_tokens 2048)
+-endif
+-ifeq ($(origin CHAT_TEMPERATURE),undefined)
+-CHAT_TEMPERATURE := $(shell $(CONFIG_VALUE) chat.temperature 0.7)
+-endif
+-ifeq ($(origin CHAT_TOP_P),undefined)
+-CHAT_TOP_P := $(shell $(CONFIG_VALUE) chat.top_p 0.8)
+-endif
+-ifeq ($(origin CHAT_TOP_K),undefined)
+-CHAT_TOP_K := $(shell $(CONFIG_VALUE) chat.top_k 20)
+-endif
+-ifeq ($(origin CHAT_THINKING),undefined)
+-CHAT_THINKING := $(shell $(CONFIG_VALUE) chat.thinking true)
+-endif
++CHAT_MAX_TOKENS ?= $(shell $(CONFIG_VALUE) chat.max_tokens 2048)
++CHAT_TEMPERATURE ?= $(shell $(CONFIG_VALUE) chat.temperature 0.7)
++CHAT_TOP_P ?= $(shell $(CONFIG_VALUE) chat.top_p 0.8)
++CHAT_TOP_K ?= $(shell $(CONFIG_VALUE) chat.top_k 20)
++CHAT_THINKING ?= $(shell $(CONFIG_VALUE) chat.thinking true)
+ CHAT_TIMEOUT ?= 600
+ CHAT_SYSTEM ?=
+ PROMPT ?=
+@@ -330,13 +181,9 @@ BOOTSTRAP_SAMPLES ?=
+ BOOTSTRAP_SEED ?=
+ 
+ VIEW_HOST ?= 127.0.0.1
+-ifeq ($(origin VIEW_PORT),undefined)
+-VIEW_PORT := $(shell $(CONFIG_VALUE) viewer.port 8011)
+-endif
++VIEW_PORT ?= $(shell $(CONFIG_VALUE) viewer.port 8011)
+ VIEW_RUNS_DIR ?= $(RUNS_DIR)
+-# Default to the bundled example-run at the repo root (this exposition ships one),
+-# so a bare `make view` opens it. Falls back to VIEW_RUNS_DIR when absent.
+-VIEW_RUN_DIR ?= $(wildcard $(REPO_ROOT)/../example-run)
++VIEW_RUN_DIR ?=
+ 
+ export LOCAL_ANALYZER_BASE_URL
+ export LOCAL_ANALYZER_PROVIDER
+@@ -393,10 +240,11 @@ install-local-sources:
+ 		echo "Project virtualenv is missing. Run 'make install' first."; \
+ 		exit 1; \
+ 	fi
+-	@if [ -d "$(REPO_ROOT)/../tufa-arc-agi-framework" ]; then \
++	@if [ -d "$(REPO_ROOT)/../tufa-arc-agi-framework" ] && [ -d "$(REPO_ROOT)/../re-arc-3" ]; then \
+ 		$(UV) pip install --python "$(REPO_ROOT)/.venv/bin/python" \
+ 			--no-deps \
+-			-e "$(REPO_ROOT)/../tufa-arc-agi-framework"; \
++			-e "$(REPO_ROOT)/../tufa-arc-agi-framework" \
++			-e "$(REPO_ROOT)/../re-arc-3"; \
+ 	fi
+ 
+ prepare-ci:
+@@ -580,13 +428,12 @@ _taaf-run:
+ 		$(if $(strip $(DATASET)),--dataset '$(DATASET)',) \
+ 		$(if $(filter-out [],$(strip $(GAME_TAGS))),--include-tags '$(GAME_TAGS)',) \
+ 		$(if $(filter-out [],$(strip $(EXCLUDE_GAME_TAGS))),--exclude-tags '$(EXCLUDE_GAME_TAGS)',) \
+-		$(if $(strip $(ENVIRONMENTS_DIR)),--environments-dir '$(ENVIRONMENTS_DIR)',) \
++		$(if $(strip $(RE_ARC_ENVIRONMENTS_DIR)),--re-arc-environments-dir '$(RE_ARC_ENVIRONMENTS_DIR)',) \
+ 		$(if $(RUN_NAME),--run-name '$(RUN_NAME)',) \
+ 		$(if $(strip $(EXPERIMENTS_DIR)),--experiments-dir '$(EXPERIMENTS_DIR)',) \
+ 		$(if $(strip $(EXPERIMENT_DIR)),--experiment-dir '$(EXPERIMENT_DIR)',) \
+ 		$(if $(strip $(MAX_ACTIONS)),--max-actions $(MAX_ACTIONS),) \
+ 		$(if $(strip $(MAX_RUNTIME_MINUTES)),--max-runtime-minutes $(MAX_RUNTIME_MINUTES),) \
+-		$(if $(strip $(MAX_GENERATED_TOKENS_PER_GAME)),--max-generated-tokens-per-game $(MAX_GENERATED_TOKENS_PER_GAME),) \
+ 		$(MAX_EXPERIMENT_RUNTIME_ARGS) \
+ 		--n-passes $(N_PASSES) \
+ 		--concurrent-jobs $(CONCURRENT_JOBS) \
+diff --git a/ARC3-Inference/README.md b/ARC3-Inference/README.md
+index 3674ea552dce838b93de90e4342f560e5b899c67..07542dda958aacb756cb73b04acf96314be9f865 100644
+--- a/ARC3-Inference/README.md
++++ b/ARC3-Inference/README.md
+@@ -1,150 +1,96 @@
+-# Duck harness: ARC-AGI-3 Milestone 2 fork
++# The Duck 🦆
+ 
+-This directory contains Daniel Franzen's modified version of [Tufa Labs' Duck
+-harness](https://github.com/Tufalabs/duck-harness), originally developed by
+-Jeroen Cottaar and Tufa Labs. See the [repository README](../README.md) for the
+-solution overview, attribution, and competition publication links.
++The Duck is the ARC3 inference harness in this repo: a tool-using solver that
++plays ARC-AGI-3 games through TAAF.
+ 
+-For a detailed explanation of the approach, changes, and experiments, see the
+-[write-up](https://github.com/da-fr/arc-agi-3-solution/blob/main/WRITEUP.md).
++It ties together:
+ 
+-The harness connects TAAF's `Benchmark` / `GameAPI` to an OpenAI-compatible
+-model server and a Python tool for inspecting and interacting with games.
+-The competition setup uses SGLang; the bundled local server launcher uses
+-vLLM. OpenRouter is also supported.
++- TAAF `Benchmark` / `GameAPI` execution
++- a local OpenAI-compatible vLLM server, or OpenRouter
++- the duck's single ephemeral `python` tool
++- structured run artifacts for scoring, viewing, and trace export
+ 
+-This document covers setup, the model-facing interface, and run inspection.
+-See the separate [configuration guide](CONFIGURATION.md) for feature switches,
+-defaults, and their interactions. Use the [competition notebook](https://www.kaggle.com/code/dfranzen/arc-agi-3-milestone-2-solution) for the exact
+-submission settings.
++The Python package lives under `inference/`. The run viewer lives under
++`viewer/`.
+ 
+-## Quick start
++## Quick Start
+ 
+-Run these commands from `ARC3-Inference/`. The project pins Python 3.12.12;
+-`uv` can provision it.
+-
+-For the viewer, or a client using an already running model server:
+-
+-```bash
+-uv sync --locked
+-```
+-
+-To inspect a saved run without a GPU:
++You need Python 3.12 and `uv`.
+ 
+ ```bash
+-make view VIEW_RUN_DIR=/path/to/your/run VIEW_PORT=8011
++make install
+ ```
+ 
+-Open `http://127.0.0.1:8011`.
+-
+-For the bundled local vLLM workflow, install the server and development extras:
++Run with the default local vLLM config:
+ 
+ ```bash
+-make install
+ make server
+ make interactive
+ ```
+ 
+-`make install` downloads the pinned vLLM/Torch stack as well as the base
+-packages. The competition's SGLang runtime is configured separately by the
+-notebook; `make server` does not reproduce that serving setup.
+-
+-For the offline SGLang wheelhouse builder and custom serving patches, see the
+-[serving README](../serving/README.md).
+-
+-The Makefile includes compatibility fixes for newer GNU Make versions,
+-including evaluation of configuration-derived variables.
+-
+-For an existing OpenAI-compatible server, set the model, endpoint, and context
+-window in a copy of `configs/inference.json`, then run:
++Submit the default Slurm run:
+ 
+ ```bash
+-CONFIG_PATH=/path/to/config.json make interactive
++make sbatch
+ ```
+ 
+-For the competition SGLang endpoint, the harness uses provider `vllm` as its
+-OpenAI-compatible request mode. That setting does not start a vLLM server.
+-The configured context window and output budget must fit the server's limits.
+-
+ Run through OpenRouter instead:
+ 
+ ```bash
+-export OPENROUTER_API_KEY=your-key
++export OPENROUTER_API_KEY=<your-openrouter-api-key>
+ CONFIG_PATH=configs/inference.openrouter.json make interactive
+ ```
+ 
+-## Agent interface
+-
+-For each game, `HarnessSolver` provides the latest board, valid actions,
+-history, and the `python` tool. The model writes Python to inspect the state,
+-plan, and execute real game actions with `action(...)`.
+-
+-### Frames and changes
++Open the viewer:
+ 
+-| Name | Meaning |
+-| --- | --- |
+-| `current_frame` | Latest board, exposing `.ascii`, `.segmentation`, `.shape`, `.step`, and `.level`. `.shape` is `(rows, cols)`. |
+-| `previous_frame` | Board before the most recent recorded action, when available. |
+-| `history` | Recorded states and actions. `history[-1].frame` is the current, post-action board. |
+-| `transitions` | Individual executed actions, each with `.action`, `.before_frame`, `.after_frame`, and retained `.result` metadata. |
+-| `last_transition` | Most recent transition, or `None`. |
+-| `last_action_call_result` | Result of the latest model-issued `action(...)` call, including batch totals, executed/skipped actions, and stop reasons. |
+-| `frame_diff(before=None, after=None)` | Cell and component differences; defaults to comparing `previous_frame` with `current_frame`. |
+-| `valid_actions` | Currently advertised model-facing action names. |
+-
+-Segmentation uses same-color, 4-connected components. Components and their
+-cross-frame matches are geometric descriptions, not guaranteed game-object
+-identities. The raw numeric grid is not exposed; `.ascii` provides the symbolic
+-grid and `.segmentation` provides objects, boundaries, containment, and adjacency.
++```bash
++make view
++```
+ 
+-`action(...)` returns `last_action_call_result` and refreshes the provided
+-runtime state before the next Python statement. Inspection-only calls retain
+-the last action-call result. Each transition's `.result` describes one action,
+-whereas `last_action_call_result` describes the whole model-issued call.
++If your runs are under the checked-in default experiment root, point the viewer
++there:
+ 
+-After death followed by automatic reset, the fatal action and reset are
+-separate transitions. `current_frame` shows the restarted level;
+-`last_action_call_result` still describes the call that caused death. Transition
+-metadata identifies harness-initiated actions with `automatic=True`.
++```bash
++make view VIEW_RUNS_DIR=/sw/public/arc_3_results/$USER
++```
+ 
+-### Controls
++## What The Duck Does
+ 
+-The standard names are `UP`, `DOWN`, `LEFT`, `RIGHT`, `SPACE`, and `MOUSE`.
+-Their effects depend on the game. Only use actions available in the current state.
++For each TAAF game run, the harness starts a `HarnessSolver`. The solver gives
++the duck the latest game state, valid actions, history, and a Python tool. The
++duck inspects the board, writes small bits of code to reason about it, and calls
++`action(...)` from inside Python to execute real game actions.
+ 
+-```python
+-action(['LEFT'])
+-action([{'action': 'MOUSE', 'row': 4, 'col': 7}])
+-```
++The duck can use:
+ 
+-Mouse coordinates are zero-based: `row` increases downwards, `col` increases to
+-the right, and the origin is the top-left cell. Use board coordinates, not
+-coordinates in an upscaled image. Legacy `x` / `y` fields are rejected.
++- `current_frame.ascii` for a compact symbolic grid
++- `current_frame.segmentation` for connected components, object hashes,
++  boundaries, containment, and adjacency
++- `history`, `previous_frame`, `transitions`, and `last_transition` for
++  before/after reasoning
++- `valid_actions` for the current action set
++- `last_action_result` for fields such as `board_changed`, `level_completed`,
++  `game_over`, `run_complete`, and `reward`
+ 
+-`UNDO` and model-initiated `RESET` can also be exposed when configured. Their
+-availability and behavior depend on the game. See the configuration guide for
+-these options and reset restrictions.
++The raw numeric grid is intentionally hidden from the Python tool. The preferred
++view is `current_frame.segmentation`; `current_frame.ascii` is there for small
++local checks.
+ 
+-### Python state and retained functions
++The model-facing actions are:
+ 
+-Each tool call uses a fresh Python namespace populated with the provided game
+-state. Ordinary variables do not persist. The tool supports an allowlist of
+-imports, printed output, and a final `result` value; the default execution
+-timeout is 30 seconds.
++- `UP`, `DOWN`, `LEFT`, `RIGHT`
++- `SPACE`
++- `MOUSE(row=..., col=...)`
+ 
+-Optional function retention restores eligible model-defined functions and
+-supported import dependencies in later calls. Ordinary variables remain local
+-to each call. Retained functions use refreshed runtime globals.
++`MOUSE` uses `row` and `col`. Legacy `x` / `y` mouse fields are rejected.
+ 
+-When animation access is enabled, `last_animation_frames` and
+-`last_animation_timeline` expose intermediate frames and a compressed change
+-timeline for inspection from Python.
++Every Python tool call starts fresh. It can import a small allowlist of standard
++library modules, print compact summaries, assign a final value to `result`, and
++call `action(...)` once or many times. The tool call timeout defaults to 30
++seconds.
+ 
+ ## Configuration
+ 
+-The local CLI uses JSON configuration and Make overrides. For the fork's
+-additional feature settings, see the [configuration guide](CONFIGURATION.md).
+-
+ The main config is strict JSON. Comments are not supported.
+ 
+ - `configs/inference.json` is the default local-vLLM / Slurm config.
+@@ -176,9 +122,11 @@ Useful sections in `configs/inference.json`:
+ - `viewer.port`: default viewer port.
+ - `multimodal.*`: image context for the current grid.
+ 
+-The bundled JSON files retain upstream model and deployment settings. Review
+-model availability, paths, concurrency, and hardware before using them; they
+-are not a specification of this fork's competition run.
++The checked-in default config currently runs the official tagged game set with
++20 passes, 45 minutes per game, and `concurrent_jobs=16`. On Slurm it requests
++two B200 GPUs and starts one local vLLM server per GPU. In that mode
++`concurrent_jobs` is interpreted per GPU/server, so the effective concurrency is
++32.
+ 
+ ## Running Games
+ 
+@@ -194,6 +142,15 @@ Submit to Slurm:
+ make sbatch
+ ```
+ 
++Launch the validated duck harness on Kaggle:
++
++```bash
++make kaggle-duck \
++  RUN_NAME=duck-harness-20260527 \
++  KAGGLE_KERNEL_SLUG=taaf-duck-harness-20260527 \
++  KAGGLE_DATASET_REF=driessmit1/taaf-kaggle-source-duck-harness-20260527
++```
++
+ Name a run:
+ 
+ ```bash
+@@ -223,8 +180,8 @@ make interactive \
+ ```
+ 
+ The simulator is inline-only. `COMPETITION_CLONE_RUNS=110` repeats the selected
+-official games with unique competition-safe IDs. This is useful for testing
+-the submission interface locally; it does not reproduce the hidden game set.
++25 official games with unique competition-safe IDs, which catches submission
++Arcade issues without waiting for a Kaggle rerun.
+ 
+ Common overrides:
+ 
+@@ -267,7 +224,7 @@ The default local base URL is `http://127.0.0.1:1234/v1`. `make server`
+ generates a local server API key unless `SERVER_REQUIRE_API_KEY=false`.
+ 
+ On cluster machines, the Makefile moves Hugging Face, Torch, Triton, and related
+-caches under `/shared/<user>` when that directory exists.
++caches under `/sw/<user>` when that directory exists.
+ 
+ ## Slurm Flow
+ 
+@@ -285,19 +242,35 @@ the run directory, using the worker's per-run virtualenv.
+ uses a generated dependency override file so it installs those bundled repos
+ instead of fetching private dependencies from GitHub.
+ 
+-## Kaggle reproduction and upstream deployment
++## Kaggle Flow
++
++`make kaggle-duck` runs through TAAF's Kaggle deployment. It packages the
++current TAAF and ARC3-Inference sources into a Kaggle source dataset, pushes a
++private Kaggle notebook, and attaches the duck solver's declared model and vLLM
++wheelhouse datasets. The duck solver owns the Kaggle setup hooks, so the
++launcher only chooses the run shape.
+ 
+-For this solution, use the competition notebook linked from the
+-[repository README](../README.md). It supplies the offline model-serving
+-runtime, source patch, and submission settings. Select the RTX Pro 6000 GPU
+-when copying the notebook.
++By default the target uses the 16 public games from the duck harness validation,
++`model=local`, 16 concurrent games, 75 minutes per game, and a 90-minute Kaggle
++runtime. Add `DEPLOYMENT_WAIT=true` if you want the command to block and pull
++the finished Kaggle output back into the run directory.
+ 
+-The inherited `make kaggle-duck` workflow packages sources through TAAF and
+-publishes a notebook with its configured model and wheelhouse datasets. It is
+-a separate deployment path and does not automatically use the competition's
+-SGLang build or settings. The bundled
+-[`taaf-duck-harness-kaggle-share.ipynb`](../taaf-duck-harness-kaggle-share.ipynb)
+-is Tufa's original notebook.
++The equivalent direct CLI form is:
++
++```bash
++uv run --no-sync inference-taaf-run \
++  --deployment-target kaggle \
++  --kaggle-duck-public-harness \
++  --agent duck-harness \
++  --model local \
++  --run-name duck-harness-20260527 \
++  --kaggle-kernel-slug taaf-duck-harness-20260527 \
++  --kaggle-dataset-ref driessmit1/taaf-kaggle-source-duck-harness-20260527 \
++  --max-runtime-minutes 75 \
++  --max-experiment-runtime-minutes 90 \
++  --concurrent-jobs 16 \
++  --analyzer-timeout 900
++```
+ 
+ ## Run Artifacts
+ 
+@@ -318,38 +291,33 @@ Important files include:
+ 
+ ## Viewer
+ 
+-Start the viewer for a saved run on the port from `configs/inference.json`:
++Start the viewer on the default port from `configs/inference.json`:
+ 
+ ```bash
+-make view VIEW_RUN_DIR=/path/to/your/run
++make view
+ ```
+ 
+ Override the port:
+ 
+ ```bash
+-make view VIEW_RUN_DIR=/path/to/your/run VIEW_PORT=8012
++make view VIEW_PORT=8012
+ ```
+ 
+-Point at a run root (clear the default single-run selection):
++Point at a run root:
+ 
+ ```bash
+-make view VIEW_RUN_DIR= VIEW_RUNS_DIR=/path/to/runs
++make view VIEW_RUNS_DIR=/sw/public/arc_3_results/$USER
+ ```
+ 
+ Point at one exact run:
+ 
+ ```bash
+-make view VIEW_RUN_DIR=/shared/arc_3_results/$USER/<run-name>
++make view VIEW_RUN_DIR=/sw/public/arc_3_results/$USER/<run-name>
+ ```
+ 
+ The viewer shows run summaries, per-game progress, boards, actions, rewards,
+ level transitions, and the duck's transcript.
+ 
+-This fork corrects per-turn transcript display, includes all recorded attempts
+-when an analysis step is retried, and distinguishes pending transcripts from
+-the latest board state. Per-step token usage is displayed when request logs
+-contain the corresponding usage data.
+-
+ ## Scoring
+ 
+ Score one run directory:
+@@ -393,8 +361,8 @@ make significance
+ 
+ The comparison aligns by `game_id`, averages repeated trials within each game,
+ and uses games as the paired unit. It checks runtime budget, hardware, dataset
+-metadata, and trial counts before reporting whether the candidate passes the
+-internal-highscore threshold:
++metadata, locked `re_arc` commit, and trial counts before reporting whether the
++candidate passes the internal-highscore threshold:
+ 
+ ```text
+ P(true_delta > 0 | results) >= 0.90
+@@ -414,7 +382,7 @@ make traces
+ For runs outside `runs/`, call the tool directly:
+ 
+ ```bash
+-uv run --no-sync inference-traces --runs-dir /shared/arc_3_results/$USER
++uv run --no-sync inference-traces --runs-dir /sw/public/arc_3_results/$USER
+ ```
+ 
+ Traces are written in live-chat `messages` format. They preserve assistant
+@@ -423,7 +391,8 @@ transitions linked back to message indices.
+ 
+ ## Useful Commands
+ 
+-- `make install`: create `.venv` and install base, server, and development dependencies.
++- `make install`: create `.venv` and install all locked dependencies.
++- `make prepare-ci`: run Ruff and the test suite.
+ - `make server`: start local vLLM.
+ - `make interactive`: run through TAAF inline deployment.
+ - `make sbatch`: submit through TAAF Slurm deployment.
+@@ -443,12 +412,10 @@ transitions linked back to message indices.
+   viewer events, transcripts, and local-server orchestration.
+ - `inference/agent/tool_agent.py`: OpenAI-compatible tool-calling duck.
+ - `inference/agent/python_tool_sandbox.py`: isolated Python tool runtime.
+-- `inference/agent/priority_scheduler.py`: priority scoring and continuation tables.
+ - `inference/utils/segmentation.py`: connected-component board segmentation.
+-- `inference/utils/frame_diff.py`: cell and component change descriptions.
+-- `inference/utils/animation.py`: intermediate frames and compressed timelines.
+-- `inference/utils/retained_functions.py`: supported function and import retention.
+ - `inference/tools/eval.py`: TAAF score export.
+ - `inference/tools/significance.py`: paired score comparison.
+ - `inference/tools/traces.py`: trace export.
+ - `viewer/`: local browser UI for saved runs.
++- `tests/`: unit coverage for config, duck runtime, TAAF runner, viewer,
++  scoring, significance, and traces.
+diff --git a/ARC3-Inference/configs/inference.json b/ARC3-Inference/configs/inference.json
+index 63cc8a8769dde4c1321209eeffa4e89766033c5f..9b4459e284779dbf662dbe8f6ee6cc1828b2be4f 100644
+--- a/ARC3-Inference/configs/inference.json
++++ b/ARC3-Inference/configs/inference.json
+@@ -6,7 +6,7 @@
+     "context_window": 32768
+   },
+   "experiments": {
+-    "root_dir": "/shared/arc_3_results/{username}"
++    "root_dir": "/sw/public/arc_3_results/{username}"
+   },
+   "environment": {
+     "dataset": "",
+@@ -23,16 +23,16 @@
+   "deployment": {
+     "target": "inline",
+     "wait": false,
+-    "source_repos": ["../tufa-arc-agi-framework"],
++    "source_repos": ["../tufa-arc-agi-framework", "../re-arc-3"],
+     "slurm": {
+       "gpu": "B200",
+       "gpu_count": 2,
+       "time": "13:00:00",
+       "image": "",
+-      "partition": "gpu",
++      "partition": "llm",
+       "nodelist": "",
+       "start_local_server": true,
+-      "extra_sbatch_flags": ["--account=default", "--qos=normal"]
++      "extra_sbatch_flags": ["--account=llm", "--qos=llm"]
+     }
+   },
+   "server" : {
+diff --git a/ARC3-Inference/configs/inference.openrouter.json b/ARC3-Inference/configs/inference.openrouter.json
+index 6ae2f774a6150644f54b6eb0b73de5d01b5ff8d5..d5c5412961025c2b6be936dc7c76f7f9be53200d 100644
+--- a/ARC3-Inference/configs/inference.openrouter.json
++++ b/ARC3-Inference/configs/inference.openrouter.json
+@@ -6,7 +6,7 @@
+     "context_window": 65536
+   },
+   "experiments": {
+-    "root_dir": "/shared/arc_3_results/{username}"
++    "root_dir": "/sw/public/arc_3_results/{username}"
+   },
+   "environment": {
+     "dataset": "",
+@@ -23,16 +23,16 @@
+   "deployment": {
+     "target": "inline",
+     "wait": false,
+-    "source_repos": ["../tufa-arc-agi-framework"],
++    "source_repos": ["../tufa-arc-agi-framework", "../re-arc-3"],
+     "slurm": {
+       "gpu": "B200",
+       "gpu_count": 1,
+       "time": "07:00:00",
+       "image": "",
+-      "partition": "gpu",
++      "partition": "llm",
+       "nodelist": "",
+       "start_local_server": false,
+-      "extra_sbatch_flags": ["--account=default", "--qos=normal"]
++      "extra_sbatch_flags": ["--account=llm", "--qos=llm"]
+     }
+   },
+   "server": {
+diff --git a/ARC3-Inference/inference/framework/run.py b/ARC3-Inference/inference/framework/run.py
+index 4d4accf26eb083f416298715804a92c9fad75bb5..4855356980d7753f34a7ec80979195ba04688dc4 100644
+--- a/ARC3-Inference/inference/framework/run.py
++++ b/ARC3-Inference/inference/framework/run.py
+@@ -19,6 +19,7 @@ from pathlib import Path
+ from typing import Any
+ 
+ from dotenv import load_dotenv
++from re_arc import EnvSampler
+ 
+ import taaf.benchmark
+ import taaf.deploy
+@@ -75,6 +76,34 @@ def _parse_optional_list(raw_value: Any, *, option_name: str) -> list[str]:
+     return normalized
+ 
+ 
++def _list_re_arc_game_ids(
++    *,
++    environments_dir: str | None = None,
++    datasets: list[str] | None = None,
++    datasets_dir: str | None = None,
++    include_tags: list[str] | None = None,
++    exclude_tags: list[str] | None = None,
++) -> list[str]:
++    kwargs: dict[str, Any] = {"environments_dir": environments_dir}
++    if datasets:
++        kwargs["datasets"] = datasets
++    if datasets_dir:
++        kwargs["datasets_dir"] = datasets_dir
++    if include_tags:
++        kwargs["include_tags"] = include_tags
++    if exclude_tags:
++        kwargs["exclude_tags"] = exclude_tags
++    try:
++        return list(EnvSampler.list_game_ids(**kwargs))
++    except TypeError as exc:
++        if datasets or datasets_dir or include_tags or exclude_tags:
++            raise RuntimeError(
++                "The installed re_arc package does not support dataset/tag selection. "
++                "Install a newer arc-agi-3-local build with dataset/tag selection support."
++            ) from exc
++        raise
++
++
+ def _resolve_requested_game(
+     requested: str,
+     available: list[str],
+@@ -114,36 +143,55 @@ def _resolve_game_ids(args: argparse.Namespace) -> list[str]:
+     dataset_specs = _parse_optional_list(args.dataset, option_name="--dataset")
+     include_tags = _parse_optional_list(args.include_tags, option_name="--include-tags")
+     exclude_tags = _parse_optional_list(args.exclude_tags, option_name="--exclude-tags")
+-    official_game_ids = list(DUCK_HARNESS_PUBLIC_GAME_IDS)
+     if bool(getattr(args, "kaggle_duck_public_harness", False)):
+         if requested_games or dataset_specs or include_tags or exclude_tags:
+             raise ValueError(
+                 "--kaggle-duck-public-harness cannot be combined with --game, "
+                 "--dataset, --include-tags, or --exclude-tags."
+             )
+-        return official_game_ids
+-    # Local dataset/generator game enumeration is not available in this build, so
+-    # the only built-in game set is the official one (``--include-tags official``).
+-    # The live competition supplies its own game list at runtime.
+-    if dataset_specs or exclude_tags or any(tag.lower() != "official" for tag in include_tags):
++        return list(DUCK_HARNESS_PUBLIC_GAME_IDS)
++    if not requested_games and not dataset_specs and not include_tags:
+         raise ValueError(
+-            "Dataset/tag-based game selection beyond '--include-tags official' is not "
+-            "available in this build. Use --game with explicit ids, --include-tags "
+-            "official, or --kaggle-duck-public-harness."
++            "At least one of --game, --dataset, or --include-tags is required."
++        )
++
++    selected_game_ids: list[str] = []
++    if dataset_specs or include_tags or exclude_tags:
++        selected_game_ids = _list_re_arc_game_ids(
++            environments_dir=args.re_arc_environments_dir,
++            datasets=dataset_specs,
++            datasets_dir=args.datasets_dir,
++            include_tags=include_tags,
++            exclude_tags=exclude_tags,
++        )
++        if not selected_game_ids:
++            raise ValueError("Game selection resolved to zero ARC-AGI3 games.")
++
++    available = (
++        selected_game_ids
++        if (dataset_specs or include_tags or exclude_tags)
++        else _list_re_arc_game_ids(
++            environments_dir=args.re_arc_environments_dir,
++            datasets_dir=args.datasets_dir,
+         )
+-    selected_game_ids = official_game_ids if include_tags else []
++    )
+     if requested_games:
++        fallback_available = (
++            None
++            if not (include_tags or exclude_tags)
++            else _list_re_arc_game_ids(
++                environments_dir=args.re_arc_environments_dir,
++                datasets_dir=args.datasets_dir,
++            )
++        )
+         resolved: list[str] = []
+         for requested in requested_games:
+-            game_id = _resolve_requested_game(requested, official_game_ids)
++            game_id = _resolve_requested_game(
++                requested, available, fallback_available=fallback_available
++            )
+             if game_id not in resolved:
+                 resolved.append(game_id)
+         return resolved
+-    if not selected_game_ids:
+-        raise ValueError(
+-            "At least one of --game, --include-tags official, or "
+-            "--kaggle-duck-public-harness is required."
+-        )
+     return selected_game_ids
+ 
+ 
+@@ -637,7 +685,7 @@ def _enter_competition_arcade(
+         "game_ids": tuple(game_ids),
+         "total_runs": _competition_clone_runs(args),
+     }
+-    environments_dir = getattr(args, "environments_dir", None)
++    environments_dir = getattr(args, "re_arc_environments_dir", None)
+     if environments_dir:
+         server_kwargs["environments_dir"] = environments_dir
+     server = stack.enter_context(
+@@ -780,7 +828,7 @@ def _write_run_config(
+         "exclude_tags": _parse_optional_list(
+             args.exclude_tags, option_name="--exclude-tags"
+         ),
+-        "environments_dir": args.environments_dir,
++        "re_arc_environments_dir": args.re_arc_environments_dir,
+         "experiments_dir": (
+             str(experiments_dir)
+             if (experiments_dir := _experiments_dir(args, required=False)) is not None
+@@ -1043,7 +1091,7 @@ def _run_split_slurm_local_servers(
+             label=child_label,
+             games=_make_games(
+                 game_ids,
+-                environments_dir=args.environments_dir,
++                environments_dir=args.re_arc_environments_dir,
+             ),
+             solver=solver,
+             n_passes=pass_count,
+@@ -1122,7 +1170,7 @@ def _run(args: argparse.Namespace) -> None:
+             label=args.run_name or args.agent,
+             games=_make_games(
+                 game_ids,
+-                environments_dir=args.environments_dir,
++                environments_dir=args.re_arc_environments_dir,
+                 arcade_spec=arcade_spec,
+             ),
+             solver=solver,
+@@ -1209,7 +1257,7 @@ def main() -> None:
+     parser.add_argument("--include-tags", dest="include_tags", default="")
+     parser.add_argument("--exclude-tags", dest="exclude_tags", default="")
+     parser.add_argument(
+-        "--environments-dir", dest="environments_dir", default=None
++        "--re-arc-environments-dir", dest="re_arc_environments_dir", default=None
+     )
+     parser.add_argument("--datasets-dir", dest="datasets_dir", default=None)
+     parser.add_argument(
+@@ -1274,7 +1322,7 @@ def main() -> None:
+         action=argparse.BooleanOptionalAction,
+         default=False,
+         help="Deploy the public 'share' Kaggle variant (R2.61): minimal notebook, "
+-        "minimal source bundle, and -share-suffixes default slugs.",
++        "excludes re-arc-3, and -share-suffixes default slugs.",
+     )
+     parser.add_argument("--kaggle-username", default="")
+     parser.add_argument("--kaggle-kernel-slug", default="")
+diff --git a/ARC3-Inference/inference/tools/eval.py b/ARC3-Inference/inference/tools/eval.py
+index 91119dc5fb87ee4c77cabb78663f01e9c21a1b2c..a821af8f1c462e55a3ea4d183d25e9e6d26f4422 100644
+--- a/ARC3-Inference/inference/tools/eval.py
++++ b/ARC3-Inference/inference/tools/eval.py
+@@ -18,6 +18,7 @@ from typing import Any
+ import taaf.benchmark
+ import taaf.game
+ 
++from inference.utils.rearc_version import read_locked_re_arc_commit
+ from inference.utils.run_artifacts import is_selectable_run_dir_name, run_dir_sort_key
+ 
+ DEFAULT_CONFIG_PATH = "configs/eval.json"
+@@ -666,6 +667,7 @@ def build_score_payload(summary: EvaluationSummary, *, run_dirs: list[Path]) ->
+             "model": _common_metadata_value(configs, "model"),
+             "setup_id": _common_metadata_value(configs, "model"),
+             "git_commit": git_commits[0] if git_commits else None,
++            "re_arc_commit": read_locked_re_arc_commit(),
+             "hardware": _hardware_metadata(configs),
+             "runtime_budget": {
+                 "max_experiment_runtime_minutes": _common_metadata_value(
+diff --git a/ARC3-Inference/inference/tools/significance.py b/ARC3-Inference/inference/tools/significance.py
+index 9f2d39326327ba06d8327d5cfe66790fcd4a5b04..b0f6e3b911444f6be17d1bf49621364b73b2f228 100644
+--- a/ARC3-Inference/inference/tools/significance.py
++++ b/ARC3-Inference/inference/tools/significance.py
+@@ -574,6 +574,57 @@ def _assert_trial_counts_compatible(
+     return f"trials: matched ({trial_label}; {sum(baseline_counts)} trials per setup)"
+ 
+ 
++def _metadata_string(value: Any, *, label: str, path: Path) -> str | None:
++    if value in (None, ""):
++        return None
++    if isinstance(value, (dict, list)):
++        raise ValueError(f"{path}: {label} must be a single value, got {value!r}.")
++    text = str(value).strip()
++    return text or None
++
++
++def _re_arc_commit_metadata(score_file: ScoreFile) -> str:
++    commit = _metadata_string(
++        score_file.metadata.get("re_arc_commit"),
++        label="metadata.re_arc_commit",
++        path=score_file.path,
++    )
++    if commit is not None:
++        return commit
++
++    re_arc = score_file.metadata.get("re_arc")
++    if isinstance(re_arc, dict):
++        commit = _metadata_string(
++            re_arc.get("commit"),
++            label="metadata.re_arc.commit",
++            path=score_file.path,
++        )
++        if commit is not None:
++            return commit
++    elif re_arc not in (None, ""):
++        raise ValueError(f"{score_file.path}: metadata.re_arc must be an object, got {re_arc!r}.")
++
++    raise ValueError(
++        "Compatibility check failed: both score files must record metadata.re_arc_commit."
++    )
++
++
++def _format_commit(commit: str) -> str:
++    return commit[:12] if len(commit) > 12 else commit
++
++
++def _assert_re_arc_commit_compatible(baseline: ScoreFile, candidate: ScoreFile) -> str:
++    baseline_commit = _re_arc_commit_metadata(baseline)
++    candidate_commit = _re_arc_commit_metadata(candidate)
++    if baseline_commit.lower() != candidate_commit.lower():
++        raise ValueError(
++            "Compatibility check failed: re_arc commits differ "
++            f"(current_best={_format_commit(baseline_commit)}, "
++            f"candidate={_format_commit(candidate_commit)})."
++        )
++    return f"re_arc_commit: matched ({_format_commit(baseline_commit)})"
++
++
+ def _model_metadata(score_file: ScoreFile) -> str:
+     model = score_file.metadata.get("model") or score_file.metadata.get("setup_id")
+     if model in (None, ""):
+@@ -605,6 +656,7 @@ def _score_compatibility_checks(
+         _assert_runtime_budget_compatible(baseline, candidate),
+         _assert_hardware_compatible(baseline, candidate),
+         _assert_dataset_compatible(baseline, candidate),
++        _assert_re_arc_commit_compatible(baseline, candidate),
+         _assert_trial_counts_compatible(baseline_counts, candidate_counts),
+         _model_compatibility_line(baseline, candidate),
+     )
+diff --git a/ARC3-Inference/inference/tools/traces.py b/ARC3-Inference/inference/tools/traces.py
+index 8917441f94e3bf6514567d8b1c00d6e8e515a02c..79606c6deb21e3f0d52ea09b90b6745b77cb54c8 100644
+--- a/ARC3-Inference/inference/tools/traces.py
++++ b/ARC3-Inference/inference/tools/traces.py
+@@ -10,6 +10,7 @@ from pathlib import Path
+ import re
+ from typing import Any
+ 
++from inference.utils.rearc_baselines import load_re_arc_baseline_actions
+ from inference.utils.viewer_artifacts import load_raw_events
+ from inference.utils.run_artifacts import is_selectable_run_dir_name, run_dir_sort_key, save_git_info
+ from viewer.data import _split_labeled_sections
+@@ -272,31 +273,10 @@ def _validate_level_map_baselines(
+         if actual != expected:
+             raise ValueError(
+                 f"level {level_num}: artifact baseline_actions={actual} "
+-                f"does not match expected baseline_actions={expected}."
++                f"does not match re_arc metadata baseline_actions={expected}."
+             )
+ 
+ 
+-def _artifact_baseline_actions_by_level(payload: dict[str, Any]) -> list[int] | None:
+-    """Per-level ``baseline_actions`` recorded in the run artifact.
+-
+-    The harness persists these per level, so the artifact is a self-contained
+-    source. Returns ``None`` when any level is missing a positive value, which
+-    disables per-level re-scoring.
+-    """
+-    level_map = _extract_level_map(payload)
+-    if not level_map:
+-        return None
+-    total_levels = max(level_map, default=0)
+-    baselines: list[int] = []
+-    for level_num in range(1, total_levels + 1):
+-        raw_level = level_map.get(level_num) or {}
+-        value = _normalize_int(raw_level.get("baseline_actions"))
+-        if value is None or value <= 0:
+-            return None
+-        baselines.append(value)
+-    return baselines
+-
+-
+ def _build_scored_level_summaries(
+     payload: dict[str, Any],
+     *,
+@@ -622,7 +602,7 @@ def export_game_traces(
+ 
+     output_path = output_dir / run_name / f"{game_id}.json"
+     output_path.parent.mkdir(parents=True, exist_ok=True)
+-    baseline_actions_by_level = _artifact_baseline_actions_by_level(payload)
++    baseline_actions_by_level = load_re_arc_baseline_actions(game_id, environments_dir=environments_dir)
+     level_summaries, game_score, max_game_level = _build_scored_level_summaries(
+         payload,
+         baseline_actions_by_level=baseline_actions_by_level,
+diff --git a/ARC3-Inference/inference/utils/rearc_baselines.py b/ARC3-Inference/inference/utils/rearc_baselines.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..d8e2bc3e0e0648ac570c30311c15d398e0aaa229
+--- /dev/null
++++ b/ARC3-Inference/inference/utils/rearc_baselines.py
+@@ -0,0 +1,27 @@
++from __future__ import annotations
++
++try:
++    from re_arc.dsl.precomputed_actions import metadata_baseline_actions
++except Exception as exc:  # pragma: no cover - depends on the installed re_arc version.
++    metadata_baseline_actions = None
++    _METADATA_IMPORT_ERROR = exc
++else:
++    _METADATA_IMPORT_ERROR = None
++
++
++def load_re_arc_baseline_actions(game_id: str, *, environments_dir: str | None = None) -> list[int]:
++    if metadata_baseline_actions is None:
++        raise RuntimeError(
++            "Loading baseline_actions requires a re_arc version with metadata_baseline_actions "
++            "from the default branch or a newer release."
++        ) from _METADATA_IMPORT_ERROR
++
++    try:
++        raw_actions = metadata_baseline_actions(game_id, environments_dir=environments_dir)
++    except Exception as exc:
++        raise RuntimeError(f"{game_id}: failed to load re_arc metadata baseline_actions.") from exc
++
++    baseline_actions = [int(value) for value in raw_actions]
++    if not baseline_actions or any(value <= 0 for value in baseline_actions):
++        raise RuntimeError(f"{game_id}: re_arc metadata baseline_actions must be a non-empty positive list.")
++    return baseline_actions
+diff --git a/ARC3-Inference/inference/utils/rearc_version.py b/ARC3-Inference/inference/utils/rearc_version.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..3e5ba67de80726d1cdf61356fd2595e455a00f26
+--- /dev/null
++++ b/ARC3-Inference/inference/utils/rearc_version.py
+@@ -0,0 +1,56 @@
++"""Helpers for recording the locked re_arc dependency version."""
++from __future__ import annotations
++
++import tomllib
++from pathlib import Path
++from typing import Any
++from urllib.parse import urlparse
++
++
++RE_ARC_LOCK_PACKAGE = "arc-agi-3-local"
++
++
++def _find_uv_lock() -> Path | None:
++    seen: set[Path] = set()
++    for anchor in (Path(__file__).resolve(), Path.cwd()):
++        current = anchor if anchor.is_dir() else anchor.parent
++        for parent in (current, *current.parents):
++            path = parent / "uv.lock"
++            if path in seen:
++                continue
++            seen.add(path)
++            if path.exists():
++                return path
++    return None
++
++
++def _commit_from_source(source: Any) -> str | None:
++    if not isinstance(source, dict):
++        return None
++    raw_commit = source.get("commit")
++    if raw_commit not in (None, ""):
++        return str(raw_commit).strip() or None
++    raw_git = source.get("git")
++    if raw_git in (None, ""):
++        return None
++    return urlparse(str(raw_git)).fragment.strip() or None
++
++
++def read_locked_re_arc_commit(lock_path: str | Path | None = None) -> str | None:
++    """Return the Git commit pinned for re_arc in uv.lock, if available."""
++    resolved_path = Path(lock_path) if lock_path is not None else _find_uv_lock()
++    if resolved_path is None or not resolved_path.exists():
++        return None
++    try:
++        payload = tomllib.loads(resolved_path.read_text(encoding="utf-8"))
++    except (OSError, tomllib.TOMLDecodeError):
++        return None
++
++    packages = payload.get("package")
++    if not isinstance(packages, list):
++        return None
++    for package in packages:
++        if not isinstance(package, dict) or package.get("name") != RE_ARC_LOCK_PACKAGE:
++            continue
++        return _commit_from_source(package.get("source"))
++    return None
+diff --git a/ARC3-Inference/pyproject.toml b/ARC3-Inference/pyproject.toml
+index 240c21de3a8a39cb245b910f088dd99a830e3413..bf6bef6801ace3a4a5842154938d82ac80ca0032 100644
+--- a/ARC3-Inference/pyproject.toml
++++ b/ARC3-Inference/pyproject.toml
+@@ -11,8 +11,9 @@ authors = [
+     { name = "ARC3 Inference authors" },
+ ]
+ requires-python = "==3.12.12"
+-keywords = ["arc-agi", "agent", "puzzle-solving"]
++keywords = ["re-arc", "agent", "puzzle-solving"]
+ dependencies = [
++    "arc-agi-3-local @ git+https://github.com/Tufalabs/re-arc-3.git@master",
+     "arcengine==0.9.3",
+     "matplotlib==3.10.6",
+     "python-dotenv==1.2.2",
+diff --git a/ARC3-Inference/uv.lock b/ARC3-Inference/uv.lock
+index bbbdf09eb1cd934a5cc4a3b43b213c2f8f43e722..7717d5a340df8ccc18f7c040e3c1bbbd410b2ff7 100644
+--- a/ARC3-Inference/uv.lock
++++ b/ARC3-Inference/uv.lock
+@@ -145,11 +145,25 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/90/53/ddc9450fdbcfaa1af63e2985027f5f3d85c8fccc71b5611cea16f17a0aef/arc_agi-0.9.9-py3-none-any.whl", hash = "sha256:a0536df47b5ab93af16ba708083f74261cd1b7801bb2e0802824623c04d59e50", size = 40268, upload-time = "2026-06-10T21:35:16.97Z" },
+ ]
+ 
++[[package]]
++name = "arc-agi-3-local"
++version = "0.1.0"
++source = { git = "https://github.com/Tufalabs/re-arc-3.git?rev=master#57e46d619d02e8129c215af72c81b187b6b51afe" }
++dependencies = [
++    { name = "arc-agi" },
++    { name = "imageio" },
++    { name = "pillow" },
++    { name = "platformdirs" },
++    { name = "pydantic" },
++    { name = "pyyaml" },
++]
++
+ [[package]]
+ name = "arc3-inference"
+ version = "0.1.0"
+ source = { editable = "." }
+ dependencies = [
++    { name = "arc-agi-3-local" },
+     { name = "arcengine" },
+     { name = "matplotlib" },
+     { name = "python-dotenv" },
+@@ -169,6 +183,7 @@ server = [
+ 
+ [package.metadata]
+ requires-dist = [
++    { name = "arc-agi-3-local", git = "https://github.com/Tufalabs/re-arc-3.git?rev=master" },
+     { name = "arcengine", specifier = "==0.9.3" },
+     { name = "matplotlib", specifier = "==3.10.6" },
+     { name = "ninja", marker = "extra == 'server'", specifier = "==1.13.0" },
+@@ -2857,6 +2872,7 @@ version = "0.1.0"
+ source = { editable = "../tufa-arc-agi-framework" }
+ dependencies = [
+     { name = "arc-agi" },
++    { name = "arc-agi-3-local" },
+     { name = "arcengine" },
+     { name = "imageio" },
+     { name = "imageio-ffmpeg" },
+@@ -2869,6 +2885,7 @@ dependencies = [
+ [package.metadata]
+ requires-dist = [
+     { name = "arc-agi", specifier = ">=0.9.8" },
++    { name = "arc-agi-3-local", git = "https://github.com/Tufalabs/re-arc-3.git?rev=master" },
+     { name = "arcengine", specifier = ">=0.9.3" },
+     { name = "imageio", specifier = ">=2.34" },
+     { name = "imageio-ffmpeg", specifier = ">=0.5" },
+diff --git a/ARC3-Inference/viewer/data.py b/ARC3-Inference/viewer/data.py
+index 614e32897449e83ef6a62c6be3104575dccae47c..c3e29511d3fa259d3f4875b53e636b1dea3b9b19 100644
+--- a/ARC3-Inference/viewer/data.py
++++ b/ARC3-Inference/viewer/data.py
+@@ -73,7 +73,7 @@ _RUNTIME_VALUE_SYMBOLS = {
+     "history.frame.shape",
+     "history.frame.segmentation",
+     "valid_actions",
+-    "last_action_call_result",
++    "last_action_result",
+ }
+ _RUNTIME_CALL_SYMBOLS = {
+     "action",
+@@ -531,16 +531,7 @@ def _load_game_shell(run_dir: Path, path: Path) -> dict[str, Any]:
+         compact_payload = _summary_payload_from_raw_events(payload)
+ 
+     raw_events = _raw_event_dicts(payload, viewer_data_path=path)
+-    request_snapshots = _load_request_snapshots(
+-        _resolve_request_log_path(
+-            run_dir=_artifact_run_dir(path),
+-            viewer_data_path=path,
+-            game_id=str(payload.get("game_id") or "").strip(),
+-        )
+-    )
+-    step_summaries = _build_lightweight_viewer_steps(
+-        raw_events, request_snapshots=request_snapshots
+-    )
++    step_summaries = _build_lightweight_viewer_steps(raw_events)
+     if not step_summaries and _is_compact_saved_game_payload(payload):
+         step_summaries = [
+             _lazy_step_summary_from_compact_step(step, index)
+@@ -558,16 +549,7 @@ def _load_game_shell(run_dir: Path, path: Path) -> dict[str, Any]:
+ def _load_game_step(run_dir: Path, path: Path, step_index: int) -> dict[str, Any]:
+     payload = json.loads(path.read_text(encoding="utf-8"))
+     raw_events = _raw_event_dicts(payload, viewer_data_path=path)
+-    step_summaries = _build_lightweight_viewer_steps(
+-        raw_events,
+-        request_snapshots=_load_request_snapshots(
+-            _resolve_request_log_path(
+-                run_dir=_artifact_run_dir(path),
+-                viewer_data_path=path,
+-                game_id=str(payload.get("game_id") or "").strip(),
+-            )
+-        ),
+-    )
++    step_summaries = _build_lightweight_viewer_steps(raw_events)
+     if not step_summaries and _is_compact_saved_game_payload(payload):
+         steps = [step for step in payload.get("viewer_steps") or [] if isinstance(step, dict)]
+         if step_index >= len(steps):
+@@ -937,17 +919,10 @@ def _compact_context(context: dict[str, Any] | None) -> dict[str, Any] | None:
+         }
+         if raw_section.get("inContext") is False:
+             section["inContext"] = False
+-        turn_role = raw_section.get("turnRole")
+-        if turn_role in ("current", "history"):
+-            section["turnRole"] = turn_role
+         sections.append(section)
+     if not sections:
+         return None
+-    compact: dict[str, Any] = {"sections": sections}
+-    usage = context.get("usage")
+-    if isinstance(usage, dict) and usage:
+-        compact["usage"] = usage
+-    return compact
++    return {"sections": sections}
+ 
+ 
+ def _compact_step_event(event: dict[str, Any] | None) -> dict[str, Any] | None:
+@@ -991,14 +966,6 @@ def _compact_viewer_step(step: dict[str, Any]) -> dict[str, Any]:
+     for key in ("reward", "score", "state", "level"):
+         if step.get(key) is not None:
+             compact[key] = step.get(key)
+-    if isinstance(step.get("usage"), dict):
+-        # summary-level token badges: the frontend falls back to this when a
+-        # step has not been expanded, so it must survive compaction
+-        compact["usage"] = dict(step["usage"])
+-    if step.get("worldModelUpdates"):
+-        compact["worldModelUpdates"] = list(step["worldModelUpdates"])
+-    if step.get("analysisStep") is not None:
+-        compact["analysisStep"] = step.get("analysisStep")
+     context = _compact_context(step.get("context"))
+     if context is not None:
+         compact["context"] = context
+@@ -1060,8 +1027,6 @@ def _load_request_snapshots(path: Path | None) -> list[dict[str, Any]]:
+                 "analysis_step": _normalize_positive_int(payload.get("analysis_step")),
+                 "action": _normalize_positive_int(payload.get("action")),
+                 "request_index_within_turn": _normalize_positive_int(payload.get("request_index_within_turn")),
+-                "event": str(payload.get("event") or "").strip() or None,
+-                "usage": payload.get("usage") if isinstance(payload.get("usage"), dict) else None,
+             }
+         )
+     return snapshots
+@@ -1118,42 +1083,6 @@ def _normalized_number(value: Any) -> int | float:
+     return int(parsed) if parsed.is_integer() else parsed
+ 
+ 
+-_WORLD_MODEL_PREFIXES = (
+-    "World model:",
+-    "Goal model:",
+-    "Action model:",
+-    "Recent findings:",
+-    "Open questions:",
+-    "Plan:",
+-    "Cross-level notes:",
+-)
+-
+-
+-def _world_model_updates_in_transcript(transcript: Any) -> list[str]:
+-    """Names of memory sections the assistant updated in this transcript.
+-
+-    Scans ASSISTANT sections only: the USER PROMPT re-renders the carried
+-    world model every turn and must not count as an update."""
+-    text = str(transcript or "")
+-    if not text:
+-        return []
+-    matches = list(_SECTION_RE.finditer(text))
+-    updated: list[str] = []
+-    for index, match in enumerate(matches):
+-        if match.group(1).strip() != "ASSISTANT":
+-            continue
+-        start = match.end()
+-        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+-        for line in text[start:end].splitlines():
+-            stripped = line.strip()
+-            for prefix in _WORLD_MODEL_PREFIXES:
+-                if stripped.startswith(prefix):
+-                    name = prefix[:-1]
+-                    if name not in updated:
+-                        updated.append(name)
+-    return updated
+-
+-
+ def _normalize_analysis_step(value: Any) -> int | None:
+     try:
+         parsed = int(value)
+@@ -1353,51 +1282,6 @@ def _transcript_sections_from_events(
+     return sections
+ 
+ 
+-def _analysis_step_usage(
+-    request_snapshots: list[dict[str, Any]] | None,
+-    analysis_step: int | None,
+-) -> dict[str, Any] | None:
+-    """Sum prompt/completion tokens over all response snapshots of one
+-    analysis step. Prompt sums count each exchange's full prefill (real
+-    compute, though shared prefixes may be cached server-side)."""
+-    if not request_snapshots or analysis_step is None:
+-        return None
+-    prompt_total = completion_total = requests = 0
+-    last_prompt = None
+-    for snapshot in request_snapshots:
+-        if snapshot.get("analysis_step") != analysis_step:
+-            continue
+-        raw = snapshot.get("usage")
+-        if not isinstance(raw, dict):
+-            continue
+-
+-        def _pick(*keys: str) -> int | None:
+-            for key in keys:
+-                value = raw.get(key)
+-                if isinstance(value, (int, float)):
+-                    return int(value)
+-            return None
+-
+-        prompt = _pick("prompt_tokens", "input_tokens")
+-        completion = _pick("completion_tokens", "output_tokens", "generated_tokens")
+-        if prompt is None and completion is None:
+-            continue
+-        requests += 1
+-        if prompt is not None:
+-            prompt_total += prompt
+-            last_prompt = prompt
+-        if completion is not None:
+-            completion_total += completion
+-    if requests == 0:
+-        return None
+-    return {
+-        "promptTokens": prompt_total,
+-        "completionTokens": completion_total,
+-        "requests": requests,
+-        "lastPromptTokens": last_prompt,
+-    }
+-
+-
+ def _latest_request_snapshot(
+     request_snapshots: list[dict[str, Any]],
+     *,
+@@ -1437,56 +1321,15 @@ def _section_signature(section: dict[str, Any]) -> tuple[str, str]:
+     )
+ 
+ 
+-def _signatures_match(a: tuple[str, str], b: tuple[str, str]) -> bool:
+-    """Exact match, or prefix-equal USER PROMPT contents. Multimodal message
+-    builders append image/frame headers to the prompt text inside content
+-    parts (e.g. 'Current grid image:', 'Grid frames: ...'), so the request
+-    snapshot's rendering of a user prompt is the transcript's rendering plus
+-    a suffix; treat those as the same message so the dedup merge does not
+-    show the current prompt twice. The length floor guards against
+-    collapsing genuinely different short prompts."""
+-    if a == b:
+-        return True
+-    label_a, content_a = a
+-    label_b, content_b = b
+-    if label_a != label_b or label_a != "USER PROMPT":
+-        return False
+-    if not content_a or not content_b:
+-        return False
+-    shorter, longer = sorted((content_a, content_b), key=len)
+-    return len(shorter) >= 48 and longer.startswith(shorter)
+-
+-
+ def _default_in_context_for_transcript_section(section: dict[str, Any]) -> bool:
+     return str(section.get("label", "")).strip() != "THINKING"
+ 
+ 
+-def _pending_transcript_context() -> dict[str, Any]:
+-    """Context shown for a step whose analysis transcript has not been written
+-    yet (the step is still in progress). Prevents the confusing fallback of
+-    displaying the previous step's transcript on the current card."""
+-    return {
+-        "sections": [
+-            {
+-                "label": "TRANSCRIPT PENDING",
+-                "content": (
+-                    "This analysis step is still in progress - its transcript is "
+-                    "written when the step finishes. Reload once the step "
+-                    "completes to see the prompt, reasoning, and tool calls."
+-                ),
+-                "kind": "status",
+-                "inContext": False,
+-            }
+-        ]
+-    }
+-
+-
+ def _extract_context(
+     analysis_events: list[dict[str, Any]] | None,
+     *,
+     include_system_prompt: bool,
+     request_snapshot: dict[str, Any] | None = None,
+-    request_snapshots: list[dict[str, Any]] | None = None,
+ ) -> dict[str, Any] | None:
+     if not analysis_events:
+         return None
+@@ -1506,7 +1349,7 @@ def _extract_context(
+             signature = _section_signature(section)
+             found_index = None
+             for index in range(search_start, len(request_signatures)):
+-                if _signatures_match(request_signatures[index], signature):
++                if request_signatures[index] == signature:
+                     found_index = index
+                     break
+             if found_index is None:
+@@ -1543,23 +1386,11 @@ def _extract_context(
+ 
+     if not sections:
+         return None
+-    user_prompt_indices = [
+-        index for index, section in enumerate(sections)
+-        if section.get("label") == "USER PROMPT"
+-    ]
+-    if user_prompt_indices:
+-        for index in user_prompt_indices[:-1]:
+-            sections[index]["turnRole"] = "history"
+-        sections[user_prompt_indices[-1]]["turnRole"] = "current"
+     return {
+         "sections": sections,
+         "hasExactModelContext": bool(request_sections),
+         "requestIndexWithinTurn": request_snapshot.get("request_index_within_turn") if request_snapshot else None,
+         "messageCount": len(request_snapshot.get("messages", [])) if request_snapshot else 0,
+-        "usage": _analysis_step_usage(
+-            request_snapshots,
+-            request_snapshot.get("analysis_step") if request_snapshot else None,
+-        ),
+     }
+ 
+ 
+@@ -1644,12 +1475,7 @@ def _build_analysis_frame_step(
+         request_snapshots,
+         analysis_step=_normalize_analysis_step(group.get("analysis_step")),
+     )
+-    if analysis_event is None:
+-        context_events: list[dict[str, Any]] = []
+-    elif request_snapshot is not None:
+-        context_events = [analysis_event]
+-    else:
+-        context_events = prior_analysis_events
++    context_events = [analysis_event] if (request_snapshot is not None and analysis_event is not None) else prior_analysis_events
+ 
+     return _apply_action_summary(
+         {
+@@ -1657,31 +1483,19 @@ def _build_analysis_frame_step(
+             "sourceEventIndex": group.get("source_event_index", 0),
+             "event": summary_event,
+             "boardEvent": board_event,
+-            "context": (
+-                _extract_context(
+-                    context_events,
+-                    include_system_prompt=include_system_prompt,
+-                    request_snapshot=request_snapshot,
+-        request_snapshots=request_snapshots,
+-                )
+-                if analysis_event is not None
+-                else _pending_transcript_context()
++            "context": _extract_context(
++                context_events,
++                include_system_prompt=include_system_prompt,
++                request_snapshot=request_snapshot,
+             ),
+-            "localContext": (
+-                _extract_context(
+-                    [analysis_event],
+-                    include_system_prompt=include_system_prompt,
+-                )
+-                if analysis_event is not None
+-                else _pending_transcript_context()
++            "localContext": _extract_context(
++                [analysis_event] if analysis_event is not None else [],
++                include_system_prompt=include_system_prompt,
+             ),
+             "score": board_event.get("score") if board_event else None,
+             "state": board_event.get("state") if board_event else None,
+             "level": board_event.get("level") if board_event else None,
+             "stepKind": "turn",
+-            "worldModelUpdates": _world_model_updates_in_transcript(
+-                (analysis_event or {}).get("transcript")
+-            ),
+         },
+         action_summary,
+     )
+@@ -1754,9 +1568,6 @@ def _lightweight_analysis_step(
+             "level": board_event.get("level") if board_event else None,
+             "stepKind": "turn",
+             "analysisStep": group.get("analysis_step"),
+-            "worldModelUpdates": _world_model_updates_in_transcript(
+-                (group.get("analysis_event") or {}).get("transcript")
+-            ),
+             "lazy": True,
+             "detailLoaded": False,
+         },
+@@ -1822,17 +1633,7 @@ def _lightweight_standalone_action_step(
+     }
+ 
+ 
+-def _build_lightweight_viewer_steps(
+-    events: list[dict[str, Any]],
+-    *,
+-    request_snapshots: list[dict[str, Any]] | None = None,
+-) -> list[dict[str, Any]]:
+-    """Step summaries for the initial (unexpanded) render.
+-
+-    Token usage is attached here rather than only on hydration: it comes from
+-    the request log keyed by analysis step, needs none of the expensive
+-    transcript work, and the badges are most useful when scanning a whole game
+-    - which is exactly when no step has been clicked yet."""
++def _build_lightweight_viewer_steps(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+     if not events:
+         return []
+ 
+@@ -1935,18 +1736,6 @@ def _build_lightweight_viewer_steps(
+     )
+     for index, step in enumerate(steps):
+         step["stepIndex"] = index
+-        if step.get("stepKind") in ("result", "action"):
+-            # A "Latest State" or action step is a board display, not an
+-            # analyzer exchange. It inherits analysisStep from the group it
+-            # belongs to, so looking usage up by that key returned the numbers
+-            # of the analysis step beside it - which read as the previous
+-            # step's statistics copied onto the latest one.
+-            continue
+-        usage = _analysis_step_usage(
+-            request_snapshots, _normalize_analysis_step(step.get("analysisStep"))
+-        )
+-        if usage:
+-            step["usage"] = usage
+ 
+     if steps:
+         return steps
+@@ -1984,56 +1773,20 @@ def _hydrate_lightweight_step(
+ ) -> dict[str, Any]:
+     step = dict(summary)
+     step["detailLoaded"] = True
+-    if summary.get("stepKind") == "result":
+-        # "Latest State" card: shows the board after the last executed action.
+-        # Its transcript belongs to the previous card; do not duplicate it here
+-        # (matches the non-lazy builder, which sets context to None).
+-        note = {
+-            "sections": [
+-                {
+-                    "label": "LATEST BOARD STATE",
+-                    "content": (
+-                        "This card shows the board after the most recent executed "
+-                        "action. The transcript for that step is on the previous card."
+-                    ),
+-                    "kind": "status",
+-                    "inContext": False,
+-                }
+-            ]
+-        }
+-        step["context"] = note
+-        step["localContext"] = note
+-        return step
+     analysis_step = _normalize_analysis_step(summary.get("analysisStep"))
+     if analysis_step is None:
+         return step
+ 
+-    analysis_events = [
+-        event
+-        for event in events
+-        if event.get("type") == "analysis"
+-        and _normalize_analysis_step(event.get("analysis_step")) == analysis_step
+-    ]
+-    if not analysis_events:
+-        pending = _pending_transcript_context()
+-        step["context"] = pending
+-        step["localContext"] = pending
++    analysis_event = next(
++        (
++            event
++            for event in events
++            if event.get("type") == "analysis" and _normalize_analysis_step(event.get("analysis_step")) == analysis_step
++        ),
++        None,
++    )
++    if analysis_event is None:
+         return step
+-    if len(analysis_events) == 1:
+-        analysis_event = analysis_events[0]
+-    else:
+-        # The step was retried (e.g. after a request failure): every attempt
+-        # wrote its own analysis event. Merge them so no attempt's transcript
+-        # (and in particular no executed tool call) is hidden.
+-        analysis_event = dict(analysis_events[-1])
+-        merged_parts = []
+-        for attempt_number, attempt_event in enumerate(analysis_events, 1):
+-            merged_parts.append(
+-                f"===== ATTEMPT {attempt_number} of {len(analysis_events)} "
+-                "(this analysis step was retried) =====\n"
+-                + str(attempt_event.get("transcript") or "")
+-            )
+-        analysis_event["transcript"] = "\n\n".join(merged_parts)
+ 
+     normalized_event = _normalize_event(analysis_event)
+     request_snapshot = _latest_request_snapshot(request_snapshots, analysis_step=analysis_step)
+@@ -2041,23 +1794,10 @@ def _hydrate_lightweight_step(
+         [normalized_event],
+         include_system_prompt=step_index == 0,
+         request_snapshot=request_snapshot,
+-        request_snapshots=request_snapshots,
+-    )
+-    # Mirror the eager builder: `context` is the exact model window (full
+-    # history as the request saw it, plus usage); `localContext` is this
+-    # turn's own transcript only - the view the step card renders by
+-    # default. Assigning the window to both (the old behavior) made every
+-    # hydrated card open with the full conversation history on top.
+-    local_context = _extract_context(
+-        [normalized_event],  # normalize PARSES transcript into sections
+-        include_system_prompt=step_index == 0,
+     )
+     if context is not None:
+-        step["context"] = context
+-    if local_context is not None:
+-        step["localContext"] = local_context
+-    elif context is not None:
+         step["localContext"] = context
++        step["context"] = context
+     return step
+ 
+ 
+diff --git a/ARC3-Inference/viewer/index.html b/ARC3-Inference/viewer/index.html
+index 4b25e62b15fd5354ac2a42ce94dbfd15b8e8e2e5..2ae4312db8679691b2deb586b37bef104242c264 100644
+--- a/ARC3-Inference/viewer/index.html
++++ b/ARC3-Inference/viewer/index.html
+@@ -1113,18 +1113,6 @@
+       if (step.actionDisplay) {
+         metaBits.push(step.actionDisplay);
+       }
+-      if (Array.isArray(step.worldModelUpdates) && step.worldModelUpdates.length) {
+-        metaBits.push(`WM updated: ${step.worldModelUpdates.join(", ")}`);
+-      }
+-      const stepUsage = step.context?.usage || step.usage;
+-      if (stepUsage && (stepUsage.promptTokens != null || stepUsage.completionTokens != null)) {
+-        const fmtTok = (n) => (n == null ? "?" : n.toLocaleString());
+-        let usageBit = `tokens: prefill ${fmtTok(stepUsage.promptTokens)} · gen ${fmtTok(stepUsage.completionTokens)}`;
+-        if (stepUsage.requests > 1) {
+-          usageBit += ` (${stepUsage.requests} reqs, last prefill ${fmtTok(stepUsage.lastPromptTokens)})`;
+-        }
+-        metaBits.push(usageBit);
+-      }
+       const meta = metaBits.length
+         ? `<div class="event-meta">${escapeHtml(metaBits.join(" · "))}</div>`
+         : "";
+@@ -1181,7 +1169,7 @@
+         return `
+           <details class="section-card ${escapeHtml(section.kind)} ${inContext ? "" : "not-in-context"}">
+             <summary class="section-label section-summary">
+-              <span>${escapeHtml(section.label)}${renderTurnBadge(section)}</span>
++              <span>${escapeHtml(section.label)}</span>
+               ${stateLabel}
+             </summary>
+             ${changeNote}
+@@ -1193,7 +1181,7 @@
+       return `
+         <div class="section-card ${escapeHtml(section.kind)} ${inContext ? "" : "not-in-context"}">
+           <div class="section-label">
+-            <span>${escapeHtml(section.label)}${renderTurnBadge(section)}</span>
++            <span>${escapeHtml(section.label)}</span>
+             ${stateLabel}
+           </div>
+           ${changeNote}
+@@ -1755,15 +1743,6 @@
+       return num.toFixed(2);
+     }
+ 
+-    function renderTurnBadge(section) {
+-      if (section?.turnRole === "current") {
+-        return ' <span style="font-weight:600;opacity:0.95"> — CURRENT TURN</span>';
+-      }
+-      if (section?.turnRole === "history") {
+-        return ' <span style="font-weight:400;opacity:0.55"> — earlier turn</span>';
+-      }
+-      return "";
+-    }
+     function escapeHtml(value) {
+       return String(value)
+         .replaceAll("&", "&amp;")
+diff --git a/tufa-arc-agi-framework/README.md b/tufa-arc-agi-framework/README.md
+index 61fbd905952177fbb872899db1ce6034261c8efd..985f7295f8d70e6df95848f61e89333d50f4f6b8 100644
+--- a/tufa-arc-agi-framework/README.md
++++ b/tufa-arc-agi-framework/README.md
+@@ -2,12 +2,17 @@
+ 
+ ARC-AGI3 orchestration framework — Tufa Labs.
+ 
++The driver document for this repository is [`docs/requirements.md`](docs/requirements.md).
++
+ ## Quick start
+ 
+ ```bash
+ make install-dev      # set up .venv + dev deps
++make prepare          # ruff format + lint + pyright + pytest
+ ```
+ 
++See [`notebooks/demo_workflow.ipynb`](notebooks/demo_workflow.ipynb) for a happy-path tour of `Game`, `Solver`, and `Benchmark`.
++
+ ## Kaggle Random Smoke
+ 
+ `SolverRandom` is TAAF's built-in solver example, so its Kaggle launcher lives
+@@ -40,9 +45,14 @@ Example Kaggle outputs:
+ - [Random smoke notebook](https://www.kaggle.com/code/driessmit1/taaf-random-kaggle)
+ - [Duck-Tok solver notebook](https://www.kaggle.com/code/driessmit1/taaf-duck-tok-0527-1712)
+ 
+-## Games and datasets
++## re-arc dependency
++
++`pyproject.toml` depends on `arc-agi-3-local` from the `re-arc-3` Git
++repository, so CI and package installs do not require a sibling checkout:
++
++```bash
++make install-dev
++```
+ 
+-This exposition build depends only on public packages. Official ARC-AGI-3 games
+-run through the live competition gateway (or the bundled 25-game official set);
+-the offline local-dataset/generator code paths are not bundled here and raise a
+-clear error if invoked.
++Developer sandboxes that need local `re-arc-3` changes can override that Git
++dependency in their own environment.
+diff --git a/tufa-arc-agi-framework/pyproject.toml b/tufa-arc-agi-framework/pyproject.toml
+index de0cb0e2601a36a7c2d92a1fab5fe37a5f349e1b..51dc9667b42a3daccf88c9daf9776ed8f4c83b7a 100644
+--- a/tufa-arc-agi-framework/pyproject.toml
++++ b/tufa-arc-agi-framework/pyproject.toml
+@@ -6,6 +6,7 @@ readme = "README.md"
+ requires-python = "==3.12.12"
+ dependencies = [
+     "arc_agi>=0.9.8",
++    "arc-agi-3-local @ git+https://github.com/Tufalabs/re-arc-3.git@master",
+     "arcengine>=0.9.3",
+     "imageio>=2.34",
+     "imageio-ffmpeg>=0.5",
+@@ -43,9 +44,10 @@ taaf = ["kaggle/*.ipynb"]
+ 
+ [tool.pytest.ini_options]
+ asyncio_mode = "auto"
+-# Scope collection to ``tests/`` so bundled source snapshots under deploy
+-# notebooks' ``.../src/*/`` don't get vacuumed up — those expect their own
+-# conftest and would ImportError on collection without it.
++# Scope collection to ``tests/`` so the deploy notebooks' source
++# snapshots (``notebooks/runs/deploy/.../src/re-arc-3/pipeline/worker_tests/``)
++# don't get vacuumed up — those expect re-arc-3's own conftest and would
++# ImportError on collection without it.
+ testpaths = ["tests"]
+ markers = ["slow: marks tests as slow (deselected by default, run with --slow or `make test-all`)"]
+ addopts = "-m 'not slow'"
+diff --git a/tufa-arc-agi-framework/src/taaf/competition_arcade.py b/tufa-arc-agi-framework/src/taaf/competition_arcade.py
+index 8c1da4e46ac5e69f7e3dd107cf464bd132521da5..1293db680b4c8e255c465eacfc308744efc244b1 100644
+--- a/tufa-arc-agi-framework/src/taaf/competition_arcade.py
++++ b/tufa-arc-agi-framework/src/taaf/competition_arcade.py
+@@ -45,25 +45,14 @@ class _QuietWSGIRequestHandler(WSGIRequestHandler):
+         return
+ 
+ 
+-_OFFICIAL_GAME_IDS: tuple[str, ...] = (
+-    "tn36-ef4dde99", "lf52-271a04aa", "cn04-2fe56bfb", "bp35-0a0ad940",
+-    "wa30-ee6fef47", "lp85-305b61c3", "r11l-495a7899", "tu93-0768757b",
+-    "sp80-589a99af", "m0r0-492f87ba", "vc33-5430563c", "ar25-0c556536",
+-    "ka59-38d34dbb", "sc25-635fd71a", "sk48-d8078629", "dc22-fdcac232",
+-    "cd82-fb555c5d", "ft09-0d8bbf25", "g50t-5849a774", "ls20-9607627b",
+-    "re86-8af5384d", "s5i5-18d95033", "sb26-7fbdac44", "su15-1944f8ab",
+-    "tr87-cd924810",
+-)
+-
+-
+ def official_game_ids() -> tuple[str, ...]:
+-    """Return the 25 public official game IDs used for Kaggle smoke runs.
++    """Return the 25 public official game IDs used for Kaggle smoke runs."""
++    import re_arc
+ 
+-    Hardcoded so the build carries no external dataset dependency.
+-    """
+-    if len(_OFFICIAL_GAME_IDS) != 25:
+-        raise RuntimeError(f"Expected 25 official games, got {len(_OFFICIAL_GAME_IDS)}.")
+-    return _OFFICIAL_GAME_IDS
++    game_ids = tuple(re_arc.list_game_ids(datasets=["train", "eval"], include_tags="official"))
++    if len(game_ids) != 25:
++        raise RuntimeError(f"Expected 25 official games, got {len(game_ids)}.")
++    return game_ids
+ 
+ 
+ def clone_game_ids(
+diff --git a/tufa-arc-agi-framework/src/taaf/deploy.py b/tufa-arc-agi-framework/src/taaf/deploy.py
+index ce0eb0405a109d965fc5d3ede125f53208102f2d..fdd862b0c9dd24e765fe87849bf8981ac02736cd 100644
+--- a/tufa-arc-agi-framework/src/taaf/deploy.py
++++ b/tufa-arc-agi-framework/src/taaf/deploy.py
+@@ -233,8 +233,8 @@ def snapshot_editable_sources(
+     bundled source.
+ 
+     ``exclude_repos`` drops repos whose directory name matches (case-
+-    insensitively) — used by the Kaggle share bundle to leave private
+-    source snapshots out of a public dataset.
++    insensitively) — used by the Kaggle share bundle to leave ``re-arc-3``
++    (the offline env-files snapshot) out of a public dataset.
+ 
+     Returns the list of per-repo destination dirs that were written.
+     """
+@@ -486,8 +486,8 @@ def _snapshot_one_repo(repo_root: Path, dest: Path) -> Path:
+     for pkg_dir in _find_package_dirs(repo_root):
+         # Preserve the package's path relative to the repo root so the
+         # bundled pyproject's ``packages.find.where`` still resolves on
+-        # the worker (``src/taaf`` → ``dest/src/taaf``, flat ``pkg``
+-        # → ``dest/pkg``).
++        # the worker (``src/taaf`` → ``dest/src/taaf``, flat ``re_arc``
++        # → ``dest/re_arc``).
+         rel = pkg_dir.relative_to(repo_root)
+         target = dest / rel
+         target.parent.mkdir(parents=True, exist_ok=True)
+@@ -528,7 +528,7 @@ def _find_package_dirs(repo_root: Path) -> list[Path]:
+             if not child.is_dir() or not (child / "__init__.py").is_file():
+                 continue
+             # setuptools' ``include`` is glob-style on dotted package
+-            # names (e.g. ``mypkg*``). At the top level the dotted name
++            # names (e.g. ``re_arc*``). At the top level the dotted name
+             # is just the dir name, so fnmatch on the first segment works.
+             if any(fnmatch.fnmatchcase(child.name, pat.split(".")[0]) for pat in includes):
+                 if child not in found:
+diff --git a/tufa-arc-agi-framework/src/taaf/deploy_kaggle.py b/tufa-arc-agi-framework/src/taaf/deploy_kaggle.py
+index 650e7dd0d5fa7441cbd06c5bdbfc95cd93cf5c18..7d68212734e05e7c721bdf8f9e59757b3c340bb2 100644
+--- a/tufa-arc-agi-framework/src/taaf/deploy_kaggle.py
++++ b/tufa-arc-agi-framework/src/taaf/deploy_kaggle.py
+@@ -42,8 +42,8 @@ NOTEBOOK_NAME = "taaf_kaggle_run.ipynb"
+ SHARE_NOTEBOOK_NAME = "taaf_kaggle_run_share.ipynb"
+ _NOTEBOOK_TEMPLATE = Path(__file__).resolve().parent / "kaggle" / NOTEBOOK_NAME
+ _SHARE_NOTEBOOK_TEMPLATE = Path(__file__).resolve().parent / "kaggle" / SHARE_NOTEBOOK_NAME
+-# Repos left out of the public share bundle (private source snapshots must not ship publicly).
+-_SHARE_EXCLUDE_REPOS: tuple[str, ...] = ()
++# Repos left out of the public share bundle (its env-files snapshot must not ship publicly).
++_SHARE_EXCLUDE_REPOS = ("re-arc-3",)
+ 
+ 
+ @dataclass
+@@ -165,8 +165,8 @@ class KaggleTarget(taaf.deploy.DeploymentTarget):
+       (Kaggle-only, no ``RUN_AS_SUBMISSION`` emulation; branches on the
+       real ``KAGGLE_IS_COMPETITION_RERUN`` — live Arcade in a rerun, the
+       competition's own bundled offline env-files otherwise), leaves
+-      private source snapshots out of the source dataset, and
+-      ``-share``-suffixes the default kernel/dataset slugs. Explicit ``kernel_slug`` /
++      ``re-arc-3`` out of the source dataset, and ``-share``-suffixes the
++      default kernel/dataset slugs. Explicit ``kernel_slug`` /
+       ``dataset_ref`` are left untouched.
+     - ``cpu_only``: disables GPU for cheap public/offline smoke tests.
+       The default honors R2.52: RTX6000 GPU with internet disabled.
+@@ -786,8 +786,8 @@ def package_for_local_debug(
+     """Build only the source dataset bundle for local notebook smoke tests.
+ 
+     Honours ``target.make_share_version`` so a share target's local bundle
+-    reflects the share variant (private snapshots excluded, share notebook in
+-    the marker). Note that :func:`run_source_bundle_locally` still only executes
++    reflects the share variant (``re-arc-3`` excluded, share notebook in the
++    marker). Note that :func:`run_source_bundle_locally` still only executes
+     the default variant — see its docstring.
+     """
+     output_dir.mkdir(parents=True, exist_ok=True)
+diff --git a/tufa-arc-agi-framework/src/taaf/deploy_slurm.py b/tufa-arc-agi-framework/src/taaf/deploy_slurm.py
+index e731a812105e68c5c1236384dbfef8843b91e90a..13b694d8fea09f09fc8f1645793014a9929c280a 100644
+--- a/tufa-arc-agi-framework/src/taaf/deploy_slurm.py
++++ b/tufa-arc-agi-framework/src/taaf/deploy_slurm.py
+@@ -34,10 +34,10 @@ import taaf.support
+ 
+ GPU = Literal["B200", "B300", "RTX", "CPU"]
+ 
+-# Hardware tier → ``--gres=gpu:<name>:<count>`` (e.g. ``gpu:b200:8``).
+-# ``B300``/``RTX`` follow the same naming convention forward-compat.
+-# ``CPU`` → no ``--gres`` and switches the rendering to
+-# ``--cpus-per-task``/``--mem``.
++# Hardware tier → ``--gres=gpu:<name>:<count>``. Only B200 is verified
++# (``sinfo`` shows ``gpu:b200:8`` on dgx[01-06]); B300/RTX follow the
++# same naming convention forward-compat. ``CPU`` → no ``--gres`` and
++# switches the rendering to ``--cpus-per-task``/``--mem``.
+ _GPU_GRES_NAMES: dict[str, str | None] = {
+     "B200": "b200",
+     "B300": "b300",
+diff --git a/tufa-arc-agi-framework/src/taaf/game_api.py b/tufa-arc-agi-framework/src/taaf/game_api.py
+index 1410a3fd86a6b02b9ac6f63a7a2d01a5d43061e5..1cf8eb0fb234bc7d79c67182494c4cd1eb530b29 100644
+--- a/tufa-arc-agi-framework/src/taaf/game_api.py
++++ b/tufa-arc-agi-framework/src/taaf/game_api.py
+@@ -13,6 +13,7 @@ import sys
+ import threading
+ import warnings
+ from dataclasses import asdict, dataclass, field
++from pathlib import Path
+ from typing import Any
+ 
+ import arc_agi
+@@ -20,27 +21,25 @@ import arcengine
+ 
+ from taaf.game import Game, GameState, RunSession
+ 
+-# ``environments_dir = _AUTO_ENV_DIR`` was the sentinel for offline env
+-# files bundled with a worker deployment. Those files are not shipped in
+-# this build, so ``__auto__`` is rejected; pass an explicit path or run
+-# against the live competition Arcade.
++# ``environments_dir = _AUTO_ENV_DIR`` means "resolve at ``_start_game``
++# time on whichever side is running it". A literal path baked into the
++# spec on the launcher would be unreachable in a worker container that
++# only bind-mounts ``${job_dir}``; resolving lazily picks up the worker's
++# bundled re-arc-3 snapshot under ``${job_dir}/src/re-arc-3/``.
+ _AUTO_ENV_DIR = "__auto__"
+ 
+ 
+ def _resolve_environments_dir(value: str) -> str:
+-    """Resolve an explicit env-files dir, or reject the ``__auto__`` sentinel.
++    """Map the ``__auto__`` sentinel to the local re-arc env-files dir.
+ 
+-    The ``__auto__`` mode used to locate offline env files bundled with a
+-    worker deployment, which are not shipped in this build. Live competition
+-    Arcades pass ``environments_dir=""`` and never reach this branch; offline
+-    play now requires an explicit ``environments_dir``.
++    ``re_arc`` is imported lazily so the package stays importable in
++    deployments that ship without the re-arc-3 snapshot (the Kaggle
++    share bundle), which only ever run against a live competition Arcade.
+     """
+     if value == _AUTO_ENV_DIR:
+-        raise RuntimeError(
+-            "Offline env files (the '__auto__' mode) are not bundled in this build. "
+-            "Run against the live competition Arcade, or pass an explicit "
+-            "environments_dir."
+-        )
++        import re_arc
++
++        return str(Path(re_arc.__file__).resolve().parent / "environment_files")
+     return value
+ 
+ 
+@@ -96,7 +95,7 @@ class ArcadeSpec:
+     Fields:
+ 
+     - ``operation_mode``: ``OperationMode.OFFLINE`` (default) hits the
+-      offline bundled env files — no network, no API key. Override with
++      re-arc-3 bundled env files — no network, no API key. Override with
+       ``ONLINE`` for ARC-AGI3-API runs.
+     - ``arc_base_url``: ARC-AGI3 API URL (only used in ONLINE mode).
+     - ``environments_dir``: path to env JSON files, or ``"__auto__"``
+diff --git a/tufa-arc-agi-framework/src/taaf/standard_benchmarks.py b/tufa-arc-agi-framework/src/taaf/standard_benchmarks.py
+index 10cd0527c55b4453439c053974a315bcbc9cbd61..7852294de7eef3a2503332eb17dc732c3b1f6fea 100644
+--- a/tufa-arc-agi-framework/src/taaf/standard_benchmarks.py
++++ b/tufa-arc-agi-framework/src/taaf/standard_benchmarks.py
+@@ -15,19 +15,41 @@ import taaf.solver
+ 
+ 
+ def make_benchmark_all_games(solver: taaf.solver.Solver | None = None) -> taaf.benchmark.Benchmark:
+-    """All-game benchmark over the full local game catalog.
++    """All-game benchmark: ``re_arc``'s ``train`` + ``eval`` datasets.
++    Pinning to those JSON files keeps the benchmark stable as games are
++    added.
+ 
+-    This benchmark enumerated every game and probed its level count from the
+-    offline env files, neither of which is bundled in this build, so the
+-    all-game benchmark is unavailable. Use
+-    :func:`make_benchmark_kaggle_official_110` (the 25 official games), or run
+-    against the live competition Arcade.
++    Weights: ``20`` for ``official``-tagged games regardless of level
++    count; ``min(number_of_levels, 8)`` otherwise. Callers are free to
++    bump ``n_passes`` — the games and weights are the benchmark identity.
+     """
+-    del solver
+-    raise RuntimeError(
+-        "make_benchmark_all_games requires the full local game catalog, which is "
+-        "not bundled in this build. Use make_benchmark_kaggle_official_110 or the "
+-        "live competition Arcade."
++    import re_arc
++
++    train_ids = re_arc.list_game_ids(datasets="train")
++    eval_ids = re_arc.list_game_ids(datasets="eval")
++    game_ids = list(train_ids) + list(eval_ids)
++    official_ids = set(re_arc.list_game_ids(datasets=["train", "eval"], include_tags="official"))
++
++    # number_of_levels requires starting each game.
++    session = taaf.game.RunSession()
++    games: list[taaf.game.Game] = []
++    weights: list[float] = []
++    for gid in game_ids:
++        probe = taaf.game_api.GameAPI(env_name=gid)
++        probe.start_game(session=session)
++        n_levels = probe.number_of_levels
++        if gid in official_ids:
++            weights.append(20.0)
++        else:
++            weights.append(float(min(n_levels, 8)))
++        games.append(taaf.game_api.GameAPI(env_name=gid))
++
++    return taaf.benchmark.Benchmark(
++        label="all_games",
++        games=games,
++        solver=solver,
++        n_passes=1,
++        game_weights=weights,
+     )
+ 
+ 
+@@ -55,12 +77,14 @@ def make_benchmark_kaggle_official_110(
+     official-110 clone set. This lets a non-submission run exercise the
+     submission-shaped arcade without an actual leaderboard submission.
+     """
++    import re_arc
++
+     if competition_sim:
+         if arcade_spec is not None:
+             raise ValueError("Pass either competition_sim=True or an explicit arcade_spec, not both.")
+         arcade_spec = taaf.game_api.ArcadeSpec(competition_sim=True)
+         competition_clone_ids = True
+-    official_ids = list(taaf.competition_arcade.official_game_ids())
++    official_ids = list(re_arc.list_game_ids(datasets=["train", "eval"], include_tags="official"))
+     if len(official_ids) != 25:
+         raise RuntimeError(f"Expected 25 official games for Kaggle benchmark, got {len(official_ids)}.")
+     if competition_clone_ids:
+@@ -70,11 +94,11 @@ def make_benchmark_kaggle_official_110(
+         game_ids = taaf.competition_arcade.clone_game_ids(official_ids, total_runs=110)
+         external_ids: list[str | None] = [None] * len(game_ids)
+     else:
+-        # No competition arcade to synthesize unique env IDs — only the 25 base
+-        # IDs are known. Override each instance's public ``game_id`` with
++        # No competition arcade to synthesize unique env IDs — re_arc only knows
++        # the 25 base IDs. Override each instance's public ``game_id`` with
+         # ``{base}_{i}`` where ``i`` is the per-base occurrence index, so
+         # ``Benchmark.game_runs`` has unique IDs (Benchmark.run asserts this)
+-        # while each instance still plays its base env underneath.
++        # while each instance still plays its base re_arc env underneath.
+         counts: collections.Counter[str] = collections.Counter()
+         game_ids = []
+         external_ids = []
+diff --git a/tufa-arc-agi-framework/uv.lock b/tufa-arc-agi-framework/uv.lock
+index 36024438cdeaeb740e8617f2c5f4f1eb5030c335..a8d6fcc40870f11dcc0879ddb266e5b00c1752d0 100644
+--- a/tufa-arc-agi-framework/uv.lock
++++ b/tufa-arc-agi-framework/uv.lock
+@@ -51,6 +51,19 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/43/56/7abc80afbeb0dc151cc9222641408c418d512f1e80cd81c56d0ce86c4603/arc_agi-0.9.8-py3-none-any.whl", hash = "sha256:aeca1663db342e91cb8fc96cf0c83e2fa39db1640bc1298e80a8d522e3af70f3", size = 40151, upload-time = "2026-04-17T18:50:17.554Z" },
+ ]
+ 
++[[package]]
++name = "arc-agi-3-local"
++version = "0.1.0"
++source = { git = "https://github.com/Tufalabs/re-arc-3.git?rev=master#793679eef51f94e44ad50fa9abe8e1f518fd5688" }
++dependencies = [
++    { name = "arc-agi" },
++    { name = "imageio" },
++    { name = "pillow" },
++    { name = "platformdirs" },
++    { name = "pydantic" },
++    { name = "pyyaml" },
++]
++
+ [[package]]
+ name = "arcengine"
+ version = "0.9.3"
+@@ -1824,6 +1837,7 @@ version = "0.1.0"
+ source = { editable = "." }
+ dependencies = [
+     { name = "arc-agi" },
++    { name = "arc-agi-3-local" },
+     { name = "arcengine" },
+     { name = "imageio" },
+     { name = "imageio-ffmpeg" },
+@@ -1849,6 +1863,7 @@ dev = [
+ [package.metadata]
+ requires-dist = [
+     { name = "arc-agi", specifier = ">=0.9.8" },
++    { name = "arc-agi-3-local", git = "https://github.com/Tufalabs/re-arc-3.git?rev=master" },
+     { name = "arcengine", specifier = ">=0.9.3" },
+     { name = "imageio", specifier = ">=2.34" },
+     { name = "imageio-ffmpeg", specifier = ">=0.5" },
