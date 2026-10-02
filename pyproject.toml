@@ -22,7 +22,8 @@ include = ["arc3", "arc3.*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = "-q -m 'not slow'"
+markers = ["slow: minutes-long end-to-end runs (tests/test_franzen_bed.py); run them with -m slow"]
 
 [tool.ruff]
 line-length = 120

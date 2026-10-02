@@ -1,0 +1,44 @@
+--- analysis_step=1 | action=1 | 08:30:26 | tool-agent ---
+
+[ANALYZER STATUS]
+text_token_calibration: 3.30 chars/token (clamped from 4.33) [prompt_tokens 5479, images 402, text chars 21960]
+--- analysis_step=1 | action=1 | 08:31:33 | tool-agent ---
+
+[ANALYZER STATUS]
+text_token_calibration: 3.00 chars/token [prompt_tokens 14148, images 804, text chars 40008]
+--- analysis_step=2 | action=2 | 08:31:50 | tool-agent ---
+--- analysis_step=3 | action=4 | 08:32:04 | tool-agent ---
+--- analysis_step=4 | action=5 | 08:32:12 | tool-agent ---
+
+[ANALYZER STATUS]
+text_token_calibration: 3.11 chars/token [prompt_tokens 21255, images 2814, text chars 57383]
+
+[ANALYZER STATUS]
+text_token_calibration: 3.06 chars/token [prompt_tokens 22111, images 2814, text chars 59036]
+--- analysis_step=5 | action=12 | 08:32:48 | tool-agent ---
+--- analysis_step=5 | action=12 | 08:33:38 | tool-agent ---
+--- analysis_step=5 | action=12 | 08:34:21 | tool-agent ---
+--- analysis_step=6 | action=13 | 08:35:08 | tool-agent ---
+
+[ANALYZER STATUS]
+text_token_calibration: 3.07 chars/token [prompt_tokens 40871, images 4824, text chars 110821]
+--- analysis_step=7 | action=14 | 08:35:16 | tool-agent ---
+--- analysis_step=8 | action=28 | 08:35:59 | tool-agent ---
+--- analysis_step=9 | action=31 | 08:37:21 | tool-agent ---
+--- analysis_step=10 | action=52 | 08:38:04 | tool-agent ---
+--- analysis_step=11 | action=54 | 08:39:09 | tool-agent ---
+--- analysis_step=11 | action=54 | 08:39:47 | tool-agent ---
+--- analysis_step=12 | action=57 | 08:40:48 | tool-agent ---
+--- analysis_step=12 | action=57 | 08:41:39 | tool-agent ---
+--- analysis_step=12 | action=57 | 08:44:49 | tool-agent ---
+--- analysis_step=12 | action=57 | 08:46:23 | tool-agent ---
+--- analysis_step=13 | action=66 | 08:49:52 | tool-agent ---
+--- analysis_step=14 | action=93 | 08:51:13 | tool-agent ---
+
+[ANALYZER STATUS]
+text_token_calibration: 3.26 chars/token [prompt_tokens 55557, images 4020, text chars 167954]
+--- analysis_step=14 | action=93 | 08:52:54 | tool-agent ---
+--- analysis_step=15 | action=94 | 08:55:00 | tool-agent ---
+
+[ANALYZER STATUS]
+request_timeout (yielding, history preserved): HTTPConnectionPool(host='127.0.0.1', port=8001): Read timed out. (read timeout=25.5951249069999)
