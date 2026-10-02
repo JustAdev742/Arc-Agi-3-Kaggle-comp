@@ -1,0 +1,152 @@
+[
+{
+"stream_name": "stdout",
+"time": 531.014018199,
+"data": "READY after 478s -> http://127.0.0.1:8001/v1\n"
+},
+{
+"stream_name": "stderr",
+"time": 533.502632867,
+"data": "priority gate active: 10 concurrent streams\n"
+},
+{
+"stream_name": "stderr",
+"time": 533.502650817,
+"data": "priority gate active: 10 concurrent streams\n"
+},
+{
+"stream_name": "stderr",
+"time": 533.531537397,
+"data": "ar25-0c556536: warmup RESET issued before the analyzer is reachable\n"
+},
+{
+"stream_name": "stderr",
+"time": 533.531549367,
+"data": "ar25-0c556536: warmup RESET issued before the analyzer is reachable\n"
+},
+{
+"stream_name": "stdout",
+"time": 1135.046451944,
+"data": "mean score:    14.21\n"
+},
+{
+"stream_name": "stdout",
+"time": 1602.888607652,
+"data": "[finished] sb26-7fbdac44 state=won level=8/8 score=93.34 actions=162 tokens=66576 per-level=9/18,26/28,15/18,15/19,17/31,19/23,18/58,43/18 note=\"tokens=66576\"\n"
+},
+{
+"stream_name": "stdout",
+"time": 1736.593803027,
+"data": "mean score:    36.56\n"
+},
+{
+"stream_name": "stderr",
+"time": 1765.354605762,
+"data": "tail fade phase after 20.5 minutes: 4.5 minutes remaining; fading tail B to zero over the final 5.0 minutes, retaining hazard C\n"
+},
+{
+"stream_name": "stderr",
+"time": 1765.354638612,
+"data": "tail fade phase after 20.5 minutes: 4.5 minutes remaining; fading tail B to zero over the final 5.0 minutes, retaining hazard C\n"
+},
+{
+"stream_name": "stderr",
+"time": 2033.64449941,
+"data": "analyzer request timed out at action 21; yielding with 0 tool call(s) preserved: HTTPConnectionPool(host='127.0.0.1', port=8001): Read timed out. (read timeout=10.258735563000073)\n"
+},
+{
+"stream_name": "stderr",
+"time": 2033.64452454,
+"data": "analyzer request timed out at action 21; yielding with 0 tool call(s) preserved: HTTPConnectionPool(host='127.0.0.1', port=8001): Read timed out. (read timeout=10.258735563000073)\n"
+},
+{
+"stream_name": "stderr",
+"time": 2033.694710399,
+"data": "analyzer request timed out at action 113; yielding with 0 tool call(s) preserved: HTTPConnectionPool(host='127.0.0.1', port=8001): Read timed out. (read timeout=36.672166481999966)\n"
+},
+{
+"stream_name": "stderr",
+"time": 2033.694721509,
+"data": "analyzer request timed out at action 113; yielding with 0 tool call(s) preserved: HTTPConnectionPool(host='127.0.0.1', port=8001): Read timed out. (read timeout=36.672166481999966)\n"
+},
+{
+"stream_name": "stderr",
+"time": 2033.744527159,
+"data": "analyzer request timed out at action 185; yielding with 0 tool call(s) preserved: HTTPConnectionPool(host='127.0.0.1', port=8001): Read timed out. (read timeout=25.106062594999912)\n"
+},
+{
+"stream_name": "stderr",
+"time": 2033.744536359,
+"data": "analyzer request timed out at action 185; yielding with 0 tool call(s) preserved: HTTPConnectionPool(host='127.0.0.1', port=8001): Read timed out. (read timeout=25.106062594999912)\n"
+},
+{
+"stream_name": "stderr",
+"time": 2033.857363467,
+"data": "analyzer request timed out at action 94; yielding with 0 tool call(s) preserved: HTTPConnectionPool(host='127.0.0.1', port=8001): Read timed out. (read timeout=25.5951249069999)\n"
+},
+{
+"stream_name": "stderr",
+"time": 2033.857373157,
+"data": "analyzer request timed out at action 94; yielding with 0 tool call(s) preserved: HTTPConnectionPool(host='127.0.0.1', port=8001): Read timed out. (read timeout=25.5951249069999)\n"
+},
+{
+"stream_name": "stdout",
+"time": 2034.060194283,
+"data": "[finished] lp85-305b61c3 state=gave_up level=5/8 score=41.67 actions=112 tokens=101546 per-level=20/17,9/38,19/31,15/16,11/41,38/60,0/26,0/159 note=\"tokens=101546\"\n"
+},
+{
+"stream_name": "stdout",
+"time": 2034.060202273,
+"data": "[finished] r11l-495a7899 state=gave_up level=2/6 score=14.29 actions=20 tokens=74726 per-level=7/22,12/33,1/51,0/26,0/52,0/49 note=\"tokens=96098\"\n"
+},
+{
+"stream_name": "stderr",
+"time": 2034.434883447,
+"data": "analyzer request timed out at action 84; yielding with 0 tool call(s) preserved: HTTPConnectionPool(host='127.0.0.1', port=8001): Read timed out. (read timeout=5.419794583999874)\n"
+},
+{
+"stream_name": "stderr",
+"time": 2034.434900297,
+"data": "analyzer request timed out at action 84; yielding with 0 tool call(s) preserved: HTTPConnectionPool(host='127.0.0.1', port=8001): Read timed out. (read timeout=5.419794583999874)\n"
+},
+{
+"stream_name": "stdout",
+"time": 2034.509963806,
+"data": "[finished] tr87-cd924810 state=gave_up level=4/6 score=47.62 actions=184 tokens=83402 per-level=45/54,51/58,41/40,29/45,18/71,0/146 note=\"tokens=91456\"\n"
+},
+{
+"stream_name": "stdout",
+"time": 2034.509973186,
+"data": "[finished] ft09-0d8bbf25 state=gave_up level=4/6 score=47.62 actions=93 tokens=95626 per-level=4/43,7/12,16/23,24/28,42/65,0/37 note=\"tokens=95626\"\n"
+},
+{
+"stream_name": "stdout",
+"time": 2035.173321755,
+"data": "[finished] vc33-5430563c state=gave_up level=3/7 score=21.08 actions=83 tokens=91877 per-level=18/7,12/18,27/44,26/61,0/131,0/34,0/152 note=\"tokens=97423\"\n"
+},
+{
+"stream_name": "stdout",
+"time": 2035.727905765,
+"data": "[finished] sc25-635fd71a state=gave_up level=3/6 score=28.57 actions=157 tokens=94542 per-level=24/36,5/6,22/32,106/83,0/143,0/50 note=\"tokens=94542\"\n"
+},
+{
+"stream_name": "stdout",
+"time": 2038.087424196,
+"data": "[finished] ar25-0c556536 state=gave_up level=5/8 score=41.67 actions=182 tokens=92075 per-level=18/32,26/50,52/75,22/37,32/89,32/159,0/233,0/73 note=\"tokens=92075\"\n"
+},
+{
+"stream_name": "stdout",
+"time": 2039.266680066,
+"data": "[finished] re86-8af5384d state=gave_up level=3/8 score=16.67 actions=227 tokens=89730 per-level=32/26,43/42,59/86,93/108,0/189,0/139,0/424,0/241 note=\"tokens=89730\"\n"
+},
+{
+"stream_name": "stdout",
+"time": 2039.63304267,
+"data": "[finished] tu93-0768757b state=gave_up level=3/9 score=13.07 actions=107 tokens=95600 per-level=48/19,15/16,19/34,25/42,0/123,0/80,0/14,0/23,0/111 note=\"tokens=102095\"\n"
+},
+{
+"stream_name": "stdout",
+"time": 2041.772892443,
+"data": "mean score:    36.56\n"
+}
+]
