@@ -2042,3 +2042,18 @@ Main fixes: results upload as output.tar.gz.blob (Kaggle unpacks .tar.gz uploads
           papermill), including a restart that replays nothing. Unverified until a box exists: listed in
           docs/research/rental-runner.md.
 Prices now (5 offers pass): $1.34-1.53/h with the disk for the cheapest three; ~$4-5 per public-25 run.
+
+## 2026-10-02 22:28 · Milestone 2 notebooks: Franzen's solution (LB 27.89, Apache-2.0) adopted as our base · DECIDED
+Found (scheduled check of Oct 1 00:30, handled late): the LB on Oct 2 has Tufa Labs 52.51, Yi-Chia Chen 48.07, then
+          59 teams at 30-35 and 438 at >= 20; ours 4.70 at rank 509 of 3,605. Daniel Franzen open-sourced his
+          Milestone 2 solution (notebook dfranzen/arc-agi-3-milestone-2-solution, repo da-fr/arc-agi-3-solution,
+          Apache-2.0; his own LB 27.89); the 20-35 band is that notebook and its forks across many draws. Lord Han
+          Solo's M2 notebook is at 23.84; the other high scorers' public notebooks are older Duck forks.
+          Comparison and decision: docs/research/m2-notebooks-oct2.md. Lesson 0026.
+Built:    kaggle/franzen/ (his notebook, unmodified, NOTICE); scripts/build_franzen_nb.py (strict anchors; --full25
+          MIN empties his 10-game demo list for a Save & Run, --env KEY=VALUE overrides one of his knobs; the
+          competition rerun is always his) with tests/test_build_franzen_nb.py (4).
+Plan:     exp-070 = his notebook unchanged as our private kernel, pushed after the Oct 3 00:00 quota reset (~45 min:
+          his 10-game demo); then the owner submits it. exp-071 = the same, all 25 public games at 121 min per game
+          (the hidden set's compute per game: 532 min x 10 slots / 110 games), the calibration for arms on this base.
+          Our vLLM-fork arms (exp-059/060/062/063/064, the SGLang launcher) leave the queue: superseded.

@@ -146,23 +146,21 @@ public 25 (scripts/arm_table.py), then the validation score. If the top two are 
 noise, the second slot goes to the best configuration that differs from it (diversification against the private half).
 If fewer than two configurations reach 3 draws, the unmodified base fills the second slot.
 
-### Week of 2026-10-03 (rewritten 2026-09-29 after the strategy reviews in docs/research/strategy-sep29/)
-Both reviews: the agent loses on reach (about 42 decisions per game, 79% of each call queued), so the week buys calls
-per game. Queue, in order (about 18 of 30 GPU-h):
-1. MTP-0 stress tests arc3-kv-stress-mtp0-14g-s16 / -s28 (~1 h; rule 2026-09-27 12:05: >= 165.1 generated tokens/s).
-2. exp-062 (exp-054 on NVIDIA's NVFP4 checkpoint with backported runtime fixes; its first 30 min are the smoke test,
-   checks in the research log 2026-09-29; if the FP8 MTP path fails, rebuild with MTP 0).
-3. exp-059 and exp-060 (MTP-0 profile; exp-060 adds 16 lanes, prefix caching and P28) if a stress test passed; then
-   exp-064 (exp-060 + P31 history digest: compaction instead of truncation), read against exp-060.
-4. SGLang stress notebooks (built Sep 29: arc3-sgl-stress-r12 and arc3-sgl-stress-r16-hic32, `build_kv_stress_nb.py
-   --engine sglang`); exp-063 (exp-054 + P30/P30b on SGLang) only if one passes the go rule in the research log.
-5. exp-058 once (P27 images), exp-061 last (P29 AVO).
-Pairs for whatever wins; a full 540-min, 110-game-shaped run of the leader in the week of Oct 17.
+### Week of 2026-10-03 (rewritten 2026-10-02 after Franzen's Milestone 2 notebook; docs/research/m2-notebooks-oct2.md)
+His open-sourced solution (LB 27.89) replaces our vLLM fork as the base; the old queue (MTP-0 stress tests, exp-059/
+060/062/063/064, the SGLang stress notebooks, exp-058, exp-061) is superseded and does not run. Queue, in order:
+1. exp-070 (arc3-franzen-m2): his notebook unchanged; Save & Run plays his 10-game demo (~45 min). Then **the owner
+   submits it** (expected: the ~27 band instead of our 4.70).
+2. exp-071 (arc3-franzen-m2-full25): all 25 public games at 121 min per game (~2.5 h), the calibration; then a repeat
+   (exp-071r) for the run-to-run spread on this base.
+3. Knob arms on his base, chosen after reading exp-071's logs (admission slots with the server's request limit, the
+   drain target, guards from level 1, image scale, continuation values), each against exp-071/071r; rentals (when the
+   owner's account is ready) give the repeats.
 - LB draws: exp-054 draw 2 (submitted by the owner on Sep 28, 56655075) scored **3.36**; exp-054 is 4.70 / 3.36,
   mean 4.03. Later draws need the owner or a permission rule (the session's permission check blocks
   scripts/submit_kernel.py).
 
-**Leaderboard, Sep 26:** Tufa Labs 27.29, Daniel Franzen 21.01, Lord Han Solo 20.80, Tong Hui Kang 20.53; ours 4.70. The likeliest large gain is a Milestone 2 notebook published by Sep 30 (checked Oct 1 00:30).
+**Leaderboard, Oct 2 (22:2x UTC):** Tufa Labs 52.51, Yi-Chia Chen 48.07, 59 teams at 30-35, 438 at >= 20; ours 4.70, rank 509 of 3,605. **Base change (Oct 2):** Daniel Franzen's open-sourced Milestone 2 solution (LB 27.89, Apache-2.0; docs/research/m2-notebooks-oct2.md) replaces our vLLM fork as the base: exp-070 (his notebook unchanged, our private kernel) runs after the Oct 3 quota reset and then needs the owner's submission; exp-071 (all 25 public games, 121 min per game) is the calibration for arms on it.
 
 ## Open items (need you)
 
