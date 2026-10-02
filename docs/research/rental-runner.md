@@ -86,18 +86,16 @@ same as one 2-GPU box and need no change to the notebooks.
 
 ## Proposed first batches (each needs the owner's OK before `launch`)
 
-Measured input sizes (Kaggle API, 2026-09-29): model archive 111 GB (135 GB extracted; both on disk while it
-extracts), Keith's runtime 7.9 GB, the SGLang wheel datasets 6.6 + 4.9 GB, bundles < 0.1 GB; peak disk about
-330 GB with the image, so 500 GB fits.
+Rewritten 2026-10-02: Daniel Franzen's Milestone 2 notebook (LB 27.89) is our base now
+(docs/research/m2-notebooks-oct2.md); its inputs fit the same disk, and its BF16 PLE table (~95 GB of host RAM) makes
+the RAM-share filter essential.
 
-1. **Calibration, ~$9-11:** exp-054 unchanged, twice: job `calib054` (packed locally) plays both on one box back to
-   back (~6.5 h, ~$9), or split into two one-run jobs on two boxes at once (~3.75 h, ~$10.5). Read: the
-   rental public-25 score and requests per run against Kaggle's exp-054 pair, and the spread between the two rental
-   runs. Rule: if rental requests per run fall more than 15% below Kaggle's, rental runs compare arms with each
-   other only (never with Kaggle numbers).
-2. **Serving arms, ~$20-25:** the Oct 3 queue's serving candidates that passed their Kaggle stress test (exp-059/060,
-   exp-062), two runs each, on two boxes (setup paid once per box).
-3. Then pairs for whatever wins, and the harness arms (exp-064 compaction, exp-063 SGLang if its stress test passes).
+1. **Calibration, ~$9-11:** his notebook with all 25 public games at 121 min per game, twice (job `franzen-full25`,
+   packed locally): one box back to back, or two boxes at once. Read against the Kaggle run of the same notebook
+   (exp-071): score, requests and prefix-cache share; if the rental's requests per run are more than 15% below
+   Kaggle's, rental runs compare arms with each other only.
+2. **Knob arms on his base, ~$4-5 per run:** two runs each, chosen from exp-071's logs.
+3. The old `calib054` job (our superseded vLLM fork) is kept only as a test fixture of the runner.
 
 ## Tested (2026-09-29, CPU only, no money spent)
 
