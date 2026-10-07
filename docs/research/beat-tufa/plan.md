@@ -75,3 +75,15 @@ LB points on a ~28.5 mean. (Caveats: the left derivative of one run's curve, sha
 the right derivative is probably somewhat smaller.) Truncating each game at a fraction of its *own* tokens instead
 gives a spurious jump at 1.0 (won games always lose their last, heaviest level), so it is not used.
 This ranks serving capacity (levers 1, 4, 7) first among the levers we can pull without training.
+
+## Status 2026-10-07 23:41 UTC (after the first serving gates)
+
+- **Lever 1 (online MXFP8 + more streams): rejected.** It frees memory (pool 1.31 M) but decodes ~24% slower per step
+  than Franzen's BF16 path at equal streams (596 vs 783 tok/s at 10 running); 12 streams lose 17% output overall.
+- **Lever 4 (REAP-448 + more streams): adopted for full-length testing.** Built without a new checkpoint
+  (docs/research/beat-tufa/reap-at-load.md): +14% output tok/s at 14 streams in the same 25-min gate, accept length
+  unchanged. By the measured elasticity that is about +8-11% score. exp-073 (121 min/game) checks it at full length.
+- In flight: acceptance 0.5 on top (exp-072g), 16 games on 14 server slots (exp-072h), 16 streams at mem fraction
+  0.975 (exp-072i). Submission candidate built: exp-074s (D' + REAP-448 + 14 streams + input-path fallback).
+- Kaggle infrastructure found on the way: the latest image moved to Python 3.13 (pin the image, lesson 0029) and
+  inputs are mounted in two layouts (resolve both, lesson 0030); both would have zeroed a submission.
