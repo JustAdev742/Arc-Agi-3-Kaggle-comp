@@ -2099,7 +2099,7 @@ Queue:    exp-070d v3 (D' copy, his image) pushed 21:37; scripts/kaggle_queue.py
           pushes exp-072a v3 and exp-072b once the v2 gate run has ended.
 Cost:     four failed sessions of ~3-6 min each (~0.3 GPU-h).
 
-## 2026-10-07 21:52 · exp-072a v3 lost to an unmounted input; public notebook scores found · RE-QUEUED
+## 2026-10-07 21:50 · exp-072a v3 lost to an unmounted input; public notebook scores found · RE-QUEUED
 exp-072a v3 (his image, pushed 21:40) failed in 6 s: `cp: cannot stat
           '/kaggle/input/datasets/dfranzen/taaf-kaggle-source-bundle-copy'`. Its server-side metadata lists the same
           sources as exp-070d v3, which mounted them and is serving; treated as a transient Kaggle mount failure and
