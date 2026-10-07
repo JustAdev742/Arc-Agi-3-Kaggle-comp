@@ -241,6 +241,9 @@ baselines). Gains are in decode tok/s at Franzen's shape unless stated.
     our task.
 - **Package:** a private Kaggle model holding only the re-sliced non-PLE shards (~62 GB). Assemble at runtime with
   symlinks to Franzen's PLE shards, as cihanatak's Swift notebook does. That needs the owner (dataset upload).
+  **Superseded (2026-10-07):** no new checkpoint is needed. The list (a) was recovered exactly, and a load-time patch
+  prunes Franzen's unchanged checkpoint (`build_franzen_nb.py --reap-kept`). See reap-at-load.md. An ARC-calibrated
+  list (b) would plug into the same patch as another JSON.
 - **Expected:** −7.25 GiB → ~2.0 M-token pool → 16-18 streams.
   - [estimate] fit: +28-36% decode over today, more with arm 1's per-step gain.
   - [published, different harness] Son Pham's 384-expert run reached 33.9 at 16 lanes vs 21.4 unpruned at 7.
