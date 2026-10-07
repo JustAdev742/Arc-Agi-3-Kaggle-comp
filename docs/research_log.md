@@ -2109,3 +2109,25 @@ Scores:   Kaggle's search API gives notebooks' best public scores (scripts/kaggl
           notebook 34.30, D'+memory/watchdog 31.93, an unchanged Franzen copy 31.73, D' 31.54, other copies 24-31
           (docs/research/m2-notebooks-oct2.md). One distribution of ~28.5 +/- 3.3: the "34" is a lucky draw of the
           notebook we are running, not a different method.
+
+## 2026-10-07 22:26 · REAP-448 at load time: exact kept list + sglang loader patch + `--reap-kept` · BUILT (never run on a GPU)
+What:     serving.md arm 3 without a new checkpoint (docs/research/beat-tufa/reap-at-load.md).
+          kaggle/franzen/reap448_kept_experts.json: the 448 experts per layer that the public REAP-k448 build keeps,
+          recovered by matching its router rows to Intel's (HTTP range reads of the 48 router tensors only; every row
+          bitwise, ascending order, MTP router identical). scripts/sglang_reap_patch.py: two anchored edits to the
+          installed Pennyroyal qwen4_exp.py (sha256-locked):
+          - the target's load_weights filters the weight stream (renumber kept experts, drop pruned ones, slice
+            router rows, checks + router fingerprints);
+          - no expert-location map, so the 512-expert MTP draft (layer_id 0) is not looked up in a 448-wide map.
+          Plus server flags --json-model-override-args '{"text_config":{"num_experts":448}}' and
+          --speculative-draft-model-override-args '{}' (otherwise the draft inherits 448).
+          scripts/build_franzen_nb.py --reap-kept adds it all.
+Why:      frees 7.31 GiB (64 x 48 x 2,553,600 B, from Intel's headers): with online MXFP8 the pool goes 1.01 M ->
+          ~1.75 M tokens at 16 streams (88% at the observed peak per stream, vs 95% today at 10).
+Expected: decode +31% at 16 streams by serving.md's fit (+42% with MXFP8's per-step gain); quality risk (calibrated on
+          agentic traffic, not ARC; 7.35% of REAP mass removed); MTP accept length may drop.
+Checked:  real routers through the runtime filter with CPU torch reproduce REAP-k448's routers bitwise for all 48
+          layers; patch applies to the wheel's file and is idempotent; 38 tests pass (1 torch-only skip).
+Next:     gate arm exp-072e (proposed) built in scratchpad/franzen/exp072e (D', 25 x 25 min, MXFP8, 16 streams),
+          not pushed; run it after exp-072b/c show MXFP8 is stable; reap-at-load.md section 7 lists the serve.log
+          checks.

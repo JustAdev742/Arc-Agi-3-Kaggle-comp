@@ -6,6 +6,7 @@
     .venv/bin/python scripts/build_franzen_nb.py ... --env MULTIMODAL_UPSCALE=8 --env ARC3_MAX_ACTIVE_STREAMS=12
     .venv/bin/python scripts/build_franzen_nb.py ... --patch ours.patch --env-add EXPOSE_RESET=on
     .venv/bin/python scripts/build_franzen_nb.py ... --cfg MAXREQ=12 --cfg MEMFRAC=0.975 --server-env SGLANG_SM120_ONLINE_MXFP8=true
+    .venv/bin/python scripts/build_franzen_nb.py ... --reap-kept kaggle/franzen/reap448_kept_experts.json --cfg MAXREQ=16
 
 Without options the notebook is byte-for-byte his (only our kernel metadata differs): a Kaggle "Save & Run" of it plays
 his 10-game demo subset for 25 minutes per game, and a competition rerun plays the hidden set exactly as his did.
@@ -40,6 +41,14 @@ Options change a non-submission run only, or a named setting everywhere:
   applies to fewer files than it names. The builder first applies his patch and ours to the exact tree the
   notebook builds (scripts/franzen_tree.py, from his repo or a download of the bundle) and refuses to build when
   that fails; ``--no-apply-check`` skips that (only when neither source is available).
+
+- ``--reap-kept FILE``: serve the target with only the routed experts FILE lists per layer (REAP pruning at load
+  time, kaggle/franzen/reap448_kept_experts.json; docs/research/beat-tufa/reap-at-load.md). Adds ``%%writefile``
+  cells (scripts/sglang_reap_patch.py, FILE and its ``.meta.json``) before the launcher cell; in cell 12, right after
+  ``env.update({...})``, runs the patch on the installed sglang (the cell raises if the file is not the analysed
+  one or an anchor is missing) and sets ARC3_REAP_KEPT_EXPERTS for the server; before the prefetch flag adds
+  ``--json-model-override-args '{"text_config": {"num_experts": K}}' --speculative-draft-model-override-args '{}'``
+  (the MTP draft keeps its 512 experts). Pair it with ``--cfg MAXREQ=.. --cfg CUDAGRAPH_MAXBS=.. --cfg MAMBA_CACHE=..``.
 
 Every change is anchored on text that must occur exactly once, and listed in the first markdown cell. Writes
 ``<out>/<slug>.ipynb`` and ``<out>/kernel-metadata.json`` (private, internet off, RTX PRO 6000).
@@ -94,6 +103,15 @@ HIS_PATCH_ANCHOR = "%%writefile /kaggle/harness-changes.patch"  # cell 2
 PATCH_ROOTS = ("ARC3-Inference/", "tufa-arc-agi-framework/")
 OURS_BEGIN = "# >>> ours (--patch)"
 OURS_END = "# <<< ours (--patch)"
+# --reap-kept: cell 12 installs the wheel, builds `env`, then the launch args; we patch the installed sglang right
+# after `env.update({...})` (before the nvcc probe) and add the model-override flags before the prefetch flag.
+REAP_APPLY_ANCHOR = 'run([str(Path(CUDA_HOME) / "bin/nvcc"), "--version"], env=env)\n'
+REAP_ARGS_ANCHOR = 'if CFG["PREFETCH_CHECKPOINTS"]: args += ["--weight-loader-prefetch-checkpoints"]\n'
+REAP_SCRIPT = ROOT / "scripts" / "sglang_reap_patch.py"
+REAP_FILES = {"script": "/kaggle/arc3-reap-patch.py", "kept": "/kaggle/arc3-reap-kept.json",
+              "meta": "/kaggle/arc3-reap-kept.meta.json"}  # meta: sglang_reap_patch.meta_path(kept)
+REAP_BEGIN = "# >>> ours (--reap-kept)"
+REAP_END = "# <<< ours (--reap-kept)"
 
 
 def _replace_once(text: str, old: str, new: str, what: str) -> str:
@@ -277,10 +295,59 @@ def _apply_code(names: list[str]) -> str:
     )
 
 
+def _reap(cell: str, kept_path: Path) -> tuple[str, list[tuple[str, str]], str]:
+    """Cell 12 with the REAP steps, the (path, text) files the notebook must write first, and the change line."""
+    import sglang_reap_patch
+
+    if REAP_BEGIN in cell or "--json-model-override-args" in cell:
+        raise SystemExit("--reap-kept: the launcher cell already overrides the model config")
+    try:
+        kept = sglang_reap_patch.load_kept(kept_path)
+    except (OSError, ValueError) as exc:
+        raise SystemExit(f"--reap-kept: {exc}") from None
+    num_kept = len(kept[0])
+    files = [(REAP_FILES["script"], REAP_SCRIPT.read_text()), (REAP_FILES["kept"], kept_path.read_text())]
+    meta = sglang_reap_patch.meta_path(kept_path)
+    total = "?"
+    if meta.is_file():
+        layers = json.loads(meta.read_text())["layers"]
+        if sorted(int(k) for k in layers) != sorted(kept):
+            raise SystemExit(f"--reap-kept: {meta} does not cover the layers of {kept_path}")
+        total = layers["0"]["num_experts"]
+        files.append((REAP_FILES["meta"], meta.read_text()))
+    apply = (
+        f"{REAP_BEGIN}: REAP expert pruning at load time (scripts/sglang_reap_patch.py). Patch the installed sglang\n"
+        "# (stops here if the file is not the analysed one or an anchor is missing), then tell the server the list.\n"
+        '_reap_model = sorted(Path(VENV).glob("lib/python*/site-packages/sglang/srt/models/qwen4_exp.py"))\n'
+        "if len(_reap_model) != 1:\n"
+        '    raise RuntimeError(f"--reap-kept: expected one installed sglang qwen4_exp.py, found {_reap_model}")\n'
+        f'run([sys.executable, "-I", "{REAP_FILES["script"]}", "apply", "--site-packages", str(_reap_model[0].parents[3]),\n'
+        f'     "--kept", "{REAP_FILES["kept"]}"])\n'
+        f'env["{sglang_reap_patch.ENV}"] = "{REAP_FILES["kept"]}"\n'
+        f"{REAP_END}\n")
+    override = json.dumps({"text_config": {"num_experts": num_kept}})
+    args = (
+        f"{REAP_BEGIN}: the target is built with {num_kept} routed experts per layer; the MTP draft keeps its own\n"
+        "# config (unset, the draft would inherit --json-model-override-args and be built with the pruned count)\n"
+        f"args += [\"--json-model-override-args\", {override!r},\n"
+        "         \"--speculative-draft-model-override-args\", \"{}\"]\n"
+        f"{REAP_END}\n")
+    cell = _replace_once(cell, REAP_APPLY_ANCHOR, apply + REAP_APPLY_ANCHOR, "--reap-kept apply")
+    cell = _replace_once(cell, REAP_ARGS_ANCHOR, args + REAP_ARGS_ANCHOR, "--reap-kept args")
+    sha = hashlib.sha256(kept_path.read_bytes()).hexdigest()[:12]
+    change = (f"REAP expert pruning at load: {kept_path.name} (sha256 {sha}) keeps {num_kept} of {total} routed "
+              f"experts in each of {len(kept)} layers; cell 12 patches the installed sglang with "
+              f"scripts/sglang_reap_patch.py (sha256 {hashlib.sha256(REAP_SCRIPT.read_bytes()).hexdigest()[:12]}) "
+              f"after the install, sets {sglang_reap_patch.ENV} for the server and adds --json-model-override-args "
+              f"{override} --speculative-draft-model-override-args {{}} (the MTP draft keeps all experts)")
+    return cell, files, change
+
+
 def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str] | None = None,
           note: str = "", *, env_add: dict[str, str] | None = None, cfg: dict[str, str] | None = None,
           server_env: dict[str, str] | None = None, patches: list[Path] | tuple = (), apply_check: bool = True,
-          his_repo: Path | None = None, bundle: Path | None = None, base: str = "franzen") -> list[str]:
+          his_repo: Path | None = None, bundle: Path | None = None, base: str = "franzen",
+          reap_kept: Path | None = None) -> list[str]:
     if base == "franzen":
         path, sha, demo_anchor, budget_anchor = BASE, BASE_SHA256, DEMO_ANCHOR, BUDGET_ANCHOR
     elif base == "dprime":
@@ -311,12 +378,16 @@ def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str]
     changes += done
     sources[setup], done = _add_env(sources[setup], env_add or {})
     changes += done
-    if cfg or server_env:
+    reap_files: list[tuple[str, str]] = []
+    if cfg or server_env or reap_kept:
         launch = _one_cell(sources, code, LAUNCH_ANCHOR, "cell 12")
         sources[launch], done = _set_cfg(sources[launch], cfg or {})
         changes += done
         sources[launch], done = _set_server_env(sources[launch], server_env or {})
         changes += done
+        if reap_kept:
+            sources[launch], reap_files, done = _reap(sources[launch], Path(reap_kept))
+            changes.append(done)
 
     new_cells = []
     if patches:
@@ -353,6 +424,15 @@ def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str]
     if new_cells:
         his = next(i for i, c in enumerate(cells) if "".join(c["source"]).startswith(HIS_PATCH_ANCHOR))
         cells[his + 1:his + 1] = new_cells
+    if reap_files:  # %%writefile cells right before the launcher cell, which reads them
+        launch = next(i for i, c in enumerate(cells) if c["cell_type"] == "code" and LAUNCH_ANCHOR in "".join(c["source"]))
+        written = []
+        for path, text in reap_files:
+            cell = copy.deepcopy(cells[launch])
+            cell["outputs"], cell["execution_count"] = [], None
+            cell["source"] = f"%%writefile {path}\n{text}".splitlines(keepends=True)
+            written.append(cell)
+        cells[launch:launch] = written
     if changes or note:
         cells[0]["source"] = ["".join(cells[0]["source"]) + "\n\n**Our arm (scottmahony, built by "
                               f"scripts/build_franzen_nb.py from the unmodified {base} notebook):** "
@@ -395,11 +475,14 @@ def main() -> None:
     ap.add_argument("--note", default="")
     ap.add_argument("--base", choices=["franzen", "dprime"], default="franzen",
                     help="franzen (kaggle/franzen/, default) or dprime (kaggle/dprime/: his notebook + the D' slot priority)")
+    ap.add_argument("--reap-kept", type=Path, default=None, metavar="FILE",
+                    help="serve with only these routed experts (kaggle/franzen/reap448_kept_experts.json)")
     args = ap.parse_args()
     changes = build(args.out, args.slug, args.full25, _pairs(args.env, "--env"), args.note,
                     env_add=_pairs(args.env_add, "--env-add"), cfg=_pairs(args.cfg, "--cfg"),
                     server_env=_pairs(args.server_env, "--server-env"), patches=args.patch,
-                    apply_check=not args.no_apply_check, his_repo=args.his_repo, bundle=args.bundle, base=args.base)
+                    apply_check=not args.no_apply_check, his_repo=args.his_repo, bundle=args.bundle, base=args.base,
+                    reap_kept=args.reap_kept)
     print(f"built {args.out / (args.slug + '.ipynb')}: {changes or 'unchanged'}")
 
 

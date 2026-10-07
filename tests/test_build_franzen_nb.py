@@ -3,6 +3,7 @@ The competition rerun must stay exactly his; only the Save & Run demo settings a
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -11,6 +12,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import build_franzen_nb as bf  # noqa: E402
+import sglang_reap_patch as rp  # noqa: E402
 
 
 def _cells(path: Path) -> list[str]:
@@ -247,3 +249,114 @@ def test_copy_public_nb_pins_the_upstream_image_and_refuses_metadata_without_one
     with pytest.raises(SystemExit, match="docker_image"):
         cp.copy(bf.DPRIME, tmp_path / "bare.json", tmp_path / "out2", "arc3-y")
     assert cp.copy(bf.DPRIME, tmp_path / "bare.json", tmp_path / "out3", "arc3-z", bf.IMAGE)["docker_image"] == bf.IMAGE
+
+
+# --- --reap-kept -----------------------------------------------------------------------------------------------------
+
+REAP_KEPT = ROOT / "kaggle" / "franzen" / "reap448_kept_experts.json"
+REAP_META = ROOT / "kaggle" / "franzen" / "reap448_kept_experts.meta.json"
+# The Pennyroyal sglang wheel (dataset dfranzen/pennyroyal-v253); the test that patches its real file skips without it.
+WHEEL = Path(os.environ.get("PENNYROYAL_WHEEL", "/tmp/claude-0/-home-user-Arc-Agi-3-Kaggle-comp/"
+                            "d342458e-03bd-545b-8a6d-06bca061963e/scratchpad/reap/dl-wheel/"
+                            "sglang-0.5.19+gd00d88efc8d6-cp312-cp312-linux_x86_64.whl"))
+
+
+def _reap_blocks(cell: str) -> list[str]:
+    blocks, start = [], 0
+    while (start := cell.find(bf.REAP_BEGIN, start)) >= 0:
+        stop = cell.index(bf.REAP_END, start) + len(bf.REAP_END) + 1
+        blocks.append(cell[start:stop])
+        start = stop
+    return blocks
+
+
+def test_reap_kept_writes_its_files_before_the_launcher_and_edits_only_cell_12(tmp_path):
+    changes = bf.build(tmp_path, "r", reap_kept=REAP_KEPT, cfg={"MAXREQ": "16"})
+    assert changes[-1].startswith("REAP expert pruning at load: reap448_kept_experts.json")
+    assert "keeps 448 of 512 routed experts in each of 48 layers" in changes[-1]
+    base, ours = _cells(bf.BASE), _cells(tmp_path / "r.ipynb")
+    assert len(ours) == len(base) + 3
+    assert [bf.franzen_tree.writefile_body(c) for c in ours[12:15]] == [
+        (bf.REAP_FILES["script"], bf.REAP_SCRIPT.read_text()), (bf.REAP_FILES["kept"], REAP_KEPT.read_text()),
+        (bf.REAP_FILES["meta"], REAP_META.read_text())]
+    assert bf.REAP_FILES["meta"] == str(rp.meta_path(bf.REAP_FILES["kept"]))
+    assert [i for i, (a, b) in enumerate(zip(base, ours[:12] + ours[15:])) if a != b] == [0, 12]
+    cell = ours[15]
+    apply_block, args_block = _reap_blocks(cell)
+    # without our two blocks (and the --cfg line) the launcher is his, byte for byte
+    stripped = cell.replace(apply_block, "").replace(args_block, "")
+    assert stripped == base[12].replace("    MAXREQ=10,\n", "    MAXREQ=16,  # ours (--cfg)\n")
+    # the patch runs after the install and env.update; the flags join args before the server is started
+    assert (cell.index('run(install + ["--reinstall", "--no-deps", str(wheel)]') < cell.index("\n})\n")
+            < cell.index(apply_block) < cell.index(bf.REAP_APPLY_ANCHOR) < cell.index(args_block)
+            < cell.index(bf.REAP_ARGS_ANCHOR) < cell.index("subprocess.Popen(args, env=env"))
+    namespace: dict = {"args": []}
+    exec(args_block, namespace)
+    assert namespace["args"] == ["--json-model-override-args", '{"text_config": {"num_experts": 448}}',
+                                 "--speculative-draft-model-override-args", "{}"]
+    # the dprime base takes it the same way
+    bf.build(tmp_path / "d", "d", base="dprime", reap_kept=REAP_KEPT)
+    d = _cells(tmp_path / "d" / "d.ipynb")
+    launch = next(i for i, c in enumerate(d) if bf.LAUNCH_ANCHOR in c)
+    assert d[launch - 3].startswith("%%writefile /kaggle/arc3-reap-patch.py\n") and len(_reap_blocks(d[launch])) == 2
+
+
+def test_reap_kept_refuses_a_bad_list(tmp_path):
+    bad = tmp_path / "bad.json"
+    bad.write_text(json.dumps({"0": [2, 1]}))
+    with pytest.raises(SystemExit, match=r"--reap-kept: .*strictly increasing"):
+        bf.build(tmp_path / "o", "o", reap_kept=bad)
+    short = tmp_path / "short.json"
+    short.write_text(json.dumps({"0": [1, 2]}))
+    (tmp_path / "short.meta.json").write_text(REAP_META.read_text())
+    with pytest.raises(SystemExit, match="does not cover the layers"):
+        bf.build(tmp_path / "o", "o", reap_kept=short)
+
+
+def _run_reap_apply(cell: str, cells: list[str], venv: Path, kaggle: Path) -> dict:
+    """Execute the launcher's own run() and our apply block, with /kaggle/ -> KAGGLE and VENV -> VENV."""
+    import shlex
+    import subprocess as sp
+    for source in cells:
+        if source.startswith("%%writefile /kaggle/arc3-reap"):
+            path, text = bf.franzen_tree.writefile_body(source)
+            (kaggle / Path(path).name).write_text(text)
+    namespace = {"subprocess": sp, "shlex": shlex, "sys": sys, "Path": Path, "VENV": str(venv), "env": {}}
+    exec(cell[cell.index("def run(cmd"):cell.index("\n\n\ndef find_unique")], namespace)
+    exec(_reap_blocks(cell)[0].replace("/kaggle/", f"{kaggle}/"), namespace)
+    return namespace["env"]
+
+
+def _fake_venv(tmp_path: Path, text: str) -> tuple[Path, Path]:
+    model = tmp_path / "venv/lib/python3.12/site-packages" / rp.MODEL_FILE
+    model.parent.mkdir(parents=True)
+    model.write_text(text)
+    kaggle = tmp_path / "kaggle"
+    kaggle.mkdir()
+    return tmp_path / "venv", kaggle
+
+
+def test_reap_apply_step_stops_the_notebook_on_a_file_it_was_not_written_for(tmp_path, capsys):
+    bf.build(tmp_path / "nb", "r", reap_kept=REAP_KEPT)
+    cells = _cells(tmp_path / "nb" / "r.ipynb")
+    venv, kaggle = _fake_venv(tmp_path, "class Qwen4ExpForConditionalGeneration:\n    pass\n")
+    with pytest.raises(RuntimeError, match="Command failed"):
+        _run_reap_apply(cells[15], cells, venv, kaggle)
+    assert "arc3 REAP patch FAILED" in capsys.readouterr().out
+
+
+@pytest.mark.skipif(not WHEEL.is_file(), reason="Pennyroyal sglang wheel not available (PENNYROYAL_WHEEL)")
+def test_reap_apply_step_patches_the_real_installed_file_and_sets_the_server_env(tmp_path, capsys):
+    import zipfile
+    with zipfile.ZipFile(WHEEL) as wheel:
+        original = wheel.read(str(rp.MODEL_FILE)).decode()
+    bf.build(tmp_path / "nb", "r", reap_kept=REAP_KEPT)
+    cells = _cells(tmp_path / "nb" / "r.ipynb")
+    venv, kaggle = _fake_venv(tmp_path, original)
+    env = _run_reap_apply(cells[15], cells, venv, kaggle)
+    assert env == {"ARC3_REAP_KEPT_EXPERTS": f"{kaggle}/arc3-reap-kept.json"}
+    site = venv / "lib/python3.12/site-packages"
+    assert (site / rp.MODEL_FILE).read_text() == rp.patch_text(original)
+    assert "48 layers x 448 experts, router sha256 for every layer" in capsys.readouterr().out
+    _run_reap_apply(cells[15], cells, venv, kaggle)  # a rerun of the cell (install skipped) is a no-op
+    assert "already patched" in capsys.readouterr().out
