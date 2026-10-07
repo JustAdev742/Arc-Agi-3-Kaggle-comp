@@ -2146,7 +2146,7 @@ Next:     gate arm exp-072e (proposed) built in scratchpad/franzen/exp072e (D', 
           not pushed; run it after exp-072b/c show MXFP8 is stable; reap-at-load.md section 7 lists the serve.log
           checks.
 
-## 2026-10-07 22:45 · exp-072b · online MXFP8 + 12 streams: more KV, slower decode · NOT KEPT (pending exp-072a)
+## 2026-10-07 22:37 · exp-072b · online MXFP8 + 12 streams: more KV, slower decode · NOT KEPT (pending exp-072a)
 Run:      scottmahony/arc3-dprime-gate-mxfp8-r12 v2, D' base, 25 games x 25 min, 22:03-22:29 UTC;
           runs/exp072b-dprime-gate-mxfp8-r12 (report.txt).
 Measured: target weights 65.28 GB (Franzen 69.85), KV pool 1,310,720 tokens (1.01 M), peak use 0.89; 11.42 of 12
