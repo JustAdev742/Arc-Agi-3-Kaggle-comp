@@ -64,3 +64,14 @@ competitive score but below Tufa's mean; lever 9 is where the remaining gap most
 - **Swift-1.5**: its custom licence must allow prize use before it can be submitted.
 
 Verified on the way (intel.md): 1 submission per day (forum thread 705405) - the CLAUDE.md "DAILY_SUBMISSIONS" item.
+
+## Measured 2026-10-07: what extra tokens are worth at the full budget (scripts/score_over_time.py)
+
+Franzen's v3 run (100 game runs = 4 passes of the public 25, 484 min, the hidden set's compute per game; our scorer
+reproduces his 46.49) cut at earlier common wall-clock times: 0.5 of the run 27.78, 0.7 35.37, 0.8 39.01, 0.9 43.70,
+0.95 45.72, 1.0 46.49. Local elasticity d ln(score)/d ln(time) over the last 10-30% of the run: **0.59-0.79**. Extra
+decode throughput is (approximately) extra time, so +20% tok/s is worth roughly +12-16% score, i.e. about +3.5-4.5
+LB points on a ~28.5 mean. (Caveats: the left derivative of one run's curve, shaped near the end by the tail fade;
+the right derivative is probably somewhat smaller.) Truncating each game at a fraction of its *own* tokens instead
+gives a spurious jump at 1.0 (won games always lose their last, heaviest level), so it is not used.
+This ranks serving capacity (levers 1, 4, 7) first among the levers we can pull without training.
