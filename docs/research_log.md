@@ -2185,3 +2185,16 @@ Measured: aggregate output 733.2 tok/s over 1,577 s (exp-072b MXFP8+12: 532.1; h
 Next:     exp-073 = the same at 121 min per game (full length: pool pressure at long contexts, and a score against
           Franzen v3's four passes 45.6-47.5) and exp-072g = exp-072f + acceptance 0.5 (gate); exp-072a v6 (base
           gate with --input-fallback) running for the same-conditions comparison.
+
+## 2026-10-07 23:40 · exp-072a v6 · base gate (same conditions): REAP-448 + 14 streams is +14% output tok/s; MXFP8 -17% · DECIDED
+Run:      scottmahony/arc3-dprime-gate-base v6 (with --input-fallback: this session had the older mount layout and the
+          helper resolved it, "ours: /kaggle/input/datasets/dfranzen/pennyroyal-v253 -> ..."), D', 25 x 25 min,
+          runs/exp072a6-dprime-gate-base.
+Gates, same conditions (aggregate output tok/s over the run | decode p50 at 10 running | mean running | accept | levels):
+          base (10 streams)            641.9 | 783 |  9.28 of 10 | 2.64 | 25
+          MXFP8 + 12 (exp-072b)        532.1 | 596 | 11.42 of 12 | 2.65 | 21
+          REAP-448 + 14 (exp-072f)     733.2 | 811 | 12.58 of 14 | 2.64 | 32
+Decision: online MXFP8 is dropped (slower dense GEMMs than his BF16 path). REAP-448 at load + 14 streams is the serving
+          candidate: +14% output tokens, same accept length; by the measured elasticity (0.6-0.8) about +8-11% score,
+          to be checked at full length (exp-073, running) and on the LB. exp-072d (acceptance 0.5 on the base) is not
+          re-run; exp-072g tests acceptance 0.5 on top of REAP-14 instead.
