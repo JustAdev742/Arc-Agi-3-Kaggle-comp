@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -360,3 +361,26 @@ def test_reap_apply_step_patches_the_real_installed_file_and_sets_the_server_env
     assert "48 layers x 448 experts, router sha256 for every layer" in capsys.readouterr().out
     _run_reap_apply(cells[15], cells, venv, kaggle)  # a rerun of the cell (install skipped) is a no-op
     assert "already patched" in capsys.readouterr().out
+
+
+def test_wait_inputs_waits_in_cell_4_before_the_bundle_copy_and_reports_missing_inputs(tmp_path, capsys):
+    changes = bf.build(tmp_path / "w", "w", base="dprime", wait_inputs=0)
+    assert any("waits up to 0 s" in c for c in changes)
+    cell = next(c for c in _cells(tmp_path / "w" / "w.ipynb") if bf.WAIT_ANCHOR in c)
+    i, j = cell.index("# >>> ours (--wait-inputs)"), cell.index(bf.WAIT_ANCHOR)
+    assert i < j and re.search(r"ORIG_BUNDLE_DIR\s+=", cell[:i])  # after his path constants, before his rm/cp
+    code = cell[i:j]
+    import os
+    import time
+    present = {k: tmp_path / k for k in ("bundle", "wheels", "model", "draft")}
+    (present["bundle"] / "src").mkdir(parents=True)
+    (present["wheels"] / "wheels").mkdir(parents=True)
+    present["model"].mkdir()
+    present["draft"].mkdir()
+    ns = {"os": os, "time": time, "ORIG_BUNDLE_DIR": str(present["bundle"]), "WHEELHOUSE_DIR": str(present["wheels"]),
+          "MODEL_DIR": str(present["model"]), "DRAFT_MODEL_DIR": str(present["draft"])}
+    exec(code, ns)
+    assert "inputs mounted after 0 s" in capsys.readouterr().out
+    ns["DRAFT_MODEL_DIR"] = str(tmp_path / "missing")
+    with pytest.raises(RuntimeError, match="inputs not mounted after 0 s"):
+        exec(code, ns)

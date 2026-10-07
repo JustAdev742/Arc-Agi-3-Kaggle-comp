@@ -2145,3 +2145,20 @@ Checked:  real routers through the runtime filter with CPU torch reproduce REAP-
 Next:     gate arm exp-072e (proposed) built in scratchpad/franzen/exp072e (D', 25 x 25 min, MXFP8, 16 streams),
           not pushed; run it after exp-072b/c show MXFP8 is stable; reap-at-load.md section 7 lists the serve.log
           checks.
+
+## 2026-10-07 22:45 · exp-072b · online MXFP8 + 12 streams: more KV, slower decode · NOT KEPT (pending exp-072a)
+Run:      scottmahony/arc3-dprime-gate-mxfp8-r12 v2, D' base, 25 games x 25 min, 22:03-22:29 UTC;
+          runs/exp072b-dprime-gate-mxfp8-r12 (report.txt).
+Measured: target weights 65.28 GB (Franzen 69.85), KV pool 1,310,720 tokens (1.01 M), peak use 0.89; 11.42 of 12
+          running on average; accept length 2.65 (his demo 2.66: the online MXFP8 numerics do not move the draft's
+          agreement). Decode by running count (serve.log gen throughput, p50 / p90): 10 running 596 / 664, 11: 604 /
+          669, 12: 593 / 687 tok/s. His 10-game demo (same 25-min conditions, BF16 dense with his low-M GEMM patch):
+          10 running 766 / 855. So per step ~22% slower at 10 streams and no gain from 12: the MXFP8 GEMMs
+          (FLASHINFER_CUTLASS, per the log) replace his tuned BF16 path. Score: 5.77, 21 levels (25-min gate, not a
+          score test).
+Other:    exp-072a v3/v4, exp-072c v1, exp-072d v1 failed 6 s in: their GPU sessions did not have the bundle
+          dataset mounted (CPU diagnostic kernel arc3-diag-mount, same sources and image, saw every input). New
+          builder option --wait-inputs SECONDS (cell 4 waits for the four inputs, else lists /kaggle/input and
+          raises; test added). Re-queued with it (scratchpad/queue-oct7d.json): exp-072a (base, the comparison
+          this needs), exp-072f (REAP-448 at load + 14 streams, BF16 dense), exp-072d (acceptance 0.5).
+          exp-072c (MXFP8 + 14) dropped.

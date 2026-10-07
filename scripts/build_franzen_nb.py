@@ -97,6 +97,7 @@ DPRIME_DEMO_ANCHOR = ("demo_excluded_games = [] if TRUE_SUBMISSION else ['ar25',
 DPRIME_BUDGET_ANCHOR = "        bm.solver.max_runtime_s_per_game = 5*60  # rehearsal only proves the run completes"
 SETUP_ANCHOR = "setup_env = {\n"                       # cell 4
 APPLY_ANCHOR = "print('harness patch applied successfully')\n"  # cell 4, right after his git apply
+WAIT_ANCHOR = "!rm -Rf $BUNDLE_DIR\n"                   # cell 4, right before his copy of the mounted bundle
 LAUNCH_ANCHOR = "CFG = dict(\n"                        # cell 12
 SERVER_ENV_ANCHOR = "env.update({\n"                   # cell 12
 HIS_PATCH_ANCHOR = "%%writefile /kaggle/harness-changes.patch"  # cell 2
@@ -343,11 +344,35 @@ def _reap(cell: str, kept_path: Path) -> tuple[str, list[tuple[str, str]], str]:
     return cell, files, change
 
 
+def _wait_code(seconds: float) -> str:
+    """Cell-4 lines (before his bundle copy) that wait for the four inputs his cell reads.
+
+    On 2026-10-07 four of eight GPU sessions of these notebooks failed 6 s in at that copy ("cp: cannot stat
+    .../taaf-kaggle-source-bundle-copy") while a CPU session with the same sources saw every input mounted; waiting
+    costs nothing when they are there and turns a silent 6-second failure into a wait or a listing.
+    """
+    return (
+        "# >>> ours (--wait-inputs): wait for the mounted inputs instead of failing at the copy below\n"
+        "_ours_need = [ORIG_BUNDLE_DIR + '/src', WHEELHOUSE_DIR + '/wheels', MODEL_DIR, DRAFT_MODEL_DIR]\n"
+        "_ours_t0 = time.time()\n"
+        "while [p for p in _ours_need if not os.path.isdir(p)]:\n"
+        f"    if time.time() - _ours_t0 > {float(seconds)!r}:\n"
+        "        for _ours_root, _ours_dirs, _ours_files in os.walk('/kaggle/input'):\n"
+        "            if _ours_root.count(os.sep) <= 5:\n"
+        "                print(_ours_root, sorted(_ours_dirs)[:8], len(_ours_files))\n"
+        "        raise RuntimeError('inputs not mounted after "
+        f"{float(seconds):g} s: ' + str([p for p in _ours_need if not os.path.isdir(p)]))\n"
+        "    time.sleep(5)\n"
+        "print(f'ours: inputs mounted after {time.time() - _ours_t0:.0f} s')\n"
+        "# <<< ours (--wait-inputs)\n"
+    )
+
+
 def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str] | None = None,
           note: str = "", *, env_add: dict[str, str] | None = None, cfg: dict[str, str] | None = None,
           server_env: dict[str, str] | None = None, patches: list[Path] | tuple = (), apply_check: bool = True,
           his_repo: Path | None = None, bundle: Path | None = None, base: str = "franzen",
-          reap_kept: Path | None = None) -> list[str]:
+          reap_kept: Path | None = None, wait_inputs: float | None = None) -> list[str]:
     if base == "franzen":
         path, sha, demo_anchor, budget_anchor = BASE, BASE_SHA256, DEMO_ANCHOR, BUDGET_ANCHOR
     elif base == "dprime":
@@ -374,6 +399,10 @@ def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str]
         changes.append(f"Save & Run plays all 25 public games, {full25:g} min per game (competition rerun unchanged)")
 
     setup = _one_cell(sources, code, SETUP_ANCHOR, "cell 4")
+    if wait_inputs is not None:
+        sources[setup] = _replace_once(sources[setup], WAIT_ANCHOR, _wait_code(wait_inputs) + WAIT_ANCHOR,
+                                       "--wait-inputs")
+        changes.append(f"waits up to {wait_inputs:g} s for its mounted inputs before copying the bundle")
     sources[setup], done = _set_env(sources[setup], env or {})
     changes += done
     sources[setup], done = _add_env(sources[setup], env_add or {})
@@ -477,12 +506,14 @@ def main() -> None:
                     help="franzen (kaggle/franzen/, default) or dprime (kaggle/dprime/: his notebook + the D' slot priority)")
     ap.add_argument("--reap-kept", type=Path, default=None, metavar="FILE",
                     help="serve with only these routed experts (kaggle/franzen/reap448_kept_experts.json)")
+    ap.add_argument("--wait-inputs", type=float, default=None, metavar="SECONDS",
+                    help="cell 4 waits up to SECONDS for its mounted inputs before copying the bundle")
     args = ap.parse_args()
     changes = build(args.out, args.slug, args.full25, _pairs(args.env, "--env"), args.note,
                     env_add=_pairs(args.env_add, "--env-add"), cfg=_pairs(args.cfg, "--cfg"),
                     server_env=_pairs(args.server_env, "--server-env"), patches=args.patch,
                     apply_check=not args.no_apply_check, his_repo=args.his_repo, bundle=args.bundle, base=args.base,
-                    reap_kept=args.reap_kept)
+                    reap_kept=args.reap_kept, wait_inputs=args.wait_inputs)
     print(f"built {args.out / (args.slug + '.ipynb')}: {changes or 'unchanged'}")
 
 
