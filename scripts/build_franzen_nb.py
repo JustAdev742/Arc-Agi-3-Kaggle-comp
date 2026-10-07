@@ -30,6 +30,8 @@ Options change a non-submission run only, or a named setting everywhere:
   with ``subprocess.Popen(args, env=env)`` from that dictionary and never sources the wheelhouse's runtime_env.sh
   (which also exports SGLANG_SM120_ONLINE_MXFP8=0, but only for a shell that sources it), and nothing in the cell
   sets the key after ``env.update``.
+- ``--base dprime``: start from the public D' notebook (kaggle/dprime/: his notebook with only the scheduler's slot
+  priority replaced; its Save & Run plays one game for 5 minutes) instead of his; all options work the same.
 - ``--patch FILE`` (repeatable): our harness changes on top of his, as a unified diff against the tree his notebook
   builds (paths ``a/ARC3-Inference/...`` or ``a/tufa-arc-agi-framework/...``; make one with
   ``scripts/franzen_tree.py build DIR`` + edit + ``scripts/franzen_tree.py diff DIR``). Each patch becomes a
@@ -70,6 +72,14 @@ SOURCES = {  # his kernel-metadata.json, 2026-10-02
 DEMO_ANCHOR = ("demo_excluded_games = [] if TRUE_SUBMISSION else ['bp35', 'cd82', 'cn04', 'dc22', 'g50t', 'ka59', "
                "'lf52', 'ls20', 'm0r0', 's5i5', 'sk48', 'sp80', 'su15', 'tn36', 'wa30']")
 BUDGET_ANCHOR = "        bm.solver.max_runtime_s_per_game = 25*60 #532*60 * bm.solver.concurrency // 110"
+# --base dprime: the public "D'" notebook (kaggle/dprime/, Franzen's notebook + a new slot priority; cells 4 and 12
+# byte-identical to his, so every option below applies unchanged; only its Save & Run demo lines differ)
+DPRIME = ROOT / "kaggle" / "dprime" / "affectify-arc-31-54-in-a-single-sub.ipynb"
+DPRIME_SHA256 = "f649d005040ee367bec580c180b3712c81583f622b5690c8e0e1a745dc0858c7"
+DPRIME_DEMO_ANCHOR = ("demo_excluded_games = [] if TRUE_SUBMISSION else ['ar25', 'bp35', 'cd82', 'cn04', 'dc22', "
+                      "'g50t', 'ka59', 'lf52', 'lp85', 'ls20', 'm0r0', 'r11l', 're86', 's5i5', 'sb26', 'sc25', 'sk48', "
+                      "'sp80', 'su15', 'tn36', 'tr87', 'tu93', 'vc33', 'wa30']")
+DPRIME_BUDGET_ANCHOR = "        bm.solver.max_runtime_s_per_game = 5*60  # rehearsal only proves the run completes"
 SETUP_ANCHOR = "setup_env = {\n"                       # cell 4
 APPLY_ANCHOR = "print('harness patch applied successfully')\n"  # cell 4, right after his git apply
 LAUNCH_ANCHOR = "CFG = dict(\n"                        # cell 12
@@ -264,21 +274,28 @@ def _apply_code(names: list[str]) -> str:
 def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str] | None = None,
           note: str = "", *, env_add: dict[str, str] | None = None, cfg: dict[str, str] | None = None,
           server_env: dict[str, str] | None = None, patches: list[Path] | tuple = (), apply_check: bool = True,
-          his_repo: Path | None = None, bundle: Path | None = None) -> list[str]:
-    raw = BASE.read_bytes()
-    if hashlib.sha256(raw).hexdigest() != BASE_SHA256:
-        raise SystemExit(f"{BASE} is not the vendored copy (sha256 differs); it must stay unmodified")
+          his_repo: Path | None = None, bundle: Path | None = None, base: str = "franzen") -> list[str]:
+    if base == "franzen":
+        path, sha, demo_anchor, budget_anchor = BASE, BASE_SHA256, DEMO_ANCHOR, BUDGET_ANCHOR
+    elif base == "dprime":
+        path, sha, demo_anchor, budget_anchor = DPRIME, DPRIME_SHA256, DPRIME_DEMO_ANCHOR, DPRIME_BUDGET_ANCHOR
+    else:
+        raise SystemExit(f"unknown --base {base!r}")
+    raw = path.read_bytes()
+    if hashlib.sha256(raw).hexdigest() != sha:
+        raise SystemExit(f"{path} is not the vendored copy (sha256 differs); it must stay unmodified")
     nb = json.loads(raw)
+    nb.setdefault("metadata", {}).setdefault("kaggle", {})["accelerator"] = "nvidiaRtxPro6000"  # D' lacks it
     cells = nb["cells"]
     sources = ["".join(c["source"]) for c in cells]
     code = [c["cell_type"] == "code" for c in cells]
     changes: list[str] = []
 
     if full25 is not None:
-        i = _one_cell(sources, code, DEMO_ANCHOR, "--full25")
-        s = _replace_once(sources[i], DEMO_ANCHOR, "demo_excluded_games = []  # ours (--full25): all 25 public games",
+        i = _one_cell(sources, code, demo_anchor, "--full25")
+        s = _replace_once(sources[i], demo_anchor, "demo_excluded_games = []  # ours (--full25): all 25 public games",
                           "demo")
-        sources[i] = _replace_once(s, BUDGET_ANCHOR,
+        sources[i] = _replace_once(s, budget_anchor,
                                    f"        bm.solver.max_runtime_s_per_game = {float(full25)!r}*60  # ours (--full25)",
                                    "budget")
         changes.append(f"Save & Run plays all 25 public games, {full25:g} min per game (competition rerun unchanged)")
@@ -332,7 +349,7 @@ def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str]
         cells[his + 1:his + 1] = new_cells
     if changes or note:
         cells[0]["source"] = ["".join(cells[0]["source"]) + "\n\n**Our arm (scottmahony, built by "
-                              "scripts/build_franzen_nb.py from the unmodified notebook):** "
+                              f"scripts/build_franzen_nb.py from the unmodified {base} notebook):** "
                               + ("; ".join(changes) or "unchanged") + (f". {note}" if note else "") + "\n"]
     out.mkdir(parents=True, exist_ok=True)
     (out / f"{slug}.ipynb").write_text(json.dumps(nb, indent=1, ensure_ascii=False))
@@ -369,11 +386,13 @@ def main() -> None:
     ap.add_argument("--his-repo", type=Path, default=None, help="for the apply check (default: scripts/franzen_tree.py)")
     ap.add_argument("--bundle", type=Path, default=None, help="for the apply check: a download of the bundle dataset")
     ap.add_argument("--note", default="")
+    ap.add_argument("--base", choices=["franzen", "dprime"], default="franzen",
+                    help="franzen (kaggle/franzen/, default) or dprime (kaggle/dprime/: his notebook + the D' slot priority)")
     args = ap.parse_args()
     changes = build(args.out, args.slug, args.full25, _pairs(args.env, "--env"), args.note,
                     env_add=_pairs(args.env_add, "--env-add"), cfg=_pairs(args.cfg, "--cfg"),
                     server_env=_pairs(args.server_env, "--server-env"), patches=args.patch,
-                    apply_check=not args.no_apply_check, his_repo=args.his_repo, bundle=args.bundle)
+                    apply_check=not args.no_apply_check, his_repo=args.his_repo, bundle=args.bundle, base=args.base)
     print(f"built {args.out / (args.slug + '.ipynb')}: {changes or 'unchanged'}")
 
 

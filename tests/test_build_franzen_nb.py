@@ -203,3 +203,24 @@ def test_a_patch_that_does_not_apply_is_refused_at_build_time_and_stops_the_note
     share = bf.franzen_tree.build_bundle(tmp_path / "share")
     with pytest.raises(RuntimeError, match="did not apply: exit 1, 0 of 1 files"):
         _exec_apply_steps(cells[5], share, kaggle)
+
+
+# --- --base dprime ---------------------------------------------------------------------------------------------------
+
+
+def test_dprime_base_copies_its_cells_and_takes_the_same_options(tmp_path):
+    assert bf.build(tmp_path / "plain", "d", base="dprime") == []
+    dprime = _cells(bf.DPRIME)
+    assert _cells(tmp_path / "plain" / "d.ipynb") == dprime
+    nb = json.loads((tmp_path / "plain" / "d.ipynb").read_text())
+    assert nb["metadata"]["kaggle"]["accelerator"] == "nvidiaRtxPro6000"  # the upstream notebook lacks it
+    changes = bf.build(tmp_path / "srv", "d2", base="dprime", full25=25, cfg={"MAXREQ": "12"},
+                       server_env={"SGLANG_SM120_ONLINE_MXFP8": "true"}, env={"ARC3_MAX_ACTIVE_STREAMS": "12"})
+    assert len(changes) == 4
+    ours = _cells(tmp_path / "srv" / "d2.ipynb")
+    assert "#OURS_FORM" in "".join(ours)  # their priority module is still there
+    demo = next(c for c in ours if "demo_excluded_games = []  # ours" in c)
+    assert "max_runtime_s_per_game = 25.0*60  # ours (--full25)" in demo
+    assert "bm.solver.max_runtime_s_per_game = 532*60" in demo
+    assert any("    MAXREQ=12,  # ours (--cfg)" in c for c in ours)
+    assert any('"SGLANG_SM120_ONLINE_MXFP8": "true",' in c for c in ours)
