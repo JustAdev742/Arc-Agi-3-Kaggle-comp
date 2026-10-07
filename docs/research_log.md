@@ -2170,3 +2170,18 @@ exp-072a v5 (with --wait-inputs 600) waited the full 600 s and listed /kaggle/in
           (helper in cell 4; all 6 input literals wrapped; tests for both bases and both layouts); lesson 0030.
           exp-072f (REAP-448 r14) and exp-072d (accept 0.5) got the newer layout and are running; exp-072a rebuilt with
           --input-fallback --wait-inputs 120 and re-queued (scratchpad/queue-oct7e.json).
+
+## 2026-10-07 23:24 · exp-072f · REAP-448 at load + 14 streams (BF16 dense): +17% output tok/s, accept unchanged · PROMISING
+Run:      scottmahony/arc3-dprime-gate-reap448-r14 v1, D' base, 25 games x 25 min, 22:48-23:14 UTC;
+          runs/exp072f-dprime-gate-reap448-r14 (report.txt).
+Checked:  serve.log "ARC3 REAP: kept 448 of 512 routed experts in each of 48 layers (193536 expert tensors loaded,
+          27648 pruned tensors skipped); routers sliced to 448 rows, router sha256 verified". Target weights 62.48 GB
+          (his 69.85), KV pool 1,477,888 tokens (his 1.01 M), peak pool use 0.95, min free device memory 0.95 GiB
+          (his v3 run: 0.87 GiB, so no new risk). No errors besides the image's harmless sitecustomize warning.
+Measured: aggregate output 733.2 tok/s over 1,577 s (exp-072b MXFP8+12: 532.1; his 10-game demo: 626); decode p50 by
+          running count 10: 811, 12: 860, 13: 897, 14: 855 tok/s (his demo at 10: 766; MXFP8 at 10: 596); 12.58 of 14
+          running on average; MTP accept length 2.64 (his 2.66): pruning barely moves the draft's agreement, a hint
+          that the distribution shift is small. Gate score 8.17 / 32 levels (MXFP8+12: 5.77 / 21; not a score test).
+Next:     exp-073 = the same at 121 min per game (full length: pool pressure at long contexts, and a score against
+          Franzen v3's four passes 45.6-47.5) and exp-072g = exp-072f + acceptance 0.5 (gate); exp-072a v6 (base
+          gate with --input-fallback) running for the same-conditions comparison.
