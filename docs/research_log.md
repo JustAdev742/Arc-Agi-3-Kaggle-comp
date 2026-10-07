@@ -2098,3 +2098,14 @@ Queue:    exp-070d v3 (D' copy, his image) pushed 21:37; scripts/kaggle_queue.py
           benchmark.json/summary.txt/serve.log/logs and writes runs/<run>/report.txt with scripts/franzen_report.py)
           pushes exp-072a v3 and exp-072b once the v2 gate run has ended.
 Cost:     four failed sessions of ~3-6 min each (~0.3 GPU-h).
+
+## 2026-10-07 21:52 · exp-072a v3 lost to an unmounted input; public notebook scores found · RE-QUEUED
+exp-072a v3 (his image, pushed 21:40) failed in 6 s: `cp: cannot stat
+          '/kaggle/input/datasets/dfranzen/taaf-kaggle-source-bundle-copy'`. Its server-side metadata lists the same
+          sources as exp-070d v3, which mounted them and is serving; treated as a transient Kaggle mount failure and
+          re-queued unchanged (scratchpad/queue-oct7c.json). exp-072b v2 queued 21:46; exp-072c (MXFP8 + 14 streams)
+          built and queued behind it.
+Scores:   Kaggle's search API gives notebooks' best public scores (scripts/kaggle_nb_scores.py): Franzen's own
+          notebook 34.30, D'+memory/watchdog 31.93, an unchanged Franzen copy 31.73, D' 31.54, other copies 24-31
+          (docs/research/m2-notebooks-oct2.md). One distribution of ~28.5 +/- 3.3: the "34" is a lucky draw of the
+          notebook we are running, not a different method.
