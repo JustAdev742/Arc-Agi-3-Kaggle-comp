@@ -2,6 +2,7 @@
 The competition rerun must stay exactly his; only the Save & Run demo settings and named knobs may change."""
 from __future__ import annotations
 
+import ast
 import json
 import os
 import re
@@ -384,3 +385,42 @@ def test_wait_inputs_waits_in_cell_4_before_the_bundle_copy_and_reports_missing_
     ns["DRAFT_MODEL_DIR"] = str(tmp_path / "missing")
     with pytest.raises(RuntimeError, match="inputs not mounted after 0 s"):
         exec(code, ns)
+
+
+@pytest.mark.parametrize("base", ["franzen", "dprime"])
+def test_input_fallback_wraps_every_input_path_and_resolves_both_mount_layouts(tmp_path, base):
+    changes = bf.build(tmp_path / "f", "f", base=base, input_fallback=True, wait_inputs=0)
+    assert any("resolves its 6 /kaggle/input paths" in c for c in changes)
+    nb = json.loads((tmp_path / "f" / "f.ipynb").read_text())
+    codes = ["".join(c["source"]) for c in nb["cells"] if c["cell_type"] == "code"]
+    unwrapped = [m.group(0) for src in codes for m in re.finditer(r"(?<!_ours_input\()(['\"])/kaggle/input/\S+?\1", src)]
+    assert unwrapped == []  # every literal input path goes through the helper
+    setup = next(src for src in codes if bf.SETUP_ANCHOR in src)
+    assert setup.startswith(bf.INPUT_HELPER)
+    for src in (c for c in codes if not c.startswith("%%")):  # valid Python apart from IPython's ! and % lines
+        compile("\n".join(line for line in src.splitlines() if not line.lstrip().startswith(("!", "%"))), "cell", "exec",
+                flags=ast.PyCF_ALLOW_TOP_LEVEL_AWAIT)
+
+    existing = set()
+
+    class FakePath:
+        @staticmethod
+        def exists(p):
+            return p in existing
+
+    class FakeOs:
+        path = FakePath
+
+    ns: dict = {}
+    exec(bf.INPUT_HELPER, ns)
+    ns["_ours_os"] = FakeOs
+    new = "/kaggle/input/datasets/dfranzen/taaf-kaggle-source-bundle-copy"
+    comp = "/kaggle/input/competitions/arc-prize-2026-arc-agi-3/arc_agi_3_wheels"
+    model = "/kaggle/input/models/dfranzen/x/transformers/default/1"
+    existing |= {new, comp}
+    assert ns["_ours_input"](new) == new and ns["_ours_input"](comp) == comp  # new layout: unchanged
+    existing.clear()
+    existing |= {"/kaggle/input/taaf-kaggle-source-bundle-copy", "/kaggle/input/arc-prize-2026-arc-agi-3/arc_agi_3_wheels"}
+    assert ns["_ours_input"](new) == "/kaggle/input/taaf-kaggle-source-bundle-copy"
+    assert ns["_ours_input"](comp) == "/kaggle/input/arc-prize-2026-arc-agi-3/arc_agi_3_wheels"
+    assert ns["_ours_input"](model) == model  # no alternative: the original path, so the wait or the cell reports it

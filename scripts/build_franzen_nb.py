@@ -344,6 +344,45 @@ def _reap(cell: str, kept_path: Path) -> tuple[str, list[tuple[str, str]], str]:
     return cell, files, change
 
 
+INPUT_LITERAL = re.compile(r"""(['"])(/kaggle/input/(?:datasets|competitions|models)/[^'"]+)\1""")
+INPUT_HELPER = (
+    "# >>> ours (--input-fallback): Kaggle mounts inputs as /kaggle/input/{datasets/<owner>,competitions}/<slug> or\n"
+    "# as /kaggle/input/<slug>; GPU sessions of these notebooks got either on 2026-10-07. Use what this one has.\n"
+    "import os as _ours_os\n"
+    "def _ours_input(path):\n"
+    "    if _ours_os.path.exists(path):\n"
+    "        return path\n"
+    "    parts = path.split('/')  # '', 'kaggle', 'input', kind, ...\n"
+    "    if len(parts) > 5 and parts[3] == 'datasets':\n"
+    "        alt = '/'.join(parts[:3] + parts[5:])\n"
+    "    elif len(parts) > 4 and parts[3] == 'competitions':\n"
+    "        alt = '/'.join(parts[:3] + parts[4:])\n"
+    "    else:\n"
+    "        return path\n"
+    "    if _ours_os.path.exists(alt):\n"
+    "        print(f'ours: {path} -> {alt}')\n"
+    "        return alt\n"
+    "    return path\n"
+    "# <<< ours (--input-fallback)\n"
+)
+
+
+def _input_fallback(sources: list[str], code: list[bool], setup: int) -> tuple[list[str], int]:
+    """Wrap every /kaggle/input/{datasets,competitions,models}/... string literal in a code cell in _ours_input(),
+    defined at the top of cell 4 (which runs before any cell that reads an input)."""
+    out, n = list(sources), 0
+    for i, (src, is_code) in enumerate(zip(sources, code)):
+        if not is_code:
+            continue
+        found = INPUT_LITERAL.findall(src)
+        if found and i < setup:
+            raise SystemExit(f"--input-fallback: cell {i} reads an input before cell 4 defines the helper")
+        out[i], k = INPUT_LITERAL.subn(lambda m: f"_ours_input({m.group(0)})", src)
+        n += k
+    out[setup] = INPUT_HELPER + out[setup]
+    return out, n
+
+
 def _wait_code(seconds: float) -> str:
     """Cell-4 lines (before his bundle copy) that wait for the four inputs his cell reads.
 
@@ -372,7 +411,8 @@ def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str]
           note: str = "", *, env_add: dict[str, str] | None = None, cfg: dict[str, str] | None = None,
           server_env: dict[str, str] | None = None, patches: list[Path] | tuple = (), apply_check: bool = True,
           his_repo: Path | None = None, bundle: Path | None = None, base: str = "franzen",
-          reap_kept: Path | None = None, wait_inputs: float | None = None) -> list[str]:
+          reap_kept: Path | None = None, wait_inputs: float | None = None,
+          input_fallback: bool = False) -> list[str]:
     if base == "franzen":
         path, sha, demo_anchor, budget_anchor = BASE, BASE_SHA256, DEMO_ANCHOR, BUDGET_ANCHOR
     elif base == "dprime":
@@ -399,6 +439,9 @@ def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str]
         changes.append(f"Save & Run plays all 25 public games, {full25:g} min per game (competition rerun unchanged)")
 
     setup = _one_cell(sources, code, SETUP_ANCHOR, "cell 4")
+    if input_fallback:
+        sources, n = _input_fallback(sources, code, setup)
+        changes.append(f"resolves its {n} /kaggle/input paths in either Kaggle mount layout")
     if wait_inputs is not None:
         sources[setup] = _replace_once(sources[setup], WAIT_ANCHOR, _wait_code(wait_inputs) + WAIT_ANCHOR,
                                        "--wait-inputs")
@@ -506,6 +549,8 @@ def main() -> None:
                     help="franzen (kaggle/franzen/, default) or dprime (kaggle/dprime/: his notebook + the D' slot priority)")
     ap.add_argument("--reap-kept", type=Path, default=None, metavar="FILE",
                     help="serve with only these routed experts (kaggle/franzen/reap448_kept_experts.json)")
+    ap.add_argument("--input-fallback", action="store_true",
+                    help="resolve /kaggle/input paths in either mount layout (datasets/<owner>/<slug> or <slug>)")
     ap.add_argument("--wait-inputs", type=float, default=None, metavar="SECONDS",
                     help="cell 4 waits up to SECONDS for its mounted inputs before copying the bundle")
     args = ap.parse_args()
@@ -513,7 +558,7 @@ def main() -> None:
                     env_add=_pairs(args.env_add, "--env-add"), cfg=_pairs(args.cfg, "--cfg"),
                     server_env=_pairs(args.server_env, "--server-env"), patches=args.patch,
                     apply_check=not args.no_apply_check, his_repo=args.his_repo, bundle=args.bundle, base=args.base,
-                    reap_kept=args.reap_kept, wait_inputs=args.wait_inputs)
+                    reap_kept=args.reap_kept, wait_inputs=args.wait_inputs, input_fallback=args.input_fallback)
     print(f"built {args.out / (args.slug + '.ipynb')}: {changes or 'unchanged'}")
 
 

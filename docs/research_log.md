@@ -2162,3 +2162,11 @@ Other:    exp-072a v3/v4, exp-072c v1, exp-072d v1 failed 6 s in: their GPU sess
           raises; test added). Re-queued with it (scratchpad/queue-oct7d.json): exp-072a (base, the comparison
           this needs), exp-072f (REAP-448 at load + 14 streams, BF16 dense), exp-072d (acceptance 0.5).
           exp-072c (MXFP8 + 14) dropped.
+
+## 2026-10-07 22:56 · input-mount failures explained: two Kaggle layouts; --input-fallback · FIXED
+exp-072a v5 (with --wait-inputs 600) waited the full 600 s and listed /kaggle/input: the session had the older layout
+          (/kaggle/input/<slug> for datasets and the competition), not /kaggle/input/{datasets/<owner>,competitions}/<slug>
+          that the notebooks hardcode. Five of nine GPU sessions today got it. New builder option --input-fallback
+          (helper in cell 4; all 6 input literals wrapped; tests for both bases and both layouts); lesson 0030.
+          exp-072f (REAP-448 r14) and exp-072d (accept 0.5) got the newer layout and are running; exp-072a rebuilt with
+          --input-fallback --wait-inputs 120 and re-queued (scratchpad/queue-oct7e.json).
