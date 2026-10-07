@@ -2118,3 +2118,8 @@ Checked:  GPU "NVIDIA RTX PRO 6000 Blackwell Server Edition capability (12, 0)";
           no tracebacks in the log. The notebook is submittable as is; the competition rerun branch is theirs.
 Next:     the owner presses "Submit to Competition" on https://www.kaggle.com/code/scottmahony/arc3-dprime (expected
           ~25-32 on the public LB; the Franzen family is ~28.5 +/- 3.3 per draw).
+
+## 2026-10-07 21:58 · LB draw: exp-070d (D' copy) submitted by the owner · PENDING
+Submission 56922501 (21:57:18 UTC), scottmahony/arc3-dprime v3. Score expected after the ~9 h rerun (~07:00 UTC Oct 8).
+Pre-registered reading: the Franzen family is ~28.5 +/- 3.3 per draw; this draw is one more sample of it (D' and
+Franzen copies are indistinguishable so far), not a test of D'.
