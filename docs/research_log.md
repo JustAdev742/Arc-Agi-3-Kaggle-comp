@@ -2067,3 +2067,17 @@ is ~46-50 (one +66% step on Sep 28; RL stack forked in early September); beating
 near 55, ~2.1x a Franzen draw. One-card levers (MXFP8 + more streams, REAP-448, fewer tokens per action, harness
 fixes) compound to roughly x1.4-1.9 (est.); a post-trained model is the most plausible rest. Verified: 1 submission
 per day (forum thread 705405).
+
+## 2026-10-07 21:18 · LB check, public D' notebook vendored; exp-070 (Franzen) and exp-070d (D') pushed · RUNNING
+LB (download, 21:1x UTC): Tufa Labs 55.89, Yi-Chia Chen 48.59, Majkel1337 42.66, 15 teams >= 35, 258 >= 30, 864 >= 25;
+          Lord Han Solo 36.61; Daniel Franzen 27.89; ours 4.70 at rank 1,050 of 3,942 (no submission since Sep 28).
+Public notebooks: no verified public notebook at 34. The best public evidence is "D'" (shiiin9/AFF AI CLUB,
+          kaggle.com/code/shiiin9/affectify-arc-31-54-in-a-single-sub): Franzen's notebook with only the scheduler's
+          slot priority replaced (a formula fitted in their own scheduling simulator; their estimate +1.5), one LB draw
+          31.54; same-code draws of Franzen's notebook reported 27.89, 31.47, 27.62, 27.80, 21.01. Franzen's own
+          notebook is now v3 (4 passes on all 25 public games at the hidden set's time per game; output downloading).
+Built:    kaggle/dprime/ (their notebook unmodified + NOTICE; Apache-2.0 as a public Kaggle notebook) and
+          scripts/copy_public_nb.py (our private copy: same cells, our metadata). Pushed (this week's quota, reset Oct 3,
+          was unused): exp-070d scottmahony/arc3-dprime (their 1-game 5-min save run) and exp-070
+          scottmahony/arc3-franzen-m2 (his 10-game demo). Either becomes submittable when its run completes; the
+          owner submits (one per day).

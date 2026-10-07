@@ -1,0 +1,29 @@
+{
+  "id": "shiiin9/affectify-arc-31-54-in-a-single-sub",
+  "id_no": 136916190,
+  "title": "\u5927\u962a\u516c\u7acb\u5927\u5b66 Affectify ARC\u652f\u90e8\ud83d\udc19\uff5c31.54 in a Single Sub",
+  "code_file": "affectify-arc-31-54-in-a-single-sub.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": false,
+  "enable_gpu": true,
+  "enable_tpu": false,
+  "enable_internet": false,
+  "keywords": [
+    "gpu"
+  ],
+  "dataset_sources": [
+    "dfranzen/pennyroyal-v253",
+    "dfranzen/taaf-kaggle-source-bundle-copy"
+  ],
+  "kernel_sources": [],
+  "competition_sources": [
+    "arc-prize-2026-arc-agi-3"
+  ],
+  "model_sources": [
+    "dfranzen/albucino-qwen3-8-flash-next-drafter/Transformers/default/1",
+    "dfranzen/intel-qwen3.8-flash-next-w4a16-autoround/Transformers/default/1"
+  ],
+  "docker_image": "gcr.io/kaggle-images/python@sha256:e5452ce6268c2e8345cfe5141f31ca7ff47032aca46a7ea532bbb87481281d0c",
+  "machine_shape": "NvidiaRtxPro6000"
+}
