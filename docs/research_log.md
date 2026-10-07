@@ -2109,3 +2109,12 @@ Scores:   Kaggle's search API gives notebooks' best public scores (scripts/kaggl
           notebook 34.30, D'+memory/watchdog 31.93, an unchanged Franzen copy 31.73, D' 31.54, other copies 24-31
           (docs/research/m2-notebooks-oct2.md). One distribution of ~28.5 +/- 3.3: the "34" is a lucky draw of the
           notebook we are running, not a different method.
+
+## 2026-10-07 21:56 · exp-070d v3 · D' copy save run COMPLETE · READY TO SUBMIT (owner)
+Run:      scottmahony/arc3-dprime v3 (his image), 21:37-21:55 UTC; runs/exp070d-dprime/kernel-output.
+Checked:  GPU "NVIDIA RTX PRO 6000 Blackwell Server Edition capability (12, 0)"; `#OURS_FORM ok version=d_prime`
+          (their priority patch active); priority gate 10 streams; ft09 4/6 levels, 49 actions, 47.62 in its 5-min
+          save run (summary.txt); submission.parquet written (the save run's one-row placeholder, as upstream);
+          no tracebacks in the log. The notebook is submittable as is; the competition rerun branch is theirs.
+Next:     the owner presses "Submit to Competition" on https://www.kaggle.com/code/scottmahony/arc3-dprime (expected
+          ~25-32 on the public LB; the Franzen family is ~28.5 +/- 3.3 per draw).

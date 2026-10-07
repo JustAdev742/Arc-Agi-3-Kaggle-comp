@@ -149,7 +149,7 @@ If fewer than two configurations reach 3 draws, the unmodified base fills the se
 ### State at 2026-10-07 21:4x UTC (supersedes the queue below)
 - The week's quota (reset Oct 3) was unused until Oct 7 21:18; ~0.3 GPU-h went to four short failed sessions
   (lesson 0029: Kaggle's latest image moved to Python 3.13; every kernel now pins Franzen's GPU image).
-- **exp-070d** (scottmahony/arc3-dprime, v3): the public D' notebook unchanged (one LB draw 31.54), its 1-game save
+- **exp-070d** (scottmahony/arc3-dprime, v3, COMPLETE 21:55, checked): the public D' notebook unchanged (one LB draw 31.54), its 1-game save
   run. When it completes, **the owner submits it** from https://www.kaggle.com/code/scottmahony/arc3-dprime
   ("Submit to Competition"); expected ~26-31 (Franzen-family draws: 25.8 +/- 3.9).
 - exp-070 (Franzen's 10-game demo) dropped; exp-072a/b (serving gate on D', unchanged vs online MXFP8 + 12 streams)
