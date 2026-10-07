@@ -26,6 +26,10 @@ def test_unchanged_copy_is_his_notebook_with_our_private_offline_metadata(tmp_pa
     assert meta["model_sources"] == bf.SOURCES["model_sources"] and meta["dataset_sources"] == bf.SOURCES["dataset_sources"]
     nb = json.loads((tmp_path / "arc3-franzen-m2.ipynb").read_text())
     assert nb["metadata"]["kaggle"]["accelerator"] == "nvidiaRtxPro6000"  # scripts/push_eval.py requires it
+    # his Kaggle image, pinned: Kaggle's latest image is Python 3.13 and his wheels are cp312 (exp-070 failed)
+    upstream = json.loads((ROOT / "kaggle" / "franzen" / "upstream-kernel-metadata.json").read_text())
+    assert meta["docker_image"] == upstream["docker_image"] == bf.IMAGE
+    assert meta["docker_image_pinning_type"] == "original" and meta["machine_shape"] == "NvidiaRtxPro6000"
 
 
 def test_full25_changes_only_the_save_and_run_demo(tmp_path):
@@ -214,6 +218,9 @@ def test_dprime_base_copies_its_cells_and_takes_the_same_options(tmp_path):
     assert _cells(tmp_path / "plain" / "d.ipynb") == dprime
     nb = json.loads((tmp_path / "plain" / "d.ipynb").read_text())
     assert nb["metadata"]["kaggle"]["accelerator"] == "nvidiaRtxPro6000"  # the upstream notebook lacks it
+    meta = json.loads((tmp_path / "plain" / "kernel-metadata.json").read_text())
+    # his GPU image: the one D''s page lists is Kaggle's CPU image (no CUDA in exp-070d v2)
+    assert meta["docker_image"] == bf.IMAGE and "kaggle-images/python" not in meta["docker_image"]
     changes = bf.build(tmp_path / "srv", "d2", base="dprime", full25=25, cfg={"MAXREQ": "12"},
                        server_env={"SGLANG_SM120_ONLINE_MXFP8": "true"}, env={"ARC3_MAX_ACTIVE_STREAMS": "12"})
     assert len(changes) == 4
@@ -224,3 +231,19 @@ def test_dprime_base_copies_its_cells_and_takes_the_same_options(tmp_path):
     assert "bm.solver.max_runtime_s_per_game = 532*60" in demo
     assert any("    MAXREQ=12,  # ours (--cfg)" in c for c in ours)
     assert any('"SGLANG_SM120_ONLINE_MXFP8": "true",' in c for c in ours)
+
+
+def test_copy_public_nb_pins_the_upstream_image_and_refuses_metadata_without_one(tmp_path):
+    import copy_public_nb as cp
+    up = ROOT / "kaggle" / "dprime" / "upstream-kernel-metadata.json"
+    meta = cp.copy(bf.DPRIME, up, tmp_path / "out", "arc3-x")
+    assert meta["docker_image"] == json.loads(up.read_text())["docker_image"]
+    assert meta["docker_image_pinning_type"] == "original" and meta["machine_shape"] == "NvidiaRtxPro6000"
+    assert meta["is_private"] is True and meta["enable_internet"] is False
+    assert _cells(tmp_path / "out" / "arc3-x.ipynb") == _cells(bf.DPRIME)
+    bare = json.loads(up.read_text())
+    del bare["docker_image"]
+    (tmp_path / "bare.json").write_text(json.dumps(bare))
+    with pytest.raises(SystemExit, match="docker_image"):
+        cp.copy(bf.DPRIME, tmp_path / "bare.json", tmp_path / "out2", "arc3-y")
+    assert cp.copy(bf.DPRIME, tmp_path / "bare.json", tmp_path / "out3", "arc3-z", bf.IMAGE)["docker_image"] == bf.IMAGE

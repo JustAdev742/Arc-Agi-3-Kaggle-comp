@@ -146,6 +146,18 @@ public 25 (scripts/arm_table.py), then the validation score. If the top two are 
 noise, the second slot goes to the best configuration that differs from it (diversification against the private half).
 If fewer than two configurations reach 3 draws, the unmodified base fills the second slot.
 
+### State at 2026-10-07 21:4x UTC (supersedes the queue below)
+- The week's quota (reset Oct 3) was unused until Oct 7 21:18; ~0.3 GPU-h went to four short failed sessions
+  (lesson 0029: Kaggle's latest image moved to Python 3.13; every kernel now pins Franzen's GPU image).
+- **exp-070d** (scottmahony/arc3-dprime, v3): the public D' notebook unchanged (one LB draw 31.54), its 1-game save
+  run. When it completes, **the owner submits it** from https://www.kaggle.com/code/scottmahony/arc3-dprime
+  ("Submit to Competition"); expected ~26-31 (Franzen-family draws: 25.8 +/- 3.9).
+- exp-070 (Franzen's 10-game demo) dropped; exp-072a/b (serving gate on D', unchanged vs online MXFP8 + 12 streams)
+  run from scratchpad/queue-oct7c.json.
+- No public notebook has a verified score above D''s 31.54 (re-checked 21:3x: the newest forks are D' plus a
+  capability guard or untested "episodic memory / watchdog" additions; one author reports an unchanged Franzen copy
+  at 31.73). The 34-39 band on the LB is consistent with lucky draws of the same notebook by hundreds of teams.
+
 ### Week of 2026-10-03 (rewritten 2026-10-02 after Franzen's Milestone 2 notebook; docs/research/m2-notebooks-oct2.md)
 His open-sourced solution (LB 27.89) replaces our vLLM fork as the base; the old queue (MTP-0 stress tests, exp-059/
 060/062/063/064, the SGLang stress notebooks, exp-058, exp-061) is superseded and does not run. Queue, in order:
@@ -194,6 +206,11 @@ champion preset are superseded by the move to the Duck family; they are in this 
    the competition since it passed through a chat upload.
 
 ## Follow-ups noticed (not fixed on purpose)
+
+- Rental runner image (2026-10-07): scripts/rental.py runs `gcr.io/kaggle-gpu-images/python:v170` (a tag). Kaggle's
+  own latest image moved to Python 3.13 and the M2 wheelhouse is cp312 only (lesson 0029); before the first rental,
+  check v170's Python (the box's preflight could assert it) or pin the digest Franzen's runs used if it is pullable.
+- scripts/franzen_report.py shows one pass per game for multi-pass runs (Franzen's v3 has four).
 
 - Measurement noise: four single runs of similar arms span 0.56-1.11 with 5-8 levels; the three levels every arm
   solves (ar25 L1, lp85 L1, sb26 L1) are the only stable signal. Plan: repeat exp-009 unchanged (exp-009b) to

@@ -6,7 +6,7 @@
 The queue file is a JSON list of items, in priority order:
 
     {"name": "exp045", "folder": "<built folder>", "kernel": "scottmahony/arc3-taaf-gate", "run": "exp045-gate",
-     "kind": "full" | "stress", "after": "<name>" (optional: push only once that item was pushed),
+     "kind": "full" | "stress" | "franzen", "after": "<name>" (optional: push only once that item was pushed),
      "requires_ok": "<run>" (optional: push only if runs/<run>/summary.json is a clean stress test; skipped if not),
      "pull_only": true (optional: pushed elsewhere; only pull it when it finishes)}
 
@@ -14,7 +14,9 @@ Every 2 minutes it tries to push the first eligible item with scripts/push_eval.
 GPU slots are busy, so a failed push just waits; a kernel already RUNNING or QUEUED counts as pushed, so a run pushed
 by an earlier loop is not pushed twice); every 5 minutes it checks the pushed items' status, and a finished
 one is pulled: full runs with scripts/pull_taaf_run.py and scripts/compare_to_harvest.py, stress tests by
-downloading kv_stress.json to runs/<run>/summary.json. Progress lines go to stdout; state is kept next to the queue
+downloading kv_stress.json to runs/<run>/summary.json, runs of Franzen's notebook by downloading only what
+scripts/franzen_report.py reads (benchmark.json, summary.txt, serve.log, the notebook log; his full output is
+hundreds of MB) to runs/<run>/kernel-output and writing its report to runs/<run>/report.txt and report.json. Progress lines go to stdout; state is kept next to the queue
 file (<queue>.state.json), so a restarted runner resumes where it stopped.
 """
 from __future__ import annotations
@@ -78,6 +80,19 @@ def pull(item: dict) -> str:
             summary = {"run_name": run_name, "kernel": kernel, "status": "no_output", "log_errors": oom}
         (ROOT / "runs" / run_name / "summary.json").write_text(json.dumps(summary, indent=1) + "\n")
         return f"{name}: {summary}" + (f"\n  log: {oom}" if oom else "")
+    if item.get("kind") == "franzen":
+        out_dir = ROOT / "runs" / run_name / "kernel-output"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        run([KAGGLE, "kernels", "output", kernel, "-p", str(out_dir), "--file-pattern",
+             r"benchmark\.json$|summary\.txt$|serve\.log$|git_status\.txt$|\.log$", "-q", "-o"], timeout=3600)
+        logs = sorted(p for p in out_dir.glob("*.log") if p.name != "serve.log")
+        cmd = [PY, "scripts/franzen_report.py", str(out_dir), "--json", str(out_dir.parent / "report.json")]
+        text = run(cmd + (["--log", str(logs[0])] if logs else []))
+        (out_dir.parent / "report.txt").write_text(text)
+        errors = []
+        for p in logs:
+            errors += re.findall(r".*(?:Error|Traceback|Command failed).*", p.read_text(errors="replace"))[:3]
+        return "\n".join(text.splitlines()[:40] + ([f"  log: {errors[:3]}"] if errors else []))
     text = run([PY, "scripts/pull_taaf_run.py", kernel, run_name], timeout=3600)
     lines = text.splitlines()[-34:]
     cmp_text = run([PY, "scripts/compare_to_harvest.py", f"runs/{run_name}/summary.json"])

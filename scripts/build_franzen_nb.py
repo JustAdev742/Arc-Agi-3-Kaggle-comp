@@ -69,6 +69,12 @@ SOURCES = {  # his kernel-metadata.json, 2026-10-02
                       "dfranzen/intel-qwen3.8-flash-next-w4a16-autoround/Transformers/default/1"],
     "kernel_sources": [],
 }
+# The Kaggle image his notebook ran in (his kernel-metadata.json; his v3 played 8.2 h on the RTX PRO 6000 in it on
+# 2026-10-03), pinned on every kernel we build, D' included: by 2026-10-07 Kaggle's latest image was Python 3.13 while
+# Pennyroyal's wheels are cp312 only (exp-070/070d v1 failed in the install cell), and the image D''s metadata names
+# (gcr.io/kaggle-images/python, Kaggle's CPU image) gave a session without CUDA (exp-070d v2).
+IMAGE = "gcr.io/kaggle-private-byod/python@sha256:57e612b484cf3df5026ee4dcc3cb176974b22b2bc0937fb1e16132a8be4cb13c"
+MACHINE_SHAPE = "NvidiaRtxPro6000"
 DEMO_ANCHOR = ("demo_excluded_games = [] if TRUE_SUBMISSION else ['bp35', 'cd82', 'cn04', 'dc22', 'g50t', 'ka59', "
                "'lf52', 'ls20', 'm0r0', 's5i5', 'sk48', 'sp80', 'su15', 'tn36', 'wa30']")
 BUDGET_ANCHOR = "        bm.solver.max_runtime_s_per_game = 25*60 #532*60 * bm.solver.concurrency // 110"
@@ -355,7 +361,8 @@ def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str]
     (out / f"{slug}.ipynb").write_text(json.dumps(nb, indent=1, ensure_ascii=False))
     meta = {"id": f"scottmahony/{slug}", "title": slug.replace("-", " "), "code_file": f"{slug}.ipynb",
             "language": "python", "kernel_type": "notebook", "is_private": True, "enable_gpu": True,
-            "enable_tpu": False, "enable_internet": False, "keywords": [], **SOURCES}
+            "enable_tpu": False, "enable_internet": False, "keywords": [], **SOURCES,
+            "docker_image": IMAGE, "docker_image_pinning_type": "original", "machine_shape": MACHINE_SHAPE}
     (out / "kernel-metadata.json").write_text(json.dumps(meta, indent=1))
     return changes
 

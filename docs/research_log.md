@@ -2081,3 +2081,20 @@ Built:    kaggle/dprime/ (their notebook unmodified + NOTICE; Apache-2.0 as a pu
           was unused): exp-070d scottmahony/arc3-dprime (their 1-game 5-min save run) and exp-070
           scottmahony/arc3-franzen-m2 (his 10-game demo). Either becomes submittable when its run completes; the
           owner submits (one per day).
+
+## 2026-10-07 21:36 · exp-070/070d v1 failed: Kaggle's latest image is Python 3.13; kernels now pin his image · FIXED, RE-PUSHED
+What:     Both v1 runs (pushed 21:18) failed in the install cell after ~5 min: Kaggle ran them in its latest image
+          (`kaggle-private-byod/python@sha256:2757e0c7...`, Python 3.13) and Pennyroyal's wheelhouse is cp312 only
+          ("aiohttp==3.14.3 has no wheels with a matching Python ABI tag"). Our metadata had no `docker_image`.
+          The exp-072a v1 gate run failed the same way. exp-070d v2 pinned the image D''s page lists
+          (`kaggle-images/python@sha256:e5452ce6...`): Python 3.12, but `torch.cuda.is_available()` False after
+          ~3 min (Kaggle's CPU image name). The exp-072a v2 gate run had the same pin (queued before the fix).
+Fix:      scripts/build_franzen_nb.py pins Franzen's image (`kaggle-private-byod/python@sha256:57e612b4...`, the one
+          his v3 ran 8.2 h on the RTX PRO 6000 in on Oct 3) with pinning type "original" and machine shape
+          NvidiaRtxPro6000 for both bases; scripts/copy_public_nb.py copies the upstream pin or takes `--image`;
+          tests in tests/test_build_franzen_nb.py (13 pass). Lesson 0029. exp-070 (Franzen's 10-game demo) is
+          dropped: D' is the submission candidate and Franzen's LB distribution is known from five public draws.
+Queue:    exp-070d v3 (D' copy, his image) pushed 21:37; scripts/kaggle_queue.py (new "franzen" kind: downloads only
+          benchmark.json/summary.txt/serve.log/logs and writes runs/<run>/report.txt with scripts/franzen_report.py)
+          pushes exp-072a v3 and exp-072b once the v2 gate run has ended.
+Cost:     four failed sessions of ~3-6 min each (~0.3 GPU-h).
