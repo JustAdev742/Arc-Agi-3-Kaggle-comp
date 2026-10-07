@@ -74,3 +74,28 @@ the SGLang plan), but he had shipped all of it, tested, plus a scheduler and per
 4. Next, on his base: knobs he did not settle (admission slots 10 vs 12, the drain target, guards from level 1,
    image scale, the continuation values), each as repeated runs; and what Tufa Labs and Yi-Chia Chen (48-52) do,
    which nobody has published.
+
+## Public notebook scores, 2026-10-07 21:4x UTC (scripts/kaggle_nb_scores.py)
+
+`kaggle kernels list` shows no scores, but Kaggle's search API (kagglesdk `SearchApiService.ListEntities`, kernel
+documents) carries each notebook's `best_public_score`: the best leaderboard draw among its owner's submissions.
+Of the competition's 296 listed notebooks, 194 have one. The Franzen family, top first:
+
+| Best public | Notebook | What it is |
+|---:|---|---|
+| **34.30** | dfranzen/arc-agi-3-milestone-2-solution | his notebook (v3 changes only the save run: 4 passes on the public 25; the rerun is v1's) |
+| 31.93 | sujanmajhisuzan/arc-agi-3-m2-top-submission | D' + a capability guard + "solved-level episodic memory / 4-tier watchdog" |
+| 31.73 | leoprovorov/fable-astra-play-arc-3-handbook-harness | the author's unchanged copy of Franzen's notebook |
+| 31.66 | skarin/arc-agi-3-27-80-lb-100-trajectory-audit | Franzen copy + audit |
+| 31.54 | shiiin9/affectify-arc-31-54-in-a-single-sub | D' (Franzen + a new slot priority) |
+| 31.27 | sigeward/arc-agi-3-milestone-2-solution | Franzen copy |
+| 29.30 | vladimiryakunin/df-wm | Franzen variant |
+| 29.16 | amatlas/dfranzen-fork-d-prime | D' fork |
+| 27.63, 27.28, 26.99, 26.70, 24.28, 24.21 | juliancamilovilla, lizw1233, lwq255 (guarded), sad12454, svegio, anthonyxlyu | Franzen copies |
+| 24.71 | lwq255/arc3-dprime-guarded | D' + a capability guard (no rerun change) |
+
+Reading: one distribution. D' copies (31.54, 29.16, 24.71) and Franzen copies (mean of the nine above ~28.3) are
+indistinguishable; a best-of-several-draws of ~28.5 +/- 3.3 reaches 34. **The "34" is Franzen's own notebook on a
+lucky draw, not a better method.** The 34-39 teams on the LB either drew well or run private changes.
+Consequence: the public LB max says little about a notebook's mean, and choosing the final submission by its public
+score gains almost nothing on the private half (independent games); the true mean is what we must raise.
