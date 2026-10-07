@@ -207,9 +207,9 @@ champion preset are superseded by the move to the Duck family; they are in this 
 
 ## Follow-ups noticed (not fixed on purpose)
 
-- Rental runner image (2026-10-07): scripts/rental.py runs `gcr.io/kaggle-gpu-images/python:v170` (a tag). Kaggle's
-  own latest image moved to Python 3.13 and the M2 wheelhouse is cp312 only (lesson 0029); before the first rental,
-  check v170's Python (the box's preflight could assert it) or pin the digest Franzen's runs used if it is pullable.
+- Rental runner image (checked 2026-10-07 from the registry's image config, no pull): `gcr.io/kaggle-gpu-images/
+  python:v170` is Python 3.12 (`/usr/local/lib/python3.12/dist-packages`), CUDA 12.8, built 2026-06-29, so the M2
+  cp312 wheelhouse fits it. The tag is mutable: pin its digest (manifest config sha256:c7283137...) before a rental.
 - scripts/franzen_report.py shows one pass per game for multi-pass runs (Franzen's v3 has four).
 
 - Measurement noise: four single runs of similar arms span 0.56-1.11 with 5-8 levels; the three levels every arm
