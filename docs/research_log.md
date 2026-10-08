@@ -2461,3 +2461,13 @@ v1:       ERROR at cell 12's checkpoint check: "Missing/empty shard: /tmp/ours-m
           file goes back in. Cost: under 1 GPU-minute (output kept in runs/exp076v1-dprime-swift-failed-mtp-shard).
 v2:       same arm with the file linked; pushed 16:36 (QUEUED). Its next unknowns are server-side (INT4 linear_attn
           projections, the config's new fields); --fail-fast ends it within ~1 min if the server dies.
+
+## 2026-10-08 16:39 · decode throughput plateaus at 10-12 running requests: more than 14 streams would not help · MEASURED (no GPU)
+Data:     exp-073b serve.log, 3,802 decode lines grouped by #running-req (median gen tok/s; per-request rate; accept):
+          7: 779 (111/req) · 8: 843 (105) · 9: 904 (100) · 10: 931 (93) · 11: 907 (82) · 12: 969 (81) · 13: 954 (73) ·
+          14: 922 (66). Implied step time 28 ms at 7, 34 ms at 10, 38 ms at 12, 47 ms at 14 (accept ~3.1 throughout).
+Reading:  total decode throughput is flat from ~10 running on; REAP-14's gain came from keeping >= 10 requests
+          running (12.3 on average vs ~9 with his 10 slots), not from decoding 14 at once. A 16-stream arm (exp-072i)
+          would add running requests on the flat part and pool pressure at long contexts: dropped. Grouping by batch
+          size mixes in context length (busier periods are later, with longer contexts), so the 13-14 dip is not
+          clean evidence of a cost; the plateau is.
