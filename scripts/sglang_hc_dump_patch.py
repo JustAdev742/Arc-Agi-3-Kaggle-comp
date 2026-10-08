@@ -362,9 +362,9 @@ def quantize_rows(x, dtype: str = "fp8") -> dict:
 ST_DTYPES = {"F8_E4M3": "<u1", "BF16": "<u2", "U8": "<u1", "I32": "<i4", "I64": "<i8", "F32": "<f4"}
 
 
-def write_safetensors(path: Path, tensors: list[tuple[str, str, np.ndarray]], metadata: dict[str, str]) -> int:
-    """Write ``(name, dtype, array)`` in the safetensors layout (FP8 and BF16 given as their uint8/uint16 bits).
-    Atomic (a temporary file renamed); returns the file size."""
+def encode_safetensors(tensors: list[tuple[str, str, np.ndarray]], metadata: dict[str, str]) -> list[bytes]:
+    """``(name, dtype, array)`` (FP8 and BF16 given as their uint8/uint16 bits) in the safetensors layout: the 8-byte
+    header size, the JSON header (space-padded to 8 bytes), then each tensor's little-endian bytes."""
     header: dict = {"__metadata__": metadata}
     blobs, offset = [], 0
     for name, dtype, array in tensors:
@@ -374,14 +374,17 @@ def write_safetensors(path: Path, tensors: list[tuple[str, str, np.ndarray]], me
         offset += len(data)
     head = json.dumps(header, separators=(",", ":")).encode()
     head += b" " * (-len(head) % 8)
+    return [struct.pack("<Q", len(head)), head, *blobs]
+
+
+def write_safetensors(path: Path, parts: list[bytes]) -> int:
+    """Write :func:`encode_safetensors` output atomically (a temporary file renamed); returns the file size."""
     tmp = path.with_name(path.name + ".tmp")
     with open(tmp, "wb") as f:
-        f.write(struct.pack("<Q", len(head)))
-        f.write(head)
-        for data in blobs:
+        for data in parts:
             f.write(data)
     os.replace(tmp, path)
-    return 8 + len(head) + offset
+    return sum(len(p) for p in parts)
 
 
 def read_safetensors(path) -> tuple[dict[str, np.ndarray], dict[str, str]]:
@@ -593,7 +596,9 @@ class Dumper:
             "keep": self.keep, "qerr_max": round(q["qerr_max"], 5), "qerr_mean": round(q["qerr_mean"], 5),
             "nonfinite_rows": q["nonfinite"], "missing_prefix": req.missing_prefix if req.chunks == 0 else 0,
         }
-        size = 8 + sum(np.asarray(a).size * np.dtype(ST_DTYPES[d]).itemsize for _, d, a in tensors) + 4096
+        meta = {"arc3_hc_dump": json.dumps({"format": FORMAT, "version": VERSION, **record, "tensors": TENSORS})}
+        parts = encode_safetensors(tensors, meta)
+        size = sum(len(p) for p in parts)
         if self.max_bytes and self.bytes + size > self.max_bytes:
             self.stopped = f"the next file would pass {ENV_MAX_GB} ({self.bytes / 1e9:.2f} GB written)"
             logger.warning("arc3 HC dump: stopped: %s", self.stopped)
@@ -601,8 +606,7 @@ class Dumper:
                          "bytes_total": self.bytes})
             return None
         (self.out / req.dir).mkdir(exist_ok=True)
-        meta = {"arc3_hc_dump": json.dumps({"format": FORMAT, "version": VERSION, **record, "tensors": TENSORS})}
-        record["bytes"] = write_safetensors(self.out / req.dir / name, tensors, meta)
+        record["bytes"] = write_safetensors(self.out / req.dir / name, parts)
 
         # the request's ring now ends at this chunk's last row; rows written now are only marked
         for r in carried:

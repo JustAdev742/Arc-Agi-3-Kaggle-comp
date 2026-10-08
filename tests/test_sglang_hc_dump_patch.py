@@ -7,6 +7,7 @@ from __future__ import annotations
 import ast
 import difflib
 import hashlib
+import itertools
 import json
 import os
 import sys
@@ -30,6 +31,9 @@ WHEEL = Path(os.environ.get("PENNYROYAL_WHEEL", "/tmp/claude-0/-home-user-Arc-Ag
 needs_wheel = pytest.mark.skipif(not WHEEL.is_file(), reason="Pennyroyal sglang wheel not available (PENNYROYAL_WHEEL)")
 S, E, A, NL, T = hd.IM_START, hd.IM_END, hd.ASSISTANT, hd.NEWLINE, hd.THINK
 USER, NLNL, PAD = 846, 271, 1_000_000 + 12345  # 'user', '\n\n', an image row's pad value
+C = 12  # context rows in the dumps below
+BASE = {key: ("pristine" if "+" not in value else "reap") for key, value in hd.BASE_SHA256.items()}
+DIRS = itertools.count()
 
 
 def turn(body, think=True, nl=True):
@@ -56,7 +60,7 @@ def merged_spans(pieces):
 
 def scan_in_pieces(ids, cuts):
     state, pieces, bounds = hd.ScanState(), [], [0, *cuts, len(ids)]
-    for lo, hi in zip(bounds[:-1], bounds[1:]):
+    for lo, hi in itertools.pairwise(bounds):
         spans, state = hd.scan_spans(np.array(ids[lo:hi], np.int64), lo, state)
         pieces.append(spans)
     return merged_spans(pieces), state
@@ -68,11 +72,11 @@ def scan_in_pieces(ids, cuts):
 def test_spans_of_a_rendered_conversation():
     ids = [S, 8678, NL, 1, 2, E, NL] + user([3, 4]) + turn([10, 11, 12]) + user([5]) + turn([13]) + GEN_PROMPT
     spans, state = hd.scan_spans(np.array(ids), 0, hd.ScanState())
-    first = 7 + 6 + 5  # system (7), user (6), header (5)
-    assert [s.as_list() for s in spans] == [[0, first, first + 3, 1, "im_end"],      # 10 11 12 <|im_end|>
-                                            [1, first + 12, first + 13, 1, "im_end"],  # 13 <|im_end|>
-                                            [2, len(ids), -1, 1, ""]]                   # the generation prompt
-    assert ids[first - 5:first] == [S, A, NL, T, NL] and ids[first + 3] == E
+    first, second = ids.index(10), ids.index(13)
+    assert [s.as_list() for s in spans] == [[0, first, first + 3, 1, "im_end"],     # 10 11 12 <|im_end|>
+                                            [1, second, second + 1, 1, "im_end"],  # 13 <|im_end|>
+                                            [2, len(ids), -1, 1, ""]]               # the generation prompt
+    assert ids[first - 5:first] == ids[second - 5:second] == [S, A, NL, T, NL] and ids[first + 3] == E
     assert state.phase == hd.SPAN and state.opened == 3 and state.span_start == len(ids)
 
 
@@ -108,7 +112,7 @@ def test_header_variants():
 
 
 def test_nested_and_unterminated_spans():
-    ids = [S, A, NL, T, NL, 10, 11, S, A, NL, T, NL, 12, E, NL, S, A, NL, T, NL, S, 846]
+    ids = [S, A, NL, T, NL, 10, 11, S, A, NL, T, NL, 12, E, NL, S, A, NL, T, NL, S]
     spans, state = hd.scan_spans(np.array(ids), 0, hd.ScanState())
     assert [s.as_list() for s in spans] == [
         [0, 5, 6, 1, "im_start"],    # a header inside a span ends it at the row before
@@ -145,9 +149,10 @@ def test_select_rows_marks_span_rows_and_the_context_before_each_span():
 
 
 def stream():
-    """Requests as the server sees them: system, user turns with image rows, assistant turns of every shape."""
+    """A request as the server sees it: system, user turns ending in image rows, assistant turns of several shapes
+    (the third has empty reasoning), the generation prompt."""
     ids = [S, 8678, NL] + list(range(20, 32)) + [E, NL]
-    ids += user([PAD] * 6 + [40, 41])
+    ids += user([40, 41] + [PAD] * 6)
     ids += turn(range(50, 64))
     ids += user([42] + [PAD + 1] * 3)
     ids += turn([65, 66])
@@ -158,21 +163,21 @@ def stream():
     return ids + GEN_PROMPT
 
 
-def dump(tmp_path, ids, cuts, *, context=5, keep="spans", dtype="fp8", loss_spans=None, rid="req-1", seed=0,
+def dump(tmp_path, ids, cuts, *, context=C, keep="spans", dtype="fp8", loss_spans=None, rid="req-1", seed=0,
          mm=True):
     rng = np.random.default_rng(seed)
     n = len(ids)
     hc = hd.bf16_value(hd.bf16_bits(rng.standard_normal((n, 32)).astype(np.float32) * np.exp(rng.uniform(-3, 3, (n, 1)))))
     embeds = rng.standard_normal((n, 6)).astype(np.float32)
     mrope = np.stack([np.arange(n), np.arange(n) * 2, np.arange(n) * 3])
-    out = tmp_path / f"dump-{len(cuts)}-{cuts[:3]}"
+    out = tmp_path / f"dump{next(DIRS)}"
     if loss_spans is not None:
         (out / "plans").mkdir(parents=True)
         (out / "plans" / f"{rid}.json").write_text(json.dumps({"loss_spans": loss_spans}))
     dumper = hd.Dumper(out, context=context, keep=keep, dtype=dtype)
     bounds = [0, *cuts, n]
     records = []
-    for lo, hi in zip(bounds[:-1], bounds[1:]):
+    for lo, hi in itertools.pairwise(bounds):
         records.append(dumper.process_chunk(rid, lo, np.array(ids[lo:hi]), hc[lo:hi], positions=np.arange(lo, hi),
                                             mrope=mrope[:, lo:hi], mm_embeds=embeds[lo:hi] if mm else None))
     return out, hc, embeds, records
@@ -195,12 +200,13 @@ def test_a_dump_does_not_depend_on_how_the_prompt_was_chunked(tmp_path):
             assert np.array_equal(got[key], ref[key]), (key, cuts)
         assert got["spans"] == ref["spans"] and len(records) == len(cuts) + 1 and all(records)
         assert sum(r["n"] for r in records) == len(ids) and records[-1]["spans_opened_total"] == 5
-    # what was kept: every span row, the 5 rows before each span, nothing else; values within FP8 error
+    # what was kept: every span row, the C rows before each span, nothing else; values within FP8 error
     spans = ref["spans"]
-    assert [s[2] - s[1] + 1 for s in spans.values()] == [15, 3, 5, 21, 0]
+    assert [(s[2] if s[2] >= 0 else len(ids) - 1) - s[1] + 1 for s in spans.values()] == [15, 3, 5, 21, 0]
+    assert spans[4] == [4, len(ids), -1, 1, ""]  # the generation prompt: no rows, so no context either
     want = {}
-    for index, start, end, _, _ in spans.values():
-        for p in range(max(0, start - 5), start):
+    for _, start, end, _, _ in list(spans.values())[:4]:
+        for p in range(max(0, start - C), start):
             want.setdefault(p, 0)
         for p in range(start, end + 1):
             want[p] = 1
@@ -210,7 +216,7 @@ def test_a_dump_does_not_depend_on_how_the_prompt_was_chunked(tmp_path):
     assert np.all(np.abs(rows - exact) <= np.abs(exact) * 2.0 ** -4 + np.abs(exact).max(1, keepdims=True) * 2.0 ** -18)
     # image rows inside a kept range carry the input embedding the target consumed (BF16); token ids keep pad values
     images = [p for p in want if ids[p] >= hd.MM_PAD_MIN]
-    assert ref["img_pos"].tolist() == sorted(images) and len(images) >= 4
+    assert ref["img_pos"].tolist() == sorted(images) and len(images) == 5 + 3 + 4
     assert np.array_equal(hd.bf16_value(ref["img_embeds"]), hd.bf16_value(hd.bf16_bits(embeds[sorted(images)])))
     assert ref["token_ids"].tolist() == ids and ref["positions"].tolist() == list(range(len(ids)))
     assert ref["mrope_positions"][2].tolist() == [3 * p for p in range(len(ids))]
@@ -218,22 +224,23 @@ def test_a_dump_does_not_depend_on_how_the_prompt_was_chunked(tmp_path):
 
 def test_context_rows_older_than_one_small_chunk_come_from_the_ring(tmp_path):
     ids = user(list(range(100, 130))) + turn([1, 2, 3])
-    out, _, _, records = dump(tmp_path, ids, list(range(1, len(ids))), context=12)  # one token per chunk
+    out, _, _, records = dump(tmp_path, ids, list(range(1, len(ids))))  # one token per chunk
     got = hd.load_request(out, "req-1")
-    first = ids.index(T) + 2
-    assert got["hc_pos"].tolist() == list(range(first - 12, first + 5)) and got["hc_role"].tolist() == [0] * 12 + [1] * 5
+    first = ids.index(1)  # the span's first row; the header's last token opened it one chunk earlier
+    assert got["hc_pos"].tolist() == list(range(first - C, first + 4)) and got["hc_role"].tolist() == [0] * C + [1] * 4
     carriers = [r for r in records if r["carried"]]
-    assert len(carriers) == 1 and carriers[0]["start"] == first and carriers[0]["carried"] == 11
-    assert all(r["kept"] == 0 for r in records if r["start"] < first - 1)
+    assert len(carriers) == 1 and carriers[0]["start"] == first and carriers[0]["carried"] == C
+    assert all(r["kept"] == 0 for r in records if r["start"] < first)
+    assert records[first - 1]["spans"] == [[0, first, -1, 1, ""]]  # opened at the header's end: no rows yet
 
 
 def test_a_plan_keeps_only_its_loss_spans_and_their_context(tmp_path):
     ids = stream()
     out, _, _, records = dump(tmp_path, ids, [9, 40, 77], loss_spans=[3])
     got = hd.load_request(out, "req-1")
-    index, start, end, _, _ = got["spans"][3]
-    assert got["hc_pos"].tolist() == list(range(start - 5, end + 1))
-    assert got["hc_role"].tolist() == [0] * 5 + [1] * (end - start + 1)
+    _, start, end, _, _ = got["spans"][3]
+    assert got["hc_pos"].tolist() == list(range(start - C, end + 1))
+    assert got["hc_role"].tolist() == [0] * C + [1] * (end - start + 1)
     assert records[0]["plan"] == "req-1.json" and records[-1]["loss_spans"] == [3]
     assert len(got["spans"]) == 5  # every span is still reported
 
@@ -322,7 +329,7 @@ def test_chunk_files_are_self_describing_safetensors(tmp_path):
     assert header["hc"]["dtype"] == "F8_E4M3" and header["hc_scale"]["dtype"] == "BF16" and size % 8 == 0
     assert records[1]["bytes"] == len(raw)
     fmt = json.loads((out / "format.json").read_text())
-    assert fmt["tokens"]["im_start"] == 248045 and fmt["settings"]["context"] == 5 and "span_rule" in fmt
+    assert fmt["tokens"]["im_start"] == 248045 and fmt["settings"]["context"] == C and "span_rule" in fmt
     index = hd.read_index(out)
     assert [r["file"] for r in index] == [r["file"] for r in records] and index[-1]["bytes_total"] == sum(
         r["bytes"] for r in records)
@@ -343,8 +350,9 @@ def test_the_size_cap_stops_the_dump_and_errors_stay_inside_it(tmp_path):
     ids = stream()
     rng = np.random.default_rng(0)
     hc = rng.standard_normal((len(ids), 32)).astype(np.float32)
-    dumper = hd.Dumper(tmp_path / "cap", context=5, max_bytes=3000)
-    assert dumper.process_chunk("a", 0, np.array(ids[:40]), hc[:40]) is not None
+    first = hd.Dumper(tmp_path / "probe", context=5).process_chunk("a", 0, np.array(ids[:40]), hc[:40])["bytes"]
+    dumper = hd.Dumper(tmp_path / "cap", context=5, max_bytes=first + 100)
+    assert dumper.process_chunk("a", 0, np.array(ids[:40]), hc[:40])["bytes"] == first
     assert dumper.process_chunk("a", 40, np.array(ids[40:]), hc[40:]) is None and dumper.stopped
     assert dumper.process_chunk("b", 0, np.array(ids), hc) is None
     events = [r for r in hd.read_index(tmp_path / "cap") if "event" in r]
@@ -517,7 +525,8 @@ def test_patch_text_needs_each_anchor_once_and_reverts_exactly():
         hd.unpatch_text(patched.replace("            _arc3_hc_dump.capture(", "            _arc3_hc_dump.capt("))
     # only lines were added: nothing of the original changes
     diff = list(difflib.ndiff(text.splitlines(), patched.splitlines()))
-    assert not [d for d in diff if d.startswith("- ")] and len([d for d in diff if d.startswith("+ ")]) == 21
+    added = len(patched.splitlines()) - len(text.splitlines())
+    assert not [d for d in diff if d.startswith("- ")] and len([d for d in diff if d.startswith("+ ")]) == added == 20
 
 
 def test_the_patch_composes_with_reap_in_either_order_on_the_anchored_text():
@@ -535,7 +544,7 @@ def _forward_of(text: str, flag: bool, dump_module=None):
     cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "Qwen4ExpForConditionalGeneration")
     fn = next(n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name == "forward")
     assert [ast.unparse(d) for d in fn.decorator_list] == ["torch.no_grad()"]
-    source = textwrap.indent(textwrap.dedent(ast.get_source_segment(text, fn)), "    ")
+    source = textwrap.indent(textwrap.dedent(" " * fn.col_offset + ast.get_source_segment(text, fn)), "    ")
     code = ("class Base:\n    def forward(self, *args, **kwargs):\n        return self.base(*args, **kwargs)\n\n\n"
             "class Model(Base):\n" + source)
 
@@ -545,7 +554,7 @@ def _forward_of(text: str, flag: bool, dump_module=None):
     ns = {"LogitsProcessorOutput": LogitsProcessorOutput, "_ARC3_HC_DUMP": flag}
     if dump_module is not None:
         ns["_arc3_hc_dump"] = dump_module
-    exec(compile(code, "<forward>", "exec"), ns)  # noqa: S102 - the method's own source, from the file under test
+    exec(compile(code, "<forward>", "exec"), ns)  # the method's own source, from the file under test
     return ns["Model"], LogitsProcessorOutput
 
 
@@ -587,7 +596,7 @@ def test_the_module_flag_is_read_once_and_imports_nothing_when_unset(monkeypatch
     block = hd.CLASS_NEW.replace(hd.CLASS_ANCHOR, "")
     monkeypatch.delenv(hd.ENV, raising=False)
     ns: dict = {}
-    exec(compile(block, "<block>", "exec"), ns)  # noqa: S102 - the patch's own text
+    exec(compile(block, "<block>", "exec"), ns)  # the patch's own text
     assert ns["_ARC3_HC_DUMP"] is False and "_arc3_hc_dump" not in ns
     fake = types.ModuleType("sglang.srt.arc3_hc_dump")
     srt = types.ModuleType("sglang.srt")
@@ -597,7 +606,7 @@ def test_the_module_flag_is_read_once_and_imports_nothing_when_unset(monkeypatch
     monkeypatch.setitem(sys.modules, "sglang.srt.arc3_hc_dump", fake)
     monkeypatch.setenv(hd.ENV, "/some/dir")
     ns = {}
-    exec(compile(block, "<block>", "exec"), ns)  # noqa: S102
+    exec(compile(block, "<block>", "exec"), ns)
     assert ns["_ARC3_HC_DUMP"] is True and ns["_arc3_hc_dump"] is fake
 
 
@@ -636,8 +645,8 @@ def test_the_real_wheel_file_patches_composes_with_reap_and_refuses_other_versio
     with zipfile.ZipFile(WHEEL) as wheel:
         original = wheel.read(str(hd.MODEL_FILE)).decode()
     sha = hashlib.sha256
-    assert BASE == {sha(original.encode()).hexdigest(): "pristine",
-                    sha(rp.patch_text(original).encode()).hexdigest(): "reap"}  # both pinned hashes are these files
+    pinned = {sha(original.encode()).hexdigest(): "pristine", sha(rp.patch_text(original).encode()).hexdigest(): "reap"}
+    assert pinned == BASE  # both hashes the patch accepts are these two files
     site = _site_packages(tmp_path / "hc-first", original)
     target = site / hd.MODEL_FILE
     assert hd.main(["apply", "--site-packages", str(site)]) == 0
@@ -668,5 +677,3 @@ def test_the_real_wheel_file_patches_composes_with_reap_and_refuses_other_versio
     assert hd.main(["apply", "--site-packages", str(other), "--allow-other-version"]) == 0
     assert hd.main(["check-wheel", str(WHEEL)]) == 0
 
-
-BASE = {key: ("pristine" if "+" not in value else "reap") for key, value in hd.BASE_SHA256.items()}
