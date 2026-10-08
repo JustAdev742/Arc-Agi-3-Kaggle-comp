@@ -1,0 +1,414 @@
+diff --git a/ARC3-Inference/inference/agent/python_tool_sandbox.py b/ARC3-Inference/inference/agent/python_tool_sandbox.py
+index 14bdf62..11b869c 100644
+--- a/ARC3-Inference/inference/agent/python_tool_sandbox.py
++++ b/ARC3-Inference/inference/agent/python_tool_sandbox.py
+@@ -412,6 +412,8 @@ _SANDBOX_BOOTSTRAP = textwrap.dedent(
+             runtime_globals["valid_actions"] = [str(item) for item in state_payload.get("valid_actions", [])]
+             runtime_globals["death_ledger"] = state_payload.get("death_ledger") or {"attempts": []}
+             runtime_globals["last_action_call_result"] = action_result
++            if "budget" in state_payload:  # ours (budget meter): sent only with OURS_BUDGET_METER on
++                runtime_globals["budget"] = state_payload.get("budget")
+ 
+         # Both refusals derive from BaseException, not Exception, so a
+         # defensive `except Exception:` around action(...) - which models write
+diff --git a/ARC3-Inference/inference/agent/tool_agent.py b/ARC3-Inference/inference/agent/tool_agent.py
+index e36ec65..335c1f7 100644
+--- a/ARC3-Inference/inference/agent/tool_agent.py
++++ b/ARC3-Inference/inference/agent/tool_agent.py
+@@ -4811,6 +4811,29 @@ class ToolAgent:
+             lines.append(f"Current state: step {step}, level {level}.")
+         return lines
+ 
++    # ours (budget meter, patch ours-02-budget-meter): OURS_BUDGET_METER=1 (read at call time, default off) reads
++    # the attempt's budget bar from the recorded frames (inference/utils/budget_bar.py). Off, nothing here runs.
++    def _ours_budget_meter(self):
++        meter = getattr(self, "_ours_budget_meter_state", None)
++        if meter is None:
++            from inference.utils.budget_bar import BudgetMeter
++            meter = self._ours_budget_meter_state = BudgetMeter()
++        return meter
++
++    def _ours_budget(self, history_entries, *, death: bool = False):
++        """The meter's reading of the current attempt (death=True: the budget-death verdict for a history that
++        ends with the fatal action and the automatic RESET), or None when the flag is off or the meter is unsure."""
++        if not _get_env_bool("OURS_BUDGET_METER", False):
++            return None
++        try:
++            entries = [(e.action, e.frame.grid, e.frame.level, e.frame.step)
++                       for e in history_entries or [] if e.frame is not None]
++            meter = self._ours_budget_meter()
++            return meter.death(entries) if death else meter.read(entries)
++        except Exception:  # the meter must never cost a turn: an error reads as "unsure"
++            log.warning("budget meter failed", exc_info=True)
++            return None
++
+     def _build_user_prompt(
+         self,
+         action_num: int,
+@@ -5034,6 +5057,11 @@ class ToolAgent:
+                 self._prepare_gameover_images(
+                     history_entries, previous_step_summary
+                 )
++                # ours (budget meter): stated only when the bar read as run out at the fatal action
++                verdict = self._ours_budget(history_entries, death=True)
++                if verdict is not None:
++                    from inference.utils.budget_bar import death_line
++                    lines.append(death_line(verdict))
+                 if _get_env_bool("ARC3_GAMEOVER_DIFF", False):
+                     # read at call time so this patch's hunks stay clear of the
+                     # env-knob block that other patches extend
+@@ -5089,9 +5117,16 @@ class ToolAgent:
+         if observed_max_level > current_level:
+             state_line += f" out of observed max level {observed_max_level} so far"
+         state_line += "."
++        # ours (budget meter): one line after the state line once the meter has a reading for this attempt
++        budget_lines = []
++        budget = self._ours_budget(history_entries)
++        if budget is not None:
++            from inference.utils.budget_bar import prompt_line
++            budget_lines.append(prompt_line(budget))
+         lines.extend(
+             [
+                 state_line,
++                *budget_lines,
+                 f"Valid actions right now: {_format_valid_action_line(valid_actions)}.",
+             ]
+         )
+@@ -5751,7 +5786,7 @@ class ToolAgent:
+                 if isinstance(last_action_call_result, dict)
+                 else self._last_action_call_result
+             )
+-            return {
++            state = {
+                 "current_frame": current_frame_payload,
+                 "history": _ascii_history_view_payload(refreshed_history),
+                 "valid_actions": sanitized_actions,
+@@ -5766,6 +5801,10 @@ class ToolAgent:
+                     else {}
+                 ),
+             }
++            if _get_env_bool("OURS_BUDGET_METER", False):  # ours (budget meter): `budget` in the sandbox
++                from inference.utils.budget_bar import public
++                state["budget"] = public(self._ours_budget(refreshed_history))
++            return state
+ 
+         terminal_action_result: dict[str, Any] | None = None
+         snippet_executed_actions = 0
+diff --git a/ARC3-Inference/inference/utils/budget_bar.py b/ARC3-Inference/inference/utils/budget_bar.py
+new file mode 100644
+index 0000000..1c8c9d4
+--- /dev/null
++++ b/ARC3-Inference/inference/utils/budget_bar.py
+@@ -0,0 +1,312 @@
++"""Budget meter: the action budget of the current attempt, read from an edge bar of the recorded frames.
++
++ours (patch ours-02-budget-meter, flag OURS_BUDGET_METER, default off). The harness reads it in
++ToolAgent._build_user_prompt (one line after "Current state: ..."), in the game-over prompt ("budget death"), and
++exposes it in the python sandbox as `budget`.
++
++Most games draw the per-attempt action budget as a bar on a row or column at the edge of the board that loses
++cells as actions are spent and refills at RESET or at a new level. This module finds that bar from the frames alone
++(no game knowledge, no model) and estimates how many actions are left before it is empty.
++
++It is deliberately conservative: a false reading is worse than none. It says nothing until the bar has lost cells
++at least ``MIN_DROPS`` times in the current attempt in a steady pattern; nothing when two lines look like bars and
++disagree; nothing for a line that drains in bursts, stops, or rises a little (something moving, not a meter); and
++nothing when the bar this game used before is drawn but is not the line that is draining, or drains into a
++different colour than before (a second layer of budget may sit under the first).
++
++Time is counted in charged actions: an action of a kind that has never lowered the bar (it is free), and an action
++that changed nothing on the board and did not lower the bar either (a blocked move, a click on nothing), are not
++counted. Stdlib only.
++"""
++from __future__ import annotations
++
++from collections import Counter
++from itertools import pairwise
++
++EDGE = 4            # rows/columns within this many cells of the border are scanned
++MIN_DROPS = 3       # drops seen in the current attempt before anything is reported
++MIN_START = 8       # a bar has at least this many cells of its colour when the attempt starts
++COLOR_CHARS = "WwgGcBMPRbSYOrNp"  # the letters the model sees in `.ascii` (inference.utils.grid_utils)
++
++
++def _kind(action) -> str:
++    return str(action or "").split("(", 1)[0].strip().upper()
++
++
++def frame_record(action, grid, level, step) -> dict:
++    """What the meter keeps of one history entry: its edge-line colour counts and an interior fingerprint."""
++    h = len(grid)
++    w = len(grid[0]) if h else 0
++    rows = sorted(set(range(min(EDGE, h))) | set(range(max(0, h - EDGE), h)))
++    cols = sorted(set(range(min(EDGE, w))) | set(range(max(0, w - EDGE), w)))
++    lines = {}
++    for r in rows:
++        lines[("row", r)] = dict(Counter(grid[r]))
++    for c in cols:
++        lines[("column", c)] = dict(Counter(row[c] for row in grid))
++    interior = hash(tuple(tuple(row[EDGE:w - EDGE]) for row in grid[EDGE:h - EDGE]))
++    return {"action": str(action or ""), "level": level, "step": step, "lines": lines, "interior": interior}
++
++
++def attempt_starts(records) -> list:
++    """Indices where an attempt starts: the first entry, every RESET, every level change."""
++    starts = [0]
++    for i in range(1, len(records)):
++        if _kind(records[i]["action"]) == "RESET" or records[i]["level"] != records[i - 1]["level"]:
++            starts.append(i)
++    return starts
++
++
++def _candidate(records, a, n, key, colour):
++    """Bar statistics of one (line, colour) over the attempt records[a..n], or None if it does not drain like a bar."""
++    series = [records[j]["lines"].get(key, {}).get(colour, 0) for j in range(a, n + 1)]
++    start = series[0]
++    if start < MIN_START:
++        return None
++    drops, refills = [], []
++    for j in range(1, len(series)):
++        d = series[j - 1] - series[j]
++        if d > 0:
++            drops.append((j, d))
++        elif d < 0:
++            refills.append((j, -d))
++    if len(drops) < MIN_DROPS:
++        return None
++    sizes = Counter(d for _, d in drops)
++    unit = min(sizes, key=lambda s: (-sizes[s], s))  # the usual drop
++    big = sum(k for s, k in sizes.items() if s > unit + 1)
++    if 4 * big > len(drops) or unit > max(2, start // 8):
++        return None  # mostly irregular drops, or drops too coarse for a meter: something moving, not a bar
++    # a refill restores several actions' worth at once and is rare; a small rise is something moving
++    if any(g < max(4, 2 * unit + 1) for _, g in refills) or 10 * len(refills) > len(series) - 1:
++        return None
++    refill_at = {j for j, _ in refills}
++    dropped_at = {j for j, _ in drops}
++    kinds = [""] + [_kind(records[a + j]["action"]) for j in range(1, len(series))]
++    inert = [False] + [records[a + j]["interior"] == records[a + j - 1]["interior"] for j in range(1, len(series))]
++    # a kind is free when it did something at least 3 times and never lowered a bar that otherwise drops often
++    by_kind = Counter(kinds[j] for j in range(1, len(series)) if j not in refill_at and not inert[j])
++    dropped_kinds = {kinds[j] for j in dropped_at}
++    fast = len(drops) >= 0.6 * sum(1 for j in range(1, len(series)) if j in dropped_at or not inert[j])
++    free = sorted(k for k, m in by_kind.items() if k not in dropped_kinds and m >= 3 and fast)
++    charged = [j for j in range(1, len(series)) if j not in refill_at and kinds[j] not in free]
++    effective = [j for j in charged if j in dropped_at or not inert[j]]
++    # a bar that drops on (almost) every action that did something was not charged for the ones that did nothing
++    every = len(drops) >= 0.8 * len(effective)
++    if every:
++        charged = effective
++    pos = {j: m for m, j in enumerate(charged)}
++    drop_pos = [pos[j] for j, _ in drops]
++    span = drop_pos[-1] - drop_pos[0]
++    lost = sum(d for _, d in drops[1:])
++    if span <= 0 or lost <= 0:
++        return None
++    mean_gap = span / (len(drop_pos) - 1)
++    gaps = [q - p for p, q in pairwise(drop_pos)]
++    since_last = len(charged) - 1 - drop_pos[-1]
++    limit = 2 * mean_gap + 1
++    if max(gaps) > limit or since_last > limit or drop_pos[0] > limit:
++        return None  # bursts or pauses: not a steady drain
++    # the colour the lost cells turned into (the bar's empty colour, or the next layer of a layered bar)
++    first, last = records[a]["lines"].get(key, {}), records[n]["lines"].get(key, {})
++    grown = {c: last.get(c, 0) - first.get(c, 0) for c in set(first) | set(last) if c != colour}
++    replaced_by = max(grown, key=lambda c: (grown[c], -c)) if grown and max(grown.values()) > 0 else None
++    return {"start": start, "now": series[-1], "series": tuple(series), "drops": len(drops), "unit": unit,
++            "rate": lost / span, "every": every, "since_last": since_last,
++            "refills": refills, "free_kinds": free, "largest_drop": max(sizes), "replaced_by": replaced_by}
++
++
++def _groups(records, a, n):
++    """Candidate bars of the attempt, merged when lines drain identically (a bar two cells thick).
++
++    Three or more identical lines are an object lying in the border region (a water column, a growing segment),
++    not a meter: no game seen draws its bar thicker than two cells, so those groups are dropped.
++    """
++    found = {}
++    for key, colours in records[a]["lines"].items():
++        for colour, count in colours.items():
++            if count >= MIN_START:
++                cand = _candidate(records, a, n, key, colour)
++                if cand is not None:
++                    found.setdefault((cand["series"], colour), []).append((key, cand))
++    return [(colour, [k for k, _ in items], items[0][1]) for (_, colour), items in sorted(found.items())
++            if len(items) <= 2]
++
++
++def _remaining(cand) -> float:
++    """Charged actions until the bar is empty. A bar that ticks every few actions has already spent the actions
++    since its last tick; a bar that drops on (almost) every charged action has not."""
++    left = cand["now"] / cand["rate"]
++    if not cand["every"]:
++        left -= cand["since_last"]
++    return max(0.0, left)
++
++
++def _select(groups, known, start_lines):
++    """The bar among this attempt's candidate groups, or None when unsure.
++
++    `known` maps the (line, colour) pairs earlier attempts of this game read as the bar to the colour their lost
++    cells turned into. When one of them is drawn at this attempt's start, only it may be reported, and only while
++    it drains into the same colour as before; otherwise a lone candidate is taken, several only when they agree.
++    """
++    if any(start_lines.get(k, {}).get(c, 0) >= MIN_START for k, c in known):
++        groups = [g for g in groups if any((k, g[0]) in known for k in g[1])]
++        for colour, keys, cand in groups:
++            before = {known[(k, colour)] for k in keys if (k, colour) in known} - {None}
++            if before and cand["replaced_by"] is not None and cand["replaced_by"] not in before:
++                return None  # drains into a new colour: maybe a second layer of budget under this one
++    if not groups:
++        return None
++    if len(groups) == 1:
++        return groups[0]
++    estimates = sorted(_remaining(g[2]) for g in groups)
++    if estimates[-1] - estimates[0] > 2:
++        return None
++    return min(groups, key=lambda g: (_remaining(g[2]), g[1]))
++
++
++def learn(known, records, a, end):
++    """Record what the finished attempt records[a..end] read as the bar (in place; first reading wins)."""
++    if end - a >= MIN_DROPS:
++        chosen = _select(_groups(records, a, end), known, records[a]["lines"])
++        if chosen is not None:
++            colour, keys, cand = chosen
++            for k in keys:
++                known.setdefault((k, colour), cand["replaced_by"])
++    return known
++
++
++def _label(keys) -> str:
++    axis = keys[0][0]
++    idx = sorted(i for _, i in keys)
++    if len(idx) == 1:
++        return f"{axis} {idx[0]}"
++    joiner = "-" if idx[-1] - idx[0] == len(idx) - 1 else " and "
++    return f"{axis}s {idx[0]}{joiner}{idx[-1]}"
++
++
++def read(records, known=None, n=None) -> dict | None:
++    """The reading for the attempt that contains records[n] (default: the last record), or None.
++
++    `known` is what earlier attempts established (see `learn`); when omitted it is rebuilt from records[:n].
++    """
++    n = len(records) - 1 if n is None else n
++    if n < 1:
++        return None
++    starts = attempt_starts(records[:n + 1])
++    a = starts[-1]
++    if n - a < MIN_DROPS:
++        return None
++    if known is None:
++        known = {}
++        for s, e in pairwise(starts):
++            learn(known, records, s, e - 1)
++    chosen = _select(_groups(records, a, n), known, records[a]["lines"])
++    if chosen is None:
++        return None
++    colour, keys, cand = chosen
++    return {
++        "line": _label(keys),
++        "colour": COLOR_CHARS[colour] if 0 <= colour < len(COLOR_CHARS) else str(colour),
++        "cells_left": int(cand["now"]),
++        "cells_at_attempt_start": int(cand["start"]),
++        "cells_per_action": round(cand["rate"], 2),
++        "actions_left": int(_remaining(cand)),
++        "drops_seen": int(cand["drops"]),
++        "attempt_start_step": int(records[a]["step"]),
++        "free_actions": list(cand["free_kinds"]),
++        "largest_drop": int(cand["largest_drop"]),
++        "drops_every_action": bool(cand["every"]),
++        "refills": [{"step": int(records[a + j]["step"]), "cells": int(g)} for j, g in cand["refills"]],
++        "_keys": [(k, colour) for k in keys],
++    }
++
++
++def budget_death(records, known=None) -> dict | None:
++    """For a history that ends with [..., fatal action, RESET]: the reading when the bar ran out at the fatal action
++    (a budget death), else None. That needs a reading on the last frame before the fatal action with at most one
++    action left, and a death frame that shows the bar no fuller than that and below one action's worth."""
++    n = len(records) - 1
++    if n < 2 or _kind(records[n]["action"]) != "RESET" or _kind(records[n - 1]["action"]) == "RESET":
++        return None
++    death = n - 1
++    if records[death]["level"] != records[death - 1]["level"]:
++        return None
++    before = read(records, known, n=death - 1)
++    if before is None or before["actions_left"] > 1:
++        return None
++    after = max(records[death]["lines"].get(k, {}).get(c, 0) for k, c in before["_keys"])
++    if after > before["cells_left"] or after >= max(1.0, before["cells_per_action"]):
++        return None
++    return {**before, "cells_left_at_death": int(after)}
++
++
++def public(reading):
++    """The reading without the meter's internal fields (what the model may see), or None."""
++    return None if reading is None else {k: v for k, v in reading.items() if not k.startswith("_")}
++
++
++def _number(x: float) -> str:
++    return f"{x:.1f}" if x >= 1 else f"{x:.2f}"
++
++
++def prompt_line(reading) -> str | None:
++    """One short, descriptive line for the user prompt, or None."""
++    if reading is None:
++        return None
++    head = f"Budget bar ({reading['line']}, colour '{reading['colour']}'): "
++    cells, rate, left = reading["cells_left"], reading["cells_per_action"], reading["actions_left"]
++    if cells == 0:
++        body = "empty"
++    elif left == 0:
++        body = f"less than one action left before it is empty ({cells} cells left, about {_number(rate)} per action)"
++    else:
++        body = (f"about {left} more action{'s' if left != 1 else ''} before it is empty ({cells} cells left, "
++                f"about {_number(rate)} per action)")
++    free = reading.get("free_actions") or []
++    tail = f"; {', '.join(free)} did not lower it" if free else ""
++    return head + body + tail + ". `budget` in python has these numbers."
++
++
++def death_line(verdict) -> str | None:
++    if verdict is None:
++        return None
++    return (f"Budget meter: the bar ({verdict['line']}, colour '{verdict['colour']}') ran out at the fatal action, "
++            "so this was a budget death.")
++
++
++class BudgetMeter:
++    """Readings over a growing history. Entries never change once written, so the per-entry records and what each
++    finished attempt established are kept between calls; a history that does not extend the last one (a new game)
++    starts the cache over."""
++
++    def __init__(self):
++        self._keys = []
++        self._records = []
++        self._known = {}
++        self._learned = 0  # finished attempts already folded into _known
++
++    def records(self, entries):
++        """entries: (action, grid, level, step) tuples, oldest first."""
++        keys = [(step, level, str(action or "")) for action, _, level, step in entries]
++        if keys[:len(self._keys)] != self._keys:
++            self._keys, self._records, self._known, self._learned = [], [], {}, 0
++        for action, grid, level, step in entries[len(self._records):]:
++            self._records.append(frame_record(action, grid, level, step))
++        self._keys = keys
++        return self._records
++
++    def read(self, entries):
++        """The current attempt's reading (with internal fields; see `public`), or None."""
++        if not entries:
++            return None
++        records = self.records(entries)
++        starts = attempt_starts(records)
++        for s, e in list(pairwise(starts))[self._learned:]:
++            learn(self._known, records, s, e - 1)
++        self._learned = len(starts) - 1
++        return read(records, self._known)
++
++    def death(self, entries):
++        """budget_death for a history that ends with [..., fatal action, RESET]."""
++        return budget_death(self.records(entries)) if entries else None
