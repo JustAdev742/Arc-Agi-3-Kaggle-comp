@@ -14,6 +14,9 @@ How to apply:
   shrinks only as fast as `used` grows, so the sum stays near used-at-start + 12 h for the whole run.
 - Two sessions in parallel need used < ~18 h at the second start. Plan the week's parallel runs early; late in the
   week the slots are serial no matter how short the runs are.
+- The reservation ends with the GPU session, not with the kernel's status: at 20:32 exp-078 was accepted while
+  exp-077 still showed RUNNING (it turned COMPLETE at 20:44, after saving its outputs); `time_reserved` was then
+  11.99 h, exp-078's own window.
 - "Maximum batch GPU session count of 2 reached" is the other refusal (slots, not quota); scripts/kaggle_queue.py
   retries both every 2 minutes.
 - Check with `KAGGLE_API_TOKEN=$(cat .kaggle/access_token) .venv/bin/python scripts/kaggle_quota.py` before planning.
