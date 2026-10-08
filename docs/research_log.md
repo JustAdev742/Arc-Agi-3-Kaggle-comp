@@ -2683,3 +2683,26 @@ Decisions: trainer reproduces the unshifted embeddings for prefilled context row
           (lossless, 0 repeats); exp-073b/075 are loop-free but relaxed (0.5/0.5), use only if exp-073 is too small.
 Open:     whether exp-073's kernel output holds `*_requests.jsonl` (our pulls skip .jsonl); the replica-check driver
           mode and the step-2 trainer (plan §3) are not built. GPU work waits for the Sat 00:00 UTC quota reset.
+
+## 2026-10-08 21:00 · exp-077 · harness bundle (02/04/03b/05) + RESET exposed + ARC FR-Spec map: 48.96, no change in score · READ
+Run:      scottmahony/arc3-dprime-r14a05-harness3-full v1 (18:27-20:3x UTC; GPU session ended ~20:30, COMPLETE 20:44) =
+          exp-075 + budget meter (OURS_BUDGET_METER, EXPOSE_RESET=on), search helper, win ledger, level mem + the ARC-tuned
+          FR-Spec map; runs/exp077-dprime-r14a05-harness3-full; whole-game transcripts in scratchpad sa077/.
+Score:    48.96, 107 levels, 5,528 actions. Same config without the bundle: 56.00 / 42.89 (exp-073b/075); exp-073
+          (lossless) 49.45. Per game vs the three base runs: -0.48 mean (per-game SD 20.9, SE 4.2): no effect visible.
+Serving:  accept length 3.15 (exp-075 3.09, exp-073b 3.10), 806.5 output tok/s (787.9 / 791.3), decode mean 895.7 tok/s
+          (869.1 / 878.2): the FR-Spec map is worth about +2% throughput, as predicted from its 1.2-1.5% coverage gap.
+Mechanisms (whole games, tools/mech_sa.py over 25 solver_analysis files; 2,848 turns, 2,779 tool calls):
+          - budget bar shown in 23 games; ledger pinned in 24 of 24 last-call contexts; mem used 417 times in 15 games;
+            search() 16 calls in 5 games, run_plan() 49 in 8; 0 exact repeated turns.
+          - NameErrors in last-call contexts 13 of 506 tool calls (2.6%; base runs 3.6% and 5.1%): mem does its job.
+          - RESETs 67 (base runs 19-28, all automatic after deaths). Deliberate resets ("You deliberately reset"):
+            tn36 12, sc25 10, ls20 7, cd82 6, lf52 4, tu93 3. Games with >= 3 deliberate resets: mean -13.0 vs the
+            base mean; the rest +3.5 (confounded: stuck games reset). sc25 is the clean case: 4-5 levels in every base
+            run, here 0 levels in 280 actions on level 1 (baseline 36) after resetting "to get a clean state and think
+            again" whenever it was confused, discarding the level's progress.
+Reading:  the bundle runs as designed at full scale and does not move the score in one draw. EXPOSE_RESET=on (which
+          Franzen leaves off in his submission) is the one part with a visible harm mechanism. The FR-Spec map is a
+          small, solid serving gain.
+Next:     exp-078 (all seven patches, RESET still exposed) is running (20:32-~22:55). The next arm turns EXPOSE_RESET
+          off and keeps the meter (the meter does not need RESET). LB: exp-074t first (the owner), then a bundle version.
