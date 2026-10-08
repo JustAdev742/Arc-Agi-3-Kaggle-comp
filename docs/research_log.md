@@ -2537,3 +2537,24 @@ Read:     score and levels vs exp-073b (56.00) and exp-075; accept length (map) 
 - ours-05 level mem (agent: 8 tests over 23 real-harness calls; bed 19/19) merged and added: the arm now has M1c, M2,
   M3, M4 + EXPOSE_RESET + the ARC map; patches in order 01, 02, 04, 03b, 05. Bed with all five flags on: 23/23 checks.
 - 927 KB; queued, refused only for the 2-session limit since 18:20.
+
+## 2026-10-08 18:28 · exp-075 · the candidate config again at full length: 42.89, 104 levels · CORRECTION: one run's SD is ~4.5 points
+Run:      scottmahony/arc3-dprime-r14a05-sandbox-full v1 (16:21-18:24 UTC) = exp-073b + the sandbox fix (ours-01);
+          runs/exp075-dprime-r14a05-sandbox-full. Server identical to exp-073b: 787.9 vs 791.3 output tok/s, accept
+          3.09 vs 3.10, 12.1 vs 12.3 running, 2,831 completions all HTTP 200.
+Measured: 42.89 / 104 levels / 6,080 actions (exp-073b: 56.00 / 124 / 6,350). Per game the two runs differ wildly:
+          tn36 100 -> 3.6 (7/7 -> 1/7), cn04 71 -> 5, sp80 48 -> 5, ft09 100 -> 48, r11l 100 -> 64, sc25 66 -> 31;
+          the other way dc22 0 -> 42, g50t 11 -> 36, ka59 39 -> 54. tn36/cn04/sp80 spent the run stuck on level 2 with
+          no tool timeouts (the sandbox fix's path never fired: 0 "previously retained functions are still
+          available" lines), so this reads as sampling luck, not the patch.
+Noise:    per-game SD between runs 22-23 points (from exp-073, -073b, -075) -> SD of one 25-game run's mean ~4.5, SD
+          of a difference between two single runs ~6.4. A single run detects only effects above ~13 points.
+Correction: earlier entries compared single runs with Franzen v3's "pass SD 0.93"; his four passes are evidently
+          not independent draws of this kind, so those claims were overconfident. exp-073b's 56.00 was a high draw:
+          REAP-448 + 14 streams with acceptance 0.5 has two runs, 56.00 and 42.89 (mean 49.4, SE ~3.2); exp-073
+          (lossless) 49.45. The throughput gain (+28-30% output tokens, same accept length) is measured precisely;
+          its score effect rests on the elasticity estimate, not on these runs. exp-074t remains the best-founded
+          candidate (more decisions per hour, no measured harm), but its expected public-25 mean is ~49, not 56.
+Next:     harness bundle exp-077 (pushed 18:27) is read as "no large harm / any large gain" only; a fair test of a
+          +2-5 point lever needs ~10+ paired runs, so mechanism checks (bed, logs: budget deaths, search use,
+          NameErrors, re-derivation calls) carry most of the weight for small levers.
