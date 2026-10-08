@@ -2255,3 +2255,17 @@ Checked:  tests/test_ours_sandbox_patch.py (patch applies to the notebook's tree
           keeps both functions, the normal path still drops undefined ones, import time works, a 5 s sleep times
           out at 2 s); the builder's apply check passed. Expected +0.1 to +0.4 (new-methods.md), too small to measure;
           kept as a bug fix. exp-074s rebuilt with it (not yet pushed: no free RTX slot).
+
+## 2026-10-08 12:41 · exp-074s save run COMPLETE and checked · READY TO SUBMIT (owner)
+Run:      scottmahony/arc3-dprime-reap448-r14 (last run 12:20:50 UTC; game 12:31-12:36); runs/exp074s-dprime-reap448-r14.
+Checked:  the session had the older mount layout and --input-fallback resolved every input ("ours: ... ->"); our
+          harness patch applied ("our harness patches applied successfully: 1"); GPU RTX PRO 6000 (12, 0); D'
+          priority patch active; "priority gate active: 14 concurrent streams"; serve.log "ARC3 REAP: kept 448 of 512
+          routed experts in each of 48 layers ... router sha256 verified", KV pool 1,477,888 tokens; ft09 4/6 levels,
+          50 actions, 47.62 (D''s own save run: 47.62); submission.parquet written; no tracebacks.
+Note:     my retry loop never saw this push succeed (it logged only refusals): the push at ~12:20 was accepted by Kaggle
+          while the client reported an error. scripts/push_eval.py now confirms a push by the kernel's last-run time
+          and logs every attempt.
+Next:     the owner submits https://www.kaggle.com/code/scottmahony/arc3-dprime-reap448-r14 (today's slot closes 00:00 UTC).
+          Expected: the D' mean (~28.5) plus the serving gain (+14% tokens, ~+8-11% score by elasticity) and the
+          sandbox fix: ~30-32 on average, with ~+/-3.3 draw noise.
