@@ -2221,3 +2221,9 @@ Against:  Franzen v3's four passes at the same compute per game: 45.80, 45.59, 4
           is the measured part.
 Decision: exp-074s (the same serving change on D''s unmodified submission path, plus the input-path fallback) is the
           next submission; its save run is queued first. exp-073b (+ acceptance 0.5, full length) is running.
+
+## 2026-10-08 03:25 · Kaggle RTX pool congested: two sessions QUEUED for hours · WAITING
+exp-072h (pushed 00:15) and exp-073b (pushed 01:37) are still QUEUED (no machine), so the 2-session limit blocks the
+          exp-074s save run (the next submission candidate). No API cancel exists, and a freed slot would only queue
+          too, so nothing is deleted. scripts/kaggle_queue.py was stopped twice by the session's 2-hour cap on
+          background commands; queue state is in scratchpad/queue-oct7f.state.json and exp-074s is next.
