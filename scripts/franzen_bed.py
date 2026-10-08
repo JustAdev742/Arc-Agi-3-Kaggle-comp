@@ -288,6 +288,8 @@ class MockModel:
                   "tags": [tag for tag, needles in TAGS if any(n in tool_text for n in needles)]}
         if self.expect:
             record["expect_in_system"] = bool(messages) and self.expect in _text(messages[0].get("content"))
+            record["expect_at"] = next((i for i, m in enumerate(messages) if self.expect in _text(m.get("content"))),
+                                       None)
         try:
             if self.overflow_every and n % self.overflow_every == 0 and len(messages) >= 12:
                 record["status"] = 400
@@ -509,7 +511,7 @@ def _free_port() -> int:
 
 
 def coverage(out: Path, inner_report: dict, records: list[dict], analysis: dict, log_text: str, expect: str,
-             games: list[str]) -> dict:
+             games: list[str], expect_in: str = "system") -> dict:
     tags = Counter(tag for r in records for tag in r.get("tags", []))
     gate = inner_report.get("gate_stats", {})
     game_runs = inner_report.get("games", {})
@@ -542,6 +544,9 @@ def coverage(out: Path, inner_report: dict, records: list[dict], analysis: dict,
     }
     if expect:
         facts["expect_seen"] = sum(bool(r.get("expect_in_system")) for r in records)
+        # requests by the index of the first message holding the text (0 is the system prompt)
+        facts["expect_at"] = dict(sorted(Counter(str(r["expect_at"]) for r in records
+                                                 if r.get("expect_at") is not None).items()))
     checks = {
         "harness made requests": facts["requests"] > 0,
         "no game crashed": not facts["games_crashed"],
@@ -559,14 +564,17 @@ def coverage(out: Path, inner_report: dict, records: list[dict], analysis: dict,
     }
     if undo_games:
         checks["UNDO executed"] = facts["undo_actions"] > 0
-    if expect:
+    if expect and expect_in == "any":
+        checks[f"--expect text in a request ({expect!r})"] = bool(facts["expect_at"])
+    elif expect:
         checks[f"--expect text in the system prompt ({expect!r})"] = facts["expect_seen"] > 0
     return {"facts": facts, "checks": checks}
 
 
 def run_bed(out: Path, *, games: list[str], seconds: float, slots: int | None = None, notebook: Path | None = None,
             env: dict | None = None, env_add: dict | None = None, patches: list[Path] | tuple = (),
-            sets: dict | None = None, expect: str = "", keep_context: bool = False, python: Path | None = None,
+            sets: dict | None = None, expect: str = "", expect_in: str = "system", keep_context: bool = False,
+            python: Path | None = None,
             env_dir: Path | None = None, overflow_every: int = 41, latency: float = 0.15, verbose: bool = False,
             his_repo: Path | None = None, bundle: Path | None = None) -> dict:
     sys.path.insert(0, str(ROOT / "scripts"))
@@ -620,7 +628,7 @@ def run_bed(out: Path, *, games: list[str], seconds: float, slots: int | None = 
     analysis = franzen_report.analyze(out, out / "bed.log") if (out / "benchmark.json").exists() else {
         "totals": {"prefix_breaks": 0}, "transcripts": {}}
     result = coverage(out, inner_report, records, analysis, (out / "bed.log").read_text(errors="replace"), expect,
-                      games)
+                      games, expect_in)
     result.update(exit_code=code, seconds=round(time.time() - t0, 1), overrides=changed, inner=inner_report)
     if code != 0:
         result["checks"]["child exited 0"] = False
@@ -653,6 +661,8 @@ def main() -> None:
     ap.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
                     help="extra environment for the harness process only (not in the notebook)")
     ap.add_argument("--expect", default="", help="text that must appear in the system prompt the mock receives")
+    ap.add_argument("--expect-in", choices=("system", "any"), default="system",
+                    help="where --expect must appear: the system prompt (default) or any message of a request")
     ap.add_argument("--keep-context", action="store_true", help="keep the notebook's 128k context settings")
     ap.add_argument("--python", type=Path, default=None, help="interpreter with the harness dependencies")
     ap.add_argument("--env-dir", type=Path, default=None, help="game files (default: environment_files/)")
@@ -665,7 +675,8 @@ def main() -> None:
     out = args.out or Path(tempfile.mkdtemp(prefix="franzen-bed-"))
     result = run_bed(out, games=[g.strip() for g in args.games.split(",") if g.strip()], seconds=args.seconds,
                      slots=args.slots, notebook=args.notebook, env=_pairs(args.env), env_add=_pairs(args.env_add),
-                     patches=args.patch, sets=_pairs(args.set), expect=args.expect, keep_context=args.keep_context,
+                     patches=args.patch, sets=_pairs(args.set), expect=args.expect, expect_in=args.expect_in,
+                     keep_context=args.keep_context,
                      python=args.python, env_dir=args.env_dir, overflow_every=args.overflow_every,
                      latency=args.latency, verbose=args.verbose, his_repo=args.his_repo, bundle=args.bundle)
     sys.exit(0 if all(result["checks"].values()) else 1)
