@@ -33,7 +33,9 @@ the last tool call it emitted says which snippet comes next. The programs exerci
 - every ``--overflow-every`` requests (if the request is long enough) an SGLang context-length error, which the
   harness answers by force-draining history and retrying;
 - only with ``--program search`` (for kaggle/franzen/patches/ours-04-search-helper.patch, OURS_SEARCH_HELPER=1):
-  ``search()`` and ``run_plan()`` in the sandbox, with their own coverage checks.
+  ``search()`` and ``run_plan()`` in the sandbox, with their own coverage checks;
+- only with ``--program effects`` (for kaggle/franzen/patches/ours-06-effect-table.patch, OURS_EFFECT_TABLE=1):
+  one action, then ``effects()`` in the sandbox, which must return the current level's table.
 
 Usage it reports: prompt tokens estimated from the text and images, cached tokens as the longest message prefix
 shared with a recent request (a radix cache in miniature), completion tokens from the reply. It also writes an
@@ -211,6 +213,17 @@ except {_REFUSALS} as e:
     print('BED run_plan refused', type(e).__name__)
 """]
 OPTIONAL_PROGRAMS = ("search",)
+# effects: for kaggle/franzen/patches/ours-06-effect-table.patch with OURS_EFFECT_TABLE=1 (or note). One snippet: an
+# action, then effects(), whose first line must name the current level.
+SNIPPETS["effects"] = ['''# bed:effects:0
+acts = [a for a in valid_actions if a not in ('RESET', 'UNDO', 'MOUSE')] or [{'action': 'MOUSE', 'row': 30, 'col': 30}]
+action(acts[:1])
+lines = effects().splitlines()
+print('BED effects table', current_frame.level, len(lines), lines[0][:50])
+print('BED effects level', lines[0].startswith('Level %d: ' % current_frame.level))
+''']
+OPTIONAL_PROGRAMS += ("effects",)
+TAGS += (("effects_table", ("BED effects table",)), ("effects_level", ("BED effects level True",)))
 
 
 def _text(content) -> str:
@@ -621,6 +634,10 @@ def coverage(out: Path, inner_report: dict, records: list[dict], analysis: dict,
         checks["a search ended on its own time limit with a best_partial"] = facts["search_budget"] > 0
         checks["run_plan executed a matching action and stopped at the planted mismatch"] = (
             facts["run_plan_mismatch"] > 0)
+    if "effects" in programs:
+        facts["effects_calls"], facts["effects_current_level"] = tags["effects_table"], tags["effects_level"]
+        checks["effects() returned the current level's table in the sandbox"] = (
+            facts["effects_calls"] > 0 and facts["effects_current_level"] == facts["effects_calls"])
     return {"facts": facts, "checks": checks}
 
 
@@ -724,7 +741,8 @@ def main() -> None:
     ap.add_argument("--overflow-every", type=int, default=41, help="answer every Nth request with a context error (0: never)")
     ap.add_argument("--latency", type=float, default=0.15, help="mock seconds per reply before decode time")
     ap.add_argument("--program", action="append", default=[], choices=OPTIONAL_PROGRAMS,
-                    help="add an optional mock program to the cycle (search: ours-04-search-helper.patch)")
+                    help="add an optional mock program to the cycle (search: ours-04-search-helper.patch; "
+                    "effects: ours-06-effect-table.patch)")
     ap.add_argument("--his-repo", type=Path, default=None)
     ap.add_argument("--bundle", type=Path, default=None)
     ap.add_argument("-v", "--verbose", action="store_true", help="echo the harness output")
