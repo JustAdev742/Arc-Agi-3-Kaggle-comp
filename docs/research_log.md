@@ -2527,3 +2527,13 @@ Arm:      scottmahony/arc3-dprime-r14a05-harness3-full = exp-075 + those patches
 Read:     score and levels vs exp-073b (56.00) and exp-075; accept length (map) vs 3.10; budget deaths, RESETs, search()
           calls, ledger inserts, tokens per level. If it wins, ablate by halves; two more patches (M1c level mem, P2
           effect table) are being built for a later arm.
+
+## 2026-10-08 18:20 · exp-077 rebuilt: + ours-05 level mem, map as 3 KB; the 1.2 MB build had been refused · QUEUED
+- The first exp-077 build (1.2 MB: four patches + the map as base64) was refused with a bare HTTP 400 on SaveKernel;
+  the same notebook without the map (902 KB) got the normal "2 GPU sessions" reply (lesson 0033). The builder now
+  ships the map as zlib-compressed delta varints (~3 KB) written in torch's zip layout with fixed metadata (the
+  file's sha256 is fixed at build time, so his TOKEN_MAP_SHA assert still checks it); torch.load(weights_only=True)
+  returns the same 65,536 ids (checked with torch 2.14 CPU).
+- ours-05 level mem (agent: 8 tests over 23 real-harness calls; bed 19/19) merged and added: the arm now has M1c, M2,
+  M3, M4 + EXPOSE_RESET + the ARC map; patches in order 01, 02, 04, 03b, 05. Bed with all five flags on: 23/23 checks.
+- 927 KB; queued, refused only for the 2-session limit since 18:20.
