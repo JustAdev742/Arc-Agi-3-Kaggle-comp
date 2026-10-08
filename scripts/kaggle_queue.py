@@ -6,7 +6,7 @@
 The queue file is a JSON list of items, in priority order:
 
     {"name": "exp045", "folder": "<built folder>", "kernel": "scottmahony/arc3-taaf-gate", "run": "exp045-gate",
-     "kind": "full" | "stress" | "franzen", "after": "<name>" (optional: push only once that item was pushed),
+     "kind": "full" | "stress" | "franzen" | "probe", "after": "<name>" (optional: push only once that item was pushed),
      "requires_ok": "<run>" (optional: push only if runs/<run>/summary.json is a clean stress test; skipped if not),
      "pull_only": true (optional: pushed elsewhere; only pull it when it finishes)}
 
@@ -80,6 +80,19 @@ def pull(item: dict) -> str:
             summary = {"run_name": run_name, "kernel": kernel, "status": "no_output", "log_errors": oom}
         (ROOT / "runs" / run_name / "summary.json").write_text(json.dumps(summary, indent=1) + "\n")
         return f"{name}: {summary}" + (f"\n  log: {oom}" if oom else "")
+    if item.get("kind") == "probe":  # a fidelity probe (build_franzen_nb.py --probe): fidelity.json, serve.log, logs
+        out_dir = ROOT / "runs" / run_name / "kernel-output"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        run([KAGGLE, "kernels", "output", kernel, "-p", str(out_dir), "--file-pattern",
+             r"fidelity\.json$|serve\.log$|\.log$", "-q", "-o"], timeout=3600)
+        fid = out_dir / "fidelity.json"
+        if not fid.exists():
+            logs = "\n".join(p.read_text(errors="replace") for p in out_dir.glob("*.log") if p.name != "serve.log")
+            return f"{name}: no fidelity.json; " + str(re.findall(r".*(?:Error|Traceback).*", logs)[:3])
+        f = json.loads(fid.read_text())
+        passes = {k: {x: v.get(x) for x in ("ok", "failed", "wall_s", "mean_accept_length")}
+                  for k, v in (f.get("passes") or {}).items()}
+        return f"{name}: fidelity.json written; passes {passes}"
     if item.get("kind") == "franzen":
         out_dir = ROOT / "runs" / run_name / "kernel-output"
         out_dir.mkdir(parents=True, exist_ok=True)
