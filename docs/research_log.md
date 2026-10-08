@@ -2761,3 +2761,17 @@ Reading:  clearing the conversation throws away working understanding the ledger
 Decision: 07 rejected as configured (a later trigger, e.g. >= 50 min where the hazard is ~0.016/min, would be a new
           hypothesis). Candidates drop 06b/07 and RESET exposure: exp-080 = exp-077's set (01/02/04/03b/05) + FR-Spec
           map, RESET off, pushed 23:1x (bed 23/23). LB order: exp-074t, then exp-080 once it reads healthy.
+
+## 2026-10-08 23:53 · ours-08 perception helpers built (OURS_PERCEPTION): exact view shift, left_view, lattice, 8-connectivity · BUILT
+Files:    kaggle/franzen/patches/ours-08-perception.patch (sha256 f202d54b5063; on top of the seven) and
+          ours-08b-perception-on-01-02-04-03b-05.patch (sha256 5745781e03d3; the same lines on exp-080's stack, checked
+          "ok: 6 patch(es)"), tests/test_ours_perception_patch.py (all pass here), docs/research/beat-tufa/patch-perception.md.
+What:     P3 of exp073b-failure-analysis.md. A whole-view shift estimate with a running `view_offset` and a one-line
+          "[view] scrolled at step N" note when the camera moves; `left_view` (objects a scroll carried out, e.g.
+          lf52's cart); `logical_grid()` (cell size and origin); `.segmentation8`. Flag off: byte-identical harness.
+Validated (agent, against the engines' own camera): 39 recorded runs x 25 games, 107,083 frames: 285 scrolls (bp35 237,
+          lf52 48), all exact; no scroll claimed on 103,477 still steps; 188 frames (0.18%) left unknown. Lattice found on
+          71 of 183 level starts in 13 games (ls20 5 px, cn04 3 px...). Tracker cost 1.7 ms per action. Bed: all eight
+          patches 27/27; exp-080's stack + 08b 26/26 (RESET not exposed). Thresholds were tuned on the same recorded runs.
+Plan:     an arm = exp-080 + 08b, read against exp-080 itself, after the Sat quota reset (lesson 0037: judge it by the
+          games it touches, e.g. bp35/lf52 scroll levels and lattice games, not only the mean).
