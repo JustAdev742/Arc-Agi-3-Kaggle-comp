@@ -1,0 +1,451 @@
+diff --git a/ARC3-Inference/inference/agent/python_tool_sandbox.py b/ARC3-Inference/inference/agent/python_tool_sandbox.py
+index 14bdf62..5d8f96b 100644
+--- a/ARC3-Inference/inference/agent/python_tool_sandbox.py
++++ b/ARC3-Inference/inference/agent/python_tool_sandbox.py
+@@ -18,6 +18,7 @@ from typing import Any, Callable
+ from inference.utils import frame_diff as _frame_diff_module
+ from inference.utils import segmentation as _segmentation
+ from inference.utils import retained_functions as _retained_functions
++from inference.utils import search_helper as _search_helper
+ from inference.utils.grid_utils import ARC_COLOR_CHARS
+ 
+ 
+@@ -44,6 +45,7 @@ _SANDBOX_BOOTSTRAP = textwrap.dedent(
+     __FRAME_DIFF_SOURCE__
+ 
+     __RETAINED_FUNCTIONS_SOURCE__
++    __SEARCH_HELPER_SOURCE__
+ 
+     HOST_STDOUT = sys.stdout
+ 
+@@ -641,6 +643,7 @@ _SANDBOX_BOOTSTRAP = textwrap.dedent(
+             _animation_views.extend((runtime_globals["last_animation_frames"],
+                                      runtime_globals["last_animation_timeline"]))
+ 
++        __SEARCH_HELPER_HOOK__
+         _refresh_state(initial.get("state") or {})
+ 
+         _persistence_enabled = bool(initial.get("persistence_enabled"))
+@@ -741,6 +744,18 @@ _SANDBOX_BOOTSTRAP = textwrap.dedent(
+ ).replace(
+     "__FRAME_DIFF_SOURCE__\n", inspect.getsource(_frame_diff_module)
+ )
++# ours (OURS_SEARCH_HELPER): with the flag on a snippet runs a bootstrap that also holds the search helper's source
++# and puts `search` and `run_plan` among the provided globals. With it off both placeholder lines are dropped, so
++# _SANDBOX_BOOTSTRAP is byte for byte the bootstrap from before this patch.
++_SANDBOX_BOOTSTRAP_SEARCH = _SANDBOX_BOOTSTRAP.replace(
++    "__SEARCH_HELPER_SOURCE__\n", inspect.getsource(_search_helper)
++).replace(
++    "    __SEARCH_HELPER_HOOK__\n",
++    "    runtime_globals.update(search_helper_globals(runtime_globals, timeout_seconds))\n",
++)
++_SANDBOX_BOOTSTRAP = _SANDBOX_BOOTSTRAP.replace("__SEARCH_HELPER_SOURCE__\n", "").replace(
++    "    __SEARCH_HELPER_HOOK__\n", ""
++)
+ 
+ 
+ log = logging.getLogger(__name__)
+@@ -815,12 +830,13 @@ def run_sandboxed_python(
+     kept_functions: list[str] | None = None,
+     retain_imports: bool = False,
+     repair_hints: bool = False,
++    search_helper: bool = False,
+ ) -> dict[str, Any]:
+     with tempfile.TemporaryDirectory(prefix="rgb_python_tool_") as sandbox_dir:
+         host_action_results: list[dict[str, Any]] = []
+         try:
+             process = subprocess.Popen(
+-                [sys.executable, "-I", "-S", "-c", _SANDBOX_BOOTSTRAP],
++                [sys.executable, "-I", "-S", "-c", _SANDBOX_BOOTSTRAP_SEARCH if search_helper else _SANDBOX_BOOTSTRAP],
+                 stdin=subprocess.PIPE,
+                 stdout=subprocess.PIPE,
+                 stderr=subprocess.PIPE,
+diff --git a/ARC3-Inference/inference/agent/tool_agent.py b/ARC3-Inference/inference/agent/tool_agent.py
+index e36ec65..373efcd 100644
+--- a/ARC3-Inference/inference/agent/tool_agent.py
++++ b/ARC3-Inference/inference/agent/tool_agent.py
+@@ -2650,6 +2650,91 @@ def _render_auto_frame_diff(
+     ]
+ 
+ 
++# ours (OURS_SEARCH_HELPER, read at call time, off by default): the python sandbox also provides `search` and
++# `run_plan` (inference/utils/search_helper.py), the system prompt describes them in the lines below, and a call
++# that calls search( - directly or through a retained function - may run 15 s longer than the largest time_limit
++# it passes (time_limit is capped at 60 s). Off: prompt, tool time limit and sandbox are exactly as before.
++SEARCH_HELPER_ADDENDUM = (
++    "- In every `python` call, `search(start, step, is_goal, actions, key=None, heuristic=None, beam=None, "
++    "max_nodes=300_000, time_limit=60)` searches a model of the game that you write; it never acts.\n"
++    "- `step(state, action)` returns the next state, `None` if the action is illegal there, or `'dead'` if it is "
++    "fatal. `actions` is a list, or a function of the state.\n"
++    "- Breadth-first by default (fewest actions); A* with `heuristic(state)` (lower is closer to the goal); with "
++    "`beam=N`, a beam search keeping the N best states of each depth.\n"
++    "- Repeated states are skipped by `key(state)`, by default the state itself with lists, sets and dicts made "
++    "hashable.\n"
++    "- It returns `status` ('found', 'exhausted': no goal reachable in your model, 'timeout' or 'max_nodes'), `plan`, "
++    "`expanded` and `best_partial` (plan to and state of the closest state by heuristic, else the deepest).\n"
++    "- `time_limit` is at most 60 s and `max_nodes` (distinct states) at most 300,000. A `python` call that calls "
++    "`search(` may run its largest time_limit + 15 s if that exceeds the usual limit.\n"
++    "- `run_plan(plan, observe, predicted, key=None)` executes `plan` one real action at a time through `action(...)` "
++    "and compares `observe(current_frame)` after each action with the prediction (by `key`, if given).\n"
++    "- `predicted` is a list with one expected state per action, or your `step` function, which then predicts each "
++    "state from the observed one.\n"
++    "- `run_plan` stops at the first mismatch, before an action `step` calls illegal or fatal, when an action is not "
++    "executed or ends the level or the attempt, and before the call runs out of time.\n"
++    "- It returns `executed`, `mismatch_at` (plan index, or None), `predicted`, `observed` and `stop` (the reason).\n"
++)
++_SEARCH_TIME_CAP_SECONDS = 60
++_SEARCH_EXTRA_SECONDS = 15
++
++
++def _search_helper_enabled() -> bool:
++    return _get_env_bool("OURS_SEARCH_HELPER", False)
++
++
++@lru_cache(maxsize=1024)
++def _search_calls_in(source: str) -> tuple[tuple[float, ...], frozenset[str]]:
++    """The time_limit of each call to a bare `search(...)` in SOURCE (60 unless a number literal says otherwise,
++    clamped to 0..60), and the names of everything SOURCE calls."""
++    import ast
++
++    try:
++        tree = ast.parse(source)
++    except (SyntaxError, ValueError):
++        return (), frozenset()
++    limits, called = [], set()
++    for node in ast.walk(tree):
++        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
++            continue
++        called.add(node.func.id)
++        if node.func.id != "search":
++            continue
++        given = [kw.value for kw in node.keywords if kw.arg == "time_limit"]
++        if not given and not any(isinstance(arg, ast.Starred) for arg in node.args) and all(
++                kw.arg is not None for kw in node.keywords):
++            given = node.args[8:9]
++        limit = float(_SEARCH_TIME_CAP_SECONDS)
++        if given:
++            try:
++                value = ast.literal_eval(given[0])
++            except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
++                value = None
++            if isinstance(value, (int, float)) and not isinstance(value, bool) and value == value:
++                limit = float(value)
++        limits.append(min(float(_SEARCH_TIME_CAP_SECONDS), max(0.0, limit)))
++    return tuple(limits), frozenset(called)
++
++
++def _search_call_timeout(code: str, retained: dict[str, str] | None, base: int) -> int:
++    """The tool time limit for CODE: BASE, or the largest time_limit of the search( calls it makes (itself or through
++    the retained functions it calls, transitively) plus 15 s when that is longer."""
++    limits, called = _search_calls_in(code)
++    limits, sources = list(limits), dict(retained or {})
++    todo, done = list(called), set()
++    while todo:
++        name = todo.pop()
++        if name in done or name not in sources:
++            continue
++        done.add(name)
++        more, calls = _search_calls_in(sources[name])
++        limits.extend(more)
++        todo.extend(calls)
++    if not limits:
++        return base
++    return max(base, int(-(-max(limits) // 1)) + _SEARCH_EXTRA_SECONDS)
++
++
+ def _build_system_prompt(*, tool_output_tokens: int) -> str:
+     prompt = "You are a coding agent solving a grid-based puzzle game."
+     # ARC3_SYSTEM_PROMPT_PREFIX (read at call time): prepended verbatim as the
+@@ -2717,6 +2802,8 @@ def _build_system_prompt(*, tool_output_tokens: int) -> str:
+     if _get_env_bool("ARC3_STEP_VERIFICATION_HINT", False):
+         # General checks during action sequences and targeted probes when search fails.
+         prompt += STEP_VERIFICATION_ADDENDUM
++    if _search_helper_enabled():
++        prompt += SEARCH_HELPER_ADDENDUM  # ours (OURS_SEARCH_HELPER)
+     # only describe the guards that are actually armed: prompt weight spent on a
+     # mechanism that cannot fire is weight the model reads and cannot use, and an
+     # exception it is told about but never sees is worse than silence
+@@ -5901,15 +5988,18 @@ class ToolAgent:
+         # per snippet: a repeat across snippets is the model choosing, not a
+         # loop failing to converge
+         self._repeat_state_seen.clear()
++        search_helper = _search_helper_enabled()  # ours (OURS_SEARCH_HELPER): search()/run_plan() and their time limit
+         sandbox_result = run_sandboxed_python(
+             code=code,
+-            timeout_seconds=self._python_timeout,
++            timeout_seconds=(_search_call_timeout(code, self._kept_functions, self._python_timeout)
++                             if search_helper else self._python_timeout),
+             initial_state=_serialized_runtime_state(),
+             action_handler=_handle_action,
+             animation_handler=_handle_animation if _animation_enabled() else None,
+             kept_functions=self._retained_sources(),
+             retain_imports=_get_env_bool("ARC3_PERSISTENT_FUNCTIONS_IMPORTS", False),
+             repair_hints=_get_env_bool("ARC3_PERSISTENT_FUNCTIONS_REPAIR_HINTS", False),
++            search_helper=search_helper,
+         )
+ 
+         action_results = [
+diff --git a/ARC3-Inference/inference/utils/search_helper.py b/ARC3-Inference/inference/utils/search_helper.py
+new file mode 100644
+index 0000000..ac3333a
+--- /dev/null
++++ b/ARC3-Inference/inference/utils/search_helper.py
+@@ -0,0 +1,258 @@
++"""ours (OURS_SEARCH_HELPER): `search` and `run_plan` for the analyzer's python sandbox.
++
++Spliced verbatim into the sandbox bootstrap when the flag is on (python_tool_sandbox.py), like segmentation.py:
++stdlib only, no ``from __future__`` import, and apart from four stdlib imports every name it defines at the top
++starts with ``_search``, ``_Search`` or ``search_helper``, so it cannot shadow a bootstrap name.
++``search_helper_globals`` builds the two functions for one snippet.
++
++- ``search`` runs the model's own ``step``/``is_goal``/``heuristic`` in this process: BFS by default, A* with a
++  heuristic, beam search with ``beam=N``. States are deduplicated by ``key(state)``; ``step`` returning None means
++  illegal and ``'dead'`` fatal (both skipped). Its time limit (at most 60 s) is also clamped to what is left of the
++  call's own hard limit minus a reserve, so a search that runs out of time returns ``best_partial`` and the snippet
++  keeps its stdout instead of being killed. A SIGALRM backs up the cooperative clock check for a slow ``step``.
++- ``run_plan`` executes a plan one real action at a time through the snippet's ``action()`` and stops at the first
++  observation that differs from the prediction, before an action the model's own ``step`` calls illegal or fatal
++  from the observed state, at a level end or game over, when an action is not executed (``stop`` names the reason;
++  the harness's stale-state refusal is reported as ``stale_state``, its other refusals still end the snippet), and
++  before the call runs out of time. It goes through the harness's guards like any loop of ``action()`` calls.
++"""
++import heapq
++import signal
++import time
++from collections import deque
++
++_SEARCH_STARTED = time.monotonic()  # the sandbox process started here; the call's hard limit counts from about now
++_SEARCH_TIME_CAP = 60.0
++_SEARCH_NODE_CAP = 300_000
++_SEARCH_RESERVE = 5.0  # seconds a search leaves of the call for the rest of the snippet and the final message
++_SEARCH_PLAN_RESERVE = 3.0  # run_plan starts no action with less than this left of the call
++
++
++class _SearchTimeout(BaseException):
++    """Raised by the alarm while the model's own code runs inside search(); search() catches it."""
++
++
++def _search_no_action(*args, **kwargs):
++    raise RuntimeError("action() cannot run inside search(): search() only explores your own model of the game.")
++
++
++def _search_freeze(value):
++    if isinstance(value, (list, tuple)):
++        return tuple(_search_freeze(item) for item in value)
++    if isinstance(value, (set, frozenset)):
++        return frozenset(_search_freeze(item) for item in value)
++    if isinstance(value, dict):
++        return tuple(sorted(((k, _search_freeze(v)) for k, v in value.items()), key=lambda kv: repr(kv[0])))
++    return value
++
++
++def _search_auto_key(state):
++    try:
++        hash(state)
++        return state
++    except TypeError:
++        return _search_freeze(state)
++
++
++def _search_plan(parents, key):
++    """Actions from the start to KEY along the parent links (each link is (parent key, action))."""
++    plan = []
++    for _ in range(len(parents) + 1):
++        link = parents.get(key)
++        if link is None:
++            break
++        key, action = link
++        plan.append(action)
++    plan.reverse()
++    return plan
++
++
++def _search_loop(start, step, is_goal, actions, keyf, heuristic, beam, max_nodes, end, out, parents, best):
++    """Run the search; record the outcome in OUT['status'] / OUT['goal'] before returning."""
++    acts = actions if callable(actions) else (lambda state, _fixed=list(actions): _fixed)
++    calls = [0]
++
++    def successors(state):
++        for action in acts(state):
++            calls[0] += 1
++            if not calls[0] & 15 and time.monotonic() > end:
++                raise _SearchTimeout()
++            nxt = step(state, action)
++            if nxt is None or (isinstance(nxt, str) and nxt == "dead"):
++                continue
++            yield action, nxt
++
++    def note(key, state, depth, h):
++        score = (h, depth) if heuristic is not None else (-depth,)
++        if best[0] is None or score < best[0]:
++            best[:] = [score, key, state, depth, h]
++
++    def finish(status, goal=None):
++        out["status"], out["goal"] = status, goal
++
++    k0 = keyf(start)
++    parents[k0] = None
++    h0 = heuristic(start) if heuristic is not None else None
++    note(k0, start, 0, h0)
++    if is_goal(start):
++        return finish("found", k0)
++    if beam is None and heuristic is None:  # breadth-first: the first goal generated is a shortest plan
++        queue = deque([(start, k0, 0)])
++        while queue:
++            state, key, depth = queue.popleft()
++            out["expanded"] += 1
++            for action, nxt in successors(state):
++                nk = keyf(nxt)
++                if nk in parents:
++                    continue
++                parents[nk] = (key, action)
++                note(nk, nxt, depth + 1, None)
++                if is_goal(nxt):
++                    return finish("found", nk)
++                if len(parents) >= max_nodes:
++                    return finish("max_nodes")
++                queue.append((nxt, nk, depth + 1))
++        return finish("exhausted")
++    if beam is None:  # A*: goal test when a state is taken from the queue
++        cost = {k0: 0}
++        tie = 0
++        heap = [(h0, 0, tie, k0, start)]
++        while heap:
++            _, neg_g, _, key, state = heapq.heappop(heap)
++            g = -neg_g
++            if g > cost[key]:
++                continue
++            if is_goal(state):
++                return finish("found", key)
++            out["expanded"] += 1
++            for action, nxt in successors(state):
++                nk = keyf(nxt)
++                if g + 1 >= cost.get(nk, g + 2):
++                    continue
++                fresh = nk not in cost
++                cost[nk] = g + 1
++                parents[nk] = (key, action)
++                h = heuristic(nxt)
++                note(nk, nxt, g + 1, h)
++                if fresh and len(parents) >= max_nodes:
++                    return finish("max_nodes")
++                tie += 1
++                heapq.heappush(heap, (g + 1 + h, -(g + 1), tie, nk, nxt))
++        return finish("exhausted")
++    layer, depth = [(start, k0)], 0  # beam: the BEAM best new states of each depth go on
++    while layer:
++        ranked = []
++        for state, key in layer:
++            out["expanded"] += 1
++            for action, nxt in successors(state):
++                nk = keyf(nxt)
++                if nk in parents:
++                    continue
++                parents[nk] = (key, action)
++                h = heuristic(nxt) if heuristic is not None else None
++                note(nk, nxt, depth + 1, h)
++                if is_goal(nxt):
++                    return finish("found", nk)
++                if len(parents) >= max_nodes:
++                    return finish("max_nodes")
++                ranked.append((0 if h is None else h, len(ranked), nxt, nk))
++        ranked.sort(key=lambda item: (item[0], item[1]))
++        layer, depth = [(nxt, nk) for _, _, nxt, nk in ranked[:beam]], depth + 1
++    return finish("exhausted")
++
++
++def search_helper_globals(runtime_globals, timeout_seconds, started=None):
++    """{'search': ..., 'run_plan': ...} for one snippet whose call may run TIMEOUT_SECONDS from STARTED."""
++    call_end = (_SEARCH_STARTED if started is None else started) + max(1, int(timeout_seconds))
++    active = [False]
++
++    def search(start, step, is_goal, actions, key=None, heuristic=None, beam=None, max_nodes=300_000,
++               time_limit=60):
++        t0 = time.monotonic()
++        end = min(t0 + max(0.0, min(float(time_limit), _SEARCH_TIME_CAP)), call_end - _SEARCH_RESERVE)
++        nodes = max(1, min(int(max_nodes), _SEARCH_NODE_CAP))
++        width = None if beam is None else max(1, int(beam))
++        out = {"expanded": 0}
++        parents, best = {}, [None, None, None, 0, None]
++        nested = active[0]
++        saved_action = runtime_globals.get("action")
++        armed, old_handler = [False], None
++
++        def alarm(signum, frame):
++            if armed[0]:
++                armed[0] = False
++                raise _SearchTimeout()
++
++        try:
++            active[0] = True
++            runtime_globals["action"] = _search_no_action
++            remaining = end - time.monotonic()
++            if remaining > 0:
++                if not nested:
++                    try:  # the sandbox runs snippets in its main thread; elsewhere only the clock check applies
++                        old_handler = signal.signal(signal.SIGALRM, alarm)
++                    except ValueError:
++                        old_handler = None
++                    if old_handler is not None:
++                        armed[0] = True
++                        signal.setitimer(signal.ITIMER_REAL, remaining + 1.0)
++                _search_loop(start, step, is_goal, actions, key if key is not None else _search_auto_key,
++                             heuristic, width, nodes, end, out, parents, best)
++        except _SearchTimeout:
++            pass
++        finally:
++            armed[0] = False
++            if old_handler is not None:
++                signal.setitimer(signal.ITIMER_REAL, 0)
++                signal.signal(signal.SIGALRM, old_handler)
++            runtime_globals["action"] = saved_action
++            active[0] = nested
++        status = out.get("status", "timeout")
++        partial = None
++        if status != "found" and best[1] is not None:
++            partial = {"plan": _search_plan(parents, best[1]), "state": best[2], "depth": best[3], "h": best[4]}
++        return {"status": status, "plan": _search_plan(parents, out["goal"]) if status == "found" else None,
++                "expanded": out["expanded"], "best_partial": partial, "seen": len(parents),
++                "seconds": round(time.monotonic() - t0, 2), "time_limit": round(max(0.0, end - t0), 1)}
++
++    def run_plan(plan, observe, predicted, key=None):
++        same = (lambda a, b: a == b) if key is None else (lambda a, b: key(a) == key(b))
++        out = {"executed": 0, "mismatch_at": None, "predicted": None, "observed": None, "stop": "done"}
++        for index, action in enumerate(list(plan)):
++            if call_end - time.monotonic() < _SEARCH_PLAN_RESERVE:
++                out["stop"] = "time"
++                break
++            if callable(predicted):
++                before = observe(runtime_globals.get("current_frame"))
++                expect = predicted(before, action)
++                if expect is None or (isinstance(expect, str) and expect == "dead"):
++                    out.update(mismatch_at=index, predicted=expect, observed=before,
++                               stop="illegal" if expect is None else "dead")
++                    break
++            else:
++                expect = predicted[index] if index < len(predicted) else None
++            try:
++                result = runtime_globals["action"]([action]) or {}
++            except Exception as exc:  # the harness's catchable stale-state refusal: the last action changed nothing
++                stale = runtime_globals.get("StaleStateActionError")
++                if stale is None or not isinstance(exc, stale):
++                    raise
++                out["stop"] = "stale_state"
++                break
++            if not result.get("executed"):
++                out["stop"] = str(result.get("stop_reason") or "not_executed")
++                break
++            out["executed"] += 1
++            ended = next((flag for flag in ("level_completed", "game_over", "run_complete", "done")
++                          if result.get(flag)), None)
++            if ended is not None:
++                out.update(predicted=expect, observed=None, stop="run_complete" if ended == "done" else ended)
++                break
++            observed = observe(runtime_globals.get("current_frame"))
++            out.update(predicted=expect, observed=observed)
++            if expect is not None and not same(observed, expect):
++                out.update(mismatch_at=index, stop="mismatch")
++                break
++        return out
++
++    return {"search": search, "run_plan": run_plan}
