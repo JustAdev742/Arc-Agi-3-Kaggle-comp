@@ -2343,3 +2343,16 @@ Measured: 154/154 requests in both passes (one at a time 502 s, 8 in flight 373 
           token-identical between the sequential and concurrent passes: batching nondeterminism alone changes almost
           every greedy continuation, so base-vs-REAP must be read on the logprob metrics against this floor, not on
           exact matches. arc3-fidelity-reap448 pushed 14:56 (QUEUED).
+
+## 2026-10-08 15:32 · fidelity probe: REAP-448 makes a small, detectable shift, largest on image turns and on vc33 · PENDING 2nd base run
+Runs:     arc3-fidelity-base v1 and arc3-fidelity-reap448 v1 (both 10 streams, lossless acceptance, 154 requests, greedy
+          192 tokens); scripts/fidelity_compare.py -> runs/fidelity-compare.json.
+Measured: mean |delta logprob| of chosen tokens on the agreed prefix: REAP 0.0480 vs floor (base seq vs conc) 0.0352,
+          ratio 1.36; prefix share before divergence 0.075 vs 0.132 (diff -0.057, 95% bootstrap -0.085..-0.030);
+          per-request |dlp| +0.014 (-0.001..+0.032). Reading: "small, detectable shift".
+Where:    fresh-frame turns (user + image) 0.054 vs 0.037; tool-result/text turns 0.038 vs 0.033. By game |dlp| REAP/floor:
+          vc33 0.094/0.047 (largest; vc33 also lost most in exp-073), ft09 0.075/0.040, ar25 0.068/0.044, sb26 0.066/0.037,
+          tn36 0.045/0.024; lp85 0.022/0.024 and tu93 0.049/0.048 unchanged. Accept length unchanged (2.774 vs 2.784).
+Reading:  consistent with REAP-k448 (calibrated on agentic text) disturbing image-token processing. Caveat: the floor is
+          within-run batching noise only; a second base run (arc3-fidelity-base v2, pushed 15:32) gives the cross-run
+          floor (different session, autotuned kernels) that the base-vs-REAP pair also contains.
