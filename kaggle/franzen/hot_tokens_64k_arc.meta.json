@@ -1,0 +1,20 @@
+{
+ "what": "FR-Spec hot-token map for the MTP draft, tuned to our ARC harness outputs (scripts/frspec_map.py build)",
+ "file": "hot_tokens_64k_arc.pt",
+ "sha256": "9c77419ad5757ce3e01229af834900263eef3f658dc26862e55c89cdd3c70ab9",
+ "ids": 65536,
+ "base_map": {"file": "hot_tokens_64k.pt in Kaggle dataset dfranzen/pennyroyal-v253",
+              "sha256": "becfa41d394b86c26c632bea8f3c6ea64bbb76d7b238d8673c06afae21269f25"},
+ "tokenizer_sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+ "counts_corpus": {"logs": "runs/*/kernel-output/prompts/*.log except exp-073..076 (721 files)",
+                   "segments": 5991, "tokens": 8111631, "distinct_ids": 20519},
+ "min_count": 2,
+ "added": 1896,
+ "dropped": 1896,
+ "dropped_rule": "map ids never used in the corpus, highest id first, never one of the tokenizer's added tokens",
+ "held_out_coverage": {
+  "exp073b": {"output_tokens": 1088709, "base_map": 0.987956, "this_map": 0.999466},
+  "exp073": {"output_tokens": 1326111, "base_map": 0.984966, "this_map": 0.999045}
+ },
+ "most_frequent_missing_from_base_map": ["Hmm", " Hmm", " hmm", " zig", ".ascii", " glyphs", "bbbb", " BFS"]
+}

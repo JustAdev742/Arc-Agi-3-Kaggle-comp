@@ -2435,3 +2435,20 @@ Run:      scottmahony/arc3-dprime-swift-r14a05-full v1 (pushed 16:25, QUEUED) = 
           REAP-448 (unverified) + 14 streams + acceptance 0.5 + sandbox fix, 25 games x 121 min. Read: output tokens
           per request (exp-073b: ~1,990), requests and actions per game, accept length, levels and score vs
           exp-073b/exp-075. Quota: 10.1 h of 30 used before exp-075/076.
+
+## 2026-10-08 16:34 · FR-Spec map tuned to our ARC outputs: draftable share 98.8% -> 99.95% (held out) · BUILT (not run yet)
+Found:    the MTP draft can only propose tokens in its FR-Spec map (Pennyroyal's generic hot_tokens_64k.pt, 65,536
+          ids). In our runs' model outputs (assistant reasoning + tool calls in prompts/*.log), 1.2% (exp-073b, 1.09M
+          tokens) and 1.5% (exp-073, 1.33M) of tokens are outside it; the most frequent: "Hmm" x4,030, " Hmm" x1,740,
+          " hmm" x575, " zig", ".ascii", " glyphs", "bbbb", " BFS". Each one ends the accepted draft run there.
+Built:    scripts/frspec_map.py counts output tokens over 721 earlier logs (5,991 segments, 8.1M tokens, exp-073..076
+          held out), adds the 1,896 ids used >= 2 times that the map lacks and drops 1,896 map ids never used (highest
+          id first, never an added/special token: an earlier draft of the rule dropped </think> and <|im_end|>, caught
+          by a check). kaggle/franzen/hot_tokens_64k_arc.pt (sha256 9c77419a..., torch.save of a 65,536-id list, the
+          same archive records as the original) + .meta.json. Held-out coverage: exp-073b 98.80% -> 99.95%, exp-073
+          98.50% -> 99.90%.
+Expected: accept length +1-2% (a per-position acceptance of ~0.8 times 0.987 -> 0.9995), i.e. about +1% score by
+          the measured elasticity. Small, but free; lossless in itself (the target still decides every token).
+Builder:  --hot-tokens FILE: a cell before the launcher writes the map (base64, sha256 checked), cell 12 reads it and
+          his TOKEN_MAP_SHA becomes its sha256, so his own assert checks it. 31 builder tests pass.
+Next:     ride along in the next full-length arm and read the accept length against exp-073b (3.10) / exp-075.

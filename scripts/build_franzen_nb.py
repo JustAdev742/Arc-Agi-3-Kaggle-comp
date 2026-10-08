@@ -72,6 +72,12 @@ Options change a non-submission run only, or a named setting everywhere:
   started. His notebook releases the benchmark without a server on purpose (a rerun must not idle out), so a test
   arm whose server died used to play its whole budget without a model. Off in a competition rerun.
 
+- ``--hot-tokens FILE``: the MTP draft proposes only tokens in its FR-Spec map; his launcher uses Pennyroyal's
+  generic 64k map, which lacks 1.2-1.5% of our model's output tokens ("Hmm", " BFS", ".ascii", grid runs).
+  kaggle/franzen/hot_tokens_64k_arc.pt (scripts/frspec_map.py; same size, special tokens kept) covers 99.9%. A cell
+  before the launcher writes FILE (base64, sha256 checked) to /kaggle/arc3-hot-tokens.pt; cell 12 reads it there,
+  and its TOKEN_MAP_SHA becomes FILE's sha256, so his own assert checks it.
+
 Every change is anchored on text that must occur exactly once, and listed in the first markdown cell. Writes
 ``<out>/<slug>.ipynb`` and ``<out>/kernel-metadata.json`` (private, internet off, RTX PRO 6000).
 """
@@ -166,6 +172,13 @@ MODEL_END = "# <<< ours (--model)"
 FAIL_FAST_BEGIN = "# >>> ours (--fail-fast)"
 FAIL_FAST_END = "# <<< ours (--fail-fast)"
 FAIL_FAST_HEALTH_MINUTES = 35
+# --hot-tokens: the MTP draft's FR-Spec vocabulary (his launcher takes Pennyroyal's generic 64k map and checks its sha)
+HOT_MAP_FILE = "/kaggle/arc3-hot-tokens.pt"
+HOT_SHA_RE = re.compile(r'^TOKEN_MAP_SHA = "([0-9a-f]{64})"$', re.M)
+HOT_FIND_ANCHOR = ('        tok = find_unique(WHEELHOUSE_DIR, "hot_tokens_64k.pt", required=False)\n'
+                   '        if tok is None: tok = find_unique(WHEELHOUSE_DIR, "flash-next-64k.pt")\n')
+HOT_BEGIN = "# >>> ours (--hot-tokens)"
+HOT_END = "# <<< ours (--hot-tokens)"
 
 
 def _replace_once(text: str, old: str, new: str, what: str) -> str:
@@ -443,6 +456,38 @@ def _model_code(name: str) -> str:
         f"{MODEL_END}\n")
 
 
+def _hot_tokens(cell: str, path: Path) -> tuple[str, str, str]:
+    """Cell 12 reading our FR-Spec map (its sha256 replaces his TOKEN_MAP_SHA, so his assert checks ours), the code
+    cell that writes the map before it, and the change line."""
+    import base64
+
+    data = path.read_bytes()
+    if not data.startswith(b"PK"):
+        raise SystemExit(f"--hot-tokens {path}: not a torch.save zip archive")
+    sha = hashlib.sha256(data).hexdigest()
+    if len(HOT_SHA_RE.findall(cell)) != 1:
+        raise SystemExit("--hot-tokens: TOKEN_MAP_SHA not found once in the launcher cell")
+    cell = HOT_SHA_RE.sub(f'TOKEN_MAP_SHA = "{sha}"  # ours (--hot-tokens): {path.name}', cell)
+    cell = _replace_once(cell, HOT_FIND_ANCHOR, f"        tok = Path({HOT_MAP_FILE!r})  # ours (--hot-tokens)\n",
+                         "--hot-tokens")
+    if re.search(r"^\s*FRSPEC=False", cell, re.M):
+        raise SystemExit("--hot-tokens: CFG FRSPEC is off, so the map would not be used")
+    b64 = base64.b64encode(data).decode()
+    lines = "\n".join(b64[i:i + 120] for i in range(0, len(b64), 120))
+    writer = (
+        f"{HOT_BEGIN}: the MTP draft's FR-Spec vocabulary is {path.name} (scripts/frspec_map.py) instead of\n"
+        "# Pennyroyal's generic hot_tokens_64k.pt; the launcher's sha256 assert checks this file.\n"
+        "import base64 as _ours_b64, hashlib as _ours_hashlib\n"
+        f"_ours_hot = _ours_b64.b64decode(\"\"\"\n{lines}\n\"\"\")\n"
+        f"assert _ours_hashlib.sha256(_ours_hot).hexdigest() == {sha!r}, 'FR-Spec map corrupted in the notebook'\n"
+        f"open({HOT_MAP_FILE!r}, 'wb').write(_ours_hot)\n"
+        f"print('ours: FR-Spec map {path.name} written to {HOT_MAP_FILE}')\n"
+        f"{HOT_END}\n")
+    change = (f"MTP draft FR-Spec map {path.name} (sha256 {sha[:12]}, {len(data)} bytes) instead of Pennyroyal's "
+              "generic hot_tokens_64k.pt, written by a cell before the launcher")
+    return cell, writer, change
+
+
 def _fail_fast_code() -> str:
     """Lines before `await bm.run(` that end a test arm when its SGLang server is gone. His notebook releases the
     benchmark even when the server is still loading or has died (so a rerun never idles out), which in a test arm
@@ -609,7 +654,7 @@ def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str]
           his_repo: Path | None = None, bundle: Path | None = None, base: str = "franzen",
           reap_kept: Path | None = None, wait_inputs: float | None = None,
           input_fallback: bool = False, probe: Path | None = None, model: str | None = None,
-          reap_verify: bool = True, fail_fast: bool = False) -> list[str]:
+          reap_verify: bool = True, fail_fast: bool = False, hot_tokens: Path | None = None) -> list[str]:
     if model is not None and model not in MODELS:
         raise SystemExit(f"--model {model!r}: unknown (known: {', '.join(sorted(MODELS))})")
     if not reap_verify and not reap_kept:
@@ -677,7 +722,8 @@ def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str]
     sources[setup], done = _add_env(sources[setup], env_add or {})
     changes += done
     reap_files: list[tuple[str, str]] = []
-    if cfg or server_env or reap_kept:
+    hot_writer = None
+    if cfg or server_env or reap_kept or hot_tokens:
         launch = _one_cell(sources, code, LAUNCH_ANCHOR, "cell 12")
         sources[launch], done = _set_cfg(sources[launch], cfg or {})
         changes += done
@@ -685,6 +731,9 @@ def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str]
         changes += done
         if reap_kept:
             sources[launch], reap_files, done = _reap(sources[launch], Path(reap_kept), verify=reap_verify)
+            changes.append(done)
+        if hot_tokens:
+            sources[launch], hot_writer, done = _hot_tokens(sources[launch], Path(hot_tokens))
             changes.append(done)
 
     preflight = None
@@ -760,13 +809,13 @@ def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str]
     if new_cells:
         his = next(i for i, c in enumerate(cells) if "".join(c["source"]).startswith(HIS_PATCH_ANCHOR))
         cells[his + 1:his + 1] = new_cells
-    if reap_files:  # %%writefile cells right before the launcher cell, which reads them
+    if reap_files or hot_writer:  # cells right before the launcher cell, which reads their files
         launch = next(i for i, c in enumerate(cells) if c["cell_type"] == "code" and LAUNCH_ANCHOR in "".join(c["source"]))
         written = []
-        for path, text in reap_files:
+        for text in [f"%%writefile {path}\n{text}" for path, text in reap_files] + ([hot_writer] if hot_writer else []):
             cell = copy.deepcopy(cells[launch])
             cell["outputs"], cell["execution_count"] = [], None
-            cell["source"] = f"%%writefile {path}\n{text}".splitlines(keepends=True)
+            cell["source"] = text.splitlines(keepends=True)
             written.append(cell)
         cells[launch:launch] = written
     if preflight is not None:  # drop what follows the probe cell; the probe module and the data check after cell 4
@@ -845,13 +894,16 @@ def main() -> None:
                     help="--reap-kept without the router sha256 check (for a derivative checkpoint, e.g. --model)")
     ap.add_argument("--fail-fast", action="store_true",
                     help="test arms (--full25): exit the kernel when the SGLang server is gone")
+    ap.add_argument("--hot-tokens", type=Path, default=None, metavar="FILE",
+                    help="the MTP draft's FR-Spec map (kaggle/franzen/hot_tokens_64k_arc.pt)")
     args = ap.parse_args()
     changes = build(args.out, args.slug, args.full25, _pairs(args.env, "--env"), args.note,
                     env_add=_pairs(args.env_add, "--env-add"), cfg=_pairs(args.cfg, "--cfg"),
                     server_env=_pairs(args.server_env, "--server-env"), patches=args.patch,
                     apply_check=not args.no_apply_check, his_repo=args.his_repo, bundle=args.bundle, base=args.base,
                     reap_kept=args.reap_kept, wait_inputs=args.wait_inputs, input_fallback=args.input_fallback,
-                    probe=args.probe, model=args.model, reap_verify=not args.reap_no_verify, fail_fast=args.fail_fast)
+                    probe=args.probe, model=args.model, reap_verify=not args.reap_no_verify, fail_fast=args.fail_fast,
+                    hot_tokens=args.hot_tokens)
     print(f"built {args.out / (args.slug + '.ipynb')}: {changes or 'unchanged'}")
 
 

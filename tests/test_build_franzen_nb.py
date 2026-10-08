@@ -709,3 +709,27 @@ def test_fail_fast_watches_the_server_from_right_before_the_benchmark(tmp_path):
     with pytest.raises(Exit):  # alive but never healthy past the deadline
         run_watch(Proc(None), False, 200)
     assert "if not TRUE_SUBMISSION:" in watch  # never started in a competition rerun
+
+
+def test_hot_tokens_writes_our_map_before_the_launcher_and_his_assert_checks_it(tmp_path):
+    import hashlib
+    hot = ROOT / "kaggle" / "franzen" / "hot_tokens_64k_arc.pt"
+    meta = json.loads((ROOT / "kaggle" / "franzen" / "hot_tokens_64k_arc.meta.json").read_text())
+    sha = hashlib.sha256(hot.read_bytes()).hexdigest()
+    assert sha == meta["sha256"]
+    changes = bf.build(tmp_path / "h", "h", base="dprime", hot_tokens=hot, cfg={"MAXREQ": "14"})
+    assert any(c.startswith("MTP draft FR-Spec map hot_tokens_64k_arc.pt") for c in changes)
+    codes = _code_cells(tmp_path / "h" / "h.ipynb")
+    launch = next(i for i, src in enumerate(codes) if bf.LAUNCH_ANCHOR in src)
+    assert f'TOKEN_MAP_SHA = "{sha}"' in codes[launch] and "becfa41d" not in codes[launch]
+    assert f"tok = Path({bf.HOT_MAP_FILE!r})" in codes[launch] and "hot_tokens_64k.pt\", required" not in codes[launch]
+    assert "assert sha256(tok) == TOKEN_MAP_SHA" in codes[launch]  # his check, now of our file
+    writer = codes[launch - 1]
+    assert writer.startswith(bf.HOT_BEGIN)
+    _compiles(writer)
+    _compiles(codes[launch])
+    out = tmp_path / "arc3-hot-tokens.pt"
+    exec(writer.replace(bf.HOT_MAP_FILE, str(out)), {})
+    assert out.read_bytes() == hot.read_bytes()
+    with pytest.raises(SystemExit, match="FRSPEC is off"):
+        bf.build(tmp_path / "x", "x", base="dprime", hot_tokens=hot, cfg={"FRSPEC": "False"})
