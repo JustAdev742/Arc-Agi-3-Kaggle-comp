@@ -164,9 +164,13 @@ If fewer than two configurations reach 3 draws, the unmodified base fills the se
   `--compact` (Kaggle refused the 992 KB build). CPU bed: 26 of 26 checks pass, with fresh starts firing. It is pushed
   once exp-077's logs show no patch bug.
 - GPU quota (19:30): 18.2 of 30 h used, 22.8 h reserved with the two running sessions; reset Sat 00:00 UTC.
-- **Decision only you can make:** the leaders' gain looks like post-training (a trained policy). One 96 GB Kaggle GPU at
-  30 h/week cannot train this 80B MoE. I have not costed it; if you would fund rented GPUs for a post-training attempt,
-  say so and I will scope it with a cost before renting anything.
+- **Decision only you can make:** the leaders' gain looks like post-training, i.e. a trained policy (intel-oct8.md
+  §1.5). One 96 GB Kaggle GPU at 30 h/week cannot train this 80B MoE. The costed option is new-methods.md §6.1:
+  - LoRA SFT on our own solved-level traces, on rented 8×H100 (about $25/h), then a merge and a re-quantisation;
+  - about $1.5-3k all-in, with roughly a 40% chance of no gain;
+  - before Nov 2 it is tight, and the competition's external-data clause must be checked first.
+
+  Say if you want it; nothing is rented without your OK.
 
 ### State at 2026-10-08 16:15 UTC
 - **LB (16:0x):** Tufa Labs 55.89, Yi-Chia Chen 55.77, Majkel1337 42.66, then a band at 34-39. Ours: 28.87 (the D'
