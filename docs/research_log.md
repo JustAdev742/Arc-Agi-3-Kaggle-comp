@@ -2328,3 +2328,10 @@ Checked:  39 tests (tests/test_fidelity.py, tests/test_build_franzen_nb.py), ruf
           normalisation, the chat endpoint's extras) is read in the Pennyroyal wheel, not run.
 Cost:     ~25 min per arm (estimate: 9 min to READY, ~9 min seq, ~6 min conc); base + REAP ~0.85 GPU-h; a second
           base run (across-run floor) ~25 min more.
+
+## 2026-10-08 14:21 · fidelity probe merged; prompt dataset uploaded (private); arms queued · RUNNING
+Merged the agent's probe (docs/research/beat-tufa/fidelity-probe.md; tests pass). Uploaded scottmahony/arc3-fidelity-prompts
+          (private; manifest.json + requests.jsonl 39,605,617 B, 154 requests from 11 public games incl. tn36, images
+          inline). Probe arms arc3-fidelity-base and arc3-fidelity-reap448 (10 streams each, lossless acceptance, greedy
+          192 tokens with logprobs, sequential then 8 in flight) wait for a free slot: exp-073b (full length, REAP-14 +
+          acceptance 0.5) is RUNNING and exp-072h's stuck session holds the other slot.
