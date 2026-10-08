@@ -10,7 +10,7 @@ tensors), and his launcher checks every indexed shard: "Missing/empty shard". In
 (1,565, in another file), which is why nothing in his launcher had ever tripped on it.
 
 What a few HTTP reads showed without a GPU (single files and safetensors headers through the Kaggle API, see
-scratchpad tools/model_file.py and tools/st_header.py):
+scripts/kaggle_model_files.py get / header):
 - tokenizer.json sha256 equal (so the FR-Spec map's tokenizer check holds), chat_template.jinja byte-identical;
 - quantization: Swift's AutoRound keeps only routers, gates and a few projections in 16 bits, so its linear-attention
   projections are INT4 where Intel keeps them BF16 (a different kernel path in the server);
