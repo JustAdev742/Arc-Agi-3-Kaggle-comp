@@ -37,6 +37,8 @@ His repo is found at --his-repo, else $FRANZEN_REPO, else /home/user/da-fr/arc-a
 from __future__ import annotations
 
 import argparse
+import ast
+import base64
 import hashlib
 import json
 import os
@@ -44,6 +46,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import zlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -90,9 +93,32 @@ def his_patch_text(notebook: Path = NOTEBOOK) -> str:
     raise TreeError(f"{notebook}: no %%writefile /kaggle/harness-changes.patch cell")
 
 
+PACKED_WRITER = "_ours_write_packed"  # scripts/build_franzen_nb.py --compact
+
+
+def written_file(source: str) -> tuple[str, str] | None:
+    """(path, text) a cell writes: a ``%%writefile`` cell, or a scripts/build_franzen_nb.py --compact cell (the bytes
+    a %%writefile cell would write, zlib-compressed in base64, checked by sha256); None for any other cell."""
+    if source.startswith("%%writefile "):
+        return writefile_body(source)
+    if PACKED_WRITER + "(" not in source:
+        return None
+    calls = [node for node in ast.walk(ast.parse(source)) if isinstance(node, ast.Call)
+             and isinstance(node.func, ast.Name) and node.func.id == PACKED_WRITER]
+    if len(calls) != 1 or len(calls[0].args) != 3:
+        raise TreeError(f"--compact cell with {len(calls)} {PACKED_WRITER} calls (expected one with 3 arguments)")
+    path, packed, sha = (ast.literal_eval(arg) for arg in calls[0].args)
+    data = zlib.decompress(base64.b64decode(packed))
+    if hashlib.sha256(data).hexdigest() != sha:
+        raise TreeError(f"--compact cell for {path}: sha256 mismatch")
+    return path, data.decode("utf-8")
+
+
 def our_patch_cells(notebook: Path) -> list[tuple[str, str]]:
-    """(path, text) of the ``%%writefile /kaggle/ours-*.patch`` cells scripts/build_franzen_nb.py --patch adds."""
-    return [writefile_body(s) for s in notebook_cells(notebook) if s.startswith("%%writefile /kaggle/ours-")]
+    """(path, text) of the /kaggle/ours-*.patch files scripts/build_franzen_nb.py --patch adds (as %%writefile cells,
+    or --compact cells)."""
+    files = [written_file(s) for s in notebook_cells(notebook)]
+    return [f for f in files if f is not None and f[0].startswith("/kaggle/ours-")]
 
 
 # --- files and hashes --------------------------------------------------------------------------------------------

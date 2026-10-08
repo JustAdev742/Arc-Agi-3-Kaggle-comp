@@ -2603,3 +2603,20 @@ Reading:  the speed went into copying its previous turn. Unseparated causes: Swi
   3.70). Ship lossless first; gate any lossy setting on a loop count (scratchpad tools/dupes.py: exact repeated
   turns per game).
 - Parked behind this week's arms (quota 13.5 h left until Sat 00:00 UTC); candidate for next week.
+
+## 2026-10-08 19:23 · REAP-384 fidelity probe: about twice REAP-448's shift, and on text turns too · NOT PURSUED (for now)
+Run:      scottmahony/arc3-fidelity-reap384 v1 (18:54-19:21 UTC; D', 10 streams, lossless acceptance, the same 154
+          greedy requests); scripts/fidelity_compare.py base v1 / reap384 / base v2 -> runs/fidelity-compare-reap384.json.
+Measured: headline (seq passes) mean |dlp| 0.0603 vs floor 0.0376 (ratio 1.60; REAP-448: 0.0480, ratio 1.28);
+          prefix share 0.052 vs 0.120, diff -0.069 (95% bootstrap -0.095..-0.045; REAP-448 -0.045); runner-up flips
+          252/1k (448: 168; floor 153); top-k set changes 580/1k (448: 475; floor 394). The excess |dlp| over the
+          floor is 2.2x REAP-448's. Unlike 448, text and tool-result turns shift as well: 0.0546 vs 0.0383 (448:
+          0.0383 vs 0.0383); fresh-frame turns 0.0636 vs 0.0372. Verdict by the doc's rule: a small, detectable
+          shift (not "shifts the model": ratio < 3x and the prefix-share interval does not reach -0.10).
+Speed:    the probe cannot show it: its decode lines are single-stream (152-158 tok/s for base, 448 and 384 alike),
+          and REAP's gain is at the 12+ running plateau, where the step reads nearly every expert (448 -> 384 is
+          -14% of routed-expert bytes, so at most ~10% more tok/s there).
+Decision: no full-length REAP-384 arm now. A ~10% capacity gain cannot be seen in one run (two-run SD ~6.4 points),
+          the shift now reaches every turn type, and the week's remaining quota (~9 h after the running arms) goes
+          to the harness arms. Revisit with an ARC-calibrated REAP (image turns in the calibration set), which
+          should shrink the shift at either size.

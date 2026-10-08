@@ -77,6 +77,10 @@ Options change a non-submission run only, or a named setting everywhere:
   kaggle/franzen/hot_tokens_64k_arc.pt (scripts/frspec_map.py; same size, special tokens kept) covers 99.9%. A cell
   before the launcher writes FILE (base64, sha256 checked) to /kaggle/arc3-hot-tokens.pt; cell 12 reads it there,
   and its TOKEN_MAP_SHA becomes FILE's sha256, so his own assert checks it.
+- ``--compact``: each file our cells write (``--patch``, ``--reap-kept``, ``--probe``) is shipped zlib-compressed in
+  base64 instead of as a ``%%writefile`` cell: a code cell checks the sha256 of exactly the bytes the %%writefile cell
+  would write and writes them (Kaggle refuses a notebook near 1 MB with a bare HTTP 400; lesson 0033).
+  scripts/franzen_tree.py reads both kinds of cell back (``written_file``), so scripts/franzen_bed.py takes either.
 
 Every change is anchored on text that must occur exactly once, and listed in the first markdown cell. Writes
 ``<out>/<slug>.ipynb`` and ``<out>/kernel-metadata.json`` (private, internet off, RTX PRO 6000).
@@ -85,12 +89,14 @@ from __future__ import annotations
 
 import argparse
 import ast
+import base64
 import copy
 import hashlib
 import json
 import re
 import sys
 import tempfile
+import zlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -181,6 +187,19 @@ HOT_FIND_ANCHOR = ('        tok = find_unique(WHEELHOUSE_DIR, "hot_tokens_64k.pt
                    '        if tok is None: tok = find_unique(WHEELHOUSE_DIR, "flash-next-64k.pt")\n')
 HOT_BEGIN = "# >>> ours (--hot-tokens)"
 HOT_END = "# <<< ours (--hot-tokens)"
+COMPACT_BEGIN = "# >>> ours (--compact)"
+COMPACT_END = "# <<< ours (--compact)"
+COMPACT_WRITER = f"""
+def {franzen_tree.PACKED_WRITER}(path, packed_b64, sha):
+    # the bytes a %%writefile cell would write, zlib-compressed in base64 and checked before they are written
+    import base64, hashlib, zlib
+    data = zlib.decompress(base64.b64decode(packed_b64))
+    if hashlib.sha256(data).hexdigest() != sha:
+        raise RuntimeError(f"{{path}}: corrupted in the notebook")
+    with open(path, "wb") as f:
+        f.write(data)
+    print(f"Writing {{path}}")
+"""
 
 
 def _replace_once(text: str, old: str, new: str, what: str) -> str:
@@ -723,7 +742,8 @@ def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str]
           his_repo: Path | None = None, bundle: Path | None = None, base: str = "franzen",
           reap_kept: Path | None = None, wait_inputs: float | None = None,
           input_fallback: bool = False, probe: Path | None = None, model: str | None = None,
-          reap_verify: bool = True, fail_fast: bool = False, hot_tokens: Path | None = None) -> list[str]:
+          reap_verify: bool = True, fail_fast: bool = False, hot_tokens: Path | None = None,
+          compact: bool = False) -> list[str]:
     if model is not None and model not in MODELS:
         raise SystemExit(f"--model {model!r}: unknown (known: {', '.join(sorted(MODELS))})")
     if not reap_verify and not reap_kept:
@@ -864,7 +884,7 @@ def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str]
         for name, text, files in texts:
             cell = copy.deepcopy(cells[his])
             cell["outputs"], cell["execution_count"] = [], None
-            cell["source"] = f"%%writefile /kaggle/{name}\n{text}"
+            cell["source"] = _file_cell(f"/kaggle/{name}", text, compact)
             new_cells.append(cell)
             changes.append(f"harness patch {name} ({len(files)} file(s): {', '.join(sorted(set(files)))}; "
                            f"sha256 {hashlib.sha256(text.encode()).hexdigest()[:12]})")
@@ -881,7 +901,7 @@ def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str]
     if reap_files or hot_writer:  # cells right before the launcher cell, which reads their files
         launch = next(i for i, c in enumerate(cells) if c["cell_type"] == "code" and LAUNCH_ANCHOR in "".join(c["source"]))
         written = []
-        for text in [f"%%writefile {path}\n{text}" for path, text in reap_files] + ([hot_writer] if hot_writer else []):
+        for text in [_file_cell(path, text, compact) for path, text in reap_files] + ([hot_writer] if hot_writer else []):
             cell = copy.deepcopy(cells[launch])
             cell["outputs"], cell["execution_count"] = [], None
             cell["source"] = text.splitlines(keepends=True)
@@ -894,12 +914,15 @@ def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str]
         setup_cell = next(i for i, c in enumerate(cells) if c["cell_type"] == "code"
                           and SETUP_ANCHOR in "".join(c["source"]))
         added = []
-        for text in (f"%%writefile {PROBE_FILE}\n{PROBE_SCRIPT.read_text()}", preflight):
+        for text in (_file_cell(PROBE_FILE, PROBE_SCRIPT.read_text(), compact), preflight):
             cell = copy.deepcopy(cells[setup_cell])
             cell["outputs"], cell["execution_count"] = [], None
             cell["source"] = text.splitlines(keepends=True)
             added.append(cell)
         cells[setup_cell + 1:setup_cell + 1] = added
+    if compact and (texts_written := len(patches) + len(reap_files) + (preflight is not None)):
+        changes.append(f"the {texts_written} file(s) our cells write are shipped zlib-compressed (--compact; the same "
+                       "bytes, sha256 checked)")
     if changes or note:
         cells[0]["source"] = ["".join(cells[0]["source"]) + "\n\n**Our arm (scottmahony, built by "
                               f"scripts/build_franzen_nb.py from the unmodified {base} notebook):** "
@@ -918,6 +941,26 @@ def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str]
             "docker_image": IMAGE, "docker_image_pinning_type": "original", "machine_shape": MACHINE_SHAPE}
     (out / "kernel-metadata.json").write_text(json.dumps(meta, indent=1))
     return changes
+
+
+def _file_cell(path: str, text: str, compact: bool) -> str:
+    """The source of a cell that writes TEXT to PATH: ``%%writefile PATH``, or with compact=True a code cell writing
+    the same bytes from a zlib-compressed base64 payload (franzen_tree.written_file reads both back)."""
+    source = f"%%writefile {path}\n{text}"
+    if not compact:
+        return source
+    data = franzen_tree.writefile_body(source)[1].encode("utf-8")
+    packed = base64.b64encode(zlib.compress(data, 9)).decode()
+    lines = "\n".join(packed[i:i + 120] for i in range(0, len(packed), 120))
+    sha = hashlib.sha256(data).hexdigest()
+    cell = (f"{COMPACT_BEGIN}: {path}, {len(data)} bytes (sha256 {sha[:12]}), shipped compressed: Kaggle refuses a\n"
+            "# notebook near 1 MB."
+            + COMPACT_WRITER
+            + f"{franzen_tree.PACKED_WRITER}({path!r}, \"\"\"\n{lines}\n\"\"\", {sha!r})\n"
+            f"{COMPACT_END}\n")
+    if franzen_tree.written_file(cell) != (path, data.decode("utf-8")):
+        raise SystemExit(f"--compact: the cell for {path} does not round-trip")
+    return cell
 
 
 def _pairs(values: list[str], flag: str) -> dict[str, str]:
@@ -965,6 +1008,8 @@ def main() -> None:
                     help="test arms (--full25): exit the kernel when the SGLang server is gone")
     ap.add_argument("--hot-tokens", type=Path, default=None, metavar="FILE",
                     help="the MTP draft's FR-Spec map (kaggle/franzen/hot_tokens_64k_arc.pt)")
+    ap.add_argument("--compact", action="store_true",
+                    help="ship the files our cells write zlib-compressed (Kaggle refuses notebooks near 1 MB)")
     args = ap.parse_args()
     changes = build(args.out, args.slug, args.full25, _pairs(args.env, "--env"), args.note,
                     env_add=_pairs(args.env_add, "--env-add"), cfg=_pairs(args.cfg, "--cfg"),
@@ -972,7 +1017,7 @@ def main() -> None:
                     apply_check=not args.no_apply_check, his_repo=args.his_repo, bundle=args.bundle, base=args.base,
                     reap_kept=args.reap_kept, wait_inputs=args.wait_inputs, input_fallback=args.input_fallback,
                     probe=args.probe, model=args.model, reap_verify=not args.reap_no_verify, fail_fast=args.fail_fast,
-                    hot_tokens=args.hot_tokens)
+                    hot_tokens=args.hot_tokens, compact=args.compact)
     print(f"built {args.out / (args.slug + '.ipynb')}: {changes or 'unchanged'}")
 
 

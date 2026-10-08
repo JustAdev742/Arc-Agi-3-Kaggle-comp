@@ -737,3 +737,35 @@ def test_hot_tokens_writes_our_map_before_the_launcher_and_his_assert_checks_it(
     assert bf._read_hot_ids(out) == bf._read_hot_ids(hot)  # the ids his torch.load will see
     with pytest.raises(SystemExit, match="FRSPEC is off"):
         bf.build(tmp_path / "x", "x", base="dprime", hot_tokens=hot, cfg={"FRSPEC": "False"})
+
+
+def test_compact_ships_the_same_files_compressed_and_the_bed_reads_them_back(tmp_path):
+    import hashlib
+    patches = sorted((ROOT / "kaggle" / "franzen" / "patches").glob("ours-0[2-5]-*.patch"))[:3] + [SAMPLE]
+    plain = bf.build(tmp_path / "p", "p", patches=patches, apply_check=False, reap_kept=REAP_KEPT)
+    small = bf.build(tmp_path / "c", "c", patches=patches, apply_check=False, reap_kept=REAP_KEPT, compact=True)
+    assert small[:-1] == plain and small[-1].startswith(f"the {len(patches) + 3} file(s) our cells write are shipped")
+    p, c = _cells(tmp_path / "p" / "p.ipynb"), _cells(tmp_path / "c" / "c.ipynb")
+    assert len(p) == len(c)
+    differ = [i for i, (a, b) in enumerate(zip(p, c)) if a != b]
+    assert differ[0] == 0 and len(differ) == 1 + len(patches) + 3  # the markdown summary and the written files
+    for i in differ[1:]:
+        assert p[i].startswith("%%writefile ") and c[i].startswith(bf.COMPACT_BEGIN)
+        path, text = bf.franzen_tree.writefile_body(p[i])
+        assert bf.franzen_tree.written_file(c[i]) == (path, text)
+        _compiles(c[i])
+        out = tmp_path / "w" / Path(path).name
+        out.parent.mkdir(exist_ok=True)
+        exec(c[i].replace(repr(path), repr(str(out))), {})  # what the notebook writes, byte for byte
+        assert out.read_bytes() == text.encode("utf-8")
+        broken = c[i].replace(hashlib.sha256(text.encode()).hexdigest(), "0" * 64)
+        with pytest.raises(RuntimeError, match="corrupted in the notebook"):
+            exec(broken.replace(repr(path), repr(str(out))), {})
+    # scripts/franzen_bed.py takes our patches from either notebook
+    assert bf.franzen_tree.our_patch_cells(tmp_path / "c" / "c.ipynb") == \
+        bf.franzen_tree.our_patch_cells(tmp_path / "p" / "p.ipynb")
+    assert len(bf.franzen_tree.our_patch_cells(tmp_path / "c" / "c.ipynb")) == len(patches)
+    # the point: these files (188 KB here) cost the notebook about a quarter of their size (Kaggle refuses ~1 MB)
+    written = sum(len(bf.franzen_tree.writefile_body(p[i])[1].encode()) for i in differ[1:])
+    saved = (tmp_path / "p" / "p.ipynb").stat().st_size - (tmp_path / "c" / "c.ipynb").stat().st_size
+    assert saved > 0.7 * written

@@ -495,7 +495,8 @@ def notebook_env(cell4: str) -> tuple[dict[str, str], dict]:
 
     keep = [node for node in tree.body if wanted(node)]
     environ: dict[str, str] = {}
-    namespace = {"os": types.SimpleNamespace(environ=environ), "Path": Path, "TRUE_SUBMISSION": False, "time": time}
+    namespace = {"os": types.SimpleNamespace(environ=environ), "Path": Path, "TRUE_SUBMISSION": False, "time": time,
+                 "_ours_input": lambda path: path}  # build_franzen_nb.py --input-fallback wraps input paths in it
     exec(compile(ast.Module(body=keep, type_ignores=[]), "<cell 4>", "exec"), namespace)
     return environ, namespace
 
