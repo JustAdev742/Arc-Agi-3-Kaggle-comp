@@ -2762,7 +2762,7 @@ Decision: 07 rejected as configured (a later trigger, e.g. >= 50 min where the h
           hypothesis). Candidates drop 06b/07 and RESET exposure: exp-080 = exp-077's set (01/02/04/03b/05) + FR-Spec
           map, RESET off, pushed 23:1x (bed 23/23). LB order: exp-074t, then exp-080 once it reads healthy.
 
-## 2026-10-08 23:53 · ours-08 perception helpers built (OURS_PERCEPTION): exact view shift, left_view, lattice, 8-connectivity · BUILT
+## 2026-10-08 23:45 · ours-08 perception helpers built (OURS_PERCEPTION): exact view shift, left_view, lattice, 8-connectivity · BUILT
 Files:    kaggle/franzen/patches/ours-08-perception.patch (sha256 f202d54b5063; on top of the seven) and
           ours-08b-perception-on-01-02-04-03b-05.patch (sha256 5745781e03d3; the same lines on exp-080's stack, checked
           "ok: 6 patch(es)"), tests/test_ours_perception_patch.py (all pass here), docs/research/beat-tufa/patch-perception.md.
