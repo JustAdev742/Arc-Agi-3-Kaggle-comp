@@ -2500,3 +2500,15 @@ Why:      8 games stopped on a mechanic never decoded, 6 ran out of time while p
 Acting:   two more flag-gated patches being built (agents): ours-05 per-level mem store (OURS_LEVEL_MEM, M1c) and
           ours-06 exact per-level action-effect table (OURS_EFFECT_TABLE). The gate's B cliff (P5) is a one-line
           scheduler change whose sign on the hidden set is unknown: a replay simulation first, not in the next arm.
+
+## 2026-10-08 17:05 · M3 search helper merged (ours-04, OURS_SEARCH_HELPER) · BUILT, for the bundle arm
+Patch:    kaggle/franzen/patches/ours-04-search-helper.patch (sha256 61e18f12...), applies after his patch + ours-01
+          (franzen_tree.py check: ok). docs/research/beat-tufa/patch-search-helper.md.
+What:     search(start, step, is_goal, actions, key, heuristic, beam, max_nodes=300k, time_limit<=60) and
+          run_plan(plan, observe, predicted) in the sandbox; 10 descriptive prompt lines (+461 cached tokens); a call
+          that uses search() gets time_limit + 15 s (cap 75 s). Flag off: byte-identical (tested).
+Checked:  21 tests; full suite 365 passed; bed 18/18 with a mock program that calls search(). On recorded model code:
+          tu93's 31-move plan in < 0.01 s (the model's own search found the same); re86's BFS that timed out at 30 s
+          ends in 1.6-2.3 s ("no plan in that model"); r11l L3 weighted A* 7 clicks in 0.12 s, and in the real engine
+          its first click is refused (the model's own board model was wrong), where run_plan would stop after 1 action.
+Unknown:  whether the model uses it, and its effect on levels and tokens: needs the full-length arm.
