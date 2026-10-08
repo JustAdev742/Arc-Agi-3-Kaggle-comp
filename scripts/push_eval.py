@@ -6,9 +6,10 @@ Always passes ``--accelerator NvidiaRtxPro6000``: without it Kaggle places the k
 the 27B model cannot load, and the run burns ten minutes of quota before falling back (exp-010b/exp-011 v1,
 2026-09-16). Prints the pushed version and the kernel's status right after.
 
-Pushes through the SDK (the CLI's output drops it) to record the push's ``kernel_session_id`` in
-``<folder>/sessions.jsonl``: the only handle scripts/kaggle_cancel.py has on a session that sits QUEUED for hours
-(2026-10-08: two sessions waited 10 h+ for a machine and blocked the 2-session limit).
+Pushes through the SDK and records each push (version, kernel id) in ``<folder>/sessions.jsonl`` and every attempt
+in ``<folder>/push_attempts.jsonl``. When the reply is an error, the kernel's last-run time decides whether the push
+went through (2026-10-08: a push Kaggle accepted looked failed to a retry loop). The reply carries no session id in
+this SDK version, so scripts/kaggle_cancel.py needs one from elsewhere.
 """
 from __future__ import annotations
 
@@ -37,7 +38,7 @@ def _last_run(api, ref: str) -> str | None:
 
 def _log_attempt(folder: Path, ref: str, resp, error: str) -> None:
     row = {"time": time.time(), "kernel": ref, "error": error,
-           "version": getattr(resp, "version_number", None), "session": getattr(resp, "kernel_session_id", None)}
+           "version": getattr(resp, "version_number", None), "kernel_id": getattr(resp, "kernel_id", None)}
     with (folder / "push_attempts.jsonl").open("a") as f:
         f.write(json.dumps(row) + "\n")
 
@@ -79,11 +80,10 @@ def main() -> None:
             return
         print(f"Kernel push error: {error}")
         sys.exit(1)
-    print(f"Kernel version {resp.version_number} successfully pushed.  Please check progress at {resp.url} "
-          f"(session {resp.kernel_session_id})")
+    print(f"Kernel version {resp.version_number} successfully pushed.  Please check progress at {resp.url}")
     with (folder / "sessions.jsonl").open("a") as f:
         f.write(json.dumps({"kernel": meta["id"], "version": resp.version_number,
-                            "kernel_session_id": resp.kernel_session_id, "pushed": time.time()}) + "\n")
+                            "kernel_id": getattr(resp, "kernel_id", None), "pushed": time.time()}) + "\n")
     time.sleep(5)
     s = subprocess.run([kaggle, "kernels", "status", meta["id"]], env=env, capture_output=True, text=True, check=False)
     print((s.stdout + s.stderr).strip().splitlines()[-1])

@@ -1,10 +1,11 @@
 #!/usr/bin/env python
-"""Cancel one of our Kaggle kernel sessions by the id scripts/push_eval.py recorded at push time.
+"""Cancel one of our Kaggle kernel sessions by its kernel_session_id (kagglesdk CancelKernelSession).
 
-    .venv/bin/python scripts/kaggle_cancel.py FOLDER            # the last session in FOLDER/sessions.jsonl
     .venv/bin/python scripts/kaggle_cancel.py --session ID
 
 For a session stuck QUEUED behind Kaggle's 2-session limit, or a run that should stop. Only our own kernels.
+Where to get the id is open: the push reply of this SDK version carries none (checked 2026-10-08), so FOLDER mode
+only works with a sessions.jsonl row that has one.
 """
 from __future__ import annotations
 

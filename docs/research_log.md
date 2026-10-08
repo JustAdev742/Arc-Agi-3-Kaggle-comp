@@ -2269,3 +2269,13 @@ Note:     my retry loop never saw this push succeed (it logged only refusals): t
 Next:     the owner submits https://www.kaggle.com/code/scottmahony/arc3-dprime-reap448-r14 (today's slot closes 00:00 UTC).
           Expected: the D' mean (~28.5) plus the serving gain (+14% tokens, ~+8-11% score by elasticity) and the
           sandbox fix: ~30-32 on average, with ~+/-3.3 draw noise.
+
+## 2026-10-08 12:42 · correction: the push reply has no session id; my push script crashed on success · FIXED
+The 10:43 entry was wrong: kagglesdk's ApiSaveKernelResponse (this version) has ref, url, version_number, error,
+          invalid_*, kernel_id, but no kernel_session_id (I read the field from a neighbouring class). scripts/push_eval.py
+          therefore raised AttributeError right after every successful push, before printing "successfully pushed": the
+          retry loop pushed exp-074s at ~12:20 and logged it as a failure, and the exp-072j probe at 12:42 went through
+          the same way. Fixed (records version and kernel id; confirms by last-run time when the reply is an error).
+          Sessions cannot be cancelled through the API without an id from elsewhere; kaggle_cancel.py says so.
+Queue:    exp-072j (REAP-14 + acceptance 0.5 + 4 speculative steps, gate) pushed 12:42, QUEUED; exp-072h and exp-073b
+          still report QUEUED since 00:15 / 01:37 although new sessions are being accepted (likely stale states).
