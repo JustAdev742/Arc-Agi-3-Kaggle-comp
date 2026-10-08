@@ -33,6 +33,8 @@ SEVEN = [PATCHES / name for name in (
     "ours-03b-win-ledger-on-02-04.patch", "ours-05-level-mem.patch", "ours-06b-effect-table-on-02-04-03b-05.patch",
     "ours-07-fresh-start.patch")]
 PATCH = PATCHES / "ours-08-perception.patch"
+FIVE = SEVEN[:5]  # exp-080's stack: 01, 02, 04, 03b, 05 (no 06b, no 07)
+PATCH_B = PATCHES / "ours-08b-perception-on-01-02-04-03b-05.patch"  # this patch rebased onto FIVE
 BED_PY = Path.home() / ".cache" / "arc3-franzen-bed" / "venv" / "bin" / "python"
 GAMES = ROOT / "environment_files"
 LEDGER_CHECKS = ROOT / "tests" / "franzen_ledger_checks.py"
@@ -887,3 +889,43 @@ def test_bed_with_all_eight_patches_and_flags(tmp_path):
 def test_flag_name_does_not_collide_with_cell_4():
     """--env-add refuses a key cell 4 already sets; an arm adds OURS_PERCEPTION that way."""
     assert "OURS_PERCEPTION" not in franzen_bed._cell(franzen_tree.notebook_cells(), "setup_env = {")
+
+
+# --- the variant for exp-080's stack ----------------------------------------------------------------------------------
+
+
+def _changed_lines(patch: Path) -> dict:
+    out: dict = {}
+    name = None
+    for line in patch.read_text().splitlines():
+        if line.startswith("diff --git "):
+            name = line.split()[2][2:]
+        elif line[:1] in "+-" and not line.startswith(("+++", "---")):
+            out.setdefault(name, []).append(line)
+    return out
+
+
+def test_the_variant_for_the_five_patch_stack_changes_the_same_lines():
+    """ours-08b is this patch rebased onto 01, 02, 04, 03b and 05: every file gains and loses exactly the same lines,
+    only where they sit differs."""
+    assert _changed_lines(PATCH_B) == _changed_lines(PATCH)
+
+
+@needs_tree
+@needs_bed
+@needs_games
+def test_the_variant_applies_on_the_five_and_is_inert_when_off(tmp_path_factory, tmp_path):
+    trees = {}
+    for name, patches in (("base5", FIVE), ("ours5", [*FIVE, PATCH_B])):
+        dest = tmp_path_factory.mktemp(name)
+        logs = franzen_tree.notebook_bundle(dest, patches)
+        assert [p.name for p in patches] == [k for k in logs if k != "his"]
+        trees[name] = dest / "src" / "ARC3-Inference"
+    flags = {k: ARM[k] for k in ("OURS_BUDGET_METER", "OURS_SEARCH_HELPER", "OURS_WIN_LEDGER", "OURS_LEVEL_MEM")}
+    base = run_child(trees["base5"], "off", "scripted", FLAG_OFF_SNIPPETS, tmp_path, flags)
+    ours = run_child(trees["ours5"], "off", "scripted", FLAG_OFF_SNIPPETS, tmp_path, flags)
+    assert ours["prompt"] == base["prompt"] and ours["results"] == base["results"]
+    on = run_child(trees["ours5"], "1", "bp35", ["r = action(['RIGHT'] * 4)\nprint(r.get('executed_count'))"], tmp_path,
+                   flags)
+    assert json.loads(on["results"][0])["stdout"].splitlines() == [
+        "[view] scrolled at step 4: content moved (+18,+0); view_offset now (-18,+0)", "4"]
