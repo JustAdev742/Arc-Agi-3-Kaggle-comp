@@ -150,8 +150,9 @@ If fewer than two configurations reach 3 draws, the unmodified base fills the se
 - **LB (16:0x):** Tufa Labs 55.89, Yi-Chia Chen 55.77, Majkel1337 42.66, then a band at 34-39. Ours: 28.87 (the D'
   copy, submission 56922501, 07:02 UTC). No public notebook has a best score above Franzen's own 34.30.
 - **Submission candidate: exp-074t** (scottmahony/arc3-dprime-reap448-r14-accept05) = D' + REAP-448 at load + 14 streams
-  + MTP acceptance 0.5 + input-path fallback + sandbox fix. This serving config scored **56.00 / 124 levels** at full
-  length on the public 25 (exp-073b), against Franzen v3's four passes 45.6-47.5 (mean 46.49). Its save run is
+  + MTP acceptance 0.5 + input-path fallback + sandbox fix. Full-length public-25 runs of this config: **56.00**
+  (exp-073b) and **42.89** (exp-075): mean 49.4. One run's SD is ~4.5 points (per-game SD ~22), so single runs
+  only show large effects; the +28-30% decode throughput is the solid part. Its save run is
   COMPLETE and checked (16:19 UTC); **the owner submits it** (it supersedes exp-074s, never submitted).
 - REAP fidelity question closed: the shift is real but confined to image turns, and costs no measured score.
 - Running (full length, 25 x 121 min): exp-075 (the candidate's exact config: a repeat of exp-073b plus the sandbox
