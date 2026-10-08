@@ -38,6 +38,8 @@ the last tool call it emitted says which snippet comes next. The programs exerci
   written in one call, read in the next, a write the sandbox must refuse, with their own coverage checks.
 - only with ``--program effects`` (for kaggle/franzen/patches/ours-06-effect-table.patch, OURS_EFFECT_TABLE=1):
   one action, then ``effects()`` in the sandbox, which must return the current level's table.
+- only with ``--program perception`` (for kaggle/franzen/patches/ours-08-perception.patch, OURS_PERCEPTION=1):
+  three moves, then ``view_offset``, ``left_view``, ``logical_grid()`` and ``.segmentation8`` in the sandbox.
 
 Usage it reports: prompt tokens estimated from the text and images, cached tokens as the longest message prefix
 shared with a recent request (a radix cache in miniature), completion tokens from the reply. It also writes an
@@ -254,6 +256,27 @@ print('BED effects level', lines[0].startswith('Level %d: ' % current_frame.leve
 ''']
 OPTIONAL_PROGRAMS += ("effects",)
 TAGS += (("effects_table", ("BED effects table",)), ("effects_level", ("BED effects level True",)))
+# perception: for kaggle/franzen/patches/ours-08-perception.patch with OURS_PERCEPTION=1. One snippet: three moves
+# (or a click), then view_offset against the current frame's .view_offset, left_view, logical_grid() and
+# .segmentation8 (never more objects than .segmentation). A scroll during the moves prints the harness's [view] line.
+SNIPPETS["perception"] = ['''# bed:perception:0
+keys = [a for a in valid_actions if a in ('LEFT', 'RIGHT', 'UP', 'DOWN')]
+try:
+    action([keys[(current_frame.step // 3) % len(keys)]] * 3 if keys else [{'action': 'MOUSE', 'row': 30, 'col': 30}])
+except (StaleStateActionError, KnownNoOpActionError, KnownDeathActionError, RepeatedActionInStateError,
+        TerminalStateActionError) as e:
+    print('BED perception refused', type(e).__name__)
+ok = current_frame.view_offset == view_offset and isinstance(left_view, list)
+print('BED view offset', 'ok' if ok else 'BAD', view_offset)
+g = logical_grid()
+print('BED logical grid', 'none' if g is None else '%dx%d cells of %d px' % (g.shape[0], g.shape[1], g.cell[0]))
+n4, n8 = len(current_frame.segmentation['nodes']), len(current_frame.segmentation8['nodes'])
+print('BED segmentation8', n8 <= n4, n4, n8)
+''']
+OPTIONAL_PROGRAMS += ("perception",)
+TAGS += (("view_offset_ok", ("BED view offset ok",)), ("view_offset_bad", ("BED view offset BAD",)),
+         ("logical_grid", ("BED logical grid",)), ("seg8_ok", ("BED segmentation8 True",)),
+         ("seg8_bad", ("BED segmentation8 False",)), ("view_line", ("[view] ",)))
 
 
 def _text(content) -> str:
@@ -695,6 +718,14 @@ def coverage(out: Path, inner_report: dict, records: list[dict], analysis: dict,
         facts["effects_calls"], facts["effects_current_level"] = tags["effects_table"], tags["effects_level"]
         checks["effects() returned the current level's table in the sandbox"] = (
             facts["effects_calls"] > 0 and facts["effects_current_level"] == facts["effects_calls"])
+    if "perception" in programs:
+        for tag in ("view_offset_ok", "view_offset_bad", "logical_grid", "seg8_ok", "seg8_bad", "view_line"):
+            facts[tag] = tags[tag]
+        checks["view_offset equals the current frame's .view_offset in the sandbox"] = (
+            facts["view_offset_ok"] > 0 and facts["view_offset_bad"] == 0)
+        checks["logical_grid() ran in the sandbox"] = facts["logical_grid"] > 0
+        checks["segmentation8 never had more objects than segmentation"] = (
+            facts["seg8_ok"] > 0 and facts["seg8_bad"] == 0)
     return {"facts": facts, "checks": checks}
 
 
