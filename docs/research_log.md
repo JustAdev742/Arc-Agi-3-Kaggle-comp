@@ -2485,3 +2485,18 @@ Built:    scripts/reap_kept_experts.py --pruned sh0wie/Qwen3.8-Flash-Next-REAP-3
 Next:     probe arm scottmahony/arc3-fidelity-reap384 (D', 10 streams, lossless, the same 154 requests), then
           fidelity_compare against base v1/v2 and REAP-448; a full-length arm only if its shift is not much larger
           than REAP-448's.
+
+## 2026-10-08 16:58 · exp-073b failure analysis (17 unwon games): where the 44 missing points are · MEASURED (no GPU)
+Doc:      docs/research/beat-tufa/exp073b-failure-analysis.md (agent; benchmark.json per-action records + each game's
+          last-call log, which covers only its last 50-60k tokens, so log counts are lower bounds).
+Points:   of 100: 56.00 scored; 2.89 lost to below-human efficiency on solved levels; 11.35 on the 17 levels being
+          played when the unwon games stopped; 29.76 on the 42 levels never reached.
+Why:      8 games stopped on a mechanic never decoded, 6 ran out of time while progressing (2 began the level with
+          under 11 min left), 3 on a planner bug (tu93), an off-screen object (lf52) and a budget-death loop (wa30).
+          On unwon games 21% of tool calls loop over  for facts the harness holds exactly (won games 9%):
+          dc22 first sent the red-bar toggle click at minute 3.6 and identified it at 99.7. 19 NameErrors in 10 games
+          (data dies between calls). The D' gate parks a game's LAST level 70% of the time (B bonus 10 -> 0 at 0
+          levels left), against 21-41% for earlier levels: tu93 waited 71 min on level 9, sc25 50 min on level 5.
+Acting:   two more flag-gated patches being built (agents): ours-05 per-level mem store (OURS_LEVEL_MEM, M1c) and
+          ours-06 exact per-level action-effect table (OURS_EFFECT_TABLE). The gate's B cliff (P5) is a one-line
+          scheduler change whose sign on the hidden set is unknown: a replay simulation first, not in the next arm.
