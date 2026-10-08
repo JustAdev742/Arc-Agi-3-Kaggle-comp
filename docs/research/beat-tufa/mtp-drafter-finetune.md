@@ -664,3 +664,128 @@ Asked for as "section 7"; numbered 9 because sections 7 and 8 exist and are cite
 2. One FP8 scale per row (as planned) or one per stream? Decide from `qerr_stream_max` in session A.
 3. Duplicated turns. By default only the first snapshot, the generation-time context, carries a turn as loss. Also training on the post-trim copies (`--keep-duplicates`) would add about 36% more span rows on the demo logs; that is an ablation.
 4. Which runs are both loop-free and lossless? The driver cannot tell from the logs, so the list of runs to replay must be chosen by hand.
+
+## 10. Step 2 implemented: the replica, the trainer, the replica check and the export (2026-10-08, CPU only, nothing run on a GPU)
+
+**Outcome.** The CPU half of step 1 in 6.6 is built: the MTP block as SGLang serves it, the chained trainer, the replica check of 5.2 (with the dump driver it needs) and the draft-directory writer with a checker of the launcher's rules. It is tested on CPU with tiny random configurations, plus one real-width shape check (2,560 x 4 streams, 24 x 256 heads, the 2,048-token QSA budget; 16 experts instead of 512, as this container has 15 GB of RAM). Nothing has run on a GPU, so whether the replica matches SGLang, how fast training runs and whether it raises acceptance are for session A.
+
+### 10.1 What was built
+| File | Role |
+|---|---|
+| `scripts/mtp_replica.py` | `MTPReplica`: the block (input fusion, gated residuals, attention with FP8 K/V, MoE over albucino's INT4 experts dequantized to BF16, final mixer, hot `lm_head`), each step citing the wheel lines it mirrors. `chain`: the training-time test over packed windows. `DraftKV`: a serving-style draft (draft-extend KV, QSA selection, steps 2-3 with their own KV). `simulate_greedy`: SGLang's greedy verify loop. `check`: the replica check. Also the albucino loader, INT4 pack/unpack and a memory-mapped safetensors reader |
+| `scripts/mtp_probe_dump.py` | Stdlib driver for the check: picks held-out probe requests of a reference run, sends each as its messages plus the recorded greedy output to continue (`continue_final_message`, `max_tokens` 1), checks every dump |
+| `scripts/mtp_train.py` | `plan`, `train`, `eval`: windows from step-1 dumps and the driver's `snapshots.jsonl`, the game holdout, the chained KL (plan 3.3-3.4), AdamW with warm-up and cosine (3.5), activation checkpointing, checkpoints and `--resume`, and the evaluation of original against trained weights |
+| `scripts/mtp_write_draft.py` | numpy only. `write` copies albucino's draft and rewrites only the trained tensors' bytes in `mtp-dense.safetensors`, keeping its header byte-identical. `check` applies the launcher's rules, the loader's needs and, with `--reference`, byte identity |
+| `tests/test_mtp_replica.py` | 26 tests: layout against albucino's header, INT4 against compressed-tensors, FP8, RoPE, norms, the wheel's own reference operators, wheel source facts, batched chain = serving-style draft, QSA, loader, greedy-loop accounting, the check end to end, the probe driver against a fake server |
+| `tests/test_mtp_train.py` | 11 tests: windows, batches from a real `Dumper` dump, the hot mask, frozen experts get no gradient, checkpointing changes nothing, the loss falls, evaluation, a full run with resume, the hand-off to the writer |
+| `tests/test_mtp_write_draft.py` | 21 tests: byte identity, the launcher's own `prepare_draft_view` and `indexed_shards` (extracted from cell 12) on the written directory, 14 kinds of broken directories, the CLI |
+| `tests/mtp_fakes.py` | Tiny albucino-style drafts and step-1 dumps, numpy only |
+
+### 10.2 Facts checked or corrected in this step
+| Fact | Label |
+|---|---|
+| **The draft's RoPE uses plain 1-D absolute positions, not M-RoPE.** The runner calls `model.forward(forward_batch.input_ids, forward_batch.positions, ...)` (eager_runner.py:251-255, 348-352), and `Qwen4ExpForCausalLMMTP.forward` passes `positions` on unchanged. Only the VL target swaps in `mrope_positions` (qwen3_vl.py:1468-1469). With 1-D positions the `MRotaryEmbedding` applies plain NeoX RoPE to the 64 rotary dims (mrope.py:173-249; `_fused_mrope_kwargs` returns `{}`, qwen3_5.py:986-995), and so does the draft's QSA indexer. The trainer therefore ignores the dump's `mrope_positions` | [source; pinned by a wheel test] |
+| **The draft's K/V are stored in an FP8 e4m3 cache.** Cell 12 passes `--speculative-draft-kv-cache-dtype fp8_e4m3`. `set_kv_buffer` casts without a scale (memory_pool.py:2529-2535), and decode and verify read back from that cache. The replica rounds K/V through FP8, with a straight-through gradient in training | [source; cell 12 pinned by a test] |
+| **SGLang's `spec_accept_length` is `completion_tokens / verify_ct`** (tokenizer_manager.py:2854-2857), the prefill's token included. It is not `(verify_ct + correct) / verify_ct`: for ar25#010, 192/74 = 2.595 against 191/74 | [source; measured on fidelity-base] |
+| **SGLang never returns draft proposals.** Per request it returns `spec_verify_ct`, `spec_num_correct_drafts`, `spec_accept_length`/`_rate` and `spec_correct_drafts_histogram` (tokenizer_manager.py:2841-2899). The fidelity probe keeps the first group but not the histogram (`SPEC_KEYS`) | [source] |
+| **Draft steps 2-3 reuse the selection of row t plus their own positions.** `QSAMTPSharedSparseIndices.lookup` appends `[captured_len, current_position]` to the selection captured at the last accepted draft-extend row (qwen_sparse_attn_backend.py:180-201, 1426-1530) | [source] |
+| **QSA keeps no forced local window.** A row at t sees the top 512 of its (t+1)//4 complete blocks plus the incomplete tail only. When t+1 is a multiple of 4, its own last four tokens form a complete block that competes like any other (kernel.py:266-320) | [source; replica tested against it] |
+| The replica's QSA selection equals the wheel's reference operators on random inputs at seven query positions: `build_qsa_row_ranges`, `torch_qsa_mqa_prefill`, the CPU path of `qsa_fast_topk`, `torch_expand_qsa_block_indices` and `average_pool_qsa_keys`. So do its gated-residual mix/combine (`_mix_compute`, `_combine_compute`, `GroupedGemmaRMSNorm.forward`), `GemmaRMSNorm.forward_native` and RoPE (`apply_rotary_emb`, `_compute_inv_freq`), within 1e-5 in FP32. The functions are compiled from the wheel file alone | [verified, tests] |
+| albucino's INT4 layout is compressed-tensors' pack-quantized: value + 8, 8 per int32, low nibble first. compressed-tensors 0.18's `pack_to_int32`/`unpack_from_int32` agree with the replica and with the recipe of section 4 | [verified, test] |
+| **The continuation reproduces the recorded outputs.** Each of runs/fidelity-base's 154 greedy outputs was decoded and re-encoded after `<think>\n` with the served tokenizer (sha256 06b95093): 154 of 154 gave the same ids. With `continue_final_message`, SGLang renders the other messages with the generation prompt and appends the encoded text (serving_chat.py:344-399, 1442-1448). The check still compares the dumped ids with the recorded ones | [verified on CPU; source] |
+| Dense parameters: 90,568,448 (181.1 MB in BF16). v1 trains 88,929,792 of them; the indexer is 1,638,656 | [verified against albucino's header] |
+| In fidelity-base's seq pass, 152 of 154 requests hit the prefix cache (5-24k tokens) left by the previous sample. Those rows' draft KV came from an earlier prefill, so the same unshifted multimodal rule applies. Only the chunk grid differs, a few rows per request | [measured] |
+
+### 10.3 The replica check (5.2): reference, procedure, go/no-go
+**Reference: runs/fidelity-base, pass `seq`.**
+- Its serving configuration: D' base, Intel W4A16, no REAP, the albucino draft, Pennyroyal's generic `hot_tokens_64k.pt` (sha256 becfa41d), lossless, greedy, one request at a time, 192 tokens.
+- Why this run:
+  - it serves the draft being replicated;
+  - it already exists;
+  - SGLang offers nothing finer than per-request counts.
+- Per-token proposals would need another serving patch that logs `draft_tokens` at every verify. It was not built, for two reasons:
+  - Counts along a fixed greedy path already expose systematic errors. A wrong position, norm or input moves accept length by tenths.
+  - The per-step histogram costs one line: add `"spec_correct_drafts_histogram"` to `SPEC_KEYS` in fidelity_probe.py before the next probe run. That file was outside this step.
+
+**Procedure.**
+- `mtp_probe_dump.py` takes, round by round, one request per held-out game, the one whose prompt is closest to 24k tokens. A dry run on the real data picked 16 requests: 388,613 rows, about 8.0 GB of BF16 rows. Their SGLang accept lengths span 2.26-3.18.
+- The dump server runs with `ARC3_HC_DUMP_KEEP=all ARC3_HC_DUMP_DTYPE=bf16`. FP8 rows would add about 3% noise to every input of the draft.
+- `mtp_replica.py check` rebuilds each request's draft KV as the reference served it:
+  - prompt rows take the unshifted multimodal embedding;
+  - chunk-last rows are shifted, on the 8,192 grid that starts at the reference's cache hit;
+  - output rows are shifted.
+- It then replays SGLang's greedy loop: verify count, accepted drafts, histogram, and `completion_tokens / verify_ct`.
+
+**Variants.**
+- `full`: QSA emulated over the whole prompt. This is the gate.
+- `dense`: the whole prompt, without QSA.
+- `cut2048`, `cut256`: only the last 2,048 or 256 prompt rows, dense. `cut256` is the training regime (256 rows of context before a span).
+
+The gap between `full` and `cut256`, and how often their first proposals agree, measures what the training windows give up.
+
+**Go/no-go (`GATE`).**
+- On `full`: |mean(replica − SGLang)| ≤ 0.05 accept length and Pearson r ≥ 0.9, over at least 8 compared requests. These are the plan's criteria plus the minimum count.
+- Exit status 0 means go, 2 means no-go.
+- A request whose dumped output ids differ from the recorded ones is left out of the comparison.
+
+**Reading a failure:**
+- *A mean gap with r still high* points to numerics. Compare `dense` against `full` (QSA), `--embed shifted` against `prefill` (the embedding rule) and `--no-fp8-kv`.
+- *A low r* points to a mechanism error: positions or chain inputs.
+- Either way the stop rule of 6.6 applies: about a day of work before training.
+
+### 10.4 Session A on Kaggle (not yet run)
+**Inputs:**
+- Franzen's or D''s inputs: wheelhouse, Intel target, albucino draft.
+- `scottmahony/arc3-fidelity-prompts` (`requests.jsonl`, sha256 c8055841).
+- `fidelity.json` from runs/fidelity-base (12.6 MB): attach that kernel's output.
+- exp-073's request logs (lossless, loop-free) as `kernel_sources`.
+- These scripts, in one folder: `sglang_hc_dump_patch.py`, `hc_dump_driver.py`, `fidelity_probe.py`, `fidelity_sample.py`, `mtp_probe_dump.py`, `mtp_replica.py`, `mtp_train.py`, `mtp_write_draft.py`.
+
+**Interpreters.**
+- The torch scripts run with the Pennyroyal venv's python (`/tmp/sgl-intel/venv/bin/python`: torch, numpy, CUDA).
+- The stdlib ones run with `python -I`.
+
+| # | Cell | Time | Memory |
+|---|---|---|---|
+| A0 | Storage test: write 10 GB to `/dev/shm` and to `/tmp`, then choose the two dump directories | 2 min | |
+| A1 | Cell 12's install, then `python -I sglang_hc_dump_patch.py apply --site-packages SP`. Apply REAP first, and only if the training dump will serve REAP; without its override flags the target stays at 512 experts | 5 min | |
+| A2 | **Probe dump server**: cell 12's arguments without `--speculative-*` and without REAP flags (the reference has none), plus `--disable-cuda-graph --disable-radix-cache --max-running-requests 1 --chunked-prefill-size 8192`. Env `ARC3_HC_DUMP=<probe dir> ARC3_HC_DUMP_KEEP=all ARC3_HC_DUMP_DTYPE=bf16` | 6 min to boot | GPU: the target |
+| A3 | `python -I mtp_probe_dump.py --data requests.jsonl --reference fidelity.json --out /kaggle/working/probe --dump-dir <probe dir>`. All 16 lines must have `dump_ok` | 2 min (0.39M prefill tokens) | 8 GB of rows |
+| A4 | Kill the server | | |
+| A5 | `python mtp_replica.py check --draft $DRAFT_MODEL_DIR --token-map <wheelhouse>/hot_tokens_64k.pt --dump <probe dir> --probe /kaggle/working/probe/probe-dump.jsonl --reference fidelity.json --out /kaggle/working/replica-check.json`. **On NO-GO (exit 2), stop the session here** | 5 min [estimate] | GPU about 10 GB: experts 5.0, embed and heads 1.6, one request's rows ≤ 0.7 |
+| A6 | **Training dump server**: as A2, but with the serving target (REAP-448 flags if that is what is served) and env `ARC3_HC_DUMP=<hc dir>` with the defaults (spans, FP8, context 256). Set `ARC3_HC_DUMP_MAX_GB` below what A0 passed | 6 min | |
+| A7 | `python -I hc_dump_driver.py --logs <exp-073 logs> --split train --out /kaggle/working/hc-train --dump-dir <hc dir> --max-dump-gb 28 --max-minutes 25`, then `--split holdout --max-snapshots 12 --out /kaggle/working/hc-holdout` into the same dump directory (the evaluation set). Check `dump_ok == sent` and `qerr_stream_max` (9.3) | 12-25 min | about 30 GB of rows |
+| A8 | Kill the server. `python mtp_train.py plan --dump <hc dir> --snapshots /kaggle/working/hc-train/snapshots.jsonl --snapshots /kaggle/working/hc-holdout/snapshots.jsonl` | 1 min | |
+| A9 | `python mtp_train.py train --draft $DRAFT_MODEL_DIR --target-dir $MODEL_DIR --token-map <the map the arm serves> --dump <hc dir> --snapshots ... --out /kaggle/working/mtp-train`: 2 epochs, 16,384 rows per step, evaluation before and after | 30-45 min [estimate, 3.6] | GPU about 20 GB (`estimate_memory`: 1.45 optimizer + 5.03 experts + 3.21 embed/heads + 8.4 activations + 0.8 per window). Host: the dump in RAM (about 30 GB) |
+| A10 | `python mtp_replica.py check ... --trained /kaggle/working/mtp-train/trained-dense.safetensors --out /kaggle/working/replica-check-trained.json`: the replica's forecast of the probe gate on the same 16 requests. Keep the probe dump until here | 5 min | |
+| A11 | `python -I mtp_write_draft.py write --draft $DRAFT_MODEL_DIR --trained /kaggle/working/mtp-train/trained-dense.safetensors --out /kaggle/working/mtp-draft`. It ends with the checker, with byte identity against albucino | 3 min | 4.1 GB of output |
+
+Total: about 1.3-1.7 GPU-hours [estimate].
+
+**What session B mounts.** `/kaggle/working/mtp-draft` holds albucino's 12 files plus a manifest (`DRAFT_MODEL_DIR`). The launcher's view links the tokenizer from the target in any case.
+
+### 10.5 What only a GPU run can settle
+- **The replica check.** SGLang's fused kernels (hc mix, fused q/k norm + RoPE, Marlin, moe_sum) and the FP8 cache, applied to real `H`, against the replica's rounding points.
+- **Training speed.** The MoE is a Python loop over the experts present (one gather and one un-permute per call), launch-bound on the GPU. Do 2 epochs fit in 45 minutes?
+- **Whether training helps.** Does fine-tuning raise the held-out proxies (`accept_expected` at T 0.7, `accept_greedy`, `accept_realized`, per step)? What does it do to the probe (session B)?
+- **Dump storage.** The FP8 dump error on real `H` (`qerr_stream_max`), and the capacity of `/dev/shm` and `/tmp`.
+- **Memory peaks.**
+
+### 10.6 Corrections to the plan
+1. **Section 1, "Partial RoPE … in the interleaved M-RoPE layout".** This holds for the target. The draft gets 1-D positions, so it applies plain RoPE at absolute positions. The "M-RoPE positions of images" item of 6.5 does not concern the draft, and the trainer needs no `mrope_positions`.
+2. **Sections 1 and 3: the FP8 KV cache.** The draft's K/V pass through an FP8 e4m3 cache, so training must round them. Now done, with a straight-through gradient.
+3. **Section 5.2: the reference and the dump.**
+   - SGLang's accept length is `completion_tokens / verify_ct`.
+   - The reference run already exists (fidelity-base seq), so no new probe run is needed.
+   - The prompt-plus-output dump cannot go through the step-1 driver; `mtp_probe_dump.py` sends it with `continue_final_message`.
+   - The dump is about 8 GB in BF16 for 16 requests and needs storage.
+4. **Section 3.7, "CPU unit test against HF 5.19".** This was impossible here: there is no 5.19 wheel and downloads were off. It was replaced by tests against the Pennyroyal wheel's own reference code, which is the serving path itself.
+5. **Section 3.1.** v1 trains 88.9M parameters; the indexer is 1.64M of the 90.6M.
+6. **Section 9.4's "trainer's own module goes in a scratch notebook cell".** It is now `scripts/mtp_replica.py`, so the same code is tested on CPU and run on Kaggle.
+
+### 10.7 Open questions
+1. **Embedding mode.** Train with `turn` embeddings (the default: unshifted for prefilled rows, shifted for decoded ones) or plain `shifted`? Running the check with `--embed shifted` against `prefill` shows whether the rule matters at serving. If it does not, `shifted` is simpler.
+2. **Context length.** Is 256 rows of context enough? Read the gap between `cut256` and `full`.
+3. **KL target temperature.** 1.0 (default) or the server's 0.7 (`--target-temperature`)?
+4. **Steps outside the map.** `--require-hot` drops a step whose realized token is outside the FR-Spec map (plan 3.4). Turning it off is an ablation.
+5. **Which map.** Train with the map the arm serves: Pennyroyal's generic one, or the ARC map of exp-077. A draft is trained for one map as well as for one target (S6).

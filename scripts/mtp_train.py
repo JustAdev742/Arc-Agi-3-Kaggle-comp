@@ -59,7 +59,7 @@ import torch
 import torch.nn.functional as F
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import mtp_replica as mr  # noqa: E402
+import mtp_replica as mr
 
 hd = mr.hd
 dd = mr._sibling("hc_dump_driver")  # HOLDOUT and the rid naming (stdlib)
@@ -160,14 +160,15 @@ def make_windows(req: DumpRequest, *, max_rows: int = 2048, context: int = 256, 
         _, s, e, _, _ = req.spans[index]
         if e < 0 or e - s < 1 or (req.loss_spans is not None and index not in req.loss_spans):
             continue
-        first = max(0, s - min(kept_ctx, context))  # first dumped row the span may use
+        ctx = min(kept_ctx, context)
+        first = max(0, s - ctx)  # first dumped row the span may use
         o_lo, o_hi = max(s - 1, first), e - 2
         a = o_lo
         while a <= o_hi:
-            lo = max(first, a - context)
+            lo = max(first, a - ctx)
             budget = max_rows - (a - lo) - steps
             if budget < 1:
-                raise ValueError(f"--max-rows {max_rows} leaves no origin after {context} rows of context")
+                raise ValueError(f"--max-rows {max_rows} leaves no origin after {ctx} rows of context")
             b = min(o_hi, a + budget - 1)
             out.append(Window(req, lo, min(e, b + steps), a, b, (s, e)))
             a = b + 1
@@ -250,7 +251,7 @@ def build_batch(model: mr.MTPReplica, store: Store, windows: list, *, device, st
         if data["img"]:
             for j in np.flatnonzero(plan == 0):
                 p = int(rows[j])
-                if ids[p] >= model.cfg.vocab or ids[p] >= hd.MM_PAD_MIN:
+                if ids[p] >= hd.MM_PAD_MIN:  # an image row (its pad value): the vision features
                     if p in data["img"]:
                         k = data["img"][p]
                         vec = data["img_embeds"][k:k + 1]
@@ -263,7 +264,7 @@ def build_batch(model: mr.MTPReplica, store: Store, windows: list, *, device, st
         valid = np.zeros((len(rows), steps), bool)
         trow = np.zeros((len(rows), steps), np.int64)
         real = np.zeros((len(rows), steps), np.int64)
-        s, e = w.span
+        e = w.span[1]
         for k in range(1, steps + 1):
             t = rows
             ok = (t >= w.o_lo) & (t <= w.o_hi) & (t + k + 1 <= e) & (t + k <= w.hi)
@@ -342,7 +343,7 @@ class TargetHead(torch.nn.Module):
 
 
 def load_target_head(cfg: mr.MTPConfig, *, target_dir=None, mixer_file=None, lm_head=None, hot_ids, device,
-                     full_vocab: bool = True) -> TargetHead:
+                     full_vocab: bool = True, dtype=torch.bfloat16) -> TargetHead:
     files = []
     if mixer_file:
         files.append(Path(mixer_file))
@@ -351,7 +352,7 @@ def load_target_head(cfg: mr.MTPConfig, *, target_dir=None, mixer_file=None, lm_
              for part in ("hc_norm.weight", "input_mix_weight_down.weight", "input_mix_weight_up.weight")}
     if lm_head is None:
         lm_head = reader.get(mr.LM_HEAD_NAME)
-    return TargetHead(cfg, mixer, lm_head, hot_ids, device=device, full_vocab=full_vocab)
+    return TargetHead(cfg, mixer, lm_head, hot_ids, device=device, full_vocab=full_vocab, dtype=dtype)
 
 
 # ------------------------------------------------------------------------------------------------------- loss
@@ -405,6 +406,15 @@ def processed_probs(logits, temperature: float = 0.7, top_k: int = 20, top_p: fl
     vals = torch.where(keep, vals, torch.zeros_like(vals))
     vals = vals / vals.sum(-1, keepdim=True)
     return torch.zeros_like(probs).scatter_(-1, idx, vals)
+
+
+def processed_prob_of(logits, tokens, temperature: float = 0.7, top_k: int = 20, top_p: float = 0.95):
+    """The sampler's probability of ``tokens`` [n] (processed_probs without the full-vocabulary scatter)."""
+    vals, idx = torch.softmax(logits.float() / temperature, dim=-1).topk(top_k, dim=-1)
+    vals = vals / vals.sum(-1, keepdim=True)
+    vals = torch.where((vals.cumsum(-1) - vals) < top_p, vals, torch.zeros_like(vals))
+    vals = vals / vals.sum(-1, keepdim=True)
+    return (vals * (idx == tokens[:, None])).sum(-1)
 
 
 class EvalAccumulator:
@@ -474,7 +484,7 @@ def evaluate(model: mr.MTPReplica, target: TargetHead, batches: list, *, steps: 
                     g = full.argmax(-1)
                     greedy[r, k] = g
                     acc.add(f"top1_target_full{k + 1}", float((d == g).sum()), r.numel())
-                    alpha[r, k] = processed_probs(full, temperature, top_k, top_p).gather(1, d[:, None]).squeeze(1)
+                    alpha[r, k] = processed_prob_of(full, d, temperature, top_k, top_p)
         # chain-following rates: step k counts where steps < k proposed the realized tokens (the data path)
         alive = batch.valid[:, 0].clone()
         alive_g = batch.valid[:, 0].clone()
@@ -513,7 +523,7 @@ def compare_reports(before: dict, after: dict) -> dict:
 
 
 def lr_lambda(total: int, warmup: float = 0.05, floor: float = 0.1):
-    warm = max(1, int(round(total * warmup)))
+    warm = max(1, round(total * warmup))
 
     def f(step: int) -> float:
         if step < warm:
@@ -567,8 +577,7 @@ def build_everything(args, device):
     model = mr.MTPReplica(weights, hot_ids=hot, compute_dtype=torch.bfloat16 if device != "cpu" or not args.fp32 else
                           torch.float32, fp8_kv=not args.no_fp8_kv, device=device)
     target = load_target_head(weights.cfg, target_dir=args.target_dir, mixer_file=args.target_mixer,
-                              lm_head=weights.lm_head, hot_ids=hot, device=device)
-    target.dt = model.dt
+                              lm_head=weights.lm_head, hot_ids=hot, device=device, dtype=model.dt)
     hot_mask = np.zeros(weights.cfg.vocab, bool)
     hot_mask[hot.cpu().numpy()] = True
     del weights
@@ -602,7 +611,7 @@ def train(args) -> dict:
 
     rows_per_epoch = sum(w.rows for w in train_w)
     steps_per_epoch = len(pack(train_w, args.batch_rows))
-    total = args.max_steps or int(math.ceil(steps_per_epoch * args.epochs))
+    total = args.max_steps or math.ceil(steps_per_epoch * args.epochs)
     params = [p for n, p in model.p.items() if p.requires_grad]
     opt = torch.optim.AdamW(params, lr=args.lr, betas=(0.9, 0.95), weight_decay=0.0, eps=1e-8)
     sched = torch.optim.lr_scheduler.LambdaLR(opt, lr_lambda(total, args.warmup, args.lr_floor))
@@ -610,7 +619,7 @@ def train(args) -> dict:
     ckpt_path = out / "ckpt.pt"
     if args.resume and ckpt_path.is_file():
         state = torch.load(ckpt_path, map_location=device, weights_only=False)
-        model.load_dense({n: t for n, t in state["dense"].items()})
+        model.load_dense(dict(state["dense"]))
         opt.load_state_dict(state["opt"])
         sched.load_state_dict(state["sched"])
         step, epoch, done_in_epoch = state["step"], state["epoch"], state["done_in_epoch"]
@@ -719,8 +728,9 @@ def run_eval(args) -> dict:
     return result
 
 
-def estimate_memory(rows: int, cfg: mr.MTPConfig = mr.MTPConfig(), steps: int = 3) -> dict:
+def estimate_memory(rows: int, cfg: mr.MTPConfig | None = None, steps: int = 3) -> dict:
     """A rough GPU budget (GB) for one packed batch of ``rows`` (plan 3.5)."""
+    cfg = cfg or mr.MTPConfig()
     gb = 1e9
     dense = sum(math.prod(s) for s in mr.dense_shapes(cfg).values())
     return {"trainable_fp32_adam_grads": round(dense * 16 / gb, 2),
@@ -736,7 +746,7 @@ def plan(args) -> dict:
     info = summarize_windows(reqs, train_w, held_w)
     batches = len(pack(train_w, args.batch_rows))
     info["batches_per_epoch"] = batches
-    info["total_steps"] = args.max_steps or int(math.ceil(batches * args.epochs))
+    info["total_steps"] = args.max_steps or math.ceil(batches * args.epochs)
     info["memory_gb"] = estimate_memory(args.batch_rows)
     print(json.dumps(info, indent=1))
     return info

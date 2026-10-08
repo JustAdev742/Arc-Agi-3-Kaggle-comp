@@ -59,7 +59,7 @@ def dense_layout(text_config: dict) -> dict[str, tuple]:
     W = hc * H
     heads, kvh = int(t["num_attention_heads"]), int(t["num_key_value_heads"])
     D = int(t.get("head_dim") or H // heads)
-    E, I = int(t["num_experts"]), int(t.get("shared_expert_intermediate_size") or t["moe_intermediate_size"])
+    E, inter = int(t["num_experts"]), int(t.get("shared_expert_intermediate_size") or t["moe_intermediate_size"])
     ih, idim = int(t.get("indexer_n_heads", 4)), int(t.get("indexer_head_dim", 128))
     out = {"mtp.fc_embedding.weight": (H, H), "mtp.fc_hidden.weight": (H, H)}
     out.update({"mtp.hyper_connection_mixer.hc_norm.weight": (W,),
@@ -68,8 +68,9 @@ def dense_layout(text_config: dict) -> dict[str, tuple]:
     for part in ("attn_hyper_connection.", "mlp_hyper_connection."):
         out.update({L0 + part + "block_inject_weight.weight": (hc, W), L0 + part + "hc_norm.weight": (W,),
                     L0 + part + "input_mix_weight_down.weight": (R, W), L0 + part + "input_mix_weight_up.weight": (W, R)})
-    out.update({L0 + "mlp.gate.weight": (E, H), L0 + "mlp.shared_expert.down_proj.weight": (H, I),
-                L0 + "mlp.shared_expert.gate_proj.weight": (I, H), L0 + "mlp.shared_expert.up_proj.weight": (I, H),
+    out.update({L0 + "mlp.gate.weight": (E, H), L0 + "mlp.shared_expert.down_proj.weight": (H, inter),
+                L0 + "mlp.shared_expert.gate_proj.weight": (inter, H),
+                L0 + "mlp.shared_expert.up_proj.weight": (inter, H),
                 L0 + "mlp.shared_expert_gate.weight": (1, H),
                 L0 + "self_attn.indexer.index_qk_proj.weight": ((ih + 1) * idim, H),
                 L0 + "self_attn.indexer.k_layernorm.weight": (idim,), L0 + "self_attn.indexer.q_layernorm.weight": (idim,),
@@ -82,10 +83,10 @@ def dense_layout(text_config: dict) -> dict[str, tuple]:
 
 def expert_layout(text_config: dict, group: int) -> dict[str, tuple]:
     t = text_config
-    H, I, E = int(t["hidden_size"]), int(t["moe_intermediate_size"]), int(t["num_experts"])
+    H, inter, E = int(t["hidden_size"]), int(t["moe_intermediate_size"]), int(t["num_experts"])
     out = {}
     for e in range(E):
-        for proj, (o, i) in (("gate_proj", (I, H)), ("up_proj", (I, H)), ("down_proj", (H, I))):
+        for proj, (o, i) in (("gate_proj", (inter, H)), ("up_proj", (inter, H)), ("down_proj", (H, inter))):
             p = f"{L0}mlp.experts.{e}.{proj}."
             out[p + "weight_packed"] = ("I32", (o, i // 8))
             out[p + "weight_scale"] = ("BF16", (o, i // group))
@@ -170,7 +171,7 @@ def launcher_problems(source: Path) -> list[str]:
         problems.append(f"unexpected ignore rules {q.get('ignore')}")
     index_path = source / INDEX
     if not index_path.is_file():
-        return problems + [f"{INDEX} missing"]
+        return [*problems, f"{INDEX} missing"]
     weight_map = json.loads(index_path.read_text()).get("weight_map") or {}
     names = sorted(set(weight_map.values()))
     if not names:
@@ -206,7 +207,7 @@ def check_draft_dir(root, *, reference=None, trained_names=None, check_finite: b
     text = cfg.get("text_config") or cfg
     group = int(cfg["quantization_config"]["config_groups"]["mtp_routed_experts"]["weights"]["group_size"])
     weight_map = json.loads((source / INDEX).read_text())["weight_map"]
-    headers = {}
+    headers, bad = {}, set()
     for shard in sorted(set(weight_map.values())):
         try:
             header, base, raw = read_header(source / shard)
@@ -219,6 +220,7 @@ def check_draft_dir(root, *, reference=None, trained_names=None, check_finite: b
             need = int(np.prod(info["shape"], dtype=np.int64)) * DTYPE_SIZE.get(info["dtype"], 0)
             if end - begin != need or base + end > size:
                 problems.append(f"{shard}: {name} has a bad data range")
+                bad.add(name)
         headers[shard] = (header, base, raw)
     for key, shard in weight_map.items():
         if shard in headers and key not in headers[shard][0]:
@@ -241,7 +243,7 @@ def check_draft_dir(root, *, reference=None, trained_names=None, check_finite: b
             continue
         if info["dtype"] != "BF16" or tuple(info["shape"]) != shape:
             problems.append(f"{name}: {info['dtype']} {info['shape']}, expected BF16 {list(shape)}")
-        elif check_finite and not bf16_finite(read_tensor_bytes(source / shard, info, base)):
+        elif check_finite and name not in bad and not bf16_finite(read_tensor_bytes(source / shard, info, base)):
             problems.append(f"{name} has NaN or Inf values")
     missing = 0
     for name, spec in expert_layout(text, group).items():
@@ -251,7 +253,8 @@ def check_draft_dir(root, *, reference=None, trained_names=None, check_finite: b
             continue
         if info["dtype"] != spec[0] or tuple(info["shape"]) != spec[1]:
             problems.append(f"{name}: {info['dtype']} {info['shape']}, expected {spec[0]} {list(spec[1])}")
-        elif len(spec) == 3 and tuple(np.frombuffer(read_tensor_bytes(source / shard, info, base), "<i8")) != spec[2]:
+        elif len(spec) == 3 and name not in bad and \
+                tuple(np.frombuffer(read_tensor_bytes(source / shard, info, base), "<i8")) != spec[2]:
             problems.append(f"{name} does not hold {list(spec[2])}")
     if missing:
         problems.append(f"{missing} expert tensor(s) missing")
@@ -326,7 +329,7 @@ def write_draft(draft_dir, trained_file, out_dir, *, tokenizer_from: str = "draf
             raise ValueError(f"{name}: {dtype} {list(shape)}, the draft has {info['dtype']} {info['shape']}")
         if dtype == "BF16" and not bf16_finite(data):
             raise ValueError(f"{name} has NaN or Inf values")
-    for name in sorted(set(weight_map.values())) + ["config.json", INDEX]:
+    for name in [*sorted(set(weight_map.values())), "config.json", INDEX]:
         dest = out / name
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source / name, dest)

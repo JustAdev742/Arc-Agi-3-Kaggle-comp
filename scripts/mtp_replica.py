@@ -29,7 +29,7 @@ embedding ``e``:
    per-head Gemma q/k norm; NeoX RoPE on the first 64 of 256 dims, base 1e7. **Positions are the absolute 1-D token
    positions**, not M-RoPE: the runner passes ``forward_batch.positions`` (eager_runner.py:251-255, 348-352) and
    ``Qwen4ExpForCausalLMMTP.forward`` never swaps in ``mrope_positions`` (only the VL target does, qwen3_vl.py:1468),
-   so every rotary pair of the draft sees the plain position (mrope.py:208-226 with 1-D positions; qwen3_5.py:994).
+   so every rotary pair of the draft sees the plain position (mrope.py:173-249 with 1-D positions; qwen3_5.py:994).
    K and V are stored in the FP8 e4m3 KV cache by a plain cast (``--speculative-draft-kv-cache-dtype fp8_e4m3``;
    memory_pool.py:2529-2535) and read back from it; scores x 1/16, FP32 softmax; output x sigmoid(gate)
    (qwen4_exp.py:1745-1755); ``o_proj``.
@@ -68,8 +68,9 @@ weights: an arm that turns it on must repeat the replica check.
 **The replica check** (section 5.2; ``check``): scripts/mtp_probe_dump.py dumps (``ARC3_HC_DUMP_KEEP=all``, BF16) the
 held-out probe requests of ``runs/fidelity-base`` over their prompt plus the greedy output that run recorded. For each,
 :func:`simulate_greedy` replays SGLang's greedy chain along that output with the replica and counts verify steps and
-accepted drafts exactly as SGLang's ``spec_accept_length = (verify_ct + correct_drafts) / verify_ct``; the result is
-compared per request with the same run's ``spec_*`` meta info (and ``spec_correct_drafts_histogram`` when recorded).
+accepted drafts, giving SGLang's ``spec_accept_length = completion_tokens / verify_ct`` (tokenizer_manager.py:2854-2857;
+the prefill's token included); the result is compared per request with the same run's ``spec_*`` meta info (and
+``spec_correct_drafts_histogram`` when recorded).
 Variants: ``full`` (QSA emulated over the whole context), ``dense`` (all context, no QSA), ``cutN`` (only the last N
 prompt rows, dense: the regime the trainer's windows see). Go: on the gate variant, |mean(replica - SGLang)| <= 0.05
 and Pearson r >= 0.9 over at least 8 requests (:data:`GATE`).
@@ -181,9 +182,9 @@ class MTPConfig:
     @classmethod
     def tiny(cls, **kw) -> MTPConfig:
         """A configuration small enough for CPU tests (same structure)."""
-        base = dict(hidden=32, hc=4, lowrank=8, heads=4, kv_heads=2, head_dim=16, rotary_dim=4, rope_theta=1e4,
-                    experts=8, topk=2, moe_inter=16, shared_inter=16, idx_heads=2, idx_head_dim=8, idx_budget=16,
-                    compress=4, vocab=96, group_size=8)
+        base = {"hidden": 32, "hc": 4, "lowrank": 8, "heads": 4, "kv_heads": 2, "head_dim": 16, "rotary_dim": 4,
+                "rope_theta": 1e4, "experts": 8, "topk": 2, "moe_inter": 32, "shared_inter": 32, "idx_heads": 2,
+                "idx_head_dim": 8, "idx_budget": 16, "compress": 4, "vocab": 96, "group_size": 32}
         base.update(kw)
         return cls(**base)
 
@@ -412,10 +413,10 @@ def load_draft_dir(draft_dir, *, device="cpu", dtype=torch.bfloat16, embed: bool
         dense[name] = t.to(torch.bfloat16)
     banks = None
     if experts:
-        I, H = cfg.moe_inter, cfg.hidden
-        banks = (torch.empty(cfg.experts, I, H, dtype=dtype, device=device),
-                 torch.empty(cfg.experts, I, H, dtype=dtype, device=device),
-                 torch.empty(cfg.experts, H, I, dtype=dtype, device=device))
+        inter, H = cfg.moe_inter, cfg.hidden
+        banks = (torch.empty(cfg.experts, inter, H, dtype=dtype, device=device),
+                 torch.empty(cfg.experts, inter, H, dtype=dtype, device=device),
+                 torch.empty(cfg.experts, H, inter, dtype=dtype, device=device))
         for e in range(cfg.experts):
             names = expert_names(e)
             for bank, proj in zip(banks, PROJS, strict=True):
@@ -440,9 +441,9 @@ def random_draft(cfg: MTPConfig, seed: int = 0, *, scale: float = 0.08, dtype=to
     for name, shape in dense_shapes(cfg).items():
         std = 0.05 if len(shape) == 1 else scale
         dense[name] = (torch.randn(shape, generator=g) * std).to(dtype)
-    I, H = cfg.moe_inter, cfg.hidden
+    inter, H = cfg.moe_inter, cfg.hidden
     banks = tuple((torch.randn(s, generator=g) * scale).to(dtype)
-                  for s in ((cfg.experts, I, H), (cfg.experts, I, H), (cfg.experts, H, I)))
+                  for s in ((cfg.experts, inter, H), (cfg.experts, inter, H), (cfg.experts, H, inter)))
     emb = (torch.randn(cfg.vocab, H, generator=g) * 0.5).to(dtype)
     head = (torch.randn(cfg.vocab, H, generator=g) * scale).to(dtype)
     return DraftWeights(cfg, dense, banks, emb, head)
@@ -569,21 +570,22 @@ class MTPReplica(torch.nn.Module):
         if c.norm_topk_prob:
             topw = topw / topw.sum(-1, keepdim=True)
         flat = topi.reshape(-1)
-        order = torch.argsort(flat, stable=True)
+        order = torch.argsort(flat, stable=True)  # (token, slot) pairs grouped by expert, experts ascending
         counts = torch.bincount(flat, minlength=c.experts).tolist()
         tokens = torch.arange(n, device=x.device).repeat_interleave(c.topk)[order]
-        weights = topw.reshape(-1)[order]
-        routed = torch.zeros(n, c.hidden, dtype=torch.float32, device=x.device)
-        start = 0
+        xs = x.index_select(0, tokens)
+        ys, start = [], 0
         for e, count in enumerate(counts):
             if not count:
                 continue
-            idx = tokens[start:start + count]
-            xe = x.index_select(0, idx)
+            xe = xs[start:start + count]
             a = (F.silu(F.linear(xe, self.w_gate[e]).float()) * F.linear(xe, self.w_up[e]).float()).to(self.dt)
-            y = F.linear(a, self.w_down[e])
-            routed = routed.index_add(0, idx, y.float() * weights[start:start + count, None])
+            ys.append(F.linear(a, self.w_down[e]))
             start += count
+        # back to (token, slot) order, weighted, summed over the slots in a fixed order (deterministic; Marlin writes
+        # one weighted output per slot and moe_sum reduces them)
+        y = torch.cat(ys).index_select(0, torch.argsort(order)).view(n, c.topk, c.hidden)
+        routed = (y.float() * topw.unsqueeze(-1)).sum(1)
         sa = (F.silu(self.lin(x, L0 + "mlp.shared_expert.gate_proj.weight").float())
               * self.lin(x, L0 + "mlp.shared_expert.up_proj.weight").float()).to(self.dt)
         so = self.lin(sa, L0 + "mlp.shared_expert.down_proj.weight")
@@ -629,7 +631,7 @@ class MTPReplica(torch.nn.Module):
             prior = list(extras)
             m, G, kk, vv = run(self._step, X, pos + (k - 1),
                                lambda q, g, k_, v_, prior=prior: self.attend_windows(q, K1, V1, bounds,
-                                                                                    prior + [(k_, v_)]))
+                                                                                    [*prior, (k_, v_)]))
             extras.append((kk, vv))
             outs.append(m)
         return outs
@@ -706,6 +708,23 @@ def extend_embeddings(model: MTPReplica, ids, *, mode: str, mm_rows=None, img=No
     return out
 
 
+def qsa_select_tokens(q_idx, ck, t: int, compress: int, block_topk: int, head_dim: int):
+    """QSA's token selection for a query at position ``t``: the top ``block_topk`` of the ``(t+1)//compress`` complete
+    blocks by ``sum_h relu(q_h . k_b) / sqrt(head_dim)`` (all of them when they are no more), expanded to their tokens,
+    plus the incomplete tail ``[compress*((t+1)//compress), t]`` (mqa.py:39-58, kernel.py:23-73 and 266-320).
+    ``q_idx`` [ih, d] (normed and roped), ``ck`` [nb, d]; returns logical positions, blocks ascending, then the tail."""
+    dev = ck.device
+    nvis = (t + 1) // compress
+    tail = torch.arange(nvis * compress, t + 1, device=dev)
+    if nvis <= block_topk:
+        blocks = torch.arange(nvis, device=dev)
+    else:
+        scores = torch.relu(torch.einsum("hd,bd->bh", q_idx.float(), ck[:nvis].float())).sum(-1) / math.sqrt(head_dim)
+        blocks = torch.sort(scores.topk(block_topk).indices).values
+    tokens = (blocks[:, None] * compress + torch.arange(compress, device=dev)).reshape(-1)
+    return torch.cat([tokens, tail])
+
+
 class DraftKV:
     """The draft-extend state of one request: per row its FP8 K/V and raw index key, and the compressed index keys
     (computed once from rows 0..L-1, as the successive draft-extends of a serving run leave them)."""
@@ -731,23 +750,15 @@ class DraftKV:
         """Logical positions row ``t`` attends to. full: QSA (top-k complete blocks by the indexer + the incomplete
         tail); dense: every row <= t; cut: rows ``start``..t."""
         c = self.model.cfg
-        dev = self.K.device
         if mode in ("dense", "cut"):
-            return torch.arange(start if mode == "cut" else 0, t + 1, device=dev)
-        nvis = (t + 1) // c.compress
-        tail = torch.arange(nvis * c.compress, t + 1, device=dev)
-        if nvis <= c.block_topk:
-            blocks = torch.arange(nvis, device=dev)
-        else:
+            return torch.arange(start if mode == "cut" else 0, t + 1, device=self.K.device)
+        q = None
+        if (t + 1) // c.compress > c.block_topk:
             with torch.no_grad():
                 X = self.model.fuse(self.emb[t:t + 1], self.H[t:t + 1])
                 a_in, _ = self.model.hc_mix(ATTN, X)
-                q, _ = self.model.index_qk(a_in, self.pos[t:t + 1])
-                scores = torch.relu(torch.einsum("hd,bd->bh", q[0].float(), self.ck[:nvis].float())).sum(-1)
-                scores = scores / math.sqrt(c.idx_head_dim)  # mqa.py:53 (does not change the order)
-                blocks = torch.sort(scores.topk(c.block_topk).indices).values
-        tokens = (blocks[:, None] * c.compress + torch.arange(c.compress, device=dev)).reshape(-1)
-        return torch.cat([tokens, tail])
+                q = self.model.index_qk(a_in, self.pos[t:t + 1])[0][0]
+        return qsa_select_tokens(q, self.ck, t, c.compress, c.block_topk, c.idx_head_dim)
 
     @torch.no_grad()
     def chain(self, t: int, *, steps: int = 3, mode: str = "full", start: int = 0, inputs=None):
@@ -782,7 +793,8 @@ def simulate_greedy(kv: DraftKV, prompt_len: int, out_ids, *, mode: str = "full"
     """SGLang's greedy speculative loop along a recorded greedy output ``out_ids`` (out_ids[0] = the prefill's token
     at position ``prompt_len``): each verify compares the chain's proposals with the next recorded tokens, accepts the
     leading matches and adds the bonus. Targets beyond the recorded output are unknown, so a last verify counts only
-    the matches it can see. Returns verify_ct, correct_drafts, the histogram and spec_accept_length."""
+    the matches it can see. Returns verify_ct, correct_drafts, the histogram, ``accept_length`` as SGLang reports it
+    (completion tokens / verify_ct) and ``accept_length_strict`` ((verify_ct + correct_drafts) / verify_ct)."""
     n = len(out_ids)
     produced, t = 1, prompt_len - 1
     verify, correct, hist, proposals = 0, 0, [0] * (steps + 1), []
@@ -800,7 +812,8 @@ def simulate_greedy(kv: DraftKV, prompt_len: int, out_ids, *, mode: str = "full"
         produced += a + 1
         t += a + 1
     return {"verify_ct": verify, "correct_drafts": correct, "histogram": hist,
-            "accept_length": (verify + correct) / verify if verify else None, "proposals": proposals}
+            "accept_length": n / verify if verify else None,
+            "accept_length_strict": (verify + correct) / verify if verify else None, "proposals": proposals}
 
 
 # ------------------------------------------------------------------------------------------- the replica check
@@ -817,10 +830,8 @@ def rows_to_tensor(codes, scale, device, dtype=torch.bfloat16, chunk: int = 8192
         s = torch.from_numpy(np.ascontiguousarray(scale[a:a + chunk]).view(np.int16)).view(torch.bfloat16).float()
         v = c.view(torch.float8_e4m3fn).to(device).float()
         s = s.to(device)
-        if s.ndim == 1:
-            v = v * s[:, None]
-        else:
-            v = (v.view(v.shape[0], s.shape[1], -1) * s[:, :, None]).reshape(v.shape)
+        groups = 1 if s.ndim == 1 else s.shape[1]  # one scale per row, or per equal column group
+        v = (v.view(v.shape[0], groups, -1) * s.view(s.shape[0], groups, 1)).reshape(v.shape)
         out[a:a + chunk] = v.to(dtype)
     return out
 
@@ -925,7 +936,8 @@ def parse_variant(name: str) -> tuple[str, int | None]:
 
 
 def replica_check(model: MTPReplica, dump_dir, records: list, *, variants=("full", "dense", "cut2048", "cut256"),
-                  embed_mode: str = "prefill", device="cpu", gate_variant: str = "full", logger=print) -> dict:
+                  embed_mode: str = "prefill", device="cpu", gate_variant: str = "full", gate: dict = GATE,
+                  logger=print) -> dict:
     """Compare the replica's greedy chain with SGLang's per-request speculative counts (see the module docstring)."""
     rows = []
     for rec in records:
@@ -962,7 +974,7 @@ def replica_check(model: MTPReplica, dump_dir, records: list, *, variants=("full
                           row['variants'][n]['accept_length'] is not None)
                + f" sglang={row['reference'].get('accept_length')}")
     summaries = {name: summarize(rows, name) for name in variants}
-    verdict = gate_verdict(summaries[gate_variant]) if gate_variant in summaries else None
+    verdict = gate_verdict(summaries[gate_variant], gate) if gate_variant in summaries else None
     return {"requests": rows, "summary": summaries, "gate_variant": gate_variant, "verdict": verdict,
             "embed_mode": embed_mode}
 

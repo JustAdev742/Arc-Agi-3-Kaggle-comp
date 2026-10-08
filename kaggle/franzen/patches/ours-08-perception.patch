@@ -127,10 +127,10 @@ index f986f84..02c5758 100644
          action_results = [
 diff --git a/ARC3-Inference/inference/utils/ours_perception.py b/ARC3-Inference/inference/utils/ours_perception.py
 new file mode 100644
-index 0000000..af4e7e2
+index 0000000..7990650
 --- /dev/null
 +++ b/ARC3-Inference/inference/utils/ours_perception.py
-@@ -0,0 +1,542 @@
+@@ -0,0 +1,562 @@
 +"""Ours (OURS_PERCEPTION): exact perception helpers, computed by the harness from the frames it already holds.
 +
 +On top of Daniel Franzen's harness (Apache-2.0). In exp-073b the model lost calls to views that scroll (bp35 confused
@@ -146,16 +146,21 @@ index 0000000..af4e7e2
 +pure horizontal ones likewise by columns, and shifts voted for by 4x4 blocks of A found at most BLOCK_CAP times in B;
 +lines and blocks of one colour do not count. A candidate is checked on the cells p where A differs from itself moved
 +by s (A(p) != A(p+s)), the only cells where "the view moved" and "nothing moved" predict different things: p supports
-+s if B(p+s) == A(p) and contradicts it if B(p+s) == A(p+s). This is counted over the whole overlap and again without
-+the BORDER-cell edge band, where status bars stay put while the view moves. With at least MIN_CHANGED changed cells,
-+s is claimed (CLAIM) if at least MIN_SUPPORT cells support it, and either at least 0.8 of the supporting-or-
-+contradicting cells support it over the whole overlap with the supporting cells spanning at least half of the overlap
-+in both directions, or at least 0.9 do without the band with a span of at least a quarter. A sprite moving over a
-+uniform floor looks like the view moving the other way; it spans little. Once a game's view has moved under CLAIM,
-+the looser CLAIM_AFTER_SCROLL (0.7 and 0.8) applies: a camera that follows the player or a cart leaves more of the
-+frame in place. If no candidate is claimed but one passes UNSURE (or UNSURE_AFTER_SCROLL once the game has scrolled),
-+the offset becomes unknown (None) until the level restarts, rather than possibly wrong; the [view] line says so only
-+in a game that has scrolled. Measured on every recorded run: docs/research/beat-tufa/patch-perception.md.
++s if B(p+s) == A(p) and contradicts it if B(p+s) == A(p+s). The ratio is supporting / (supporting + contradicting);
++the explained share is supporting / all the cells p+s that changed or should have changed (a sprite's new cells count
++against s). This is counted over the whole overlap and again without the BORDER-cell edge band, where status bars
++stay put while the view moves. With at least MIN_CHANGED changed cells, s is claimed (CLAIM) if at least MIN_SUPPORT
++cells support it, spread over at least MIN_EXTENT rows and columns, and either over the whole overlap the ratio is at
++least 0.8, the explained share at least 0.75 and the supporting cells span at least half of the overlap in both
++directions, or, when at least BAND_ZERO cells of the band contradict s (a status bar that stays put), without the
++band the ratio is at least 0.9 with the same explained share and a span of a quarter. A sprite moving over a uniform
++floor looks like the view moving the other way: it spans little, and its new cells are not explained (a lone large
++sprite on an empty floor is pixel for pixel a scroll; it is not claimed, but may make the offset unknown). Once a
++game's view has moved under CLAIM, the looser CLAIM_AFTER_SCROLL applies: a camera that follows the player or a cart
++leaves more of the frame in place. If no candidate is claimed but one passes the weaker UNSURE (or
++UNSURE_AFTER_SCROLL once the game has scrolled) with at least UNSURE_SUPPORT supporting cells, the offset becomes
++unknown (None) until the next RESET or level, rather than possibly wrong; the [view] line says so only in a game that
++has scrolled. Measured on every recorded run: docs/research/beat-tufa/patch-perception.md.
 +
 +The offset: world (row, col) = frame (row, col) + offset; (0, 0) on the first frame of a level and after every RESET
 +(a RESET restores the level start); each claimed shift s subtracts s. The action's echo gets one `[view]` line when
@@ -185,10 +190,15 @@ index 0000000..af4e7e2
 +LINE_CANDIDATES = 2  # row-matched and column-matched candidates, each
 +MIN_CHANGED = 32
 +MIN_SUPPORT = 64
-+CLAIM = ((0.8, 0.5), (0.9, 0.25))  # (ratio, span) over the whole overlap, or without the edge band
-+CLAIM_AFTER_SCROLL = ((0.7, 0.5), (0.8, 0.25))  # the same, once the game has scrolled under CLAIM
-+UNSURE = (0.8, 0.25)  # (ratio, span) without the edge band: the offset becomes unknown, silently
-+UNSURE_AFTER_SCROLL = (0.6, 0.25)  # the same once the game has scrolled; the [view] line says so
++BAND_ZERO = 16
++# (ratio, explained, span) over the whole overlap, or (ratio, explained, span, contradicting cells needed in the edge
++# band) over the overlap without the band: the band is left out only when something there stays put (a status bar)
++CLAIM = ((0.8, 0.75, 0.5), (0.9, 0.75, 0.25, BAND_ZERO))
++CLAIM_AFTER_SCROLL = ((0.7, 0.65, 0.5), (0.8, 0.65, 0.25, BAND_ZERO))  # the same, once the game has scrolled
++UNSURE = ((0.75, 0.65, 0.5), (0.8, 0.65, 0.25, 0))  # with UNSURE_SUPPORT: the offset becomes unknown, silently
++UNSURE_AFTER_SCROLL = ((0.6, 0.5, 0.5), (0.6, 0.5, 0.25, 0))  # once the game has scrolled; the [view] line says so
++UNSURE_SUPPORT = 32
++MIN_EXTENT = 8  # the supporting cells span at least this many rows and columns
 +AREA_PX = 512
 +BORDER = 4
 +SHOWN = 3
@@ -308,24 +318,28 @@ index 0000000..af4e7e2
 +
 +
 +def _tally() -> dict:
-+    return {"shift": 0, "zero": 0, "other": 0, "rows": [], "cmin": 1 << 30, "cmax": -1, "overlap": (0, 0)}
++    return {"shift": 0, "zero": 0, "other": 0, "new": 0, "rows": [], "cmin": 1 << 30, "cmax": -1, "overlap": (0, 0)}
 +
 +
 +def _finish(t: dict) -> dict:
 +    tried = t["shift"] + t["zero"]
 +    rows_over, cols_over = t["overlap"]
-+    span = 0.0
-+    if t["shift"] and rows_over and cols_over:
-+        span = min((t["rows"][-1] - t["rows"][0] + 1) / rows_over, (t["cmax"] - t["cmin"] + 1) / cols_over)
-+    return {"shift": t["shift"], "zero": t["zero"], "other": t["other"],
-+            "ratio": t["shift"] / tried if tried else 0.0, "span": span}
++    rext = t["rows"][-1] - t["rows"][0] + 1 if t["rows"] else 0
++    cext = t["cmax"] - t["cmin"] + 1 if t["rows"] else 0
++    span = min(rext / rows_over, cext / cols_over) if rext and rows_over and cols_over else 0.0
++    seen = tried + t["other"] + t["new"]
++    return {"shift": t["shift"], "zero": t["zero"], "other": t["other"], "new": t["new"],
++            "ratio": t["shift"] / tried if tried else 0.0, "explained": t["shift"] / seen if seen else 0.0,
++            "span": span, "extent": min(rext, cext)}
 +
 +
 +def support(a: tuple, b: tuple, s: tuple) -> tuple:
-+    """The evidence for shift s, over the whole overlap and over the overlap without the edge band: cells p with
-+    A(p) != A(p+s) that support s (B(p+s) == A(p)), contradict it (B(p+s) == A(p+s)) or neither, the share of
-+    supporting among supporting-or-contradicting cells, and the span of the supporting cells relative to the overlap
-+    (the smaller of the row and column fractions)."""
++    """The evidence for shift s, over the whole overlap and over the overlap without the edge band. Over the cells p
++    with A(p) != A(p+s): `shift` support s (B(p+s) == A(p)), `zero` contradict it (B(p+s) == A(p+s)), `other` do
++    neither; `new` counts the cells p+s that changed (B(p+s) != A(p+s)) although A(p) == A(p+s), which s cannot
++    explain. `ratio` = shift / (shift + zero); `explained` = shift / (shift + zero + other + new), the share of the
++    cells that changed or should have changed that s explains; `span` the smaller of the row and column extents of
++    the supporting cells relative to the overlap, `extent` the smaller of the two in cells."""
 +    dr, dc = s
 +    h, w = len(a), len(a[0])
 +    r0, r1 = max(0, -dr), min(h, h - dr)
@@ -338,13 +352,17 @@ index 0000000..af4e7e2
 +    for r in range(r0, r1):
 +        xa = a[r][c0:c1]
 +        ya = a[r + dr][c0 + dc:c1 + dc]
-+        if xa == ya:
-+            continue
 +        zb = b[r + dr][c0 + dc:c1 + dc]
++        if xa == ya and zb == ya:
++            continue
 +        in_rows = rb0 <= r < rb1
 +        hit = hit_board = False
 +        for i, (x, y, z) in enumerate(zip(xa, ya, zb)):
 +            if x == y:
++                if z != y:
++                    whole["new"] += 1
++                    if in_rows and cb0 <= i < cb1:
++                        board["new"] += 1
 +                continue
 +            on_board = in_rows and cb0 <= i < cb1
 +            if z == x:
@@ -365,13 +383,15 @@ index 0000000..af4e7e2
 +    return _finish(whole), _finish(board)
 +
 +
-+def _passes(evidence: dict, ratio: float, span: float) -> bool:
-+    return evidence["shift"] >= MIN_SUPPORT and evidence["ratio"] >= ratio and evidence["span"] >= span
++def _passes(evidence: dict, ratio: float, explained: float, span: float, support: int) -> bool:
++    return (evidence["shift"] >= support and evidence["ratio"] >= ratio and evidence["explained"] >= explained
++            and evidence["span"] >= span and evidence["extent"] >= MIN_EXTENT)
 +
 +
-+def _claimed(whole: dict, board: dict, rule: tuple) -> bool:
-+    (ratio_w, span_w), (ratio_b, span_b) = rule
-+    return _passes(whole, ratio_w, span_w) or _passes(board, ratio_b, span_b)
++def _claimed(whole: dict, board: dict, rule: tuple, support: int = MIN_SUPPORT) -> bool:
++    (ratio, explained, span, band) = rule[1]
++    return _passes(whole, *rule[0], support) or (whole["zero"] - board["zero"] >= band
++                                                  and _passes(board, ratio, explained, span, support))
 +
 +
 +def measure(a, b, scrolled: bool = False) -> dict:
@@ -395,7 +415,7 @@ index 0000000..af4e7e2
 +        key = (claimed, whole["shift"] - whole["zero"])
 +        if best is None or key > best[0]:
 +            best = (key, s, whole, board, strict)
-+        if unsure is None and _passes(board, *doubt):
++        if unsure is None and _claimed(whole, board, doubt, UNSURE_SUPPORT):
 +            unsure = s
 +    if best is None:
 +        return {"verdict": "none", "changed": changed}

@@ -217,14 +217,17 @@ SCROLLS = [(0, 6), (0, -8), (18, 0), (-24, 0), (6, 6), (-42, 0), (0, 40), (3, -5
 @needs_tree
 @pytest.mark.parametrize("camera_move", SCROLLS)
 def test_a_scrolled_view_is_measured_exactly(op, camera_move):
-    """The camera moves by (dy, dx) over a textured scene, a status bar and a followed player stay put on screen:
-    the content moved by (-dy, -dx)."""
-    g = world()
+    """The camera moves by (dy, dx) over a textured scene: the content moved by (-dy, -dx). With a status bar and a
+    player the camera follows (both stay put on screen), a game's first scroll may come out unsure (the offset
+    becomes unknown), never wrong; once the game has scrolled, it is exact."""
     dy, dx = camera_move
-    a = with_hud_and_player(view(g, 60, 60))
-    b = with_hud_and_player(view(g, 60 + dy, 60 + dx))
-    assert op.view_shift(a, b) == (-dy, -dx)
-    assert op.view_shift(view(g, 60, 60), view(g, 60 + dy, 60 + dx)) == (-dy, -dx)  # and without them
+    for seed in (1, 2, 3):
+        g = world(seed=seed)
+        a, b = view(g, 60, 60), view(g, 60 + dy, 60 + dx)
+        assert op.view_shift(a, b) == (-dy, -dx)
+        a, b = with_hud_and_player(a), with_hud_and_player(b)
+        assert op.view_shift(a, b) in ((-dy, -dx), "unsure")
+        assert op.view_shift(a, b, scrolled=True) == (-dy, -dx)
 
 
 @needs_tree
@@ -235,10 +238,14 @@ def test_moving_objects_on_a_still_view_are_not_a_scroll(op):
     a = paint(still, box(30, 30, 5, 5), 7)
     b = paint(paint(still, box(30, 30, 5, 5), 5), box(30, 36, 5, 5), 7)
     assert op.measure(a, b)["verdict"] == "none"
-    # a big sprite moves over a uniform floor: pixel for pixel that is also the view moving the other way, but the
-    # evidence spans little of the frame
+    # a big sprite moves over an empty uniform floor: pixel for pixel that is also the view moving the other way over
+    # a lone object, so it is never claimed; with nothing in view that stays put, the offset may become unknown
     floor = [[5] * 64 for _ in range(64)]
     a, b = paint(floor, box(20, 10, 20, 20), 9), paint(floor, box(20, 16, 20, 20), 9)
+    assert op.view_shift(a, b) in (None, "unsure") and op.view_shift(a, b, scrolled=True) in (None, "unsure")
+    # the same sprite in a room whose walls stay put
+    room = paint(floor, [(r, c) for r in range(64) for c in range(64) if r in (8, 55) or c in (6, 57)], 3)
+    a, b = paint(room, box(20, 10, 20, 20), 9), paint(room, box(20, 16, 20, 20), 9)
     assert op.measure(a, b)["verdict"] == "none"
     # five sprites move together by the same step, the scene stays
     sprites = [(10, 10), (10, 40), (40, 12), (45, 45), (25, 28)]
@@ -272,20 +279,32 @@ def test_wraparound_edges_and_odd_frames(op):
 
 @needs_tree
 def test_unsure_makes_the_offset_unknown_until_a_reset(op):
-    """A scroll under a static panel over half the board: the panel contradicts the shift, so the harness says it
-    cannot tell (offset None) rather than guess, until the RESET restores the level start."""
-    g = world(seed=5)
-    panel = [(r, c) for r in range(8, 56) for c in range(8, 30) if (r // 3 + c // 3) % 2]
-    a = paint(view(g, 60, 60), panel, 13)
-    b = paint(view(g, 66, 60), panel, 13)
-    m = op.measure(a, b)
-    assert m["verdict"] == "unsure", m
-    history = [entry("", a, 0), entry("RIGHT", b, 1), entry("RIGHT", view(g, 66, 54), 2), entry("RESET", a, 3)]
+    """Evidence for a scroll too weak to claim and too strong to ignore makes the offset unknown (None) rather than
+    possibly wrong, until a RESET restores the level start: silently in a game whose view has not moved yet, with a
+    [view] line once it has."""
+    # a 24-row camera move with a status bar and a followed player, in a game that has not scrolled yet
+    g = world(seed=1)
+    a, b = with_hud_and_player(view(g, 60, 60)), with_hud_and_player(view(g, 36, 60))
+    assert op.measure(a, b)["verdict"] == "unsure"
+    history = [entry("", a, 0), entry("UP", b, 1), entry("UP", with_hud_and_player(view(g, 30, 60)), 2),
+               entry("RESET", a, 3)]
     tracker = fed(op, history)
-    assert tracker.offsets == [(0, 0), None, None, (0, 0)]
-    assert tracker.unsure == [False, True, False, False]
-    assert tracker.line(1) == ("[view] the frame changed at step 1 in a way that may be a scroll; view_offset is "
-                               "unknown until the next RESET or level")
+    assert tracker.offsets == [(0, 0), None, None, (0, 0)] and tracker.unsure == [False, True, False, False]
+    assert fed(op, history[:2]).line(1) == ""
+    assert fed(op, history[:3]).line(2) == "[view] scrolled at step 2: content moved (+6,+0); view_offset now unknown"
+    # after a scroll, a camera move under a static panel over half the board: the panel contradicts the shift
+    g = world(seed=5)
+    panel = [(r, c) for r in range(8, 56) for c in range(8, 38) if (r // 3 + c // 3) % 2 == 0]
+    frames = [view(g, 54, 60), view(g, 60, 60), paint(view(g, 60, 60), panel, 13), paint(view(g, 66, 60), panel, 13)]
+    history = [entry("", frames[0], 0), entry("DOWN", frames[1], 1), entry("SPACE", frames[2], 2),
+               entry("DOWN", frames[3], 3), entry("RESET", frames[0], 4)]
+    tracker = fed(op, history)
+    assert tracker.offsets == [(0, 0), (6, 0), (6, 0), None, (0, 0)]
+    assert tracker.unsure == [False, False, False, True, False] and tracker.scrolled
+    three = fed(op, history[:4])
+    assert three.line(3) == ("[view] the frame changed at step 3 in a way that may be a scroll; view_offset is "
+                             "unknown until the next RESET or level")
+    assert three.payload(frames[3])["current"] is None
 
 
 @needs_tree
@@ -299,11 +318,18 @@ def test_tracker_offsets_resets_levels_and_lines(op):
     tracker = fed(op, history)
     assert tracker.offsets == [(0, 0), (6, 0), (6, -8), (6, -8), (0, 0), (0, 0), (0, 6)]
     assert [m and m[1] for m in tracker.shifts] == [None, (-6, 0), (0, 8), None, None, None, (0, -6)]
-    assert tracker.line(1) == ("[view] scrolled 2 times (steps 1, 2): content moved (-6,+0), (+0,+8); view_offset "
-                               "now (+0,-6)")  # the call ran to the end of the history: the last offset
+    # one call that ran to the end of the history: every scroll in it, the last offset; and the two orange objects
+    # that the step-2 scroll pushed off the right edge
+    assert tracker.line(1).splitlines() == [
+        "[view] scrolled 3 times (steps 1, 2, 6): content moved (-6,+0), (+0,+8), (+0,-6); view_offset now (+0,+6)",
+        "[view] left the view: O 8px at the right edge (last seen step 1, rows 52-53, cols 59-63); O 16px at the right "
+        "edge (last seen step 1, rows 58-62, cols 59-63); see left_view"]
+    assert tracker.exits[2][1] == {"colour": "O", "pixels": 16, "step": 1, "box": [58, 59, 62, 63],
+                                   "world_box": [64, 59, 68, 63], "edge": "right"}
     two = fed(op, history[:3])
-    assert two.line(2) == "[view] scrolled at step 2: content moved (+0,+8); view_offset now (+6,-8)"
+    assert two.line(2).splitlines()[0] == "[view] scrolled at step 2: content moved (+0,+8); view_offset now (+6,-8)"
     assert two.line(1).startswith("[view] scrolled 2 times (steps 1, 2)") and two.line(3) == "" and two.line(-1) == ""
+    assert len(two.left) == 2 and tracker.left == []  # the RESET and the new level drop the records
     payload = tracker.payload(history[-1]["frame"]["grid"])
     assert payload["offsets"][2] == [6, -8] and payload["current"] == [0, 6] and payload["left"] == []
     assert tracker.payload(frames[0])["current"] is None  # a current frame that is not the last entry's
@@ -334,11 +360,10 @@ def test_left_view(op):
     b = view(g, 66, 60)  # the camera moved down 6: the content moved up 6, the object is gone
     assert 1 not in {v for row in b for v in row} and op.view_shift(a, b) == (-6, 0)
     t2 = fed(op, [entry("", view(g, 54, 60), 0), entry("DOWN", a, 1), entry("DOWN", b, 2)])
-    assert t2.offsets[1] == (0, 0) or t2.offsets[1] is not None
+    assert t2.offsets == [(0, 0), (6, 0), (12, 0)]
     (gone,) = t2.exits[2]
-    assert gone["colour"] == "w" and gone["edge"] == "top" and gone["step"] == 1 and gone["box"] == [2, 20, 5, 23]
-    off = t2.offsets[1]
-    assert gone["world_box"] == [2 + off[0], 20 + off[1], 5 + off[0], 23 + off[1]]
+    assert gone == {"colour": "w", "pixels": 16, "step": 1, "box": [2, 20, 5, 23], "world_box": [8, 20, 11, 23],
+                    "edge": "top"}
 
 
 # --- the lattice and the logical grid --------------------------------------------------------------------------------
@@ -778,7 +803,8 @@ def test_flag_on_lf52_scroll_and_the_cart_that_left_the_view(trees, tmp_path):
             a = rec["action"]
             out.append({"action": "MOUSE", "row": int(a["data"]["y"]), "col": int(a["data"]["x"])}
                        if a["id"] == "ACTION6" else NAMES[a["id"]])
-        return f"r = action({json.dumps(out)})\nprint(r.get('executed_count'), r.get('level'))"
+        # a one-action reply has no executed_count; both kinds list executed_actions
+        return f"r = action({json.dumps(out)})\nprint(len(r.get('executed_actions') or ()), r.get('level'))"
 
     out = run_child(trees["ours"], "1", "lf52", [acts(1, 19), acts(20, 118), acts(119, 154), acts(155, 155),
                                                  acts(156, 198), acts(199, 203), acts(204, 204),

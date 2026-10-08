@@ -118,7 +118,7 @@ def rid_for(sample_id: str) -> str:
 def continuation_body(sample: dict, text: str, *, model: str, rid: str) -> dict:
     """The logged request plus the output as a final assistant message to continue, greedy, one new token."""
     request = dict(sample["request"])
-    request["messages"] = list(request["messages"]) + [{"role": "assistant", "content": text}]
+    request["messages"] = [*request["messages"], {"role": "assistant", "content": text}]
     body = fp.build_body({"request": request}, model=model, max_tokens=1, top_logprobs=1,
                          extras={"rid": rid, "continue_final_message": True})
     return body
