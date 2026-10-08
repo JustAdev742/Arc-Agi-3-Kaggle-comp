@@ -715,21 +715,25 @@ def test_hot_tokens_writes_our_map_before_the_launcher_and_his_assert_checks_it(
     import hashlib
     hot = ROOT / "kaggle" / "franzen" / "hot_tokens_64k_arc.pt"
     meta = json.loads((ROOT / "kaggle" / "franzen" / "hot_tokens_64k_arc.meta.json").read_text())
-    sha = hashlib.sha256(hot.read_bytes()).hexdigest()
-    assert sha == meta["sha256"]
+    assert hashlib.sha256(hot.read_bytes()).hexdigest() == meta["sha256"]
     changes = bf.build(tmp_path / "h", "h", base="dprime", hot_tokens=hot, cfg={"MAXREQ": "14"})
     assert any(c.startswith("MTP draft FR-Spec map hot_tokens_64k_arc.pt") for c in changes)
-    codes = _code_cells(tmp_path / "h" / "h.ipynb")
+    nb = tmp_path / "h" / "h.ipynb"
+    assert nb.stat().st_size < 900_000  # Kaggle refuses a notebook near 1 MB (HTTP 400): the map must stay small
+    codes = _code_cells(nb)
     launch = next(i for i, src in enumerate(codes) if bf.LAUNCH_ANCHOR in src)
-    assert f'TOKEN_MAP_SHA = "{sha}"' in codes[launch] and "becfa41d" not in codes[launch]
+    sha = re.search(r'TOKEN_MAP_SHA = "([0-9a-f]{64})"', codes[launch]).group(1)
+    assert "becfa41d" not in codes[launch]
     assert f"tok = Path({bf.HOT_MAP_FILE!r})" in codes[launch] and "hot_tokens_64k.pt\", required" not in codes[launch]
-    assert "assert sha256(tok) == TOKEN_MAP_SHA" in codes[launch]  # his check, now of our file
+    assert "assert sha256(tok) == TOKEN_MAP_SHA" in codes[launch]  # his check, now of the file the cell writes
     writer = codes[launch - 1]
-    assert writer.startswith(bf.HOT_BEGIN)
+    assert writer.startswith(bf.HOT_BEGIN) and len(writer) < 10_000
     _compiles(writer)
     _compiles(codes[launch])
     out = tmp_path / "arc3-hot-tokens.pt"
-    exec(writer.replace(bf.HOT_MAP_FILE, str(out)), {})
-    assert out.read_bytes() == hot.read_bytes()
+    for _ in range(2):  # the same bytes every time: his assert can hold a literal sha256
+        exec(writer.replace(bf.HOT_MAP_FILE, str(out)), {})
+        assert hashlib.sha256(out.read_bytes()).hexdigest() == sha
+    assert bf._read_hot_ids(out) == bf._read_hot_ids(hot)  # the ids his torch.load will see
     with pytest.raises(SystemExit, match="FRSPEC is off"):
         bf.build(tmp_path / "x", "x", base="dprime", hot_tokens=hot, cfg={"FRSPEC": "False"})

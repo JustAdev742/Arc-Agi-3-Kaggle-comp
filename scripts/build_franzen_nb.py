@@ -458,35 +458,102 @@ def _model_code(name: str) -> str:
         f"{MODEL_END}\n")
 
 
-def _hot_tokens(cell: str, path: Path) -> tuple[str, str, str]:
-    """Cell 12 reading our FR-Spec map (its sha256 replaces his TOKEN_MAP_SHA, so his assert checks ours), the code
-    cell that writes the map before it, and the change line."""
-    import base64
+HOT_WRITER = """
+def _ours_write_hot_tokens(packed_b64, varint_sha, path):
+    # FR-Spec ids: zlib-compressed delta varints -> the list torch.save would store, written as torch's zip layout
+    # (fixed record names, times and serialization id, so the file and its sha256 are the same on every run)
+    import base64, hashlib, pickle, zipfile, zlib
+    raw = zlib.decompress(base64.b64decode(packed_b64))
+    if hashlib.sha256(raw).hexdigest() != varint_sha:
+        raise RuntimeError("FR-Spec map corrupted in the notebook")
+    ids, prev, i = [], -1, 0
+    while i < len(raw):
+        delta, shift = 0, 0
+        while True:
+            byte = raw[i]
+            i += 1
+            delta |= (byte & 0x7F) << shift
+            shift += 7
+            if not byte & 0x80:
+                break
+        prev += delta + 1
+        ids.append(prev)
+    records = [("data.pkl", pickle.dumps(ids, protocol=2)), (".format_version", b"1"), (".storage_alignment", b"64"),
+               ("byteorder", b"little"), ("version", b"3\\n"), (".data/serialization_id", b"0" * 40)]
+    with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_STORED) as z:
+        for name, data in records:
+            info = zipfile.ZipInfo("arc3_hot_tokens/" + name, date_time=(1980, 1, 1, 0, 0, 0))
+            info.compress_type = zipfile.ZIP_STORED
+            z.writestr(info, data)
+    return len(ids)
+"""
 
-    data = path.read_bytes()
-    if not data.startswith(b"PK"):
-        raise SystemExit(f"--hot-tokens {path}: not a torch.save zip archive")
-    sha = hashlib.sha256(data).hexdigest()
+
+def _read_hot_ids(path: Path) -> list[int]:
+    """The id list in a torch.save'd FR-Spec map (a zip with a pickled list), read without torch or any global."""
+    import pickle
+    import zipfile
+
+    class _NoGlobals(pickle.Unpickler):
+        def find_class(self, module, name):
+            raise SystemExit(f"--hot-tokens {path}: refusing pickled global {module}.{name}")
+
+    with zipfile.ZipFile(path) as z:
+        names = [n for n in z.namelist() if n.endswith("/data.pkl")]
+        if len(names) != 1:
+            raise SystemExit(f"--hot-tokens {path}: not a torch.save archive with one data.pkl")
+        ids = _NoGlobals(z.open(names[0])).load()
+    if not (isinstance(ids, list) and ids == sorted(set(ids)) and all(isinstance(i, int) and i >= 0 for i in ids)):
+        raise SystemExit(f"--hot-tokens {path}: expected a sorted list of distinct token ids")
+    return ids
+
+
+def _hot_tokens(cell: str, path: Path) -> tuple[str, str, str]:
+    """Cell 12 reading our FR-Spec map, the code cell that writes it before the launcher, and the change line.
+
+    The map travels as zlib-compressed delta varints (about 3 KB: a Kaggle notebook over ~1 MB is refused with HTTP
+    400, as the first build of exp-077 was) and is written as torch's zip layout with fixed metadata, so its sha256
+    is known here and replaces his TOKEN_MAP_SHA: his own assert checks it."""
+    import base64
+    import zlib
+
+    ids = _read_hot_ids(path)
+    raw, prev = bytearray(), -1
+    for i in ids:
+        delta, prev = i - prev - 1, i
+        while True:
+            byte, delta = delta & 0x7F, delta >> 7
+            raw.append(byte | (0x80 if delta else 0))
+            if not delta:
+                break
+    packed = base64.b64encode(zlib.compress(bytes(raw), 9)).decode()
+    varint_sha = hashlib.sha256(bytes(raw)).hexdigest()
+    with tempfile.TemporaryDirectory() as tmp:  # the file the notebook will write, to know its sha256 here
+        ns: dict = {}
+        exec(HOT_WRITER, ns)
+        out = Path(tmp) / "hot.pt"
+        if ns["_ours_write_hot_tokens"](packed, varint_sha, str(out)) != len(ids):
+            raise SystemExit(f"--hot-tokens {path}: the notebook writer does not round-trip the ids")
+        sha = hashlib.sha256(out.read_bytes()).hexdigest()
     if len(HOT_SHA_RE.findall(cell)) != 1:
         raise SystemExit("--hot-tokens: TOKEN_MAP_SHA not found once in the launcher cell")
-    cell = HOT_SHA_RE.sub(f'TOKEN_MAP_SHA = "{sha}"  # ours (--hot-tokens): {path.name}', cell)
+    cell = HOT_SHA_RE.sub(f'TOKEN_MAP_SHA = "{sha}"  # ours (--hot-tokens): {path.name}, as the cell above writes it',
+                          cell)
     cell = _replace_once(cell, HOT_FIND_ANCHOR, f"        tok = Path({HOT_MAP_FILE!r})  # ours (--hot-tokens)\n",
                          "--hot-tokens")
     if re.search(r"^\s*FRSPEC=False", cell, re.M):
         raise SystemExit("--hot-tokens: CFG FRSPEC is off, so the map would not be used")
-    b64 = base64.b64encode(data).decode()
-    lines = "\n".join(b64[i:i + 120] for i in range(0, len(b64), 120))
+    lines = "\n".join(packed[i:i + 120] for i in range(0, len(packed), 120))
     writer = (
-        f"{HOT_BEGIN}: the MTP draft's FR-Spec vocabulary is {path.name} (scripts/frspec_map.py) instead of\n"
-        "# Pennyroyal's generic hot_tokens_64k.pt; the launcher's sha256 assert checks this file.\n"
-        "import base64 as _ours_b64, hashlib as _ours_hashlib\n"
-        f"_ours_hot = _ours_b64.b64decode(\"\"\"\n{lines}\n\"\"\")\n"
-        f"assert _ours_hashlib.sha256(_ours_hot).hexdigest() == {sha!r}, 'FR-Spec map corrupted in the notebook'\n"
-        f"open({HOT_MAP_FILE!r}, 'wb').write(_ours_hot)\n"
-        f"print('ours: FR-Spec map {path.name} written to {HOT_MAP_FILE}')\n"
+        f"{HOT_BEGIN}: the MTP draft's FR-Spec vocabulary is {path.name} (scripts/frspec_map.py, {len(ids)} ids)\n"
+        "# instead of Pennyroyal's generic hot_tokens_64k.pt; the launcher's sha256 assert checks the file written here."
+        + HOT_WRITER
+        + f"_ours_n = _ours_write_hot_tokens(\"\"\"\n{lines}\n\"\"\", {varint_sha!r}, {HOT_MAP_FILE!r})\n"
+        f"print(f'ours: FR-Spec map {path.name} written to {HOT_MAP_FILE}: {{_ours_n}} ids')\n"
         f"{HOT_END}\n")
-    change = (f"MTP draft FR-Spec map {path.name} (sha256 {sha[:12]}, {len(data)} bytes) instead of Pennyroyal's "
-              "generic hot_tokens_64k.pt, written by a cell before the launcher")
+    change = (f"MTP draft FR-Spec map {path.name} ({len(ids)} ids; written by a cell before the launcher as a "
+              f"{len(packed)}-character payload, file sha256 {sha[:12]}) instead of Pennyroyal's generic "
+              "hot_tokens_64k.pt")
     return cell, writer, change
 
 
