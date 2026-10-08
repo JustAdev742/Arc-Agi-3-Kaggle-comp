@@ -211,6 +211,10 @@ champion preset are superseded by the move to the Duck family; they are in this 
 
 ## Follow-ups noticed (not fixed on purpose)
 
+- Gate/test arms keep playing for their whole budget after the SGLang server dies (Franzen's notebook continues on
+  purpose so a rerun can still finish); exp-072j spent ~0.7 GPU-h that way. A builder option that raises in cell 12
+  when the server process has exited would stop such arms within minutes (never for a submission build).
+
 - Rental runner image (checked 2026-10-07 from the registry's image config, no pull): `gcr.io/kaggle-gpu-images/
   python:v170` is Python 3.12 (`/usr/local/lib/python3.12/dist-packages`), CUDA 12.8, built 2026-06-29, so the M2
   cp312 wheelhouse fits it. The tag is mutable: pin its digest (manifest config sha256:c7283137...) before a rental.

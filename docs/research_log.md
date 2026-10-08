@@ -2287,3 +2287,12 @@ exp-074s (12:20) and exp-072j (12:42) were accepted and started within ~10 min, 
           (arc3-dprime-reap448-r14-accept05-full, 01:37) is a live session that has not started in 11-12 h, and the
           other is a stale status. The API cannot cancel either (no session id), and both report QUEUED with no log.
           Only the Kaggle web page can: Cancel on either kernel frees our second slot.
+
+## 2026-10-08 13:31 · exp-072j · 4 speculative steps cannot run: QSA caps draft tokens at 4 · CLOSED
+Run:      scottmahony/arc3-dprime-gate-reap448-r14-accept05-steps4 v1 (12:42-13:30); serve.log: "NotImplementedError: Qwen
+          QSA requires speculative_num_draft_tokens <= the QSA compress ratio (4): the pending index-key ring holds one
+          group; got 5" during CUDA-graph capture; the server exited, the notebook played 25 min against no server
+          (0 tokens, 1 action). SPEC_STEPS=3 (4 draft tokens) is the ceiling on this architecture: lever closed.
+Cost:     ~0.7 GPU-h. Follow-up: gate arms should stop when the server dies (his notebook continues on purpose, which
+          only matters for the rerun).
+Queue:    exp-073b v2 (full length, REAP-14 + acceptance 0.5) pushed 13:31 into the freed slot, QUEUED.
