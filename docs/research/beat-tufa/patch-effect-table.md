@@ -277,3 +277,12 @@ the lead's bundle, add the patches in the order 01, 02, 04, 03b, 06. Add `--full
     --patch kaggle/franzen/patches/ours-06-effect-table.patch \
     --set OURS_EFFECT_TABLE=1 --expect "returns the action-effect table of the current level" --program effects
 ```
+
+## Composed with the other patches (2026-10-08, lead)
+
+`ours-06-effect-table.patch` applies on his patch + ours-01 (and after 01, 02, 04, 03b). After ours-05 (level mem)
+one hunk collides: both add code right after `self._record_retained_functions(sandbox_result, payload)` in
+`_run_python_tool`; independent insertions, resolved by keeping both (mem first). The rebased file is
+`ours-06b-effect-table-on-02-04-03b-05.patch`; the full stack applies as 01, 02, 04, 03b, 05, 06b
+(`franzen_tree.py check`: ok). Bed with all six flags on (budget meter, search helper, win ledger, level mem,
+effect table, EXPOSE_RESET=on; programs search, mem, effects; 3 games x 100 s): 24/24 checks, no tracebacks.

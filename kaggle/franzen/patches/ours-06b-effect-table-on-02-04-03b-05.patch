@@ -1,0 +1,949 @@
+diff --git a/ARC3-Inference/inference/agent/python_tool_sandbox.py b/ARC3-Inference/inference/agent/python_tool_sandbox.py
+index d66a3c8..dc4e73f 100644
+--- a/ARC3-Inference/inference/agent/python_tool_sandbox.py
++++ b/ARC3-Inference/inference/agent/python_tool_sandbox.py
+@@ -214,6 +214,26 @@ _SANDBOX_BOOTSTRAP = textwrap.dedent(
+         __repr__ = __str__
+ 
+ 
++    class _OursEffectText(str):
++        # ours (OURS_EFFECT_TABLE): what effects() returns; printed as plain text, also as a snippet's last expression
++        def __repr__(self):
++            return str(self)
++
++
++    def _ours_effects_helper(payload):
++        tables = {str(k): str(v) for k, v in dict(payload.get("tables") or {}).items()}
++        current, error = payload.get("level"), payload.get("error")
++
++        def effects(level=None):
++            # the harness's action-effect table of the current level (or of `level`); reading it spends no action
++            key = str(current if level is None else level)
++            if error:
++                return _OursEffectText("Effect table unavailable: " + str(error))
++            return _OursEffectText(tables.get(key) or ("Level " + key + ": no actions yet."))
++
++        return effects
++
++
+     def _frame_from_payload(payload):
+         if not isinstance(payload, dict):
+             return None
+@@ -494,6 +514,8 @@ _SANDBOX_BOOTSTRAP = textwrap.dedent(
+ 
+             runtime_globals["current_frame"] = current_frame
+             runtime_globals["latest_frame"] = current_frame
++            if isinstance(state_payload.get("ours_effects"), dict):  # ours: OURS_EFFECT_TABLE
++                runtime_globals["effects"] = _ours_effects_helper(state_payload["ours_effects"])
+             runtime_globals["history"] = history
+             runtime_globals["transitions"] = transitions
+             runtime_globals["last_transition"] = last_transition
+diff --git a/ARC3-Inference/inference/agent/tool_agent.py b/ARC3-Inference/inference/agent/tool_agent.py
+index c8a130c..eff21ef 100644
+--- a/ARC3-Inference/inference/agent/tool_agent.py
++++ b/ARC3-Inference/inference/agent/tool_agent.py
+@@ -3133,6 +3133,9 @@ def _build_system_prompt(*, tool_output_tokens: int) -> str:
+         WORLD_MODEL_FREE_ADDENDUM if _memory_sections_disabled() else WORLD_MODEL_ADDENDUM
+     )
+     prompt += PYTHON_ADDENDUM_TAIL
++    # ours (OURS_EFFECT_TABLE, read at call time): four lines documenting effects(); "" when the flag is off
++    from inference.utils.ours_effect_table import system_prompt_lines as _ours_effect_lines
++    prompt += _ours_effect_lines()
+     if _get_env_bool("ARC3_FRAME_DIFF_HINT", False):
+         # documents `frame_diff(before, after)`. The function stays callable
+         # either way - this only controls whether the model is told about it,
+@@ -6254,6 +6257,9 @@ class ToolAgent:
+ 
+         terminal_action_result: dict[str, Any] | None = None
+         snippet_executed_actions = 0
++        # ours (OURS_EFFECT_TABLE): the state also carries the per-level effect tables for effects(); unchanged if off
++        from inference.utils.ours_effect_table import attach as _ours_effects_attach
++        _serialized_runtime_state = _ours_effects_attach(self, _serialized_runtime_state)
+ 
+         def _handle_animation(request: dict[str, Any]) -> dict[str, Any]:
+             if self._step_env_callback is None:
+@@ -6432,6 +6438,9 @@ class ToolAgent:
+                 ours_mem, sandbox_result.get("ours_mem"), ours_mem_end.get("level"), ours_mem_end.get("step"))
+             if ours_mem_text:
+                 payload["mem"] = ours_mem_text
++        # ours (OURS_EFFECT_TABLE=note): one line when an action of this snippet made a new kind of change
++        from inference.utils.ours_effect_table import note as _ours_effects_note
++        _ours_effects_note(self, payload)
+         rendered_stdout = str(sandbox_result.get("stdout", "") or "")
+         rendered_error = str(sandbox_result.get("error", "") or "")
+         if rendered_error:
+diff --git a/ARC3-Inference/inference/utils/ours_effect_table.py b/ARC3-Inference/inference/utils/ours_effect_table.py
+new file mode 100644
+index 0000000..2ed30b9
+--- /dev/null
++++ b/ARC3-Inference/inference/utils/ours_effect_table.py
+@@ -0,0 +1,869 @@
++"""Ours (OURS_EFFECT_TABLE): an exact per-level action-effect table, computed by the harness from the frames.
++
++On top of Daniel Franzen's harness (Apache-2.0). In exp-073b the model spent 21% of its tool calls on the games it did
++not win looping over `history` to recover what its actions had done; in dc22 it first sent the click that turns the
++red bar at action 10 and worked out what it did 168 actions later. With OURS_EFFECT_TABLE=1 (read at call time, off by
++default) the harness keeps a table per level, keyed by action (a key, or a MOUSE cell), and the sandbox exposes it as
++`effects(level=None)`, documented in four system-prompt lines. OURS_EFFECT_TABLE=note also adds one line to a tool
++result when an action of that snippet, used before on its level, made a kind of change (moved, rotated, recolored,
++appeared, disappeared) on a colour never seen before on that level.
++
++What a table states, all of it computed from the frame before and the frame after each action
++(docs/research/beat-tufa/patch-effect-table.md has the reasons and the replay check):
++
++- The board is the frame without the cells within ARC3_NOOP_GUARD_BORDER (default 4) of an edge, where timer and step
++  bars sit. "no change" means no board cell changed (the harness's gameplay_changed=False). How often the edge band
++  changed is counted once per level. Automatic RESETs are not actions here.
++- Objects are maximal 4-connected one-colour cell sets on the board, as in `.segmentation`. Positions are the
++  (row, col) of an object's bounding-box top-left, as in `frame_diff()`. Objects of AREA_PX cells or more are areas
++  (backgrounds, floors) and are never listed as objects.
++- The objects present in only one of the two frames are paired by these rules, in order. Same cells in another
++  colour: recolored. The only one of its colour and shape (up to rotation) on each side: moved by the offset of its
++  top-left corner, or rotated by 90/180/270 degrees clockwise (and that offset). n of one colour and shape on each
++  side whose places all differ by one offset: moved, n times. Otherwise, of that colour and shape on both sides:
++  ambiguous (with both position lists when there are at most 6). Of the rest: same-colour objects with shared cells
++  form clusters, listed as reshaped (sizes before and after) only if no area is in them and they hold a changed cell
++  that the changes above do not cover; objects none of whose cells keep their colour: disappeared; none of whose cells
++  had it: appeared. Changed cells covered by none of these are counted by colour transition ("cells x->y"). More than
++  MAX_CHANGES distinct changes in one action become one "many changes" with counts per kind.
++- Per action: uses, uses with no change, game overs, level completions, and each distinct change with the number of
++  uses it occurred in, the step of the last and its positions. Game overs list each change and, for one object, the
++  colours its cells held before (moved, rotated, appeared) or hold after (disappeared).
++- Objects of one colour, size and bounding-box shape, at most MAX_MOVER_MEMBERS, whose places and poses repeated with a
++  fixed period over at least two periods of one attempt, if some action moved them differently on two of its uses
++  (which leaves out an avatar walked back and forth).
++
++Stdlib only. Each history entry is processed once (a run-length union-find labels its frame in about a millisecond);
++later calls only render the level that changed. Nothing here may stop a game: an error disables the table for the
++game and effects() says so.
++"""
++from __future__ import annotations
++
++import logging
++import os
++from collections import Counter
++
++log = logging.getLogger(__name__)
++
++AREA_PX = 512
++MAX_CHANGES = 12
++MAX_ITEMS_SHOWN = 4
++MAX_LINES = 40
++MAX_QUIET_CELLS = 24
++MAX_MOVER_MEMBERS = 4
++COLOR_CHARS = "WwgGcBMPRbSYOrNp"  # inference.utils.grid_utils.ARC_COLOR_CHARS
++KEY_ORDER = ("UP", "DOWN", "LEFT", "RIGHT", "SPACE", "UNDO")
++NOTE_KINDS = ("moved", "rotated", "recolored", "appeared", "disappeared")
++
++PROMPT_LINES = (
++    "- `effects(level=None)` returns the action-effect table of the current level (or of `level`), computed by the "
++    "harness from the frames before and after each action.\n"
++    "- One line per action (a key, or a MOUSE cell): its uses, the uses with no change, and each object change "
++    "(moved, rotated, recolored, appeared, disappeared, reshaped) with the number of uses it occurred in.\n"
++    "- It leaves out cells within {border} of the edge, and lists changes it cannot pair object to object as "
++    "ambiguous.\n"
++    "- It also lists game overs with the colours the changed objects overlapped, and objects whose positions repeated "
++    "with a fixed period.\n"
++)
++
++
++def mode() -> str:
++    """'off', 'on' (the helper) or 'note' (the helper and the one-line note in tool results); read at call time."""
++    raw = os.environ.get("OURS_EFFECT_TABLE", "").strip().lower()
++    if raw in ("1", "on", "true", "yes"):
++        return "on"
++    if raw == "note":
++        return "note"
++    return "off"
++
++
++def _border() -> int:
++    try:
++        return max(0, int(os.environ.get("ARC3_NOOP_GUARD_BORDER", "4")))
++    except ValueError:
++        return 4
++
++
++def system_prompt_lines() -> str:
++    """The system-prompt documentation; empty when the flag is off."""
++    return "" if mode() == "off" else PROMPT_LINES.format(border=_border())
++
++
++# --- frames: board objects by run-length union-find --------------------------------------------------------------
++
++
++def _normalize(cells) -> tuple:
++    r0 = min(r for r, _ in cells)
++    c0 = min(c for _, c in cells)
++    return tuple(sorted((r - r0, c - c0) for r, c in cells))
++
++
++def _rot90(shape: tuple) -> tuple:
++    """A normalised shape turned 90 degrees clockwise (rows down, columns right), normalised."""
++    h = max(r for r, _ in shape) + 1
++    return _normalize([(c, h - 1 - r) for r, c in shape])
++
++
++def _rotations(shape: tuple) -> list:
++    out = [shape]
++    for _ in range(3):
++        out.append(_rot90(out[-1]))
++    return out
++
++
++class _Obj:
++    __slots__ = ("_canon", "_cells", "_pose", "bbox", "color", "px", "runs")
++
++    def __init__(self, color: int, runs: list, px: int, bbox: tuple):
++        self.color, self.runs, self.px, self.bbox = color, runs, px, bbox
++        self._cells = self._pose = self._canon = None
++
++    @property
++    def topleft(self) -> tuple:
++        return self.bbox[0], self.bbox[1]
++
++    def cells(self) -> frozenset:
++        if self._cells is None:
++            self._cells = frozenset((r, c) for r, a, z in self.runs for c in range(a, z + 1))
++        return self._cells
++
++    def pose(self) -> tuple:
++        """The shape as seen (runs relative to the top-left corner)."""
++        if self._pose is None:
++            r0, c0 = self.bbox[0], self.bbox[1]
++            self._pose = tuple((r - r0, a - c0, z - c0) for r, a, z in self.runs)
++        return self._pose
++
++    def canon(self) -> tuple:
++        """(colour, shape up to rotation)."""
++        if self._canon is None:
++            self._canon = (self.color, min(_rotations(_normalize(self.cells()))))
++        return self._canon
++
++    def same_cells(self, other: "_Obj") -> bool:
++        return self.px == other.px and self.bbox == other.bbox and self.runs == other.runs
++
++
++class _Frame:
++    """A frame's board objects (cells within `border` of an edge left out) and a cell -> object map."""
++
++    __slots__ = ("cols", "grid", "label", "objs", "rows")
++
++    def __init__(self, grid: tuple, border: int):
++        self.grid = grid
++        height = len(grid)
++        width = len(grid[0]) if height else 0
++        if height <= 2 * border or width <= 2 * border:
++            border = 0
++        self.rows = range(border, height - border)
++        self.cols = range(border, width - border)
++        self.objs: list[_Obj] = []
++        self.label: dict[int, list] = {}
++        self._build(width)
++
++    def _build(self, width: int) -> None:
++        grid, c_start, c_end = self.grid, self.cols.start, self.cols.stop
++        parent: list[int] = []
++        runs: list[tuple] = []
++
++        def find(x: int) -> int:
++            while parent[x] != x:
++                parent[x] = parent[parent[x]]
++                x = parent[x]
++            return x
++
++        prev: list[int] = []
++        for r in self.rows:
++            row = grid[r]
++            cur = []
++            c = c_start
++            while c < c_end:
++                v = row[c]
++                a = c
++                c += 1
++                while c < c_end and row[c] == v:
++                    c += 1
++                cur.append(len(runs))
++                parent.append(len(runs))
++                runs.append((r, a, c - 1, v))
++            i = j = 0
++            while i < len(prev) and j < len(cur):
++                p, q = runs[prev[i]], runs[cur[j]]
++                if p[3] == q[3] and p[2] >= q[1] and q[2] >= p[1]:
++                    ra, rb = find(prev[i]), find(cur[j])
++                    if ra != rb:
++                        parent[max(ra, rb)] = min(ra, rb)
++                if p[2] < q[2]:
++                    i += 1
++                else:
++                    j += 1
++            prev = cur
++        index: dict[int, int] = {}
++        members: list[list] = []
++        for rid, run in enumerate(runs):
++            root = find(rid)
++            k = index.get(root)
++            if k is None:
++                k = index[root] = len(members)
++                members.append([])
++            members[k].append(run)
++        for k, mruns in enumerate(members):
++            bbox = (mruns[0][0], min(a for _, a, _, _ in mruns), mruns[-1][0], max(z for _, _, z, _ in mruns))
++            px = sum(z - a + 1 for _, a, z, _ in mruns)
++            self.objs.append(_Obj(mruns[0][3], [(r, a, z) for r, a, z, _ in mruns], px, bbox))
++            for r, a, z, _ in mruns:
++                row_label = self.label.get(r)
++                if row_label is None:
++                    row_label = self.label[r] = [-1] * width
++                row_label[a:z + 1] = [k] * (z - a + 1)
++
++    def obj_at(self, r: int, c: int):
++        if r in self.rows and c in self.cols:
++            return self.objs[self.label[r][c]]
++        return None
++
++    def inventory(self) -> dict:
++        """(colour, cells, short side, long side) -> sorted (top-left corner, pose) of the objects below the area
++        size: a class that turning does not change."""
++        inv: dict[tuple, list] = {}
++        for o in self.objs:
++            if o.px < AREA_PX:
++                h, w = o.bbox[2] - o.bbox[0] + 1, o.bbox[3] - o.bbox[1] + 1
++                inv.setdefault((o.color, o.px, min(h, w), max(h, w)), []).append((o.topleft, o.pose()))
++        return {k: tuple(sorted(v)) for k, v in inv.items()}
++
++
++# --- one transition ----------------------------------------------------------------------------------------------
++
++
++def _color(v: int) -> str:
++    return COLOR_CHARS[v] if 0 <= v < len(COLOR_CHARS) else str(v)
++
++
++def _xy(p: tuple) -> str:
++    return f"({p[0]},{p[1]})"
++
++
++class _Change:
++    """One change: `sig` (what the table counts, without positions), `where` (this occurrence), and the objects
++    it covers before and after (for the remaining cells and for game-over overlaps)."""
++
++    __slots__ = ("after", "before", "sig", "where")
++
++    def __init__(self, sig: tuple, where: str = "", before=(), after=()):
++        self.sig, self.where, self.before, self.after = sig, where, list(before), list(after)
++
++
++def diff_frames(fa: _Frame, fb: _Frame) -> tuple:
++    """(changes, number of changed board cells, edge band changed) for one action, by the rules of the module doc."""
++    ga, gb = fa.grid, fb.grid
++    rows, cols = fa.rows, fa.cols
++    changed = []
++    edge = False
++    for r in range(len(ga)):
++        ra, rb = ga[r], gb[r]
++        if ra == rb:
++            continue
++        if r not in rows:
++            edge = True
++            continue
++        for c in range(len(ra)):
++            if ra[c] != rb[c]:
++                if c in cols:
++                    changed.append((r, c))
++                else:
++                    edge = True
++    if not changed:
++        return [], 0, edge
++    ta: set[int] = set()
++    tb: set[int] = set()
++    for r, c in changed:
++        for rr, cc in ((r, c), (r - 1, c), (r + 1, c), (r, c - 1), (r, c + 1)):
++            if rr in rows and cc in cols:
++                ta.add(fa.label[rr][cc])
++                tb.add(fb.label[rr][cc])
++    left_b = {k: fb.objs[k] for k in sorted(tb)}
++    changes: list[_Change] = []
++    rest_a = []
++    for k in sorted(ta):
++        x = fa.objs[k]
++        kb = fb.label[x.runs[0][0]][x.runs[0][1]]
++        y = left_b.get(kb)
++        if y is not None and y.same_cells(x):
++            del left_b[kb]
++            if y.color != x.color:
++                changes.append(_Change(("recolored", x.color, y.color, x.px), "at " + _xy(x.topleft), [x], [y]))
++            continue
++        rest_a.append(x)
++    rest_b = list(left_b.values())
++    classes: dict[tuple, tuple] = {}
++    for x in rest_a:
++        if x.px < AREA_PX:
++            classes.setdefault(x.canon(), ([], []))[0].append(x)
++    for y in rest_b:
++        if y.px < AREA_PX:
++            classes.setdefault(y.canon(), ([], []))[1].append(y)
++    paired: set[int] = set()
++    for (color, _), (xs, ys) in classes.items():
++        if not xs or not ys:
++            continue
++        paired.update(id(o) for o in xs + ys)
++        if len(xs) == 1 and len(ys) == 1:
++            x, y = xs[0], ys[0]
++            target = _normalize(y.cells())
++            turns = next(k for k, s in enumerate(_rotations(_normalize(x.cells()))) if s == target)
++            where = f"{_xy(x.topleft)}->{_xy(y.topleft)}"
++            dr, dc = y.bbox[0] - x.bbox[0], y.bbox[1] - x.bbox[1]
++            sig = ("moved", color, x.px, dr, dc) if turns == 0 else ("rotated", color, x.px, 90 * turns, dr, dc)
++            changes.append(_Change(sig, where, [x], [y]))
++            continue
++        if len(xs) == len(ys) and len({o.pose() for o in xs + ys}) == 1:
++            pa = sorted(o.topleft for o in xs)
++            pb = sorted(o.topleft for o in ys)
++            dr, dc = pb[0][0] - pa[0][0], pb[0][1] - pa[0][1]
++            if [(r + dr, c + dc) for r, c in pa] == pb:
++                group = [_Change(("moved", color, x.px, dr, dc), "", [x], []) for x in xs]
++                group[-1].after = list(ys)
++                changes.extend(group)
++                continue
++        where = ""
++        if len(xs) + len(ys) <= 6:
++            where = (" ".join(_xy(o.topleft) for o in sorted(xs, key=lambda o: o.topleft)) + " -> "
++                     + " ".join(_xy(o.topleft) for o in sorted(ys, key=lambda o: o.topleft)))
++        changes.append(_Change(("ambiguous", color, xs[0].px, len(xs), len(ys)), where, xs, ys))
++    rest_a = [x for x in rest_a if id(x) not in paired]
++    rest_b = [y for y in rest_b if id(y) not in paired]
++    owner_b: dict[tuple, _Obj] = {}
++    for y in rest_b:
++        for cell in y.cells():
++            owner_b[cell] = y
++    links: dict[int, set] = {}
++    for x in rest_a:
++        links[id(x)] = {id(y) for y in (owner_b.get(cell) for cell in x.cells()) if y is not None and y.color == x.color}
++    by_id = {id(o): o for o in rest_a + rest_b}
++    clustered: set[int] = set()
++    clusters = []
++    for x in rest_a:
++        if id(x) in clustered or not links[id(x)]:
++            continue
++        group_a, group_b, todo = {id(x)}, set(), [id(x)]
++        while todo:
++            for kb in links[todo.pop()]:
++                if kb in group_b:
++                    continue
++                group_b.add(kb)
++                for xa in rest_a:
++                    if kb in links[id(xa)] and id(xa) not in group_a:
++                        group_a.add(id(xa))
++                        todo.append(id(xa))
++        clustered |= group_a | group_b
++        objs_a = sorted((by_id[k] for k in group_a), key=lambda o: o.topleft)
++        objs_b = sorted((by_id[k] for k in group_b), key=lambda o: o.topleft)
++        if all(o.px < AREA_PX for o in objs_a + objs_b):
++            clusters.append((x.color, objs_a, objs_b))
++    for x in rest_a:
++        if id(x) not in clustered and x.px < AREA_PX and all(gb[r][c] != x.color for r, c in x.cells()):
++            changes.append(_Change(("disappeared", x.color, x.px), "at " + _xy(x.topleft), [x], []))
++    for y in rest_b:
++        if id(y) not in clustered and y.px < AREA_PX and all(ga[r][c] != y.color for r, c in y.cells()):
++            changes.append(_Change(("appeared", y.color, y.px), "at " + _xy(y.topleft), [], [y]))
++    covered: set = set()
++    for ch in changes:
++        for o in ch.before + ch.after:
++            covered |= o.cells()
++    changed_set = set(changed)
++    reshaped = []
++    for color, objs_a, objs_b in clusters:  # a reshape that the other changes fully explain is their side effect
++        cells = set().union(*(o.cells() for o in objs_a + objs_b)) & changed_set
++        if cells - covered:
++            sig = ("reshaped", color, tuple(sorted(o.px for o in objs_a)), tuple(sorted(o.px for o in objs_b)))
++            reshaped.append((_Change(sig, "at " + _xy(objs_a[0].topleft), objs_a, objs_b), cells))
++    for ch, cells in reshaped:
++        changes.append(ch)
++        covered |= cells
++    rest = Counter((ga[r][c], gb[r][c]) for r, c in changed_set - covered)
++    for (va, vb), n in sorted(rest.items()):
++        changes.append(_Change(("cells", va, vb), f"{n} cells"))
++    if len({ch.sig for ch in changes}) > MAX_CHANGES:
++        kinds = Counter(ch.sig[0] for ch in changes if ch.sig[0] != "cells")
++        summary = ", ".join(f"{n} {kind}" for kind, n in sorted(kinds.items(), key=lambda kv: (-kv[1], kv[0])))
++        changes = [_Change(("many",), f"{len(changed)} cells" + (f": {summary}" if summary else ""))]
++    return changes, len(changed), edge
++
++
++def counted(changes: list) -> list:
++    """[(sig, multiplicity, where)], one entry per distinct signature in first-occurrence order; the positions only
++    for a signature that occurs once."""
++    order: dict[tuple, list] = {}
++    for ch in changes:
++        entry = order.setdefault(ch.sig, [0, ch.where])
++        entry[0] += 1
++    return [(sig, n, where if n == 1 else "") for sig, (n, where) in order.items()]
++
++
++def _coarse(sig: tuple) -> tuple:
++    """A change's kind and colours, without sizes and offsets: what the note compares."""
++    return sig[:3] if sig[0] == "recolored" else sig[:2]
++
++
++def describe(sig: tuple, mult: int = 1) -> str:
++    """The text of one change signature occurring `mult` times in one action."""
++    kind = sig[0]
++    times = f"{mult}x " if mult > 1 else ""
++    if kind == "moved":
++        _, color, px, dr, dc = sig
++        return f"moved {times}{_color(color)} {px}px ({dr:+d},{dc:+d})"
++    if kind == "rotated":
++        _, color, px, deg, dr, dc = sig
++        return f"rotated {times}{_color(color)} {px}px {deg} ({dr:+d},{dc:+d})"
++    if kind == "recolored":
++        _, ca, cb, px = sig
++        return f"recolored {times}{_color(ca)}->{_color(cb)} {px}px"
++    if kind in ("appeared", "disappeared"):
++        _, color, px = sig
++        return f"{kind} {times}{_color(color)} {px}px"
++    if kind == "reshaped":
++        _, color, before, after = sig
++        return f"reshaped {times}{_color(color)} {'+'.join(map(str, before))}px->{'+'.join(map(str, after))}px"
++    if kind == "ambiguous":
++        _, color, px, na, nb = sig
++        return f"ambiguous {times}{_color(color)} {px}px objects {na}->{nb}"
++    if kind == "cells":
++        return f"cells {_color(sig[1])}->{_color(sig[2])}"
++    return "many changes"
++
++
++def _colours(counter: Counter) -> str:
++    return " ".join(f"{_color(v)}:{n}" for v, n in sorted(counter.items(), key=lambda kv: (-kv[1], kv[0])))
++
++
++def overlaps(changes: list, fa: _Frame, fb: _Frame) -> list:
++    """For a game over: each change, with what a single changed object overlapped."""
++    out, done = [], set()
++    for ch in changes:
++        kind = ch.sig[0]
++        if kind in ("moved", "rotated", "appeared") and len(ch.after) == 1 and len(ch.before) <= 1:
++            o = ch.after[0]
++            under = Counter(fa.grid[r][c] for r, c in o.cells() if fa.grid[r][c] != o.color)
++            out.append(f"{describe(ch.sig)} {ch.where} onto {_colours(under) or 'its own colour'}")
++        elif kind == "disappeared":
++            o = ch.before[0]
++            out.append(f"{describe(ch.sig)} {ch.where}, its cells now {_colours(Counter(fb.grid[r][c] for r, c in o.cells()))}")
++        elif ch.sig not in done:
++            done.add(ch.sig)
++            mult = sum(1 for other in changes if other.sig == ch.sig)
++            out.append(describe(ch.sig, mult) + (f" ({ch.where})" if kind in ("cells", "many") else ""))
++    return out
++
++
++# --- the ledger --------------------------------------------------------------------------------------------------
++
++
++class _Use:
++    __slots__ = ("attempt", "changes", "counted", "edge", "key", "outcome", "step", "target")
++
++    def __init__(self, step, key, outcome, changes, edge, attempt, target):
++        self.step, self.key, self.outcome, self.changes = step, key, outcome, changes
++        self.counted = counted(changes)
++        self.edge, self.attempt, self.target = edge, attempt, target
++
++
++class _Segment:
++    """One attempt's frames on one level, kept as object inventories, for the period search."""
++
++    __slots__ = ("attempt", "candidates", "invs", "keys", "result", "steps")
++
++    def __init__(self, attempt: int):
++        self.attempt = attempt
++        self.steps: list[int] = []
++        self.keys: list = []  # the action that led to each frame (None at the attempt's start)
++        self.invs: list[dict] = []
++        self.candidates: set = set()  # classes (at most MAX_MOVER_MEMBERS objects) whose places or turns changed
++        self.result = None  # {class: text} once the attempt is over
++
++    def add(self, step: int, key, frame: _Frame) -> None:
++        inv = frame.inventory()
++        if self.invs:
++            for k, members in self.invs[-1].items():
++                if len(members) <= MAX_MOVER_MEMBERS and inv.get(k, members) != members:
++                    self.candidates.add(k)
++        self.steps.append(step)
++        self.keys.append(key)
++        self.invs.append(inv)
++
++
++class _Level:
++    def __init__(self, number: int):
++        self.number = number
++        self.uses: list[_Use] = []
++        self.resets = 0
++        self.auto_resets = 0
++        self.edge = 0
++        self.deaths: list[str] = []
++        self.segments: list[_Segment] = []
++        self.version = 0
++
++
++def _entry_level(entry) -> int:
++    frame = entry.get("frame") if isinstance(entry, dict) else getattr(entry, "frame", None)
++    level = frame.get("level") if isinstance(frame, dict) else getattr(frame, "level", 1)
++    return max(1, int(level or 1))
++
++
++def _entry_parts(entry) -> tuple:
++    """(action, grid, step, level, result) of a history payload dict or a HistoryEntry-like object."""
++    if isinstance(entry, dict):
++        frame = entry.get("frame") or {}
++        grid, step = frame.get("grid"), frame.get("step")
++        action, result = entry.get("action"), entry.get("result")
++    else:
++        frame = getattr(entry, "frame", None)
++        grid, step = getattr(frame, "grid", None), getattr(frame, "step", 0)
++        action, result = getattr(entry, "action", ""), getattr(entry, "result", None)
++    grid = tuple(tuple(int(v) for v in row) for row in grid or ())
++    return (str(action or "").strip(), grid, int(step or 0), _entry_level(entry),
++            result if isinstance(result, dict) else {})
++
++
++def _mouse_cell(action: str):
++    try:
++        inner = action[action.index("(") + 1:action.rindex(")")]
++        parts = dict(p.strip().split("=") for p in inner.split(","))
++        return int(parts["row"]), int(parts["col"])
++    except (ValueError, KeyError):
++        return None
++
++
++class EffectLedger:
++    """A game's history, processed incrementally into per-level effect tables."""
++
++    def __init__(self, border: int | None = None):
++        self.border = _border() if border is None else border
++        self.error = ""
++        self._reset()
++
++    def _reset(self) -> None:
++        self.levels: dict[int, _Level] = {}
++        self.order: list[tuple] = []  # (level, index into its uses), chronological
++        self._count = 0
++        self._last_key = None
++        self._prev = None
++        self._attempt = 0
++        self._mark = 0
++        self._rendered: dict[int, tuple] = {}
++        self._current_level = 1
++
++    # history ------------------------------------------------------------------------------------------------------
++
++    def update(self, history: list) -> int:
++        """Process the entries not seen yet (all of them if the history was rewritten); returns how many."""
++        if len(history) < self._count or (self._count and self._key(history[self._count - 1]) != self._last_key):
++            self._reset()
++        start = self._count
++        for entry in history[start:]:
++            action, grid, step, level, result = _entry_parts(entry)
++            self._add(action, grid, step, level, result)
++            self._count += 1
++            self._last_key = (step, action, hash(grid))
++        if history:
++            self._current_level = _entry_level(history[-1])
++        return self._count - start
++
++    @staticmethod
++    def _key(entry) -> tuple:
++        action, grid, step, _, _ = _entry_parts(entry)
++        return step, action, hash(grid)
++
++    def _level(self, number: int) -> _Level:
++        if number not in self.levels:
++            self.levels[number] = _Level(number)
++        return self.levels[number]
++
++    def _start(self, level: int, step: int, frame: _Frame) -> None:
++        self._attempt += 1
++        segment = _Segment(self._attempt)
++        segment.add(step, None, frame)
++        self._level(level).segments.append(segment)
++
++    def _add(self, action: str, grid: tuple, step: int, level: int, result: dict) -> None:
++        frame = _Frame(grid, self.border)
++        prev, self._prev = self._prev, (frame, level)
++        if prev is None or not action:
++            self._start(level, step, frame)
++            return
++        fa, level_a = prev
++        lv = self._level(level_a)
++        lv.version += 1
++        if action.upper() == "RESET":
++            if result.get("automatic"):
++                lv.auto_resets += 1
++            else:
++                lv.resets += 1
++            self._start(level, step, frame)
++            return
++        if result.get("game_over"):
++            outcome = "game over"
++        elif result.get("run_complete") or result.get("done"):
++            outcome = "game won"
++        elif result.get("level_completed") or level != level_a:
++            outcome = "level completed"
++        else:
++            outcome = ""
++        changes, edge = [], False
++        same_size = len(fa.grid) == len(grid) and all(len(a) == len(b) for a, b in zip(fa.grid, grid))
++        if outcome in ("", "game over"):
++            if same_size:
++                changes, _, edge = diff_frames(fa, frame)
++            elif fa.grid != grid:
++                changes, edge = [_Change(("many",), "frame size changed")], True
++        elif not same_size:
++            edge = fa.grid != grid
++        else:
++            edge = any(a != b and (r not in fa.rows or a[:fa.cols.start] != b[:fa.cols.start]
++                                   or a[fa.cols.stop:] != b[fa.cols.stop:])
++                       for r, (a, b) in enumerate(zip(fa.grid, grid)))
++        target = None
++        if action.upper().startswith("MOUSE("):
++            target = self._target(fa, action)
++        lv.uses.append(_Use(step, action, outcome, changes, edge, self._attempt, target))
++        self.order.append((level_a, len(lv.uses) - 1))
++        lv.edge += 1 if edge else 0
++        if outcome == "game over":
++            facts = overlaps(changes, fa, frame) if changes else ["no change"]
++            lv.deaths.append(f"after {action} at step {step}: " + "; ".join(facts)
++                             + (", edge band changed" if edge else ", edge band unchanged"))
++            self._attempt += 1
++        elif outcome:
++            self._start(level, step, frame)
++        elif lv.segments and lv.segments[-1].attempt == self._attempt:
++            lv.segments[-1].add(step, action, frame)
++
++    @staticmethod
++    def _target(fa: _Frame, action: str) -> str:
++        cell = _mouse_cell(action)
++        if cell is None:
++            return ""
++        r, c = cell
++        if not (0 <= r < len(fa.grid) and 0 <= c < len(fa.grid[0])):
++            return "a cell off the frame"
++        o = fa.obj_at(r, c)
++        if o is None:
++            return "the edge band"
++        if o.px >= AREA_PX:
++            return f"{_color(o.color)} area {o.px}px"
++        return f"{_color(o.color)} {o.px}px at {_xy(o.topleft)}"
++
++    # the note -----------------------------------------------------------------------------------------------------
++
++    def mark(self) -> None:
++        self._mark = len(self.order)
++
++    def surprise(self) -> str:
++        """A line for the first use since mark() that changed something never seen before on its level, by an
++        action used before on that level; empty if there is none."""
++        for number, index in self.order[self._mark:]:
++            uses = self.levels[number].uses
++            use = uses[index]
++            if not use.counted or use.outcome:
++                continue
++            tries = sum(1 for u in uses[:index] if u.key == use.key)
++            if not tries:
++                continue
++            seen = {_coarse(sig) for u in uses[:index] for sig, _, _ in u.counted}
++            new = [(sig, n, where) for sig, n, where in use.counted if _coarse(sig) not in seen and sig[0] in NOTE_KINDS]
++            if new:
++                text = "; ".join(describe(sig, n) + (f" {where}" if where else "") for sig, n, where in new[:2])
++                more = f" (+{len(new) - 2} more)" if len(new) > 2 else ""
++                return (f"{use.key} at step {use.step} (used {tries}x before on this level): {text}{more}, a kind of "
++                        f"change not seen before on level {number}. effects() has the table.")
++        return ""
++
++    # tables -------------------------------------------------------------------------------------------------------
++
++    def payload(self) -> dict:
++        if self.error:
++            return {"level": self._current_level, "tables": {}, "error": self.error}
++        tables = {}
++        for number, lv in sorted(self.levels.items()):
++            if not lv.uses and number != self._current_level:
++                continue
++            cached = self._rendered.get(number)
++            if cached is None or cached[0] != lv.version:
++                cached = self._rendered[number] = (lv.version, self.render(number))
++            tables[str(number)] = cached[1]
++        return {"level": self._current_level, "tables": tables}
++
++    def render(self, number: int) -> str:
++        lv = self.levels.get(number)
++        if lv is None or not lv.uses:
++            return f"Level {number}: no actions yet."
++        deaths = sum(1 for u in lv.uses if u.outcome == "game over")
++        extra = ([f"{deaths} game over" + ("s" if deaths > 1 else "")] if deaths else []) + (
++            [f"{lv.resets} RESET"] if lv.resets else []) + (
++            [f"{lv.auto_resets} automatic RESET not counted"] if lv.auto_resets else [])
++        lines = [f"Level {number}: {len(lv.uses)} actions" + (f" ({', '.join(extra)})" if extra else "")
++                 + f". Board = frame without the {self.border}-cell edge band; from the frames before and after "
++                 "each action; positions are (row,col) top-left corners."]
++        keys: dict[str, list] = {}
++        for u in lv.uses:
++            keys.setdefault(u.key, []).append(u)
++        order = sorted(keys, key=lambda k: (KEY_ORDER.index(k) if k in KEY_ORDER else len(KEY_ORDER),
++                                            -keys[k][-1].step if k.startswith("MOUSE") else 0, k))
++        body, quiet = [], []
++        for key in order:
++            uses = keys[key]
++            if key.startswith("MOUSE") and all(not u.changes and not u.outcome for u in uses):
++                quiet.append((uses[-1].step, key, len(uses)))
++            else:
++                body.append(self._key_line(key, uses))
++        room = MAX_LINES - 4 - (1 if quiet else 0)
++        if len(body) > room:
++            body = [*body[:room - 1], f"+{len(body) - room + 1} more action lines (older MOUSE cells) not shown"]
++        if quiet:
++            quiet.sort(reverse=True)
++            shown = " ".join(_xy(_mouse_cell(k) or (0, 0)) + (f"x{n}" if n > 1 else "")
++                             for _, k, n in quiet[:MAX_QUIET_CELLS])
++            more = f" +{len(quiet) - MAX_QUIET_CELLS} more cells" if len(quiet) > MAX_QUIET_CELLS else ""
++            body.append(f"MOUSE with no change: {sum(n for _, _, n in quiet)} uses at {len(quiet)} cells "
++                        f"(row,col), latest first: {shown}{more}")
++        lines += body
++        if lv.deaths:
++            lines.append("Game overs: " + " | ".join(lv.deaths[-3:])
++                         + (f" (+{len(lv.deaths) - 3} earlier)" if len(lv.deaths) > 3 else ""))
++        movers = self._movers(lv)
++        if movers:
++            lines.append("Objects whose places and turns repeated, period in actions: " + " | ".join(movers))
++        lines.append(f"Edge band changed on {lv.edge} of {len(lv.uses)} actions.")
++        return "\n".join(lines)
++
++    @staticmethod
++    def _key_line(key: str, uses: list) -> str:
++        parts = []
++        quiet = sum(1 for u in uses if not u.changes and not u.outcome)
++        if quiet:
++            parts.append(f"no change x{quiet}")
++        for outcome in ("game over", "level completed", "game won"):
++            k = sum(1 for u in uses if u.outcome == outcome)
++            if k:
++                parts.append(f"{outcome} x{k}")
++        stats: dict[tuple, list] = {}
++        for u in uses:
++            for sig, mult, where in u.counted:
++                entry = stats.setdefault((sig, mult), [0, 0, ""])
++                entry[0] += 1
++                entry[1], entry[2] = u.step, where
++        ranked = sorted(stats.items(), key=lambda kv: (-kv[1][0], -kv[1][1]))
++        for (sig, mult), (count, last, where) in ranked[:MAX_ITEMS_SHOWN]:
++            detail = ("last " if count > 1 else "") + f"step {last}" + (f": {where}" if where else "")
++            parts.append(f"{describe(sig, mult)} x{count} [{detail}]")
++        if len(ranked) > MAX_ITEMS_SHOWN:
++            parts.append(f"+{len(ranked) - MAX_ITEMS_SHOWN} other changes")
++        target = ""
++        if key.startswith("MOUSE") and uses[-1].target:
++            same = len({u.target for u in uses}) == 1
++            target = f" ({'on' if same else 'last on'} {uses[-1].target})"
++        return f"{key} x{len(uses)}{target}: " + "; ".join(parts)
++
++    def _movers(self, lv: _Level) -> list:
++        found: dict[tuple, str] = {}
++        for seg in reversed(lv.segments):
++            result = seg.result
++            if result is None:
++                result = {}
++                if len(seg.invs) >= 5:
++                    for k in sorted(seg.candidates):
++                        text = _period(seg, k)
++                        if text:
++                            color, px, _, _ = k
++                            members = len(seg.invs[-1].get(k) or ())
++                            result[k] = f"{f'{members}x ' if members > 1 else ''}{_color(color)} {px}px {text}"
++                if seg.attempt != self._attempt:
++                    seg.result = result
++            for k, text in result.items():
++                found.setdefault(k, text)
++        return [found[k] for k in sorted(found)]
++
++
++def _period(seg: _Segment, k: tuple) -> str:
++    """The period of class k's places and turns over the longest stretch that ends at the attempt's last frame and
++    holds the class with a constant count, if that stretch spans at least two periods and some action moved the
++    class differently on two of its uses; else empty."""
++    track = [inv.get(k) for inv in seg.invs]
++    end = len(track)
++    if track[-1] is None:
++        return ""
++    start = end - 1
++    while start > 0 and track[start - 1] is not None and len(track[start - 1]) == len(track[-1]):
++        start -= 1
++    window = track[start:end]
++    n = len(window)
++    if len(set(window)) < 2:
++        return ""
++    for p in range(2, (n - 1) // 2 + 1):
++        if all(window[t] == window[t + p] for t in range(n - p)):
++            moves: dict[str, set] = {}
++            for t in range(1, n):
++                delta = tuple((b[0][0] - a[0][0], b[0][1] - a[0][1], a[1] == b[1])
++                              for a, b in zip(window[t - 1], window[t]))
++                moves.setdefault(seg.keys[start + t], set()).add(delta)
++            if not any(len(v) > 1 for v in moves.values()):
++                return ""
++            steps = f"steps {seg.steps[start]}-{seg.steps[end - 1]}"
++            if len(window[-1]) == 1:
++                return f"every {p} ({steps}), last {p} corners: " + " ".join(_xy(m[0][0]) for m in window[-p:])
++            return f"every {p} ({steps})"
++    return ""
++
++
++# --- harness glue (tool_agent.py calls these three; each is a no-op with the flag off) ------------------------------
++
++
++def attach(agent, serialize):
++    """Wrap `_run_python_tool`'s state serializer so the state carries the tables under "ours_effects".
++
++    With the flag off it returns `serialize` itself. The ledger lives on the agent (one per game) and the first call
++    of each wrapper marks where this snippet's actions start, for note()."""
++    if mode() == "off":
++        return serialize
++    ledger = getattr(agent, "_ours_effect_ledger", None)
++    if ledger is None:
++        ledger = EffectLedger()
++        agent._ours_effect_ledger = ledger
++    first = [True]
++
++    def serialize_with_effects(**kwargs):
++        state = serialize(**kwargs)
++        if not ledger.error:
++            try:
++                ledger.update(state.get("history") or [])
++            except Exception as exc:
++                ledger.error = f"internal error ({type(exc).__name__}); the table is off for this game"
++                log.warning("ours effect table disabled for this game", exc_info=True)
++        if first[0]:
++            first[0] = False
++            ledger.mark()
++        try:
++            state["ours_effects"] = ledger.payload()
++        except Exception as exc:
++            ledger.error = f"internal error ({type(exc).__name__}); the table is off for this game"
++            log.warning("ours effect table disabled for this game", exc_info=True)
++            state["ours_effects"] = ledger.payload()
++        return state
++
++    return serialize_with_effects
++
++
++def note(agent, payload: dict) -> None:
++    """Add one line to a python tool result when an action of this snippet changed something new on its level."""
++    if mode() != "note":
++        return
++    ledger = getattr(agent, "_ours_effect_ledger", None)
++    if ledger is None or ledger.error:
++        return
++    try:
++        line = ledger.surprise()
++    except Exception:
++        log.warning("ours effect note failed", exc_info=True)
++        return
++    if line:
++        payload["effects_note"] = line
