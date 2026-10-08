@@ -2638,3 +2638,23 @@ Reading:  the loops of exp-076 came from our serving changes (relaxed acceptance
 Quota:    Kaggle refused exp-078's push at 20:02 with "running sessions are projected to exceed maximum weekly GPU
           quota": a running session reserves up to 12 h (time_reserved 10.41 h for exp-077 at 20:02) and a new one
           starts only while used + reserved < 30 h. From here every session runs alone until the Sat 00:00 UTC reset.
+
+## 2026-10-08 20:10 · time allocation under D′ in the rerun: no give-up or level-cap patch · CLOSED (no change)
+Doc:      docs/research/beat-tufa/time-allocation.md (CPU agent; scripts in scratchpad timealloc/: sim.py, a port of
+          D′'s gate and priority checked against the code; replaying exp-073/073b/075 gives 49.9 / 57.6 / 43.9 vs the
+          observed 49.45 / 56.00 / 42.89).
+Rerun:    all ~110 games start together with a fixed 532-min deadline (concurrency 120); 14 slots change hands only at
+          context trims (~62k then ~37k generated tokens); priority A·M·C + B·φ, B = 16/14/10/0 by levels left, tail
+          fade from minute 319; nothing ends a game for lack of progress.
+Measured: 391 level attempts in the three runs; median solve 6.5 active minutes; P(solved) 0.56 by 10 min, 0.85 by
+          30, 0.91 by 60; after 30 min unsolved, P(solve within 30 more) 0.39, after 40 min 0.23, 0 of 10 at 50.
+          Never-solved levels took 36.4% of generated tokens, but only 9.6% / 5.1% / 2.5% beyond 30 / 40 / 50 min.
+          Of 44 final unsolved levels that another run reached, 35 were solved there (a bad draw, not a hard level).
+Modelled: ending a game after X active minutes on a level: X=30 -6.9 [-13.5, -1.7], X=40 -1.7 [-4.0, -0.2], X=50 -0.2,
+          X=60 -0.03 (110 games x 532 min, 14 slots, 200 bootstrap replicates x 4 draws, paired). Last-level B=10:
+          +0.26 [-0.35, +1.09], ~0 in harder worlds. D′'s gate beats Franzen's by +1.2 [0.1, 2.6]; 14 slots beat 10 by
+          +2.46 [1.33, 3.76].
+Decision: no scheduler patch. Lesson 0036: a public-25 run shows these give-ups as gains (+1.20 at 40 min), the
+          opposite sign to the rerun, so scheduling changes are judged in a rerun-shaped model only. The large prize
+          is an early signal of a hopeless level (oracle bound +8.1), which time-on-level cannot give; the 35-of-44
+          finding supports re-rolling a stuck level (ours-07 fresh start) over abandoning it.

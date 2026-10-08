@@ -1,4 +1,4 @@
-Summary: under D′ every game gets the same 532-minute deadline and slots change hands only at context trims, priced by A·M·C + B·φ. Levels that are never solved take 36% of all slot-time, and the solve hazard does fall with time on a level (≈0.08 per active minute for the first 10 minutes, ≈0.02-0.03 after 30). Even so, in a rerun simulator that reproduces our three full-length runs, no give-up or level cap beats D′: cut-offs at ≤40 active minutes lose 1.7-29 public-25 points, and cut-offs at 50-60 minutes land within ±0.3 with no stable sign. Do not build it; the expected gain is far under 1 point on either scale.
+Summary: under D′ every game gets the same 532-minute deadline and slots change hands only at context trims, priced by A·M·C + B·φ. Levels that are never solved take 36% of all slot-time, and the solve hazard does fall with time on a level (0.08 per active minute for the first 10 minutes, 0.027 at 30-45 and 0.016 at 45-60). Even so, in a rerun simulator that reproduces our three full-length runs, no give-up or level cap beats D′: cut-offs at ≤40 active minutes lose 1.7-29 public-25 points in the main model, and cut-offs at 50-60 minutes land between −0.9 and +0.3 across every variant tested, with no stable sign. Do not build it; the expected gain is far under 1 point on either scale.
 
 # Time allocation under D′ in the competition rerun: give-ups and level caps do not pay
 
@@ -12,7 +12,7 @@ Research note, 2026-10-08. CPU only: no GPU, no Kaggle, no repo code changed.
 1. **How D′ spends the 9 hours (code).**
    - Every game's deadline is fixed at 532 minutes from the start, and it is the same for all 110 games. Nothing recomputes it from the time left.
    - A game keeps its slot until its next context trim: the first comes after ≈62k generated tokens and later ones every ≈37k, i.e. ≈18 and ≈11 slot-minutes.
-   - At a trim the game re-queues. The slot goes to the highest A·M·C + B·φ, which may be the same game.
+   - At a trim the game re-queues. The slot goes to the waiter with the highest A·M·C + B·φ, which may be the same game.
    - A game that wins releases its slot to the best waiter at once.
    - Nothing in the harness ends a game for lack of progress.
    - B (16/14/10/0 by levels left) dominates until the tail fade, which starts at minute 319. So a game on its last level waits behind every game with levels left.
@@ -29,20 +29,20 @@ Research note, 2026-10-08. CPU only: no GPU, no Kaggle, no repo code changed.
 
      | X | Change [90% interval] |
      |---|---|
-     | 20 min | −20.0 |
+     | 20 min | −20.0 [−26.6, −14.3] |
      | 30 min | −6.9 [−13.5, −1.7] |
      | 40 min | −1.7 [−4.0, −0.2] |
      | 50 min | −0.2 [−0.8, +0.2] |
      | 60 min | −0.03 [−0.25, +0.14] |
 
-   - The soft cap (re-queue at the lowest priority) is −1.3 to −2.7.
-   - With 10 slots the results are the same.
-   - **Why it fails.** D′ already rations stuck games: a game that has spent 50 minutes on a level would get only ≈19k more tokens. The time a stuck game does get is worth ≈1.9-2.6 points per 1M tokens to it, against ≈1.0-1.35 per 1M for whoever receives it; the marginal value of capacity is 1.05 per 1M. Short cut-offs also collapse demand, so most freed time goes unused.
+   - The soft cap (re-queue at the lowest priority) is −1.3 to −2.7 in the main model.
+   - With 10 slots the pattern is the same (§4.2).
+   - **Why it fails.** D′ already rations stuck games: a game that has spent 50 minutes on a level would get only ≈19k more tokens. At the 40-50-minute cut-offs, the time a stuck game does get is worth ≈1.9-2.6 points per 1M tokens to it, against ≈1.0-1.35 per 1M for whoever receives it; the marginal value of capacity is 1.05 per 1M. Short cut-offs also collapse demand, so most freed time goes unused.
 4. **Recommendation: no patch.**
    - The best threshold (50-60 active minutes) is worth between −0.9 and +0.3 public-25 points across every variant tried, i.e. −0.5 to +0.2 on the LB at 0.55-0.62×. Its sign depends on assumptions the data cannot settle.
    - The one scheduler tweak with a positive point estimate, giving the last level B = 10 instead of 0, is +0.26 [−0.35, +1.09] in the main model and ≈0 in the harder "hidden-like" worlds. Also no.
    - Two warnings:
-     - A public-25 A/B (25 games × 121 min) would show these give-ups as *gains* (+0.7 to +1.2), the opposite sign to the rerun model.
+     - A public-25 A/B (25 games × 121 min) would show these give-ups as *gains* (+1.20 at 40 minutes, +0.74 at 50), the opposite sign to the rerun model.
      - The large prize is not in time-based rules. A perfect detector of hopeless levels at level entry would be worth +8.1 [+3.7, +11.7] (oracle bound), and time-on-level cannot provide that signal.
 
 ## 1. Sources and method
@@ -62,9 +62,9 @@ Research note, 2026-10-08. CPU only: no GPU, no Kaggle, no repo code changed.
   - `rates.py`, `gaps.py`, `quanta.py`, `decode.py`: the token clock, parked time, trim quanta and decode throughput.
   - `km.py`, `weibull.py`, `levelprop.py`: section 3.
   - `sim.py`: the gate simulator. `check_ports.py` verifies its priority functions against the real code: 0 mismatches in 20,000 random states, against D′'s `d_priority` and Franzen's `priority_value`.
-  - `validate.py`, `composition.py`, `bootcheck.py`, `rerun.py`, `rerun_diag.py`, `policy_decomp.py`, `oracle.py`, `sens_quanta.py`, `hard_world.py`, `where_time_goes.py`: section 4.
+  - `validate.py`, `composition.py`, `bootcheck.py`, `rerun.py`, `rerun_diag.py`, `policy_decomp.py`, `oracle.py`, `sens_quanta.py`, `hard_world.py`, `where_time_goes.py`, `verify_claims.py`: section 4.
   - `nbdiff2.py`: the D′-versus-Franzen cell alignment. The only code differences are cell 17 (save-run budget) and the inserted cells 21 and 23.
-- **The clock is tokens.** A held slot generates 52.6, 56.5 and 56.4 tokens per second in the three runs (`rates.py`: total tokens ÷ (14 × run length); all 14 slots are held whenever ≥14 games are unfinished, which was always the case).
+- **The clock is tokens.** A held slot generates 52.6, 56.5 and 56.4 tokens per second in the three runs (`rates.py`: total tokens ÷ (slots held × run length). The gate keeps all 14 slots held while ≥14 games are unfinished, which gives 13.92-13.95 held on average).
   - An independent check finds the same thing. `gaps.py` marks an inter-action gap as parked when it is more than 110 s longer than its tokens explain at 70 tok/s. The remaining active time sums to 1,651, 1,672 and 1,685 of the 1,694 available slot-minutes.
   - Generated tokens are therefore slot-time. **Active minutes** in this note means tokens ÷ (the run's per-slot rate × 60). Wall minutes include time parked at the gate.
 - **Level records.**
@@ -86,8 +86,8 @@ Research note, 2026-10-08. CPU only: no GPU, no Kaggle, no repo code changed.
 | Quantum length | The context budget is 128 Ki − 12 Ki output reserve − 512 ≈ 118k tokens, drained to 58 Ki at a trim. Measured from the runs' parked gaps: first tenures that ended at the first trim cluster at 50-80k generated tokens (48% of first tenures; median 62k), and single later quanta are 37k (mean 36.7k, SD 7.5k, n = 32). That is ≈18 and ≈11 slot-minutes at 56 tok/s. | `tool_agent.py:3506-3509`; D′ cell 5 lines 83-85; `quanta.py` |
 | Waiting queue | Waiters keep the snapshot taken when they queued: level ℓ, actions a and tokens t on the level, pace, N. Whenever a slot frees, every waiter is re-scored, but only φ changes. The highest integer priority wins, and ties go to the earliest arrival. | `tool_agent.py:2099-2117` |
 | Never-started games | Franzen queues them in a top band, 2,000,000 − dispatch index (fresh first, in dispatch order). D′ replaces `acquire` so that they are priced by the formula with ℓ = 1, a = t = 0 and no pace: `#OURS_FRESH replaced=25` in all three runs. | `tool_agent.py:2149-2150`, `solver.py:598-601`; embedded:217-233 |
-| Freed slot-time | A game that wins all levels (or crashes) calls `release()`. The best waiter is admitted at once, so the time is not lost. In the rerun there are waiters until the last hour. | `tool_agent.py:2063-2066`; `solver.py:633-634` |
-| Can the harness give up on a game? | **No, not for lack of progress.** `should_stop` ends a game on WIN, at the runtime limit, at `max_actions_per_game` (None), at `max_generated_tokens_per_game` (None: a per-game token cap exists but is unset), or on the stop event. GAME_OVER triggers an automatic RESET. The only other exit is 10 consecutive failed analyzer calls, a guard against the endpoint dying. | `solver.py:579-596`, `solver.py:555-577`, `solver.py:655-661`, `solver.py:105`, `solver.py:690-710`; D′ cell 17 line 5 |
+| Freed slot-time | A game that wins all levels (or crashes) calls `release()`. The best waiter is admitted at once, so the time is not lost. In the modelled rerun about 59% of games are unfinished at the deadline, so more than 14 games always want a slot. | `tool_agent.py:2063-2066`; `solver.py:633-634` |
+| Can the harness give up on a game? | **No, not for lack of progress.** `should_stop` ends a game on WIN, at the runtime limit, at `max_actions_per_game` (None), at `max_generated_tokens_per_game` (None: a per-game token cap exists but is unset), or on the stop event. GAME_OVER triggers an automatic RESET. The only other exit is more than 10 consecutive failed analyzer calls (`ARC3_MAX_ANALYZER_FAILURES`), a guard against the endpoint dying. | `solver.py:579-596`, `solver.py:555-577`, `solver.py:655-661`, `solver.py:105`, `solver.py:690-710`; D′ cell 17 line 5 |
 
 ### 2.2 The D′ priority
 
@@ -95,7 +95,7 @@ priority = max(1, int(1000 · (A·M·C + B·φ))) (embedded:130-169, installed a
 
 - **A** (depth × efficiency) = (1 + 0.5(ℓ−1)) · norm(N) · (300/(300+a))^2.5, where norm(N) = 55/(N(N+1)/2).
 - **M** (pace) = clip((30,000/p)^0.4, 0.25, 4), where p is the mean generated tokens per level cleared so far (D′'s `FormPace`, embedded:45-63). M = 1 before the first clear. The text adds M as a separate factor, but in the code it is folded into A.
-- **C** (patience) = 0.1·max(0.1, 1 − a/115) + 0.9·max(0.1, 1 − t/T), where T = 225,000 · clip(p/30,000, 0.5, 2)^0.5 (T = 225k before the first clear). C falls linearly with tokens on the level and reaches its floor of 0.1 at 0.9 T, i.e. ≈200k tokens ≈ 60 active minutes at average pace.
+- **C** (patience) = 0.1·max(0.1, 1 − a/115) + 0.9·max(0.1, 1 − t/T), where T = 225,000 · clip(p/30,000, 0.5, 2)^0.5 (T = 225k before the first clear). C falls linearly with tokens on the level. Its token part reaches its floor at t = 0.9 T, i.e. ≈200k tokens ≈ 60 active minutes at average pace. After 50 active minutes, C is ≈0.3: a level-4-of-8 game then has A·M·C = 0.5-0.9, below the 1.53 of a fresh 8-level game (`verify_claims.py`).
 - **B** (room to grow) = 16, 14, 10 or 0 when ≥3, 2, 1 or 0 levels remain after the current one (embedded:150).
 - **φ** (tail fade) = clip(remaining / window, 0, 1), with window = 0.4 × run length. D′ sets the fraction to 0.4, overriding the 0.2 in cell 5 (embedded:201; `tool_agent.py:2018-2057`). In the rerun the fade starts at minute 319.2 and B·φ reaches 0 at minute 532. The three test runs logged "tail fade phase" at 73.4, 74.7 and 72.8 minutes: the first re-pricing after 0.6 × 121 = 72.6 minutes.
 
@@ -103,7 +103,7 @@ What follows from the formula:
 
 - **B dominates until the fade.**
   - A·M·C is 1.53 for a fresh 8-level game and at most ≈27 (level 8 of 8 with M = 4).
-  - Never-started games queue at 16 + norm(N), i.e. 18.6 for N = 6 down to 17.0 for N = 10. Games with fewer levels start first; in the runs, the 6-level sp80, cd82, ft09 and tr87 were the first to start after the initial 14.
+  - Never-started games queue at 16 + norm(N), i.e. 18.6 for N = 6 down to 17.0 for N = 10. Games with fewer levels start first; in exp-073, the 6-level sp80, cd82, ft09 and tr87 were the first to start after the initial 14.
   - A running game with ≥3 levels left keeps its slot at a trim while its A·M·C exceeds norm(N) of the best fresh waiter. A stalled level-1 game yields at its first trim, while a progressing deep game does not.
   - A game on its last level (B = 0) is outranked by every game with a level left until φ is small. exp-073b measured this as last levels parked 70% of their game time (exp073b-failure-analysis.md).
 
@@ -119,7 +119,7 @@ What follows from the formula:
 
 These rows come from 200 × 4 draws in `rerun.py`, except the share rows, which come from 30 draws in `rerun_diag.py`.
 
-In the public-25 replay, the same code's parked share by levels left (≥3 / 2 / 1 / 0) is 25% / 8% / 44% / 63%; exp-073b measured 21% / 0% / 41% / 70%. The first pass through 110 games takes most of the run: about a fifth of the games (23 of 110) get their first slot only after minute 240, in the last 4.9 hours.
+In the public-25 replay, the same code's parked share by levels left (≥3 / 2 / 1 / 0) is 25% / 8% / 44% / 63%; exp-073b measured 21% / 0% / 41% / 70%. The first pass through 110 games takes most of the run. About a fifth of the games (23 of 110) get their first slot only after minute 240, in the last 4.9 hours, and the last never-started game is admitted at minute 349 (median over draws; range 284-431).
 
 ## 3. Level timelines in the three runs (Q2, measured)
 
@@ -176,7 +176,7 @@ Yes, but only after about 20 minutes. Solves per active minute at risk, with a 9
 | Solves | 131 | 86 | 44 | 34 | 28 | 11 | 2 | 0 |
 
 - A censored Weibull fit gives shape 0.90 [0.81, 1.01] for all levels, 0.95 [0.84, 1.24] for level 1 and 0.92 [0.81, 1.05] for levels 2+. That is mildly decreasing overall, and the decline is concentrated after 20 minutes.
-- So a level not solved in 30 active minutes is about half as likely per minute to be solved as a fresh one. It is not hopeless: 39% are solved in the next 30 minutes. After 45-50 minutes the evidence runs out: 2 solves in 129 minutes at risk at 45-60, then none.
+- So a level not solved in 30 active minutes has about a third of a fresh level's hazard (0.027 vs 0.08/min), and less than half its chance of a solve in the next 30 minutes (0.39 vs 0.85). It is not hopeless: 39% are solved in that time. After 45-50 minutes the evidence runs out: 2 solves in 129 minutes at risk at 45-60, then none.
 - **Hard level or unlucky run?** Both.
   - The solve times of the same level in two runs correlate at r = 0.68 on log active minutes (291 pairs, `levelprop.py`).
   - When a run spent 20 or more minutes on a level, the same level in the other runs was solved in 90 of 139 attempts, 28 of them in under 10 minutes.
@@ -280,9 +280,9 @@ Decomposition on common draws (`policy_decomp.py`: 60 reruns of 110 games from t
 
 Three things drive the result:
 
-1. **D′ already starves stuck games.** A game that reaches 50 active minutes on a level would get only ≈19k more tokens (0.28M over 14.9 games). C has decayed, and fresh or deeper games outrank it. There is little time left to free: what levels unsolved at the deadline get beyond 40 minutes is 3.7% of rerun slot-time (`rerun_diag.py`).
-2. **The time stuck games do get is productive.** Most of it goes to deep levels with large weights. At 30-45 minutes the hazard is still 0.027/min (§3.3), so it returns ≈1.9-2.6 points per 1M tokens, against ≈1.0-1.35 for the receivers, the marginal value of capacity.
-3. **Short thresholds collapse demand.** Giving up at 30 minutes ends 75 of 110 games. The 3.39M tokens they release mostly go unused (+0.18M reaches others), because fewer games want slots than there are slots, and aggregate throughput falls with fewer streams.
+1. **D′ already starves stuck games.** A game that reaches 50 active minutes on a level would get only ≈19k more tokens (0.28M over 14.9 games). Its C has decayed to ≈0.3, so fresh games and progressing games outrank it. There is little time left to free: what levels unsolved at the deadline get beyond 40 minutes is 3.7% of rerun slot-time (`rerun_diag.py`).
+2. **The time stuck games do get is productive.** These games are deep: 75% of the give-up-at-50 quitters are in the last third of their game, and the current and later levels carry a median 52% of the game's score weight (`verify_claims.py`). At 30-45 minutes the hazard is still 0.027/min (§3.3), so the time returns ≈1.9-2.6 points per 1M tokens, against ≈1.0-1.35 for the receivers, the marginal value of capacity.
+3. **Short thresholds collapse demand.** Giving up at 30 minutes ends 75 of 110 games. Of the 3.39M tokens they release, only 0.18M reaches others. Total generation falls by 3.2M, which can only happen when fewer than 14 games are left to hold slots and the aggregate rate drops.
 
 ### 4.4 Sensitivity
 
@@ -305,8 +305,8 @@ Three things drive the result:
 The harder worlds put D′ at 26-34, about the LB's 0.55-0.62 of public-25 (`hard_world.py`). Across all eleven rows:
 
 - Giving up at 40 is never positive.
-- Giving up at 50 or 60 stays within ±0.9, and its sign flips with the tail assumption.
-- The last-level B = 10 tweak is +0.0 to +0.5 and vanishes in the harder worlds.
+- Giving up at 50 or 60 stays between −0.89 and +0.32, and its sign flips with the tail assumption.
+- The last-level B = 10 tweak is −0.12 to +0.52: positive only in the public-like worlds, ≈0 in the harder ones.
 
 ### 4.5 A public-25 A/B would mislead
 
@@ -323,7 +323,7 @@ The same policies were replayed in our test setting (25 games × 121 min, all st
 The sign is the opposite of the rerun model for give-up at 40 and park at 40. The reason is where the freed time goes (`where_time_goes.py`, give-up at 40):
 
 - **Public-25 replay.** Of the 0.35M tokens per run it frees, other games receive 0.16M, and 69% of that goes to games with 0 or 1 levels left, the ones the B cliff had parked.
-- **Rerun model.** Of the 0.97M it frees, others receive 0.63M, and 84% goes to games with 3 or more levels left, the 96-game first pass.
+- **Rerun model.** Of the 0.97M it frees, others receive 0.63M, and 84% goes to games with 3 or more levels left: the early levels, with 96 of the 110 games starting in the queue.
 
 Scheduling changes must therefore be judged in a rerun-shaped model (or on the LB), not on public-25 runs. One 25-game run's mean also has an SD of about 4.5 points.
 
@@ -345,7 +345,7 @@ The value of reallocating away from hopeless levels is real. But it needs a sign
 **Do not implement a give-up or level-cap patch.**
 
 - **Gain.** The best thresholds (50-60 active minutes on one level, ≈170-200k tokens) are worth between −0.89 and +0.32 public-25 points across all variants. The main estimate is −0.19 [−0.75, +0.23], with a single-rerun SD of 0.63. On the LB scale (× 0.55-0.62) that is about −0.5 to +0.2.
-- **Risk.** Every threshold of 40 minutes or less loses 1.0-29 points with high confidence, and the soft cap ("park") loses 1-3.
+- **Risk.** Every threshold of 40 minutes or less has a negative point estimate in every variant (−0.55 to −29), and 30 minutes or less loses with high confidence. The soft cap ("park") is negative in every variant (−0.3 to −3.3).
 - **Below the bar.** The expected gain is under 1 point by a wide margin.
 
 If this question comes back, these are the places the code would change. They are recorded only so the same analysis is not repeated:
@@ -361,7 +361,7 @@ What the numbers do support:
 
 ## 6. What this could not determine
 
-- **No gate logs.** Active and parked time come from token rates. They are consistent in aggregate (active minutes sum to 97-99% of slot capacity) but are not measured per handover. The trim quanta are calibrated from parked gaps, and the results are insensitive to them (§4.4).
+- **No gate logs.** Active and parked time come from token rates. They are consistent in aggregate (active minutes sum to 97.5-99.5% of slot capacity) but are not measured per handover. The trim quanta are calibrated from parked gaps, and the results are insensitive to them (§4.4).
 - **The hidden games are not the public 25.** The model draws hidden games from the public-25 trajectories. The harder-world rows (§4.4) are stress tests, not a model of the hidden set.
 - **Level costs are assumed independent of scheduling.** The model assumes a level's token cost does not depend on when it is played, on parking, or on trims. A late start or many handovers could make levels costlier, which would favour neither policy in particular.
 - **Extrapolation.** About 7 of the rerun model's ≈56 points come from levels beyond a run's recorded horizon. The tail assumption moves the give-up-at-50 sign (§4.4), which is why no give-up is recommended in either direction.
