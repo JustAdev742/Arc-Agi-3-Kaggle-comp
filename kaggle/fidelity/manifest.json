@@ -1,0 +1,166 @@
+{
+ "dataset_id": "scottmahony/arc3-fidelity-prompts",
+ "created_utc": "2026-10-08 14:06:49",
+ "files": [
+  {
+   "name": "requests.jsonl",
+   "sha256": "c80558419a5883a417e0f64f60cba51caaeeab9bb4b06d8d927b8b8c4270d7a5",
+   "bytes": 39605617,
+   "requests": 154
+  }
+ ],
+ "requests": 154,
+ "per_game": {
+  "ar25": 14,
+  "ft09": 14,
+  "lp85": 14,
+  "r11l": 14,
+  "re86": 14,
+  "sb26": 14,
+  "sc25": 14,
+  "tn36": 14,
+  "tr87": 14,
+  "tu93": 14,
+  "vc33": 14
+ },
+ "per_quarter": {
+  "0": 44,
+  "1": 44,
+  "2": 33,
+  "3": 33
+ },
+ "prompt_tokens": {
+  "min": 5474,
+  "median": 61012.0,
+  "max": 118992,
+  "sum": 9170048
+ },
+ "images_per_request": {
+  "min": 1,
+  "median": 20.5,
+  "max": 57
+ },
+ "last_message_has_image": 100,
+ "estimate_sequential_prefill_tokens": 2478877,
+ "params": {
+  "per_game": 14,
+  "seed": 20261008,
+  "quarters": 4,
+  "order": "by game (file name), then by turn"
+ },
+ "source": {
+  "files": [
+   {
+    "dir": "franzen-output",
+    "name": "ar25-0c556536_p0_requests.jsonl",
+    "sha256": "35f382a19ae223e705b8ddbde2577fa0f07823631038f1b52cdf291a1b656043",
+    "bytes": 49814716,
+    "requests": 81,
+    "answered": 81
+   },
+   {
+    "dir": "franzen-output",
+    "name": "ft09-0d8bbf25_p0_requests.jsonl",
+    "sha256": "b7c198213059c4ed02d6c1d3ff0e164da7ad274e8fed2fa99d468558244d1ca8",
+    "bytes": 13420910,
+    "requests": 35,
+    "answered": 34
+   },
+   {
+    "dir": "franzen-output",
+    "name": "lp85-305b61c3_p0_requests.jsonl",
+    "sha256": "389116f1ccc3684757cf78fa6ccb46c951399c78499d74ef5c17c43025874b09",
+    "bytes": 25436249,
+    "requests": 51,
+    "answered": 50
+   },
+   {
+    "dir": "franzen-output",
+    "name": "r11l-495a7899_p0_requests.jsonl",
+    "sha256": "2a77d65d0cbe55305bacded3639aa36c164c180ae5054b6e5b7b609b5ba88e86",
+    "bytes": 21831344,
+    "requests": 45,
+    "answered": 44
+   },
+   {
+    "dir": "franzen-output",
+    "name": "re86-8af5384d_p0_requests.jsonl",
+    "sha256": "c3cfc0760b6348eb3e5d4221c76b251cec67b50837000679f37f9db32dbb16d7",
+    "bytes": 38216136,
+    "requests": 64,
+    "answered": 64
+   },
+   {
+    "dir": "franzen-output",
+    "name": "sb26-7fbdac44_p0_requests.jsonl",
+    "sha256": "367c852ce3e58d8418017ac1b86b399946b1b4861dc39245f503b3be470029fe",
+    "bytes": 24930289,
+    "requests": 49,
+    "answered": 49
+   },
+   {
+    "dir": "franzen-output",
+    "name": "sc25-635fd71a_p0_requests.jsonl",
+    "sha256": "36ba44cf94b058aaa854987091eee48f540d68e135216b674bea41b266ee644d",
+    "bytes": 34758133,
+    "requests": 59,
+    "answered": 59
+   },
+   {
+    "dir": "v3-tn36",
+    "name": "tn36-ef4dde99_p0_requests.jsonl",
+    "sha256": "b7d6f23f84a0eaf20ac81f3a9b9fdece49d62a3b7f1d186d5163fddd2b743da8",
+    "bytes": 68456842,
+    "requests": 106,
+    "answered": 106
+   },
+   {
+    "dir": "franzen-output",
+    "name": "tr87-cd924810_p0_requests.jsonl",
+    "sha256": "502bb4f0c119569492ce1fe68404bd45a3f09f76512ae472a9def81d85c196ed",
+    "bytes": 31426570,
+    "requests": 56,
+    "answered": 55
+   },
+   {
+    "dir": "franzen-output",
+    "name": "tu93-0768757b_p0_requests.jsonl",
+    "sha256": "5f4efec61f5e56305df1ee24fa9a936be724bf3b868ea67d9e7b3a55b64b8559",
+    "bytes": 18701603,
+    "requests": 45,
+    "answered": 44
+   },
+   {
+    "dir": "franzen-output",
+    "name": "vc33-5430563c_p0_requests.jsonl",
+    "sha256": "283b1e8085be9092355bc4da33257ffaae6c48554185012920d272f2d609da21",
+    "bytes": 28206684,
+    "requests": 52,
+    "answered": 51
+   }
+  ],
+  "notes": [
+   "franzen-output: Save & Run of dfranzen/arc-agi-3-milestone-2-solution, 2026-09-30, 10 demo games x 25 min (kaggle/franzen/, Apache-2.0)",
+   "v3-tn36: tn36 pass 0 of the same notebook's v3 Save & Run (2026-10-03, 25 games x 4 passes, 121 min each, unpruned server), fetched with kaggle kernels output --file-pattern"
+  ]
+ },
+ "harness_payload": {
+  "endpoint": "POST {LOCAL_ANALYZER_BASE_URL}/chat/completions = http://127.0.0.1:8001/v1/chat/completions",
+  "model": "flashnext (LOCAL_ANALYZER_MODEL_ID = SERVED_MODEL_NAME)",
+  "stream": false,
+  "temperature": 0.7,
+  "top_p": 0.95,
+  "top_k": 20,
+  "max_tokens": 12288,
+  "seed": "not sent (LOCAL_ANALYZER_SEED unset)",
+  "chat_template_kwargs": "{'enable_thinking': True} (build_chat_payload, LOCAL_ANALYZER_ENABLE_THINKING=true) merged with the logged kwargs ({'preserve_thinking': True})",
+  "separate_reasoning": "not sent (server default True; the server runs --reasoning-parser qwen3)",
+  "messages": "the logged messages with '_arc3_control' removed (_strip_control_keys); _apply_summary_visibility is a no-op (ARC3_HIDE_FOLLOWUP_SUMMARIES unset)",
+  "tools / tool_choice": "as logged (one 'python' function; 'auto')",
+  "reasoning history": "assistant messages carry 'reasoning_content' (ARC3_REASONING_HISTORY_KEY)"
+ },
+ "sampler": {
+  "script": "scripts/fidelity_sample.py",
+  "sha256": "6637a1e6cd7fb8534f7d3143a68ddd0e699c1d9b9f82264ab6a8c58a019d9401"
+ }
+}

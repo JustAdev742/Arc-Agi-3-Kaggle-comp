@@ -1,0 +1,11 @@
+{
+ "title": "arc3-fidelity-prompts",
+ "id": "scottmahony/arc3-fidelity-prompts",
+ "licenses": [
+  {
+   "name": "other"
+  }
+ ],
+ "subtitle": "Logged ARC-AGI-3 agent requests for a serving fidelity probe (private)",
+ "description": "Requests sampled by scripts/fidelity_sample.py from the request logs of Daniel Franzen's public Milestone 2 notebook run (Apache-2.0). Private; see manifest.json."
+}

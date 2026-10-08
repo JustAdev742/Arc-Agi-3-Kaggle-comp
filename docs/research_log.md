@@ -2306,3 +2306,25 @@ Reading:  the gains sit where the mechanism says (budget-limited games reach fur
           knowledge loss would show. Accept length (2.67 vs 2.69) argues against a large distribution shift, not against
           a niche one. Settled by repeats, not by this run: the LB draws of exp-074s and a second full-length REAP run
           (or a REAP-at-10-streams run, which isolates quality from throughput) when quota allows.
+
+## 2026-10-08 14:17 · fidelity probe for REAP-448 built (CPU only) · READY TO RUN (owner uploads the dataset, lead pushes)
+Why:      exp-073's losses on vc33/tn36/tr87 could be REAP-448 losing ARC knowledge or draw noise; one game run cannot
+          tell (lesson 0018). A probe at fixed inputs can: same requests, greedy, logprobs, against the unpruned
+          server's own nondeterminism.
+What:     scripts/fidelity_sample.py drew 154 logged requests (14 per game, by turn quarter and context length; 10
+          games from Franzen's 2026-09-30 demo logs + tn36 pass 0 of his v3 run, fetched alone with --file-pattern),
+          messages exactly as sent with images; 39.6 MB, sha256 c80558419a58, in the scratchpad (not in git);
+          kaggle/fidelity/ keeps its manifest and private dataset metadata (scottmahony/arc3-fidelity-prompts, not
+          uploaded). scripts/build_franzen_nb.py --probe DIR replaces the benchmark cell with scripts/fidelity_probe.py:
+          temperature 0, max_tokens 192, logprobs top 5 (+ token ids and spec accept counts via return_meta_info),
+          one at a time then 8 in flight, prefix cache flushed before each pass, fidelity.json; checks the data's
+          sha256 right after cell 4, raises if the server dies or is not healthy at 30 min, refuses acceptance
+          thresholds other than 1.0. scripts/fidelity_compare.py reads 2-3 runs: prefix agreement, |dlp| on the
+          agreed prefix, top-k flips, near-tie divergences, by game/context/images/quarter, paired bootstrap against
+          the floor. docs/research/beat-tufa/fidelity-probe.md has the commands and the reading rule.
+Checked:  39 tests (tests/test_fidelity.py, tests/test_build_franzen_nb.py), ruff clean; both arms built
+          (scratchpad fidelity/nb/{base,reap}) and their probe cells executed on CPU against a fake SGLang server with
+          the real data (154/154 per pass, 8 in flight). The server-side behaviour (logprobs under NEXTN, greedy
+          normalisation, the chat endpoint's extras) is read in the Pennyroyal wheel, not run.
+Cost:     ~25 min per arm (estimate: 9 min to READY, ~9 min seq, ~6 min conc); base + REAP ~0.85 GPU-h; a second
+          base run (across-run floor) ~25 min more.

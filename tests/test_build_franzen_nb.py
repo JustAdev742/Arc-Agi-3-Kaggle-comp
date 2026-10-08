@@ -424,3 +424,142 @@ def test_input_fallback_wraps_every_input_path_and_resolves_both_mount_layouts(t
     assert ns["_ours_input"](new) == "/kaggle/input/taaf-kaggle-source-bundle-copy"
     assert ns["_ours_input"](comp) == "/kaggle/input/arc-prize-2026-arc-agi-3/arc_agi_3_wheels"
     assert ns["_ours_input"](model) == model  # no alternative: the original path, so the wait or the cell reports it
+
+
+# --- --probe (docs/research/beat-tufa/fidelity-probe.md) -------------------------------------------------------------
+
+PROBE_DIR = ROOT / "kaggle" / "fidelity"  # the repo's copy of the probe dataset's metadata (the data is not in git)
+
+
+def _unwrapped_inputs(sources: list[str]) -> list[str]:
+    return [m.group(0) for src in sources
+            for m in re.finditer(r"(?<!_ours_input\()(['\"])/kaggle/input/\S+?\1", src)]
+
+
+@pytest.mark.parametrize("base", ["franzen", "dprime"])
+def test_probe_replaces_the_benchmark_and_checks_its_prompts_before_the_server_starts(tmp_path, base):
+    changes = bf.build(tmp_path / "p", "p", base=base, input_fallback=True, probe=PROBE_DIR)
+    manifest = json.loads((PROBE_DIR / "manifest.json").read_text())
+    data_sha = manifest["files"][0]["sha256"]
+    assert changes[-1].startswith(f"fidelity probe instead of the benchmark (base arm): replays the "
+                                  f"{manifest['requests']} requests of scottmahony/arc3-fidelity-prompts "
+                                  f"(requests.jsonl sha256 {data_sha[:12]}; checked right after cell 4)")
+    bf.build(tmp_path / "ref", "ref", base=base, input_fallback=True)  # the same notebook without the probe
+    ours, ref = _cells(tmp_path / "p" / "p.ipynb"), _cells(tmp_path / "ref" / "ref.ipynb")
+    kinds = [c["cell_type"] for c in json.loads((tmp_path / "ref" / "ref.ipynb").read_text())["cells"]]
+    setup = next(i for i, c in enumerate(ref) if kinds[i] == "code" and bf.SETUP_ANCHOR in c)
+    run = next(i for i, c in enumerate(ref) if kinds[i] == "code" and bf.PROBE_RUN_ANCHOR in c)
+    header = next(i for i, c in enumerate(ref) if kinds[i] == "markdown" and c.startswith(bf.PROBE_MD_ANCHOR))
+    # up to and including cell 4: unchanged; then the probe module and the data check
+    assert ours[1:setup + 1] == ref[1:setup + 1]
+    assert bf.franzen_tree.writefile_body(ours[setup + 1]) == (bf.PROBE_FILE, bf.PROBE_SCRIPT.read_text())
+    preflight = ours[setup + 2]
+    assert preflight.startswith(bf.PROBE_BEGIN) and preflight.rstrip().endswith(bf.PROBE_END)
+    assert "find_dataset([_ours_input('/kaggle/input/datasets/scottmahony/arc3-fidelity-prompts')]" in preflight
+    assert f"{{'requests.jsonl': '{data_sha}'}}" in preflight
+    # everything from cell 4 to the benchmark cell is theirs (the server launch byte for byte), the section header
+    # is ours, the benchmark cell is the probe, and nothing follows it
+    middle = [i for i in range(setup + 1, run) if i != header]
+    assert [ours[i + 2] for i in middle] == [ref[i] for i in middle]
+    assert ours[header + 2].startswith("## 9. Fidelity probe (ours, replaces the benchmark)")
+    assert len(ours) == run + 3
+    probe = ours[-1]
+    assert probe.startswith(bf.PROBE_BEGIN) and "arc3_probe.run(" in probe and "TRUE_SUBMISSION" in probe
+    assert "arm='base', expect_num_experts=None," in probe
+    assert "max_tokens=192, top_logprobs=5, concurrency=8, max_minutes=150," in probe
+    assert "health_deadline=NOTEBOOK_START_TIME + 30 * 60)" in probe and "alive=lambda: proc.poll() is None" in probe
+    nb = json.loads((tmp_path / "p" / "p.ipynb").read_text())
+    codes = ["".join(c["source"]) for c in nb["cells"] if c["cell_type"] == "code"]
+    assert not any(bf.PROBE_RUN_ANCHOR in c for c in codes)
+    assert _unwrapped_inputs(codes) == []
+    for src in (c for c in codes if not c.startswith("%%")):  # valid Python apart from IPython's ! and % lines
+        compile("\n".join(line for line in src.splitlines() if not line.lstrip().startswith(("!", "%"))), "cell",
+                "exec", flags=ast.PyCF_ALLOW_TOP_LEVEL_AWAIT)
+    meta = json.loads((tmp_path / "p" / "kernel-metadata.json").read_text())
+    ref_meta = json.loads((tmp_path / "ref" / "kernel-metadata.json").read_text())
+    assert meta["dataset_sources"] == bf.SOURCES["dataset_sources"] + ["scottmahony/arc3-fidelity-prompts"]
+    assert {k: v for k, v in meta.items() if k not in ("id", "title", "code_file", "dataset_sources")} == \
+        {k: v for k, v in ref_meta.items() if k not in ("id", "title", "code_file", "dataset_sources")}
+    assert meta["is_private"] is True and meta["docker_image"] == bf.IMAGE
+
+
+def test_probe_reap_arm_differs_from_the_base_arm_only_by_the_pruning(tmp_path):
+    common = {"base": "dprime", "input_fallback": True, "wait_inputs": 120, "probe": PROBE_DIR}
+    bf.build(tmp_path / "b", "arc3-fidelity-base", **common)
+    changes = bf.build(tmp_path / "r", "arc3-fidelity-reap448", reap_kept=REAP_KEPT, **common)
+    assert changes[-1].startswith("fidelity probe instead of the benchmark (reap448 arm)")
+    b, r = _cells(tmp_path / "b" / "arc3-fidelity-base.ipynb"), _cells(tmp_path / "r" / "arc3-fidelity-reap448.ipynb")
+    launch = next(i for i, c in enumerate(b) if bf.LAUNCH_ANCHOR in c)
+    assert [bf.franzen_tree.writefile_body(c)[0] for c in r[launch:launch + 3]] == list(bf.REAP_FILES.values())
+    r = r[:launch] + r[launch + 3:]
+    assert [i for i, (x, y) in enumerate(zip(b, r)) if x != y] == [0, launch, len(b) - 1]
+    assert len(_reap_blocks(r[launch])) == 2  # the launcher differs by the two REAP blocks only
+    assert r[launch].replace(_reap_blocks(r[launch])[0], "").replace(_reap_blocks(r[launch])[1], "") == b[launch]
+    differing = [(x, y) for x, y in zip(b[-1].splitlines(), r[-1].splitlines()) if x != y]
+    assert [x.strip()[:20] for x, _ in differing] == ["arm='base', expect_n", "build={'builder': 's"]
+    assert "arm='reap448', expect_num_experts=448," in r[-1] and "'reap_kept': 'reap448_kept_experts.json" in r[-1]
+    meta_b = json.loads((tmp_path / "b" / "kernel-metadata.json").read_text())
+    meta_r = json.loads((tmp_path / "r" / "kernel-metadata.json").read_text())
+    assert [k for k in meta_b if meta_b[k] != meta_r[k]] == ["id", "title", "code_file"]
+
+
+def test_probe_refuses_what_would_make_it_unsafe_or_meaningless(tmp_path):
+    for kwargs, message in [({}, "needs --input-fallback"),
+                            ({"input_fallback": True, "full25": 25}, "replaces the benchmark run"),
+                            ({"input_fallback": True, "patches": [SAMPLE], "apply_check": False},
+                             "replaces the benchmark run"),
+                            ({"input_fallback": True, "cfg": {"SPEC_ACCEPT_ACC": "0.5"}}, "must stay 1.0"),
+                            ({"input_fallback": True, "cfg": {"SPEC_ACCEPT_SINGLE": "true"}}, "must stay 1.0")]:
+        with pytest.raises(SystemExit, match=message):
+            bf.build(tmp_path / "x", "x", probe=PROBE_DIR, **kwargs)
+    assert bf.build(tmp_path / "ok", "ok", probe=PROBE_DIR, input_fallback=True, cfg={"SPEC_ACCEPT_ACC": "1"})
+    stale = tmp_path / "stale"
+    stale.mkdir()
+    for name in ("dataset-metadata.json", "manifest.json"):
+        (stale / name).write_text((PROBE_DIR / name).read_text())
+    (stale / "requests.jsonl").write_text("{}\n")  # not the data the manifest describes
+    with pytest.raises(SystemExit, match=r"does not match manifest\.json"):
+        bf.build(tmp_path / "x", "x", probe=stale, input_fallback=True)
+    (stale / "requests.jsonl").unlink()
+    (stale / "dataset-metadata.json").write_text(json.dumps({"id": "Scott Mahony/x"}))
+    with pytest.raises(SystemExit, match="is not owner/slug"):
+        bf.build(tmp_path / "x", "x", probe=stale, input_fallback=True)
+    with pytest.raises(SystemExit, match=r"needs dataset-metadata\.json and manifest\.json"):
+        bf.build(tmp_path / "x", "x", probe=tmp_path / "nowhere", input_fallback=True)
+
+
+def test_the_probe_cells_run_against_a_server(tmp_path):
+    """The built notebook's probe module cell, data check and probe cell, executed against a fake SGLang server."""
+    import time
+    import types
+
+    import fidelity_sample
+
+    from tests.fidelity_fakes import FakeServer, write_fake_logs
+    write_fake_logs(tmp_path / "logs")
+    kaggle = tmp_path / "kaggle"
+    data = kaggle / "input/datasets/scottmahony/arc3-fidelity-prompts"
+    fidelity_sample.sample(tmp_path / "logs", data, per_game=4)
+    bf.build(tmp_path / "nb", "p", base="dprime", input_fallback=True, probe=data)
+    cells = _cells(tmp_path / "nb" / "p.ipynb")
+    path, text = bf.franzen_tree.writefile_body(next(c for c in cells if c.startswith(f"%%writefile {bf.PROBE_FILE}")))
+    (kaggle / Path(path).name).write_text(text)
+    preflight = next(c for c in cells if c.startswith(bf.PROBE_BEGIN) and "find_dataset" in c)
+    ns: dict = {}
+    exec(bf.INPUT_HELPER, ns)
+    with FakeServer() as server:
+        ns.update(TRUE_SUBMISSION=False, WORKING_DIR=tmp_path, SERVED_MODEL_HOST="127.0.0.1",
+                  SERVED_MODEL_PORT=server.port, SERVED_MODEL_NAME="flashnext", NOTEBOOK_START_TIME=time.time(),
+                  proc=types.SimpleNamespace(poll=lambda: None), show_log_tail=lambda: None)
+        exec(preflight.replace("/kaggle/", f"{kaggle}/"), ns)
+        exec(cells[-1], ns)
+    out = json.loads((tmp_path / "fidelity.json").read_text())
+    assert out["arm"] == "base" and out["model"] == "flashnext"
+    assert out["passes"]["seq"]["ok"] == out["passes"]["conc"]["ok"] == 8
+    assert out["build"]["dataset"] == "scottmahony/arc3-fidelity-prompts" and out["build"]["base"] == "dprime"
+    ns["TRUE_SUBMISSION"] = True
+    with pytest.raises(RuntimeError, match="not a submission"):
+        exec(cells[-1], ns)
+    (data / "requests.jsonl").write_text("{}\n")  # a dataset version that is not the one built for: stops early
+    with pytest.raises(RuntimeError, match="not the manifest's"):
+        exec(preflight.replace("/kaggle/", f"{kaggle}/"), ns)

@@ -49,6 +49,16 @@ Options change a non-submission run only, or a named setting everywhere:
   one or an anchor is missing) and sets ARC3_REAP_KEPT_EXPERTS for the server; before the prefetch flag adds
   ``--json-model-override-args '{"text_config": {"num_experts": K}}' --speculative-draft-model-override-args '{}'``
   (the MTP draft keeps its 512 experts). Pair it with ``--cfg MAXREQ=.. --cfg CUDAGRAPH_MAXBS=.. --cfg MAMBA_CACHE=..``.
+- ``--probe DIR``: a fidelity-probe notebook (docs/research/beat-tufa/fidelity-probe.md). DIR is the probe dataset's
+  folder or the repo's copy of its metadata (kaggle/fidelity/: ``dataset-metadata.json`` + ``manifest.json`` from
+  scripts/fidelity_sample.py). Everything up to and including the server launch stays; right after cell 4 a
+  ``%%writefile /kaggle/arc3-fidelity-probe.py`` cell (scripts/fidelity_probe.py) and a check that the dataset is
+  mounted with the manifest's sha256 (before the server starts); the benchmark cell (``await bm.run(...)``) becomes
+  the probe: wait for the server's /health (raise if it dies or is not healthy 30 min after the notebook started),
+  replay every sampled request greedy (temperature 0, max_tokens 192, logprobs with top 5) one at a time and then
+  8 in flight, and write /kaggle/working/fidelity.json; the cells after it (diagnostics) are dropped and the dataset
+  joins the kernel's sources. Needs ``--input-fallback``; refuses ``--full25``, ``--patch`` and speculative
+  acceptance thresholds other than 1.0. A REAP arm is the same command plus ``--reap-kept``.
 
 Every change is anchored on text that must occur exactly once, and listed in the first markdown cell. Writes
 ``<out>/<slug>.ipynb`` and ``<out>/kernel-metadata.json`` (private, internet off, RTX PRO 6000).
@@ -113,6 +123,15 @@ REAP_FILES = {"script": "/kaggle/arc3-reap-patch.py", "kept": "/kaggle/arc3-reap
               "meta": "/kaggle/arc3-reap-kept.meta.json"}  # meta: sglang_reap_patch.meta_path(kept)
 REAP_BEGIN = "# >>> ours (--reap-kept)"
 REAP_END = "# <<< ours (--reap-kept)"
+# --probe: the fidelity probe (scripts/fidelity_probe.py) replaces the benchmark cell (his cell 20, D' cell 22)
+PROBE_RUN_ANCHOR = "await bm.run("
+PROBE_MD_ANCHOR = "## 9. Run the benchmark"
+PROBE_SCRIPT = ROOT / "scripts" / "fidelity_probe.py"
+PROBE_FILE = "/kaggle/arc3-fidelity-probe.py"
+PROBE_BEGIN = "# >>> ours (--probe)"
+PROBE_END = "# <<< ours (--probe)"
+PROBE_PARAMS = {"max_tokens": 192, "top_logprobs": 5, "concurrency": 8, "health_minutes": 30, "data_wait_s": 300,
+                "max_minutes": 150}
 
 
 def _replace_once(text: str, old: str, new: str, what: str) -> str:
@@ -407,12 +426,84 @@ def _wait_code(seconds: float) -> str:
     )
 
 
+def _probe_spec(folder: Path) -> dict:
+    """The probe dataset: its Kaggle id (dataset-metadata.json) and data files with sha256 (manifest.json)."""
+    try:
+        meta = json.loads((folder / "dataset-metadata.json").read_text())
+        manifest = json.loads((folder / "manifest.json").read_text())
+    except (OSError, ValueError) as exc:
+        raise SystemExit(f"--probe {folder}: needs dataset-metadata.json and manifest.json ({exc})") from None
+    dataset = str(meta.get("id", ""))
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*", dataset):
+        raise SystemExit(f"--probe {folder}: dataset-metadata.json id {dataset!r} is not owner/slug")
+    files = {str(f.get("name")): str(f.get("sha256")) for f in manifest.get("files") or []}
+    if not files or not all(re.fullmatch(r"[\w.-]+", n) and re.fullmatch(r"[0-9a-f]{64}", s) for n, s in files.items()):
+        raise SystemExit(f"--probe {folder}: manifest.json lists no data files with sha256")
+    for name, expected in files.items():  # the dataset folder itself: the manifest must describe what is uploaded
+        local = folder / name
+        if local.is_file() and hashlib.sha256(local.read_bytes()).hexdigest() != expected:
+            raise SystemExit(f"--probe {folder}: {name} does not match manifest.json (rerun scripts/fidelity_sample.py)")
+    requests = int(manifest.get("requests") or sum(int(f.get("requests") or 0) for f in manifest["files"]))
+    return {"dataset": dataset, "files": files, "requests": requests}
+
+
+def _probe_code(spec: dict, arm: str, num_experts: int | None, build_info: dict) -> tuple[str, str, str]:
+    """(preflight cell after cell 4, probe cell replacing the benchmark cell, its markdown header)."""
+    path = f"/kaggle/input/datasets/{spec['dataset']}"
+    p = PROBE_PARAMS
+    preflight = (
+        f"{PROBE_BEGIN}: load the fidelity probe (scripts/fidelity_probe.py, written by the cell above) and check its\n"
+        f"# prompts ({spec['dataset']}) before the server starts; stops here if they are missing or differ.\n"
+        "import importlib.util as _probe_util\n"
+        f"_probe_spec = _probe_util.spec_from_file_location('arc3_fidelity_probe', {PROBE_FILE!r})\n"
+        "arc3_probe = _probe_util.module_from_spec(_probe_spec)\n"
+        "_probe_spec.loader.exec_module(arc3_probe)\n"
+        f"PROBE_FILES = arc3_probe.find_dataset([_ours_input({path!r})], {spec['files']!r},\n"
+        f"                                      wait_s={p['data_wait_s']})\n"
+        f"{PROBE_END}\n")
+    probe = (
+        f"{PROBE_BEGIN}: the fidelity probe replaces the benchmark (scripts/fidelity_probe.py;\n"
+        "# docs/research/beat-tufa/fidelity-probe.md). Every sampled request, greedy, with logprobs, one at a time and\n"
+        "# then several in flight (prefix cache flushed before each pass); writes /kaggle/working/fidelity.json.\n"
+        f"# Raises if the server dies or is not healthy {p['health_minutes']} min after the notebook started.\n"
+        "if TRUE_SUBMISSION:\n"
+        "    raise RuntimeError('a fidelity-probe notebook is not a submission')\n"
+        "arc3_probe.run(\n"
+        "    PROBE_FILES, WORKING_DIR / 'fidelity.json',\n"
+        "    base_url=f'http://{SERVED_MODEL_HOST}:{SERVED_MODEL_PORT}', model=SERVED_MODEL_NAME,\n"
+        f"    arm={arm!r}, expect_num_experts={num_experts!r},\n"
+        f"    build={build_info!r},\n"
+        f"    max_tokens={p['max_tokens']}, top_logprobs={p['top_logprobs']}, concurrency={p['concurrency']}, "
+        f"max_minutes={p['max_minutes']},\n"
+        "    alive=lambda: proc.poll() is None, on_failure=show_log_tail,\n"
+        f"    health_deadline=NOTEBOOK_START_TIME + {p['health_minutes']} * 60)\n"
+        f"{PROBE_END}\n")
+    markdown = (
+        "## 9. Fidelity probe (ours, replaces the benchmark)\n\n"
+        f"Replays the {spec['requests']} sampled ARC agent requests of `{spec['dataset']}` through the server: "
+        f"greedy (temperature 0), {p['max_tokens']} tokens, logprobs with the top {p['top_logprobs']}, first one at a "
+        f"time and then {p['concurrency']} in flight, and writes `fidelity.json` "
+        "(scripts/fidelity_probe.py, read by scripts/fidelity_compare.py).")
+    return preflight, probe, markdown
+
+
 def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str] | None = None,
           note: str = "", *, env_add: dict[str, str] | None = None, cfg: dict[str, str] | None = None,
           server_env: dict[str, str] | None = None, patches: list[Path] | tuple = (), apply_check: bool = True,
           his_repo: Path | None = None, bundle: Path | None = None, base: str = "franzen",
           reap_kept: Path | None = None, wait_inputs: float | None = None,
-          input_fallback: bool = False) -> list[str]:
+          input_fallback: bool = False, probe: Path | None = None) -> list[str]:
+    probe_spec = None
+    if probe is not None:
+        if not input_fallback:
+            raise SystemExit("--probe needs --input-fallback (Kaggle mounts inputs in two layouts; lesson 0030)")
+        if full25 is not None or patches:
+            raise SystemExit("--probe replaces the benchmark run; --full25 and --patch would change nothing it runs")
+        for key in ("SPEC_ACCEPT_SINGLE", "SPEC_ACCEPT_ACC"):
+            if key in (cfg or {}) and _safe_value(cfg[key]) != 1.0:
+                raise SystemExit(f"--probe: --cfg {key} must stay 1.0 (greedy outputs only compare under lossless "
+                                 "speculative decoding)")
+        probe_spec = _probe_spec(Path(probe))
     if base == "franzen":
         path, sha, demo_anchor, budget_anchor = BASE, BASE_SHA256, DEMO_ANCHOR, BUDGET_ANCHOR
     elif base == "dprime":
@@ -461,6 +552,36 @@ def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str]
             sources[launch], reap_files, done = _reap(sources[launch], Path(reap_kept))
             changes.append(done)
 
+    preflight = None
+    if probe_spec is not None:
+        arm, num_experts = "base", None
+        if reap_kept:
+            import sglang_reap_patch
+            num_experts = len(sglang_reap_patch.load_kept(Path(reap_kept))[0])
+            arm = f"reap{num_experts}"
+        run_cell = _one_cell(sources, code, PROBE_RUN_ANCHOR, "--probe")
+        header = [i for i, s in enumerate(sources) if not code[i] and PROBE_MD_ANCHOR in s]
+        if len(header) != 1:
+            raise SystemExit(f"--probe: markdown {PROBE_MD_ANCHOR!r} found in cells {header} (expected one)")
+        probe_sha = hashlib.sha256(PROBE_SCRIPT.read_bytes()).hexdigest()[:12]
+        build_info = {"builder": "scripts/build_franzen_nb.py", "base": base, "slug": slug,
+                      "dataset": probe_spec["dataset"], "data_files": probe_spec["files"], "probe_sha256": probe_sha,
+                      "reap_kept": (f"{Path(reap_kept).name} sha256 "
+                                    f"{hashlib.sha256(Path(reap_kept).read_bytes()).hexdigest()[:12]}"
+                                    if reap_kept else None),
+                      "cfg": dict(cfg or {}), "server_env": dict(server_env or {})}
+        preflight, sources[run_cell], sources[header[0]] = _probe_code(probe_spec, arm, num_experts, build_info)
+        p = PROBE_PARAMS
+        changes.append(
+            f"fidelity probe instead of the benchmark ({arm} arm): replays the {probe_spec['requests']} requests of "
+            f"{probe_spec['dataset']} ("
+            + ", ".join(f"{n} sha256 {s[:12]}" for n, s in probe_spec["files"].items())
+            + f"; checked right after cell 4) greedy (temperature 0, max_tokens {p['max_tokens']}, logprobs with top "
+            f"{p['top_logprobs']}), one at a time and then {p['concurrency']} in flight with the prefix cache flushed "
+            f"before each pass, writes fidelity.json and raises if the server dies or is not healthy "
+            f"{p['health_minutes']} min after the start (scripts/fidelity_probe.py sha256 {probe_sha}); the cells "
+            "after the benchmark cell are dropped")
+
     new_cells = []
     if patches:
         texts = []
@@ -505,15 +626,31 @@ def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str]
             cell["source"] = f"%%writefile {path}\n{text}".splitlines(keepends=True)
             written.append(cell)
         cells[launch:launch] = written
+    if preflight is not None:  # drop what follows the probe cell; the probe module and the data check after cell 4
+        probe_cell = next(i for i, c in enumerate(cells) if c["cell_type"] == "code"
+                          and "arc3_probe.run(" in "".join(c["source"]))
+        del cells[probe_cell + 1:]
+        setup_cell = next(i for i, c in enumerate(cells) if c["cell_type"] == "code"
+                          and SETUP_ANCHOR in "".join(c["source"]))
+        added = []
+        for text in (f"%%writefile {PROBE_FILE}\n{PROBE_SCRIPT.read_text()}", preflight):
+            cell = copy.deepcopy(cells[setup_cell])
+            cell["outputs"], cell["execution_count"] = [], None
+            cell["source"] = text.splitlines(keepends=True)
+            added.append(cell)
+        cells[setup_cell + 1:setup_cell + 1] = added
     if changes or note:
         cells[0]["source"] = ["".join(cells[0]["source"]) + "\n\n**Our arm (scottmahony, built by "
                               f"scripts/build_franzen_nb.py from the unmodified {base} notebook):** "
                               + ("; ".join(changes) or "unchanged") + (f". {note}" if note else "") + "\n"]
     out.mkdir(parents=True, exist_ok=True)
     (out / f"{slug}.ipynb").write_text(json.dumps(nb, indent=1, ensure_ascii=False))
+    sources_meta = copy.deepcopy(SOURCES)
+    if probe_spec is not None:
+        sources_meta["dataset_sources"].append(probe_spec["dataset"])
     meta = {"id": f"scottmahony/{slug}", "title": slug.replace("-", " "), "code_file": f"{slug}.ipynb",
             "language": "python", "kernel_type": "notebook", "is_private": True, "enable_gpu": True,
-            "enable_tpu": False, "enable_internet": False, "keywords": [], **SOURCES,
+            "enable_tpu": False, "enable_internet": False, "keywords": [], **sources_meta,
             "docker_image": IMAGE, "docker_image_pinning_type": "original", "machine_shape": MACHINE_SHAPE}
     (out / "kernel-metadata.json").write_text(json.dumps(meta, indent=1))
     return changes
@@ -553,12 +690,16 @@ def main() -> None:
                     help="resolve /kaggle/input paths in either mount layout (datasets/<owner>/<slug> or <slug>)")
     ap.add_argument("--wait-inputs", type=float, default=None, metavar="SECONDS",
                     help="cell 4 waits up to SECONDS for its mounted inputs before copying the bundle")
+    ap.add_argument("--probe", type=Path, default=None, metavar="DIR",
+                    help="fidelity probe instead of the benchmark; DIR has the probe dataset's dataset-metadata.json "
+                         "and manifest.json (kaggle/fidelity/)")
     args = ap.parse_args()
     changes = build(args.out, args.slug, args.full25, _pairs(args.env, "--env"), args.note,
                     env_add=_pairs(args.env_add, "--env-add"), cfg=_pairs(args.cfg, "--cfg"),
                     server_env=_pairs(args.server_env, "--server-env"), patches=args.patch,
                     apply_check=not args.no_apply_check, his_repo=args.his_repo, bundle=args.bundle, base=args.base,
-                    reap_kept=args.reap_kept, wait_inputs=args.wait_inputs, input_fallback=args.input_fallback)
+                    reap_kept=args.reap_kept, wait_inputs=args.wait_inputs, input_fallback=args.input_fallback,
+                    probe=args.probe)
     print(f"built {args.out / (args.slug + '.ipynb')}: {changes or 'unchanged'}")
 
 
