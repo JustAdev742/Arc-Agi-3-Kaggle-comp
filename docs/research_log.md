@@ -2335,3 +2335,11 @@ Merged the agent's probe (docs/research/beat-tufa/fidelity-probe.md; tests pass)
           inline). Probe arms arc3-fidelity-base and arc3-fidelity-reap448 (10 streams each, lossless acceptance, greedy
           192 tokens with logprobs, sequential then 8 in flight) wait for a free slot: exp-073b (full length, REAP-14 +
           acceptance 0.5) is RUNNING and exp-072h's stuck session holds the other slot.
+
+## 2026-10-08 14:57 · fidelity probe, base arm COMPLETE; REAP arm queued
+Run:      scottmahony/arc3-fidelity-base v1 (pushed 14:21, ran ~14:30-14:55); runs/fidelity-base/kernel-output/fidelity.json.
+Measured: 154/154 requests in both passes (one at a time 502 s, 8 in flight 373 s); server 10 streams, pool 1,011,264
+          tokens, lossless acceptance. Within the same server, only 3 of 154 greedy continuations (192 tokens) were
+          token-identical between the sequential and concurrent passes: batching nondeterminism alone changes almost
+          every greedy continuation, so base-vs-REAP must be read on the logprob metrics against this floor, not on
+          exact matches. arc3-fidelity-reap448 pushed 14:56 (QUEUED).
