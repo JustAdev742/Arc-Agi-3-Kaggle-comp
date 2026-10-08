@@ -2573,3 +2573,20 @@ Reading:  the speed went into copying its previous turn. Unseparated causes: Swi
           3.70 fits a draft whose copies get accepted); the unverified REAP ids; Swift's lighter quantization (INT4
           linear attention). Diagnostic gate exp-076g queued (his serving: 10 streams, no REAP, lossless acceptance,
           25 x 25 min, ~0.7 GPU-h): no loops there -> the problem is the lossy draft/REAP; loops there -> Swift is out.
+
+## 2026-10-08 19:04 · intel refresh (docs/research/beat-tufa/intel-oct8.md): LB ~ 0.55-0.62 x public-25; Swift leads · NOTED
+- Five public pairs put the leaderboard at 0.55-0.62 times a public-25 score (Franzen 46.5 -> 25.8, Nick2187 56.8 ->
+  <= 33.7, Scott Le Grand 53.7 -> <= 30.3, Nick Pellegrin ~40 -> ~23, our D' copy -> 28.87). By that ratio our
+  candidate's ~49 mean (exp-073b/075) is ~27-31 on the LB, and the leaders' 55.9 would be ~90+ on the public 25: a
+  much better policy, not serving. The owner's LB draw of exp-074t tests the ratio for us.
+- Swift-1.5 (checked at source by the agent): its MTP head and PLE tables are byte-identical to the base's, so the
+  draft was not mismatched; UkisAI's W4A16 build stores the linear-attention and QSA attention projections in INT4
+  (Intel's keeps them BF16; UkisAI's own NVFP4 build quantizes only routed experts); the vendor samples at
+  temperature 1.0, top_p 0.95, top_k 20 (our harness: 0.7). Gate exp-076g rebuilt accordingly: his serving (10
+  streams, no REAP, lossless acceptance) with temperature 1.0 (top_k is already 20). If it still loops, the INT4
+  attention projections are the suspect (gate B: a build with BF16 projections).
+- Artificial Agency Lab (#6, 38.62) published its runtime: 76 games at a 98K window, int4 KV, 50% expert pruning,
+  int3 experts GPTQ-calibrated on ARC traffic, MTP off, a 2-block schedule with token allowances per level. Capacity
+  taken to the far end reached ~38.6: consistent with "serving alone does not close the gap".
+- Leaders silent since Oct 2. Tinfield-1 (Sep 21, an agentic Flash-Next post-train, Qwen licence) is the only new
+  drop-in candidate; no W4A16 build exists.
