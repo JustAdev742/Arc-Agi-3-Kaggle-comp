@@ -2235,3 +2235,11 @@ LB now:   Tufa Labs 55.89, Yi-Chia Chen 55.77, Majkel1337 42.66, the last dance 
           270 >= 30, 412 >= 28.87, 901 >= 25.
 Queue:    exp-072h and exp-073b have been QUEUED since 00:15 and 01:37: the RTX PRO 6000 pool fills after the 00:00 UTC
           daily reset (teams' 9 h reruns), so our test runs barely start between ~00:00 and ~09:00 UTC.
+
+## 2026-10-08 10:43 · quota readable through the API; session ids recorded at push · TOOLING
+Kaggle's API exposes the weekly GPU quota (kagglesdk GetAcceleratorQuotaStatistics): 5 h 15 min used of 30 h, refresh
+          2026-10-10 00:00 UTC, nothing reserved by the two QUEUED sessions (exp-072h since 00:15, exp-073b since
+          01:37: still QUEUED at 10:41, so not the quota but no free RTX machine). Its cancel call needs the
+          kernel_session_id that only the push response carries, so scripts/push_eval.py now pushes through the SDK
+          and appends it to <folder>/sessions.jsonl, and scripts/kaggle_cancel.py cancels by it. The two sessions
+          queued now were pushed with the CLI and cannot be cancelled.

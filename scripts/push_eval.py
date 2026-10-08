@@ -5,6 +5,10 @@
 Always passes ``--accelerator NvidiaRtxPro6000``: without it Kaggle places the kernel on a Tesla T4 (15 GB, SM75),
 the 27B model cannot load, and the run burns ten minutes of quota before falling back (exp-010b/exp-011 v1,
 2026-09-16). Prints the pushed version and the kernel's status right after.
+
+Pushes through the SDK (the CLI's output drops it) to record the push's ``kernel_session_id`` in
+``<folder>/sessions.jsonl``: the only handle scripts/kaggle_cancel.py has on a session that sits QUEUED for hours
+(2026-10-08: two sessions waited 10 h+ for a machine and blocked the 2-session limit).
 """
 from __future__ import annotations
 
@@ -34,11 +38,23 @@ def main() -> None:
     if token.exists() and not env.get("KAGGLE_API_TOKEN"):
         env["KAGGLE_API_TOKEN"] = token.read_text().strip()
     kaggle = str(ROOT / ".venv" / "bin" / "kaggle")
-    r = subprocess.run([kaggle, "kernels", "push", "-p", str(folder), "--accelerator", ACCELERATOR],
-                       env=env, capture_output=True, text=True, check=False)
-    print((r.stdout + r.stderr).strip().splitlines()[-1])
-    if "successfully pushed" not in r.stdout:
+    os.environ.update({k: v for k, v in env.items() if k == "KAGGLE_API_TOKEN"})
+    from kaggle.api.kaggle_api_extended import KaggleApi
+    api = KaggleApi()
+    api.authenticate()
+    try:
+        resp = api.kernels_push(str(folder), None, ACCELERATOR)
+    except Exception as exc:  # the CLI prints the same refusal text ("Maximum batch GPU session count ...")
+        print(f"Kernel push error: {exc}")
         sys.exit(1)
+    if resp.error:
+        print(f"Kernel push error: {resp.error}")
+        sys.exit(1)
+    print(f"Kernel version {resp.version_number} successfully pushed.  Please check progress at {resp.url} "
+          f"(session {resp.kernel_session_id})")
+    with (folder / "sessions.jsonl").open("a") as f:
+        f.write(json.dumps({"kernel": meta["id"], "version": resp.version_number,
+                            "kernel_session_id": resp.kernel_session_id, "pushed": time.time()}) + "\n")
     time.sleep(5)
     s = subprocess.run([kaggle, "kernels", "status", meta["id"]], env=env, capture_output=True, text=True, check=False)
     print((s.stdout + s.stderr).strip().splitlines()[-1])
