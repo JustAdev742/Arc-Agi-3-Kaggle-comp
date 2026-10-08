@@ -2706,3 +2706,10 @@ Reading:  the bundle runs as designed at full scale and does not move the score 
           small, solid serving gain.
 Next:     exp-078 (all seven patches, RESET still exposed) is running (20:32-~22:55). The next arm turns EXPOSE_RESET
           off and keeps the meter (the meter does not need RESET). LB: exp-074t first (the owner), then a bundle version.
+
+## 2026-10-08 20:50 · correction: the quota rule in the exp-076g entry overstated · CORRECTED
+The 20:03 entry said a running session reserves up to 12 h and that every session would now run alone until the Sat
+reset. At 20:48, with exp-078 running, kaggle_quota.py reported reserved 0.00 h (used 20.77 h), which that rule
+does not explain. Only the 20:02 refusal itself is certain. Lesson 0035 now lists the four readings and says to let
+the queue runner retry rather than plan around a rule. exp-079 is queued as soon as its bed passes; if Kaggle
+accepts it while exp-078 runs, the two run in parallel.
