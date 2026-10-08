@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-10-08 19:30 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
+Last updated: 2026-10-08 20:50 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
 
 ## Competition facts: verified vs. unconfirmed
 
@@ -145,6 +145,30 @@ score over at least 3 draws each. A difference under 0.5 points is a tie, broken
 public 25 (scripts/arm_table.py), then the validation score. If the top two are variants of one configuration within
 noise, the second slot goes to the best configuration that differs from it (diversification against the private half).
 If fewer than two configurations reach 3 draws, the unmodified base fills the second slot.
+
+### State at 2026-10-08 20:50 UTC
+- **exp-074t is still not submitted.** Last submission: the D' copy, Oct 7 21:57 (28.87). Today's slot closes at
+  00:00 UTC. Submit from https://www.kaggle.com/code/scottmahony/arc3-dprime-reap448-r14-accept05.
+- **exp-077 read: 48.96** with 107 levels. That is level with the candidate config's 56.00 / 42.89; one run cannot
+  show an effect under ~13 points.
+  - Every patch mechanism fired at full scale: budget bar shown in 23 games, ledger pinned, mem used 417 times,
+    search/run_plan used in 8 games, no loops. NameErrors fell from 3.6-5.1% to 2.6% of tool calls.
+  - The ARC FR-Spec map adds about +2% throughput: accept length 3.15 vs 3.09-3.10.
+  - Exposing RESET (on in exp-077/078; Franzen leaves it off) cost sc25 all its levels: 10 deliberate resets
+    "to think again", 0 levels where every base run got 4-5.
+- **Running:** exp-078 (all seven patches, RESET exposed), 20:32 to about 22:55.
+- **Queued:** exp-079 = exp-078 with RESET not exposed (bed 26/26). It runs in parallel if Kaggle's quota check allows.
+- **Proposed LB order** (each version is directly submittable once its run completes and reads healthy):
+  1. exp-074t today.
+  2. Then the best-reading bundle version: exp-079 if healthy, else exp-077.
+- **Closed today:**
+  - Swift-1.5 dropped: no loops at its own sampling, but it plays worse than the Intel model.
+  - REAP-384 not pursued.
+  - Time allocation: no give-up or cap patch pays in the rerun model, and scheduling changes must not be judged on
+    public-25 runs (lesson 0036).
+- **Built today:** drafter fine-tune step 1, the hidden-state dump and replay driver. Step 2 (trainer, replica check)
+  and the ours-08 perception patch are in progress. The drafter's GPU sessions wait for the Sat 00:00 UTC reset.
+- GPU quota (20:48): 20.8 of 30 h used.
 
 ### State at 2026-10-08 19:30 UTC
 - **exp-074t is not submitted yet.** Our last submission is still the D' copy (Oct 7 21:57 UTC, 28.87); today's
