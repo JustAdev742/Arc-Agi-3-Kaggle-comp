@@ -2296,3 +2296,13 @@ Run:      scottmahony/arc3-dprime-gate-reap448-r14-accept05-steps4 v1 (12:42-13:
 Cost:     ~0.7 GPU-h. Follow-up: gate arms should stop when the server dies (his notebook continues on purpose, which
           only matters for the rerun).
 Queue:    exp-073b v2 (full length, REAP-14 + acceptance 0.5) pushed 13:31 into the freed slot, QUEUED.
+
+## 2026-10-08 13:33 · exp-073 per game against Franzen v3: gains where time ran out, losses on games he usually wins · OPEN RISK
+By how often v3 won the game in its 4 passes: never (14 games) +10.21 score / +0.55 levels per game; 1-3 of 4 (8 games)
+          -11.23 / -0.50; always (3) +6.92 / 0. Largest moves: cn04 +73.8, ka59 +56.2, m0r0 +25.0, sc25 +22.4; vc33 -58.9,
+          tn36 -49.9, tr87 -36.0, re86 -21.2, tu93 -15.5. Total levels 108 vs v3's 104.25 mean.
+Reading:  the gains sit where the mechanism says (budget-limited games reach further with more tokens); the losses on
+          vc33/tn36/tr87 are within one run's per-game spread (~17 points) but are also where REAP-448's possible
+          knowledge loss would show. Accept length (2.67 vs 2.69) argues against a large distribution shift, not against
+          a niche one. Settled by repeats, not by this run: the LB draws of exp-074s and a second full-length REAP run
+          (or a REAP-at-10-streams run, which isolates quality from throughput) when quota allows.
