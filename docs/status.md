@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-09-23 (session 6, remote CPU container: 4 vCPU, 15 GB RAM, no GPU; Kaggle CLI authenticated as `scottmahony`).
+Last updated: 2026-10-08 19:30 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
 
 ## Competition facts: verified vs. unconfirmed
 
@@ -145,6 +145,28 @@ score over at least 3 draws each. A difference under 0.5 points is a tie, broken
 public 25 (scripts/arm_table.py), then the validation score. If the top two are variants of one configuration within
 noise, the second slot goes to the best configuration that differs from it (diversification against the private half).
 If fewer than two configurations reach 3 draws, the unmodified base fills the second slot.
+
+### State at 2026-10-08 19:30 UTC
+- **exp-074t is not submitted yet.** Our last submission is still the D' copy (Oct 7 21:57 UTC, 28.87); today's
+  daily slot closes at 00:00 UTC. The owner submits exp-074t from
+  https://www.kaggle.com/code/scottmahony/arc3-dprime-reap448-r14-accept05 (save run checked 16:19).
+- **A finished full-length test run is itself a submittable version.** `--full25` changes only the save run (the
+  `TRUE_SUBMISSION` branch still sets concurrency 120 and 532 min per game), and `--fail-fast` is off in a rerun, so
+  exp-077 / exp-078, once complete and read, can be submitted without a separate save run.
+- Read since 16:15:
+  - exp-075 scored 42.89. It repeats the candidate config, so the candidate now has two full-length runs (56.00, 42.89).
+  - exp-076 (Swift-1.5) scored 4.44: exact repeat loops. Rejected as configured; gate exp-076g is running.
+  - The REAP-384 probe shifted the model about twice as much as REAP-448 did. Not pursued.
+  - Intel refresh: LB ≈ 0.55-0.62 × public-25; the leaders' edge looks like a trained policy (intel-oct8.md §1.5).
+- Running: exp-077 (candidate + budget meter, search helper, win ledger, level mem + ARC FR-Spec map; 18:27 to about
+  20:45) and exp-076g (pushed 19:21).
+- Ready: **exp-078** = exp-077 + effect table (06b) + fresh start (07). The notebook is 800 KB with the builder's new
+  `--compact` (Kaggle refused the 992 KB build). CPU bed: 26 of 26 checks pass, with fresh starts firing. It is pushed
+  once exp-077's logs show no patch bug.
+- GPU quota (19:30): 18.2 of 30 h used, 22.8 h reserved with the two running sessions; reset Sat 00:00 UTC.
+- **Decision only you can make:** the leaders' gain looks like post-training (a trained policy). One 96 GB Kaggle GPU at
+  30 h/week cannot train this 80B MoE. I have not costed it; if you would fund rented GPUs for a post-training attempt,
+  say so and I will scope it with a cost before renting anything.
 
 ### State at 2026-10-08 16:15 UTC
 - **LB (16:0x):** Tufa Labs 55.89, Yi-Chia Chen 55.77, Majkel1337 42.66, then a band at 34-39. Ours: 28.87 (the D'
