@@ -2684,7 +2684,7 @@ Decisions: trainer reproduces the unshifted embeddings for prefilled context row
 Open:     whether exp-073's kernel output holds `*_requests.jsonl` (our pulls skip .jsonl); the replica-check driver
           mode and the step-2 trainer (plan §3) are not built. GPU work waits for the Sat 00:00 UTC quota reset.
 
-## 2026-10-08 21:00 · exp-077 · harness bundle (02/04/03b/05) + RESET exposed + ARC FR-Spec map: 48.96, no change in score · READ
+## 2026-10-08 20:47 · exp-077 · harness bundle (02/04/03b/05) + RESET exposed + ARC FR-Spec map: 48.96, no change in score · READ
 Run:      scottmahony/arc3-dprime-r14a05-harness3-full v1 (18:27-20:3x UTC; GPU session ended ~20:30, COMPLETE 20:44) =
           exp-075 + budget meter (OURS_BUDGET_METER, EXPOSE_RESET=on), search helper, win ledger, level mem + the ARC-tuned
           FR-Spec map; runs/exp077-dprime-r14a05-harness3-full; whole-game transcripts in scratchpad sa077/.
