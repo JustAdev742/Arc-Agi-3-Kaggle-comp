@@ -2661,7 +2661,7 @@ Decision: no scheduler patch. Lesson 0036: a public-25 run shows these give-ups 
 Checked:  re-running scratchpad timealloc/rerun.py (seeded, 4.3 min on the CPU) reproduced the table exactly (giveup30
           -6.91, giveup40 -1.74, giveup50 -0.19, franzen_gate -1.19, last-level B=10 +0.26).
 
-## 2026-10-08 20:30 · MTP draft fine-tune, step 1 built: hidden-state dump patch + snapshot replay driver (CPU) · BUILT
+## 2026-10-08 20:26 · MTP draft fine-tune, step 1 built: hidden-state dump patch + snapshot replay driver (CPU) · BUILT
 Files:    scripts/sglang_hc_dump_patch.py (installs sglang/srt/arc3_hc_dump.py and 20 added lines in qwen4_exp.py, sha256
           pinned to the wheel's file or that file after REAP; `apply`, `revert`, `check-wheel`), scripts/hc_dump_driver.py
           (maximal snapshots from `*_requests.jsonl`, loop filter, game holdout, replay with max_tokens 1, per-request
