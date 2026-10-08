@@ -2356,3 +2356,19 @@ Where:    fresh-frame turns (user + image) 0.054 vs 0.037; tool-result/text turn
 Reading:  consistent with REAP-k448 (calibrated on agentic text) disturbing image-token processing. Caveat: the floor is
           within-run batching noise only; a second base run (arc3-fidelity-base v2, pushed 15:32) gives the cross-run
           floor (different session, autotuned kernels) that the base-vs-REAP pair also contains.
+
+## 2026-10-08 16:01 · exp-073b · REAP-448 + 14 streams + MTP acceptance 0.5, full length: 56.00, 124 levels · KEPT (new candidate)
+Run:      scottmahony/arc3-dprime-reap448-r14-accept05-full v2 (13:55-15:57 UTC), D', 25 public games at 121 min per game;
+          runs/exp073b-dprime-reap448-r14-accept05-full (report.txt).
+Measured: mean score 56.00 (our scorer), 124 levels, 6,350 actions, 8 games won (incl. vc33 7/7, tn36 7/7, tr87 6/6,
+          the three exp-073 had lost). Server: 791.3 output tok/s over 7,315 s (exp-073: 735.3; Franzen v3: 610),
+          accept length 3.10, decode p50 922-969 at 12-14 running, 12.3 of 14 running, peak pool use 0.99, 2,899
+          completions all HTTP 200, 10 read timeouts.
+Against:  Franzen v3's four passes 45.80/45.59/47.46/47.12 (pass SD 0.93): +9.5 over their mean; exp-073 (REAP-14 alone)
+          49.45 / 108 levels. The measured elasticity (0.6-0.8) predicted ~55-58 from +30% output tokens: it landed
+          there. One run; the per-game swings between exp-073 and exp-073b (vc33 21 -> 100, tn36 4 -> 100) show how
+          much of exp-073's game-level "losses" was luck.
+Decision: exp-074t = this serving config on D''s unmodified submission path + input-path fallback + sandbox fix
+          (scottmahony/arc3-dprime-reap448-r14-accept05); save run pushed 16:00 UTC. It replaces exp-074s as the
+          submission candidate. The fidelity question (REAP's small shift on image turns) stays open; the second
+          base probe (running) gives the cross-run floor.
