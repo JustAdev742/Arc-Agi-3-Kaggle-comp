@@ -2372,3 +2372,18 @@ Decision: exp-074t = this serving config on D''s unmodified submission path + in
           (scottmahony/arc3-dprime-reap448-r14-accept05); save run pushed 16:00 UTC. It replaces exp-074s as the
           submission candidate. The fidelity question (REAP's small shift on image turns) stays open; the second
           base probe (running) gives the cross-run floor.
+
+## 2026-10-08 16:03 · fidelity probe, cross-run floor: REAP-448's shift is real and confined to image turns · CLOSED (REAP kept)
+Runs:     arc3-fidelity-base v1, arc3-fidelity-base v2 (15:45-16:00 UTC, a second session of the same notebook) and
+          arc3-fidelity-reap448 v1; scripts/fidelity_compare.py over all three -> runs/fidelity-compare-3way.json.
+Measured: cross-run floor (base v1 vs base v2, same pass) mean |dlp| 0.0376-0.0397, prefix share 0.120-0.132; the
+          within-run floors (seq vs conc) sit in the same band (0.0337-0.0395, 0.113-0.135). All eight base-vs-REAP
+          pairs sit outside that band: |dlp| 0.0424-0.0480, prefix share 0.075-0.100. Headline (seq passes): |dlp|
+          0.0480 vs 0.0376 (ratio 1.28); prefix share diff -0.045 (95% bootstrap -0.073..-0.017); per-request |dlp|
+          +0.026 (+0.012..+0.043). Near-tie divergences 0 of 145.
+Where:    fresh-frame turns (user + image) |dlp| 0.0536 vs 0.0372; tool-result/text turns 0.0383 vs 0.0383 (no shift).
+          By game the biggest gaps are vc33 0.094/0.041, ft09 0.075/0.042, tn36 0.045/0.017; lp85 and tu93 show none.
+Reading:  the shift exceeds every noise floor we can measure and lives on the image turns, consistent with REAP's
+          text-only calibration dropping experts that image tokens route to. It does not show up as a score loss: with
+          REAP-448 + acceptance 0.5, exp-073b scored 56.00 and won vc33, tn36 and tr87. Kept. A REAP calibrated on our own
+          logged ARC traffic (image turns included) is the obvious way to shrink it; that is a follow-up, not a blocker.
