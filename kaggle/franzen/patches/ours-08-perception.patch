@@ -1,0 +1,905 @@
+diff --git a/ARC3-Inference/inference/agent/python_tool_sandbox.py b/ARC3-Inference/inference/agent/python_tool_sandbox.py
+index dc4e73f..e6e7ddd 100644
+--- a/ARC3-Inference/inference/agent/python_tool_sandbox.py
++++ b/ARC3-Inference/inference/agent/python_tool_sandbox.py
+@@ -19,6 +19,7 @@ from inference.utils import frame_diff as _frame_diff_module
+ from inference.utils import segmentation as _segmentation
+ from inference.utils import retained_functions as _retained_functions
+ from inference.utils import search_helper as _search_helper
++from inference.utils import ours_perception_sandbox as _ours_perception_sandbox
+ from inference.utils.grid_utils import ARC_COLOR_CHARS
+ 
+ 
+@@ -46,6 +47,7 @@ _SANDBOX_BOOTSTRAP = textwrap.dedent(
+ 
+     __RETAINED_FUNCTIONS_SOURCE__
+     __SEARCH_HELPER_SOURCE__
++    __OURS_PERCEPTION_SOURCE__
+ 
+     HOST_STDOUT = sys.stdout
+ 
+@@ -543,6 +545,7 @@ _SANDBOX_BOOTSTRAP = textwrap.dedent(
+                     item["win_frame"] = _frame_from_payload(item.get("win_frame"))
+                     level_wins.append(item)
+                 runtime_globals["level_wins"] = level_wins
++            __OURS_PERCEPTION_REFRESH__
+ 
+         # Both refusals derive from BaseException, not Exception, so a
+         # defensive `except Exception:` around action(...) - which models write
+@@ -773,6 +776,7 @@ _SANDBOX_BOOTSTRAP = textwrap.dedent(
+                                      runtime_globals["last_animation_timeline"]))
+ 
+         __SEARCH_HELPER_HOOK__
++        __OURS_PERCEPTION_HOOK__
+         _refresh_state(initial.get("state") or {})
+ 
+         _persistence_enabled = bool(initial.get("persistence_enabled"))
+@@ -887,6 +891,28 @@ _SANDBOX_BOOTSTRAP_SEARCH = _SANDBOX_BOOTSTRAP.replace(
+ _SANDBOX_BOOTSTRAP = _SANDBOX_BOOTSTRAP.replace("__SEARCH_HELPER_SOURCE__\n", "").replace(
+     "    __SEARCH_HELPER_HOOK__\n", ""
+ )
++# ours (OURS_PERCEPTION): with the flag on a snippet runs a bootstrap that also holds the perception helpers' source,
++# installs them before the first state refresh and binds the host's view state at every refresh. With it off the three
++# placeholder lines are dropped, so these two bootstraps are the ones from before this patch.
++_OURS_PERCEPTION_PARTS = (
++    ("__OURS_PERCEPTION_SOURCE__\n", inspect.getsource(_ours_perception_sandbox)),
++    ("    __OURS_PERCEPTION_HOOK__\n",
++     "    ours_perception_install(runtime_globals, FrameView, segment_layer, COLOR_CHARS)\n"),
++    ("        __OURS_PERCEPTION_REFRESH__\n", '        if isinstance(state_payload.get("ours_view"), dict):\n'
++                                             '            _ours_view_bind(runtime_globals, state_payload["ours_view"])\n'),
++)
++
++
++def _ours_perception_variant(bootstrap: str, on: bool) -> str:
++    for placeholder, text in _OURS_PERCEPTION_PARTS:
++        bootstrap = bootstrap.replace(placeholder, text if on else "")
++    return bootstrap
++
++
++_OURS_PERCEPTION_BOOTSTRAPS = {False: _ours_perception_variant(_SANDBOX_BOOTSTRAP, True),
++                               True: _ours_perception_variant(_SANDBOX_BOOTSTRAP_SEARCH, True)}
++_SANDBOX_BOOTSTRAP = _ours_perception_variant(_SANDBOX_BOOTSTRAP, False)
++_SANDBOX_BOOTSTRAP_SEARCH = _ours_perception_variant(_SANDBOX_BOOTSTRAP_SEARCH, False)
+ 
+ 
+ log = logging.getLogger(__name__)
+@@ -962,12 +988,16 @@ def run_sandboxed_python(
+     retain_imports: bool = False,
+     repair_hints: bool = False,
+     search_helper: bool = False,
++    perception: bool = False,
+ ) -> dict[str, Any]:
+     with tempfile.TemporaryDirectory(prefix="rgb_python_tool_") as sandbox_dir:
+         host_action_results: list[dict[str, Any]] = []
+         try:
+             process = subprocess.Popen(
+-                [sys.executable, "-I", "-S", "-c", _SANDBOX_BOOTSTRAP_SEARCH if search_helper else _SANDBOX_BOOTSTRAP],
++                [sys.executable, "-I", "-S", "-c",
++                 # ours (OURS_PERCEPTION): the bootstrap with the perception helpers when the flag is on
++                 _OURS_PERCEPTION_BOOTSTRAPS[bool(search_helper)] if perception
++                 else _SANDBOX_BOOTSTRAP_SEARCH if search_helper else _SANDBOX_BOOTSTRAP],
+                 stdin=subprocess.PIPE,
+                 stdout=subprocess.PIPE,
+                 stderr=subprocess.PIPE,
+diff --git a/ARC3-Inference/inference/agent/tool_agent.py b/ARC3-Inference/inference/agent/tool_agent.py
+index f986f84..02c5758 100644
+--- a/ARC3-Inference/inference/agent/tool_agent.py
++++ b/ARC3-Inference/inference/agent/tool_agent.py
+@@ -3136,6 +3136,10 @@ def _build_system_prompt(*, tool_output_tokens: int) -> str:
+     # ours (OURS_EFFECT_TABLE, read at call time): four lines documenting effects(); "" when the flag is off
+     from inference.utils.ours_effect_table import system_prompt_lines as _ours_effect_lines
+     prompt += _ours_effect_lines()
++    # ours (OURS_PERCEPTION, read at call time): four lines documenting view_offset, left_view, logical_grid() and
++    # .segmentation8; "" when the flag is off
++    from inference.utils.ours_perception import system_prompt_lines as _ours_perception_lines
++    prompt += _ours_perception_lines()
+     if _get_env_bool("ARC3_FRAME_DIFF_HINT", False):
+         # documents `frame_diff(before, after)`. The function stays callable
+         # either way - this only controls whether the model is told about it,
+@@ -6260,6 +6264,11 @@ class ToolAgent:
+         # ours (OURS_EFFECT_TABLE): the state also carries the per-level effect tables for effects(); unchanged if off
+         from inference.utils.ours_effect_table import attach as _ours_effects_attach
+         _serialized_runtime_state = _ours_effects_attach(self, _serialized_runtime_state)
++        # ours (OURS_PERCEPTION, read once per call): the state also carries the view offsets and left_view, and the
++        # sandbox gets the perception helpers; unchanged if off
++        from inference.utils import ours_perception as _ours_perception
++        perception = _ours_perception.enabled()
++        _serialized_runtime_state = _ours_perception.attach(self, _serialized_runtime_state, perception)
+ 
+         def _handle_animation(request: dict[str, Any]) -> dict[str, Any]:
+             if self._step_env_callback is None:
+@@ -6408,6 +6417,8 @@ class ToolAgent:
+                 ours_mem_frame[0] = state.get("current_frame") or {}
+                 return state
+ 
++        # ours (OURS_PERCEPTION): an action() call that moved the view prints one [view] line; unchanged if off
++        _handle_action = _ours_perception.wrap_actions(self, _handle_action, perception)
+         # per snippet: a repeat across snippets is the model choosing, not a
+         # loop failing to converge
+         self._repeat_state_seen.clear()
+@@ -6423,6 +6434,7 @@ class ToolAgent:
+             retain_imports=_get_env_bool("ARC3_PERSISTENT_FUNCTIONS_IMPORTS", False),
+             repair_hints=_get_env_bool("ARC3_PERSISTENT_FUNCTIONS_REPAIR_HINTS", False),
+             search_helper=search_helper,
++            perception=perception,  # ours (OURS_PERCEPTION)
+         )
+ 
+         action_results = [
+diff --git a/ARC3-Inference/inference/utils/ours_perception.py b/ARC3-Inference/inference/utils/ours_perception.py
+new file mode 100644
+index 0000000..af4e7e2
+--- /dev/null
++++ b/ARC3-Inference/inference/utils/ours_perception.py
+@@ -0,0 +1,542 @@
++"""Ours (OURS_PERCEPTION): exact perception helpers, computed by the harness from the frames it already holds.
++
++On top of Daniel Franzen's harness (Apache-2.0). In exp-073b the model lost calls to views that scroll (bp35 confused
++positions across camera moves; lf52's cart left the view and was hunted with single actions), to lattices read by
++hand (ls20, cn04) and to a diagonal sprite that 4-connected segmentation splits into pixels (su15).
++With OURS_PERCEPTION=1 (read at call time; anything else is off and the harness is byte-identical) this module adds
++the host side; inference/utils/ours_perception_sandbox.py is the sandbox side (logical_grid(), .segmentation8, and
++the binding of what this module sends). No model calls, no actions: everything is computed from the frames.
++
++View shift. For each action whose frame before (A) and frame after (B) are on the same level (not a RESET), the
++harness looks for a whole-view shift s = (dr, dc): the content of A reappears in B moved by s. Candidates: pure
++vertical shifts under which the most board rows of A reappear unchanged in B (at least half of the overlapping rows),
++pure horizontal ones likewise by columns, and shifts voted for by 4x4 blocks of A found at most BLOCK_CAP times in B;
++lines and blocks of one colour do not count. A candidate is checked on the cells p where A differs from itself moved
++by s (A(p) != A(p+s)), the only cells where "the view moved" and "nothing moved" predict different things: p supports
++s if B(p+s) == A(p) and contradicts it if B(p+s) == A(p+s). This is counted over the whole overlap and again without
++the BORDER-cell edge band, where status bars stay put while the view moves. With at least MIN_CHANGED changed cells,
++s is claimed (CLAIM) if at least MIN_SUPPORT cells support it, and either at least 0.8 of the supporting-or-
++contradicting cells support it over the whole overlap with the supporting cells spanning at least half of the overlap
++in both directions, or at least 0.9 do without the band with a span of at least a quarter. A sprite moving over a
++uniform floor looks like the view moving the other way; it spans little. Once a game's view has moved under CLAIM,
++the looser CLAIM_AFTER_SCROLL (0.7 and 0.8) applies: a camera that follows the player or a cart leaves more of the
++frame in place. If no candidate is claimed but one passes UNSURE (or UNSURE_AFTER_SCROLL once the game has scrolled),
++the offset becomes unknown (None) until the level restarts, rather than possibly wrong; the [view] line says so only
++in a game that has scrolled. Measured on every recorded run: docs/research/beat-tufa/patch-perception.md.
++
++The offset: world (row, col) = frame (row, col) + offset; (0, 0) on the first frame of a level and after every RESET
++(a RESET restores the level start); each claimed shift s subtracts s. The action's echo gets one `[view]` line when
++the view moved during that call, and the sandbox gets `view_offset` and every history frame's `.view_offset`.
++
++Left the view. When a step leaves no cell of colour C in view (same level, no RESET), the objects of colour C in the
++frame before (4-connected, under AREA_PX cells, not lying inside the BORDER-cell edge band) that touched the frame
++edge, or that the view shift pushed past it, are recorded with that frame's step and their box in frame and world
++coordinates. A record stays in `left_view` while its colour is out of view on that level; it is dropped when the
++colour is seen again, at a RESET and at a level change.
++
++Stdlib only. Each history entry is processed once; a rewritten history is processed again from the start. Nothing
++here may stop a game: an error turns the helpers off for that game (view_offset None) and is logged.
++"""
++from __future__ import annotations
++
++import logging
++import os
++from collections import Counter
++
++log = logging.getLogger(__name__)
++
++COLOR_CHARS = "WwgGcBMPRbSYOrNp"  # inference.utils.grid_utils.ARC_COLOR_CHARS
++BLOCK = 4
++BLOCK_CAP = 3  # a row, column or block of A found more often than this in B does not vote
++CANDIDATES = 4  # block-voted candidates
++LINE_CANDIDATES = 2  # row-matched and column-matched candidates, each
++MIN_CHANGED = 32
++MIN_SUPPORT = 64
++CLAIM = ((0.8, 0.5), (0.9, 0.25))  # (ratio, span) over the whole overlap, or without the edge band
++CLAIM_AFTER_SCROLL = ((0.7, 0.5), (0.8, 0.25))  # the same, once the game has scrolled under CLAIM
++UNSURE = (0.8, 0.25)  # (ratio, span) without the edge band: the offset becomes unknown, silently
++UNSURE_AFTER_SCROLL = (0.6, 0.25)  # the same once the game has scrolled; the [view] line says so
++AREA_PX = 512
++BORDER = 4
++SHOWN = 3
++
++PROMPT_LINES = (
++    "- `view_offset` is (dr, dc) with world (row, col) = frame (row, col) + view_offset on this level: (0, 0) at "
++    "the level start and after a RESET, None if the harness could not tell. Each frame has `.view_offset`; when the "
++    "whole view scrolls, `action()` prints a `[view]` line.\n"
++    "- `left_view` lists objects whose colour left the view at its edge: colour, pixels, last step seen, frame box "
++    "and world box; an entry goes when that colour is in view again.\n"
++    "- `logical_grid(frame=None, cell=None, origin=None)` finds the frame's cell lattice and returns one character "
++    "per cell (its colour, `*` for a cell holding several; `.mixed` lists them), or None if there is none; pass "
++    "`cell=(h, w), origin=(row, col)` to set it.\n"
++    "- `frame.segmentation8` is `frame.segmentation` with 8-connected objects (cells touching at a corner join).\n"
++)
++
++
++def enabled() -> bool:
++    """OURS_PERCEPTION, read at call time."""
++    return os.environ.get("OURS_PERCEPTION", "").strip().lower() in ("1", "on", "true", "yes")
++
++
++def system_prompt_lines() -> str:
++    """The system-prompt documentation; empty when the flag is off."""
++    return PROMPT_LINES if enabled() else ""
++
++
++# --- the view shift ------------------------------------------------------------------------------------------------
++
++
++def as_rows(grid) -> tuple | None:
++    """A frame as a tuple of bytes rows (values 0-15), or None if it is not a rectangular grid of such values."""
++    try:
++        rows = tuple(bytes(row) for row in grid or ())
++    except (TypeError, ValueError):
++        return None
++    if not rows or not rows[0] or any(len(row) != len(rows[0]) for row in rows) or max(map(max, rows)) > 15:
++        return None
++    return rows
++
++
++def _changed(a: tuple, b: tuple) -> int:
++    return sum(1 for ra, rb in zip(a, b) if ra != rb for x, y in zip(ra, rb) if x != y)
++
++
++def _line_votes(a: tuple, b: tuple) -> list:
++    """Pure vertical shifts ranked by the number of overlapping board rows of `a` (not of one colour) found
++    unchanged in `b` at the shifted place, and pure horizontal ones likewise by columns (the board leaves out the edge
++    band); LINE_CANDIDATES of each at most, best first, each with at least 3 matching lines and at least half of the
++    overlapping lines matching."""
++    h, w = len(a), len(a[0])
++    out = []
++    for lines_a, lines_b, as_shift in (
++            ([row[BORDER:w - BORDER] for row in a], [row[BORDER:w - BORDER] for row in b], lambda d: (d, 0)),
++            ([bytes(col) for col in zip(*a[BORDER:h - BORDER])], [bytes(col) for col in zip(*b[BORDER:h - BORDER])],
++             lambda d: (0, d))):
++        n = len(lines_a)
++        plain = [not line or line.count(line[0]) == len(line) for line in lines_a]
++        ranked = []
++        for d in range(1 - n, n):
++            if d == 0:
++                continue
++            lo, hi = max(0, -d), min(n, n - d)
++            tried = matched = 0
++            for i in range(lo, hi):
++                if not plain[i]:
++                    tried += 1
++                    matched += lines_a[i] == lines_b[i + d]
++            if matched >= 3 and 2 * matched >= tried:
++                ranked.append((matched, -abs(d), d))
++        ranked.sort(reverse=True)
++        out += [as_shift(d) for *_, d in ranked[:LINE_CANDIDATES]]
++    return out
++
++
++def _block_votes(a: tuple, b: tuple) -> list:
++    """Shifts voted for by 4x4 blocks of `a` (every second row and column, not one colour) that occur at most
++    BLOCK_CAP times in `b`, most votes first."""
++    h, w = len(a), len(a[0])
++    k = BLOCK
++    if h < k or w < k:
++        return []
++    grams_b = [[row[c:c + k] for c in range(w - k + 1)] for row in b]
++    where: dict = {}
++    for r in range(h - k + 1):
++        g0, g1, g2, g3 = grams_b[r], grams_b[r + 1], grams_b[r + 2], grams_b[r + 3]
++        for c in range(w - k + 1):
++            key = (g0[c], g1[c], g2[c], g3[c])
++            seen = where.get(key)
++            if seen is None:
++                where[key] = [(r, c)]
++            elif len(seen) <= BLOCK_CAP:
++                seen.append((r, c))
++    votes: Counter = Counter()
++    for r in range(0, h - k + 1, 2):
++        rows = a[r:r + k]
++        for c in range(0, w - k + 1, 2):
++            key = tuple(row[c:c + k] for row in rows)
++            if key[0] == key[1] == key[2] == key[3] and key[0].count(key[0][0]) == k:
++                continue
++            seen = where.get(key)
++            if not seen or len(seen) > BLOCK_CAP:
++                continue
++            for rb, cb in seen:
++                if rb != r or cb != c:
++                    votes[(rb - r, cb - c)] += 1
++    return [s for s, _ in votes.most_common(CANDIDATES)]
++
++
++def candidates(a: tuple, b: tuple) -> list:
++    """The shifts worth checking: row- and column-voted first, then block-voted, without repeats."""
++    out = []
++    for s in _line_votes(a, b) + _block_votes(a, b):
++        if s not in out and s != (0, 0):
++            out.append(s)
++    return out
++
++
++def _tally() -> dict:
++    return {"shift": 0, "zero": 0, "other": 0, "rows": [], "cmin": 1 << 30, "cmax": -1, "overlap": (0, 0)}
++
++
++def _finish(t: dict) -> dict:
++    tried = t["shift"] + t["zero"]
++    rows_over, cols_over = t["overlap"]
++    span = 0.0
++    if t["shift"] and rows_over and cols_over:
++        span = min((t["rows"][-1] - t["rows"][0] + 1) / rows_over, (t["cmax"] - t["cmin"] + 1) / cols_over)
++    return {"shift": t["shift"], "zero": t["zero"], "other": t["other"],
++            "ratio": t["shift"] / tried if tried else 0.0, "span": span}
++
++
++def support(a: tuple, b: tuple, s: tuple) -> tuple:
++    """The evidence for shift s, over the whole overlap and over the overlap without the edge band: cells p with
++    A(p) != A(p+s) that support s (B(p+s) == A(p)), contradict it (B(p+s) == A(p+s)) or neither, the share of
++    supporting among supporting-or-contradicting cells, and the span of the supporting cells relative to the overlap
++    (the smaller of the row and column fractions)."""
++    dr, dc = s
++    h, w = len(a), len(a[0])
++    r0, r1 = max(0, -dr), min(h, h - dr)
++    c0, c1 = max(0, -dc), min(w, w - dc)
++    rb0, rb1 = max(BORDER, BORDER - dr), min(h - BORDER, h - BORDER - dr)  # rows with p and p+s off the band
++    cb0, cb1 = max(BORDER, BORDER - dc) - c0, min(w - BORDER, w - BORDER - dc) - c0  # the same, as slice indices
++    whole, board = _tally(), _tally()
++    whole["overlap"] = (max(0, r1 - r0), max(0, c1 - c0))
++    board["overlap"] = (max(0, rb1 - rb0), max(0, cb1 - cb0))
++    for r in range(r0, r1):
++        xa = a[r][c0:c1]
++        ya = a[r + dr][c0 + dc:c1 + dc]
++        if xa == ya:
++            continue
++        zb = b[r + dr][c0 + dc:c1 + dc]
++        in_rows = rb0 <= r < rb1
++        hit = hit_board = False
++        for i, (x, y, z) in enumerate(zip(xa, ya, zb)):
++            if x == y:
++                continue
++            on_board = in_rows and cb0 <= i < cb1
++            if z == x:
++                whole["shift"] += 1
++                whole["cmin"], whole["cmax"], hit = min(whole["cmin"], i), max(whole["cmax"], i), True
++                if on_board:
++                    board["shift"] += 1
++                    board["cmin"], board["cmax"], hit_board = min(board["cmin"], i), max(board["cmax"], i), True
++            else:
++                kind = "zero" if z == y else "other"
++                whole[kind] += 1
++                if on_board:
++                    board[kind] += 1
++        if hit:
++            whole["rows"].append(r)
++        if hit_board:
++            board["rows"].append(r)
++    return _finish(whole), _finish(board)
++
++
++def _passes(evidence: dict, ratio: float, span: float) -> bool:
++    return evidence["shift"] >= MIN_SUPPORT and evidence["ratio"] >= ratio and evidence["span"] >= span
++
++
++def _claimed(whole: dict, board: dict, rule: tuple) -> bool:
++    (ratio_w, span_w), (ratio_b, span_b) = rule
++    return _passes(whole, ratio_w, span_w) or _passes(board, ratio_b, span_b)
++
++
++def measure(a, b, scrolled: bool = False) -> dict:
++    """The verdict for frames a and b ("shift", "unsure" or "none"), the chosen candidate and its evidence.
++
++    `scrolled`: this game's view has moved before under the CLAIM rule, so the looser CLAIM_AFTER_SCROLL and
++    UNSURE_AFTER_SCROLL apply (a game whose camera follows its objects leaves more of the frame in place)."""
++    a, b = as_rows(a), as_rows(b)
++    if a is None or b is None or len(a) != len(b) or len(a[0]) != len(b[0]):
++        return {"verdict": "none", "why": "not two frames of one shape"}
++    changed = _changed(a, b)
++    if changed < MIN_CHANGED:
++        return {"verdict": "none", "changed": changed}
++    best = None
++    unsure = None
++    doubt = UNSURE_AFTER_SCROLL if scrolled else UNSURE
++    for s in candidates(a, b):
++        whole, board = support(a, b, s)
++        strict = _claimed(whole, board, CLAIM)
++        claimed = strict or (scrolled and _claimed(whole, board, CLAIM_AFTER_SCROLL))
++        key = (claimed, whole["shift"] - whole["zero"])
++        if best is None or key > best[0]:
++            best = (key, s, whole, board, strict)
++        if unsure is None and _passes(board, *doubt):
++            unsure = s
++    if best is None:
++        return {"verdict": "none", "changed": changed}
++    (claimed, _), s, whole, board, strict = best
++    out = {"changed": changed, "candidate": s, "whole": whole, "board": board, "strict": strict}
++    if claimed:
++        return {**out, "verdict": "shift"}
++    if unsure is not None:
++        return {**out, "verdict": "unsure", "unsure_candidate": unsure}
++    return {**out, "verdict": "none"}
++
++
++def view_shift(a, b, scrolled: bool = False):
++    """(dr, dc) by which the whole view of frame a moved in frame b, "unsure", or None."""
++    m = measure(a, b, scrolled)
++    if m["verdict"] == "shift":
++        return tuple(m["candidate"])
++    return "unsure" if m["verdict"] == "unsure" else None
++
++
++# --- objects that left the view --------------------------------------------------------------------------------------
++
++
++def _components(rows: tuple, colour: int) -> list:
++    """4-connected components of one colour: (pixels, (r0, c0, r1, c1)); pixels capped at AREA_PX."""
++    h, w = len(rows), len(rows[0])
++    seen = set()
++    out = []
++    for r in range(h):
++        row = rows[r]
++        start = row.find(colour)
++        while start != -1:
++            if (r, start) not in seen:
++                seen.add((r, start))
++                stack = [(r, start)]
++                n, r0, c0, r1, c1 = 0, r, start, r, start
++                while stack:
++                    y, x = stack.pop()
++                    n += 1
++                    r0, r1, c0, c1 = min(r0, y), max(r1, y), min(c0, x), max(c1, x)
++                    for yy, xx in ((y - 1, x), (y + 1, x), (y, x - 1), (y, x + 1)):
++                        if 0 <= yy < h and 0 <= xx < w and (yy, xx) not in seen and rows[yy][xx] == colour:
++                            seen.add((yy, xx))
++                            stack.append((yy, xx))
++                out.append((min(n, AREA_PX), (r0, c0, r1, c1)))
++            start = row.find(colour, start + 1)
++    return out
++
++
++def _sides(box: tuple, s: tuple, h: int, w: int) -> list:
++    """The frame edges the box touches, or that the shift s pushes it past."""
++    r0, c0, r1, c1 = box
++    dr, dc = s
++    sides = []
++    if r0 == 0 or r0 + dr < 0:
++        sides.append("top")
++    if r1 == h - 1 or r1 + dr > h - 1:
++        sides.append("bottom")
++    if c0 == 0 or c0 + dc < 0:
++        sides.append("left")
++    if c1 == w - 1 or c1 + dc > w - 1:
++        sides.append("right")
++    return sides
++
++
++def exits(a: tuple, b: tuple, s: tuple, step: int, offset) -> list:
++    """Records of the objects of `a` whose colour is nowhere in `b` and that touched the frame edge (or were pushed
++    past it by the view shift s)."""
++    gone = set().union(*map(set, a)) - set().union(*map(set, b))
++    h, w = len(a), len(a[0])
++    records = []
++    for colour in sorted(gone):
++        for px, box in _components(a, colour):
++            r0, c0, r1, c1 = box
++            in_band = r1 < BORDER or r0 >= h - BORDER or c1 < BORDER or c0 >= w - BORDER
++            sides = _sides(box, s, h, w)
++            if px >= AREA_PX or in_band or not sides:
++                continue
++            world = None if offset is None else [r0 + offset[0], c0 + offset[1], r1 + offset[0], c1 + offset[1]]
++            records.append({"colour": COLOR_CHARS[colour], "pixels": px, "step": step, "box": [r0, c0, r1, c1],
++                            "world_box": world, "edge": "/".join(sides)})
++    return records
++
++
++# --- the tracker -----------------------------------------------------------------------------------------------------
++
++
++def _parts(entry) -> tuple:
++    """(action, rows, step, level) of a history payload dict or a HistoryEntry-like object."""
++    if isinstance(entry, dict):
++        frame = entry.get("frame") or {}
++        grid, step, level = frame.get("grid"), frame.get("step"), frame.get("level")
++        action = entry.get("action")
++    else:
++        frame = getattr(entry, "frame", None)
++        grid, step, level = getattr(frame, "grid", None), getattr(frame, "step", 0), getattr(frame, "level", 1)
++        action = getattr(entry, "action", "")
++    return str(action or "").strip(), as_rows(grid), int(step or 0), int(level or 1)
++
++
++class ViewTracker:
++    """A game's history, processed incrementally into per-entry view offsets, shifts and left-view records."""
++
++    def __init__(self):
++        self.error = ""
++        self._reset()
++
++    def _reset(self) -> None:
++        self.offsets: list = []  # per entry: (dr, dc), world = frame + offset; None when unknown
++        self.shifts: list = []  # per entry: (step, (dr, dc)) when its action moved the view, else None
++        self.exits: list = []  # per entry: records of objects that left the view on its action
++        self.resets: list = []  # per entry: True for a RESET or a level start
++        self.unsure: list = []  # per entry: True when its action made the offset unknown
++        self.steps: list = []  # per entry: its frame's step
++        self.announce: list = []  # per entry: an unknown offset there is said in the [view] line
++        self.scrolled = False  # the view has moved under the CLAIM rule in this game
++        self.left: list = []  # the current level's records whose colour is still out of view
++        self.count = 0
++        self._key = None
++        self._prev = None  # (rows, level, step) of the last entry
++        self._current = None  # rows of the last entry, for the current frame
++
++    def update(self, history: list) -> int:
++        """Process the entries not seen yet (all of them if the history was rewritten); returns how many."""
++        if len(history) < self.count or (self.count and self._entry_key(history[self.count - 1]) != self._key):
++            self._reset()
++        start = self.count
++        for entry in history[start:]:
++            action, rows, step, level = _parts(entry)
++            self._add(action, rows, step, level)
++            self.count += 1
++            self._key = (step, action, hash(rows))
++        return self.count - start
++
++    @staticmethod
++    def _entry_key(entry) -> tuple:
++        action, rows, step, _ = _parts(entry)
++        return step, action, hash(rows)
++
++    def _add(self, action: str, rows, step: int, level: int) -> None:
++        prev, self._prev = self._prev, (rows, level, step)
++        self._current = rows
++        restart = prev is None or not action or level != prev[1] or action.upper() == "RESET"
++        if restart:
++            self._append(step, (0, 0) if rows is not None else None, None, [], True, False, False)
++            self.left = []
++            return
++        a_rows, _, a_step = prev
++        offset = self.offsets[-1]
++        if rows is None or a_rows is None or len(rows) != len(a_rows) or len(rows[0]) != len(a_rows[0]):
++            self._append(step, None, None, [], False, offset is not None, self.scrolled)
++            return
++        m = measure(a_rows, rows, self.scrolled)
++        announce = self.scrolled
++        moved = None
++        s = (0, 0)
++        if m["verdict"] == "unsure":
++            self._append(step, None, None, exits(a_rows, rows, s, a_step, offset), False, offset is not None,
++                         announce)
++        else:
++            if m["verdict"] == "shift":
++                s = tuple(m["candidate"])
++                moved = (step, s)
++                self.scrolled = self.scrolled or m["strict"]
++                if offset is not None:
++                    offset = (offset[0] - s[0], offset[1] - s[1])
++            self._append(step, offset, moved, exits(a_rows, rows, s, a_step, self.offsets[-1]), False, False,
++                         False)
++        here = set().union(*map(set, rows))
++        self.left = [x for x in self.left if COLOR_CHARS.index(x["colour"]) not in here] + self.exits[-1]
++
++    def _append(self, step: int, offset, moved, out: list, reset: bool, unsure: bool, announce: bool) -> None:
++        self.announce.append(unsure and announce)
++        self.steps.append(step)
++        self.offsets.append(offset)
++        self.shifts.append(moved)
++        self.exits.append(out)
++        self.resets.append(reset)
++        self.unsure.append(unsure)
++
++    def payload(self, current_grid=None) -> dict:
++        """What the sandbox binds: the offset of every history entry, of the current frame, and `left_view`."""
++        if self.error:
++            return {"error": self.error, "offsets": [None] * self.count, "current": None, "left": []}
++        current = self.offsets[-1] if self.offsets else None
++        if current_grid is not None and as_rows(current_grid) != self._current:
++            current = None
++        return {"offsets": [None if o is None else list(o) for o in self.offsets],
++                "current": None if current is None else list(current), "left": [dict(x) for x in self.left]}
++
++    def line(self, start: int) -> str:
++        """The `[view]` line for the entries from `start` on (one action() call), or ""."""
++        if self.error or start >= self.count or start < 0:
++            return ""
++        parts = []
++        moves = [m for m in self.shifts[start:] if m is not None]
++        if moves:
++            shown = moves[:SHOWN]
++            more = f" +{len(moves) - SHOWN} more" if len(moves) > SHOWN else ""
++            steps = ", ".join(str(st) for st, _ in shown)
++            deltas = ", ".join(f"({dr:+d},{dc:+d})" for _, (dr, dc) in shown)
++            head = (f"scrolled at step {steps}: content moved {deltas}" if len(moves) == 1 else
++                    f"scrolled {len(moves)} times (steps {steps}{more}): content moved {deltas}{more}")
++            offset = self.offsets[-1]
++            reset = " after the RESET" if self.resets[-1] else ""
++            parts.append(head + "; view_offset now " + ("unknown" if offset is None else
++                                                        f"({offset[0]:+d},{offset[1]:+d}){reset}"))
++        lost = [i for i in range(start, self.count) if self.announce[i]]
++        if lost:
++            parts.append(f"the frame changed at step {self.steps[lost[0]]} in a way that may be a scroll; "
++                         "view_offset is unknown until the next RESET or level")
++        gone = [x for items in self.exits[start:] for x in items]
++        if gone:
++            shown = "; ".join(f"{x['colour']} {x['pixels']}px at the {x['edge']} edge (last seen step {x['step']}, "
++                              f"rows {x['box'][0]}-{x['box'][2]}, cols {x['box'][1]}-{x['box'][3]})"
++                              for x in gone[:2])
++            more = f"; +{len(gone) - 2} more" if len(gone) > 2 else ""
++            parts.append(f"left the view: {shown}{more}; see left_view")
++        return "\n".join("[view] " + p for p in parts)
++
++
++# --- harness glue (tool_agent.py calls these; each is a no-op with the flag off) --------------------------------------
++
++
++def _tracker(agent) -> ViewTracker:
++    tracker = getattr(agent, "_ours_view_tracker", None)
++    if tracker is None:
++        tracker = agent._ours_view_tracker = ViewTracker()
++    return tracker
++
++
++def attach(agent, serialize, on: bool):
++    """Wrap `_run_python_tool`'s state serializer so the state carries "ours_view"; `serialize` itself when off."""
++    if not on:
++        return serialize
++    tracker = _tracker(agent)
++
++    def serialize_with_view(**kwargs):
++        state = serialize(**kwargs)
++        if not tracker.error:
++            try:
++                tracker.update(state.get("history") or [])
++            except Exception as exc:
++                tracker.error = f"internal error ({type(exc).__name__}); view tracking is off for this game"
++                log.warning("ours view tracking disabled for this game", exc_info=True)
++        try:
++            state["ours_view"] = tracker.payload((state.get("current_frame") or {}).get("grid"))
++        except Exception as exc:
++            tracker.error = f"internal error ({type(exc).__name__}); view tracking is off for this game"
++            log.warning("ours view tracking disabled for this game", exc_info=True)
++            state["ours_view"] = tracker.payload()
++        return state
++
++    return serialize_with_view
++
++
++def wrap_actions(agent, handle_action, on: bool):
++    """Wrap `_run_python_tool`'s action handler so an action() call that moved the view, or after which an object
++    left it, prints one `[view]` line with its echo; `handle_action` itself when off."""
++    if not on:
++        return handle_action
++    tracker = _tracker(agent)
++
++    def handle_with_view(actions, **kwargs):
++        start = tracker.count
++        reply = handle_action(actions, **kwargs)
++        try:
++            line = tracker.line(start)
++            result = reply.get("action_result") if isinstance(reply, dict) else None
++            if line and isinstance(result, dict):
++                echo = result.get("action_echo")
++                result["action_echo"] = f"{echo}\n{line}" if echo else line
++        except Exception:
++            log.warning("ours view line failed", exc_info=True)
++        return reply
++
++    return handle_with_view
+diff --git a/ARC3-Inference/inference/utils/ours_perception_sandbox.py b/ARC3-Inference/inference/utils/ours_perception_sandbox.py
+new file mode 100644
+index 0000000..0a094b6
+--- /dev/null
++++ b/ARC3-Inference/inference/utils/ours_perception_sandbox.py
+@@ -0,0 +1,174 @@
++"""Ours (OURS_PERCEPTION), the sandbox side: spliced verbatim into the python sandbox's bootstrap only when the flag
++is on (python_tool_sandbox.py), like search_helper.py. Standard library only, no imports at all, no ``from
++__future__`` import; every top-level name starts with ``_ours``, ``ours_`` or ``OursLogicalGrid``, so nothing can
++shadow a bootstrap name. The bootstrap's hook passes in its ``FrameView``, ``segment_layer`` and ``COLOR_CHARS``.
++inference/utils/ours_perception.py is the host side and documents the view offset and left_view that this binds.
++
++``logical_grid(frame=None, cell=None, origin=None)``: the frame on its cell lattice, one character per cell. Without
++``cell`` the lattice is found from the colour edges outside the 4-cell edge band, per axis: for each period p from 2
++to 16 the residue (row or column mod p) holding the most edges must hold at least 60% of them, at least 3 times the
++next residue, on at least 3 distinct lines, from at least 12 edges. Cells are square: p must pass on both axes, and
++the largest such p is taken unless a passing divisor q of p puts more than 1.25 times as many edges on its lines on
++either axis (then the coarser lattice would hide a finer structure, and the next p down is tried). Returns None when
++no p passes. A uniform cell shows its colour character; a cell holding several colours shows ``*`` and is listed in
++``.mixed`` with its colour counts. Pixels outside the whole cells (strips before the origin and after the last whole
++cell) are not shown.
++
++``frame.segmentation8``: ``segment_layer(frame, COLOR_CHARS, connectivity=8)``, cached per frame.
++"""
++
++_OURS_MIN_EDGES = 12
++_OURS_MIN_LINES = 3
++_OURS_SHARE = 0.6
++_OURS_LEAD = 3.0
++_OURS_KEEP = 0.8
++_OURS_MAX_CELL = 16
++_OURS_BAND = 4
++
++
++def _ours_axis(counts):
++    """{p: (passes, residue, edges on that residue)} for one axis' edge counts by position."""
++    total = sum(counts.values())
++    out = {}
++    for p in range(2, _OURS_MAX_CELL + 1):
++        mass, lines = {}, {}
++        for pos, n in counts.items():
++            mass[pos % p] = mass.get(pos % p, 0) + n
++            lines.setdefault(pos % p, set()).add(pos)
++        ranked = sorted(mass.items(), key=lambda kv: (-kv[1], kv[0]))
++        if not ranked:
++            continue
++        residue, n = ranked[0]
++        second = ranked[1][1] if len(ranked) > 1 else 0
++        passes = (total >= _OURS_MIN_EDGES and n >= _OURS_SHARE * total and n >= _OURS_LEAD * second
++                  and len(lines[residue]) >= _OURS_MIN_LINES)
++        out[p] = (passes, residue, n)
++    return out
++
++
++def ours_find_lattice(grid):
++    """(cell, (origin_row, origin_col)) of the frame's square cell lattice, or None (rules in the module doc)."""
++    h = len(grid)
++    w = len(grid[0]) if h else 0
++    rows, cols = {}, {}
++    for r in range(_OURS_BAND, h - _OURS_BAND):
++        row = grid[r]
++        for c in range(max(1, _OURS_BAND), w - _OURS_BAND):
++            if row[c - 1] != row[c]:
++                cols[c] = cols.get(c, 0) + 1
++    for r in range(max(1, _OURS_BAND), h - _OURS_BAND):
++        up, row = grid[r - 1], grid[r]
++        for c in range(_OURS_BAND, w - _OURS_BAND):
++            if up[c] != row[c]:
++                rows[r] = rows.get(r, 0) + 1
++    by_row, by_col = _ours_axis(rows), _ours_axis(cols)
++    valid = [p for p in by_row if p in by_col and by_row[p][0] and by_col[p][0]]
++    for p in sorted(valid, reverse=True):
++        finer = [q for q in valid if q < p and p % q == 0]
++        if all(by_row[q][2] <= by_row[p][2] / _OURS_KEEP and by_col[q][2] <= by_col[p][2] / _OURS_KEEP
++               for q in finer):
++            return p, (by_row[p][1] % p, by_col[p][1] % p)
++    return None
++
++
++class OursLogicalGrid:
++    """A frame read on a lattice: `rows` (one string per cell row), `cell` (h, w) pixels, `origin` (row, col) of
++    cell (0, 0)'s top-left pixel, `mixed` {(i, j): colour counts} for the cells shown as '*', `shape`."""
++
++    def __init__(self, cell, origin, rows, mixed):
++        self.cell, self.origin, self.rows, self.mixed = cell, origin, rows, mixed
++        self.shape = (len(rows), len(rows[0]) if rows else 0)
++
++    def box(self, i, j):
++        """(row0, col0, row1, col1), inclusive, of cell (i, j) in frame pixels."""
++        r0, c0 = self.origin[0] + i * self.cell[0], self.origin[1] + j * self.cell[1]
++        return r0, c0, r0 + self.cell[0] - 1, c0 + self.cell[1] - 1
++
++    def cell_of(self, row, col):
++        """(i, j) of the cell holding frame pixel (row, col), or None outside the whole cells."""
++        i, j = (row - self.origin[0]) // self.cell[0], (col - self.origin[1]) // self.cell[1]
++        if row < self.origin[0] or col < self.origin[1] or i >= self.shape[0] or j >= self.shape[1]:
++            return None
++        return i, j
++
++    def __str__(self):
++        head = (f"cells {self.cell[0]}x{self.cell[1]} px from ({self.origin[0]},{self.origin[1]}): {self.shape[0]} "
++                f"rows x {self.shape[1]} cols; '*' = mixed ({len(self.mixed)}, see .mixed)")
++        return "\n".join([head] + [f"{i:3d} {row}" for i, row in enumerate(self.rows)])
++
++    __repr__ = __str__
++
++
++def _ours_grid_of(frame):
++    grid = getattr(frame, "_grid", frame)
++    return [list(row) for row in grid or ()]
++
++
++def ours_logical_grid(frame, cell, origin, colors):
++    grid = _ours_grid_of(frame)
++    if not grid or not grid[0]:
++        return None
++    if cell is None:
++        found = ours_find_lattice(grid)
++        if found is None:
++            return None
++        p, origin = found
++        cell = (p, p)
++    else:
++        cell = (int(cell), int(cell)) if isinstance(cell, int) else (int(cell[0]), int(cell[1]))
++        origin = (0, 0) if origin is None else (int(origin[0]), int(origin[1]))
++        if cell[0] < 1 or cell[1] < 1 or origin[0] < 0 or origin[1] < 0:
++            raise ValueError("cell must be positive and origin non-negative")
++    h, w = len(grid), len(grid[0])
++    rows, mixed = [], {}
++    for i, top in enumerate(range(origin[0], h - cell[0] + 1, cell[0])):
++        line = []
++        for j, left in enumerate(range(origin[1], w - cell[1] + 1, cell[1])):
++            counts = {}
++            for r in range(top, top + cell[0]):
++                for v in grid[r][left:left + cell[1]]:
++                    counts[v] = counts.get(v, 0) + 1
++            if len(counts) == 1:
++                line.append(colors[max(0, min(15, next(iter(counts))))])
++            else:
++                line.append("*")
++                mixed[(i, j)] = " ".join(f"{colors[max(0, min(15, v))]}{n}" for v, n in
++                                         sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])))
++        rows.append("".join(line))
++    if not rows or not rows[0]:
++        return None
++    return OursLogicalGrid(cell, origin, rows, mixed)
++
++
++def ours_perception_install(runtime_globals, frame_class, segment_layer, colors):
++    """Bind the helpers for one snippet (the bootstrap's hook, with its FrameView, segment_layer and COLOR_CHARS)."""
++
++    def segmentation8(self):
++        if getattr(self, "_ours_seg8", None) is None:
++            self._ours_seg8 = segment_layer(self._grid, colors, connectivity=8)
++        return self._ours_seg8
++
++    frame_class.segmentation8 = property(segmentation8)
++
++    def logical_grid(frame=None, cell=None, origin=None):
++        # the frame on its cell lattice (found if `cell` is None), one character per cell; None if no lattice
++        frame = runtime_globals.get("current_frame") if frame is None else frame
++        return ours_logical_grid(frame, cell, origin, colors)
++
++    runtime_globals["logical_grid"] = logical_grid
++    runtime_globals["view_offset"] = None
++    runtime_globals["left_view"] = []
++
++
++def _ours_view_bind(runtime_globals, payload):
++    """Bind the host's view state: `view_offset`, `left_view` and every frame's `.view_offset`."""
++    offsets = payload.get("offsets") or []
++    for entry, offset in zip(runtime_globals.get("history") or [], offsets):
++        if entry.frame is not None:
++            entry.frame.view_offset = None if offset is None else tuple(offset)
++    current = payload.get("current")
++    current = None if current is None else tuple(current)
++    runtime_globals["view_offset"] = current
++    if runtime_globals.get("current_frame") is not None:
++        runtime_globals["current_frame"].view_offset = current
++    runtime_globals["left_view"] = [dict(item) for item in payload.get("left") or []]
+diff --git a/ARC3-Inference/inference/utils/segmentation.py b/ARC3-Inference/inference/utils/segmentation.py
+index 33f8848..422d18d 100644
+--- a/ARC3-Inference/inference/utils/segmentation.py
++++ b/ARC3-Inference/inference/utils/segmentation.py
+@@ -8,6 +8,8 @@ the Python-tool sandbox bootstrap, where project packages are not importable.
+ import hashlib
+ 
+ _ORTH = ((-1, 0), (1, 0), (0, -1), (0, 1))
++# ours (OURS_PERCEPTION): the 8 neighbours, for segment_layer(..., connectivity=8)
++_MOORE = ((-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1))
+ # clockwise Moore-neighbour offsets, starting at NW
+ _CW = ((-1, -1), (-1, 0), (-1, 1), (0, 1), (1, 1), (1, 0), (1, -1), (0, -1))
+ _CW_INDEX = {off: i for i, off in enumerate(_CW)}
+@@ -117,7 +119,7 @@ def _object_signature(cells, color):
+     return canonical, rotation, symmetry, hashes[0], shape_hash
+ 
+ 
+-def segment_layer(layer, color_chars):
++def segment_layer(layer, color_chars, connectivity=4):
+     """Segment one frame layer into connected-component nodes.
+ 
+     Pass a single layer (if the frame has multiple) and ``color_chars``, the ARC
+@@ -146,12 +148,18 @@ def segment_layer(layer, color_chars):
+       - ``nodes``: list of the node dicts above, in id order.
+       - ``adjacency_list``: sorted list of ``[i, j]`` id pairs for components that share
+         a 4-connected edge (includes parent/child pairs, since they physically touch).
++
++    ``connectivity=8`` (ours, OURS_PERCEPTION) joins same-value cells that touch at a corner into one component;
++    adjacency (a shared edge) and containment (the complement flooded 4-connected) are computed as for 4.
+     """
+     height = len(layer)
+     width = len(layer[0]) if height else 0
+ 
+     # connected components, 4-connectivity. Reading-order scan => component ids are
+     # already ordered by top-most-left-most cell (each layer is 64x64, so it is unique).
++    if connectivity not in (4, 8):
++        raise ValueError("connectivity must be 4 or 8")
++    steps = _ORTH if connectivity == 4 else _MOORE
+     comp_id = [[-1] * width for _ in range(height)]
+     components = []  # each: {"value": int, "cells": set[(r, c)], "start": (r, c)}
+     for sr in range(height):
+@@ -166,7 +174,7 @@ def segment_layer(layer, color_chars):
+             while stack:
+                 r, c = stack.pop()
+                 cells.add((r, c))
+-                for dr, dc in _ORTH:
++                for dr, dc in steps:
+                     nr, nc = r + dr, c + dc
+                     if 0 <= nr < height and 0 <= nc < width and comp_id[nr][nc] == -1 and layer[nr][nc] == value:
+                         comp_id[nr][nc] = cid

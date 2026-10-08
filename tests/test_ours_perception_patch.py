@@ -14,7 +14,6 @@ from __future__ import annotations
 import glob
 import importlib.util
 import json
-import logging
 import os
 import random
 import subprocess
@@ -340,3 +339,511 @@ def test_left_view(op):
     assert gone["colour"] == "w" and gone["edge"] == "top" and gone["step"] == 1 and gone["box"] == [2, 20, 5, 23]
     off = t2.offsets[1]
     assert gone["world_box"] == [2 + off[0], 20 + off[1], 5 + off[0], 23 + off[1]]
+
+
+# --- the lattice and the logical grid --------------------------------------------------------------------------------
+
+CHARS = "WwgGcBMPRbSYOrNp"
+
+
+def board(cell: int, origin: tuple, pattern: list, size: int = 64, background: int = 5) -> list:
+    """A frame drawn on a lattice: cell (i, j) of `pattern` covers rows origin[0] + cell * i.., cols origin[1] + .."""
+    g = [[background] * size for _ in range(size)]
+    for i, row in enumerate(pattern):
+        for j, colour in enumerate(row):
+            for r in range(origin[0] + cell * i, min(size, origin[0] + cell * (i + 1))):
+                for c in range(origin[1] + cell * j, min(size, origin[1] + cell * (j + 1))):
+                    g[r][c] = colour
+    return g
+
+
+def maze(n: int, seed: int) -> list:
+    rng = random.Random(seed)
+    return [[rng.choice((5, 5, 5, 3, 3, 4)) for _ in range(n)] for _ in range(n)]
+
+
+@needs_tree
+def test_lattice_on_synthetic_boards(sb):
+    five = maze(12, 1)
+    g = paint(board(5, (0, 4), five), [(31, 21), (32, 20), (32, 21), (32, 22), (33, 21)], 0)  # a cross in a cell
+    assert sb.ours_find_lattice(g) == (5, (0, 4))
+    view_ = sb.ours_logical_grid(g, None, None, CHARS)
+    assert view_.cell == (5, 5) and view_.origin == (0, 4) and view_.shape == (12, 12)
+    expected = ["".join(CHARS[v] for v in row) for row in five]
+    expected[6] = expected[6][:3] + "*" + expected[6][4:]  # cell (6, 3) holds the cross
+    assert view_.rows == expected and list(view_.mixed) == [(6, 3)]
+    assert view_.mixed[(6, 3)].endswith("W5") and view_.box(6, 3) == (30, 19, 34, 23) and view_.cell_of(32, 21) == (6, 3)
+    assert view_.cell_of(0, 2) is None and view_.cell_of(63, 63) is None  # left of the origin, below the last cell
+    assert str(view_).splitlines()[0] == "cells 5x5 px from (0,4): 12 rows x 12 cols; '*' = mixed (1, see .mixed)"
+    assert sb.ours_find_lattice(board(3, (2, 2), maze(20, 2))) == (3, (2, 2))
+    assert sb.ours_find_lattice(view(world(seed=4), 50, 50)) is None  # rectangles at random places
+    assert sb.ours_find_lattice([[5] * 64 for _ in range(64)]) is None  # nothing to read
+    small = [[random.Random(r * 64 + c).choice((2, 5, 9)) for c in range(32)] for r in range(32)]
+    assert sb.ours_find_lattice([[small[r // 2][c // 2] for c in range(64)] for r in range(64)]) == (2, (0, 0))
+    # a lattice set by hand, and one that does not fit
+    assert sb.ours_logical_grid(g, (5, 5), (0, 4), CHARS).rows == view_.rows
+    assert sb.ours_logical_grid(g, 4, None, CHARS).cell == (4, 4)
+    with pytest.raises(ValueError):
+        sb.ours_logical_grid(g, (0, 5), None, CHARS)
+
+
+def level_starts(monkeypatch, games: list, first_only: bool = False) -> dict:
+    """{(game, level): the level's first frame} from the engine: set_level, then a level RESET."""
+    monkeypatch.setenv("ONLY_RESET_LEVELS", "true")
+    monkeypatch.syspath_prepend(str(ROOT))
+    from arcengine import ActionInput, GameAction
+
+    from arc3.env import LocalEnv, make_arcade
+
+    arc = make_arcade(GAMES)
+    out = {}
+    for name in games:
+        g = LocalEnv(arc, name, seed=0).env._game
+        for level in range(1 if first_only else len(g._levels)):
+            g.set_level(level)
+            last = g.perform_action(ActionInput(id=GameAction.RESET), raw=True).frame[-1]
+            out[(name, level + 1)] = [[int(v) for v in row] for row in (last.tolist() if hasattr(last, "tolist")
+                                                                         else last)]
+    return out
+
+
+@needs_tree
+@needs_games
+def test_lattice_on_real_level_starts(sb, monkeypatch):
+    starts = level_starts(monkeypatch, ["ls20", "cn04", "tu93", "bp35", "lf52", "ft09"])
+    found = {key: sb.ours_find_lattice(frame) for key, frame in starts.items()}
+    assert all(found[("ls20", level)] == (5, (0, 4)) for level in range(1, 8))  # the maze's 5-pixel cells
+    assert all(found[("cn04", level)] == (3, (2, 2)) for level in range(1, 7))  # the pieces' 3-pixel cells
+    assert all(found[("tu93", level)][0] == 3 for level in range(1, 10))
+    assert all(found[("ft09", level)] == (2, (0, 0)) for level in range(1, 7))
+    assert not any(found[("bp35", level)] for level in range(1, 10))  # dotted texture: no lattice claimed
+    assert not any(found[("lf52", level)] for level in range(1, 11))
+    grid = sb.ours_logical_grid(starts[("ls20", 1)], None, None, CHARS)
+    assert grid.rows[5] == "ccGGGGGGGGcc" and grid.rows[0] == "cccccccccccc" and len(grid.mixed) == 15
+    pieces = sb.ours_logical_grid(starts[("cn04", 1)], None, None, CHARS)
+    assert pieces.rows[3] == "SSSWWWWWSSSSSSSSSSSS" and pieces.rows[8] == "SSSSRSRSSSSSSSSSSSSS" and not pieces.mixed
+
+
+# --- recorded runs against the engine ---------------------------------------------------------------------------------
+
+
+def engine_origin(name: str, game) -> tuple:
+    """Where the engine draws the world from, in frame pixels: bp35's scene camera (frame = world - camera), lf52's
+    world node (frame = world + node), else the engine camera (which no other public game moves)."""
+    if name == "bp35":
+        return game.oztjzzyqoek.camera.y, game.oztjzzyqoek.camera.x
+    if name == "lf52":
+        return -game.ikhhdzfmarl.hncnfaqaddg.y, -game.ikhhdzfmarl.hncnfaqaddg.x
+    return game._camera.y, game._camera.x
+
+
+def replay_with_engine(game: dict, monkeypatch) -> tuple:
+    """The harness's history for one recorded game (start frame, then one entry per action) and the engine's
+    origin after each entry."""
+    monkeypatch.syspath_prepend(str(ROOT))
+    from arcengine import GameAction
+
+    from arc3.env import Action, LocalEnv, make_arcade
+
+    name = game["game_id"].split("-")[0]
+    env = LocalEnv(make_arcade(GAMES), game["game_id"], seed=0)
+    frame = env.frame
+    history = [entry("", frame.grid.tolist(), 0, frame.levels_completed + 1)]
+    origins = [engine_origin(name, env.env._game)]
+    for i, rec in enumerate(game["history"], 1):
+        a = rec["action"]
+        if a["id"] == "ACTION6":
+            action, display = Action.click(a["data"]["x"], a["data"]["y"]), \
+                f"MOUSE(row={int(a['data']['y'])}, col={int(a['data']['x'])})"
+        else:
+            action, display = Action(GameAction[a["id"]]), NAMES[a["id"]]
+        before = frame
+        frame = env.step(action)
+        won = frame.state.name == "WIN"
+        history.append(entry(display, frame.grid.tolist(), i,
+                             before.levels_completed + 1 if won else frame.levels_completed + 1))
+        origins.append(engine_origin(name, env.env._game))
+    return history, origins
+
+
+def compare(op, history: list, origins: list) -> dict:
+    """Per frame, the tracker's offset against the engine's (relative to the level start or the last RESET); per
+    action, the claimed shift against the engine's."""
+    tracker = fed(op, history)
+    out = {"frames": len(history), "agree": 0, "disagree": 0, "unknown": 0, "scrolls": 0, "claimed_exactly": 0,
+           "claimed_wrong": 0, "unsure_on_scroll": 0, "missed": 0, "false_claims": 0, "unsure_on_still": 0}
+    base = None
+    for i, origin in enumerate(origins):
+        if tracker.resets[i]:
+            base = origin
+        else:
+            moved = origin != origins[i - 1]
+            truth = (origins[i - 1][0] - origin[0], origins[i - 1][1] - origin[1])
+            claimed = tracker.shifts[i] and tracker.shifts[i][1]
+            if moved:
+                out["scrolls"] += 1
+                key = ("claimed_exactly" if claimed == truth else "claimed_wrong" if claimed else
+                       "unsure_on_scroll" if tracker.offsets[i] is None else "missed")
+                out[key] += 1
+            else:
+                out["false_claims"] += bool(claimed)
+                out["unsure_on_still"] += bool(tracker.unsure[i])
+        offset = tracker.offsets[i]
+        truth_offset = (origin[0] - base[0], origin[1] - base[1])
+        out["unknown" if offset is None else "agree" if tuple(offset) == truth_offset else "disagree"] += 1
+    return out
+
+
+@needs_tree
+@needs_games
+@needs_run
+@pytest.mark.parametrize("name,scrolls", [("bp35", 27), ("lf52", 12)])
+def test_recorded_scrolls_agree_with_the_engine_at_every_step(op, monkeypatch, name, scrolls):
+    data = json.loads(EXP073B.read_text())
+    game = next(g for g in data["game_runs"] if g["game_id"].startswith(name))
+    result = compare(op, *replay_with_engine(game, monkeypatch))
+    assert result == {"frames": len(game["history"]) + 1, "agree": len(game["history"]) + 1, "disagree": 0,
+                      "unknown": 0, "scrolls": scrolls, "claimed_exactly": scrolls, "claimed_wrong": 0,
+                      "unsure_on_scroll": 0, "missed": 0, "false_claims": 0, "unsure_on_still": 0}
+
+
+@pytest.mark.slow
+@needs_tree
+@needs_games
+def test_every_recorded_run(op, monkeypatch):
+    """Every game of every run under runs/ (about 36 runs x 25 games): no shift is claimed where the engine did not
+    move the view, no claimed shift is wrong, no scroll goes unnoticed (at worst the offset becomes unknown), and no
+    offset disagrees with the engine's."""
+    totals: dict = {}
+    for path in sorted(glob.glob(str(ROOT / "runs" / "*" / "kernel-output" / "benchmark.json"))):
+        try:
+            data = json.loads(Path(path).read_text())
+        except (OSError, ValueError):
+            continue
+        for game in data.get("game_runs", []):
+            if game.get("history"):
+                for key, value in compare(op, *replay_with_engine(game, monkeypatch)).items():
+                    totals[key] = totals.get(key, 0) + value
+    assert totals["scrolls"] > 200 and totals["frames"] > 50_000, totals
+    assert totals["claimed_wrong"] == totals["missed"] == totals["false_claims"] == totals["disagree"] == 0, totals
+
+
+# --- the real harness, in the bed venv -----------------------------------------------------------------------------
+
+CHILD = r'''
+import json, os, sys, tempfile
+from pathlib import Path
+
+tree, mode, game_name, env_dir = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+os.environ.update(json.loads(sys.argv[5]))
+snippets = json.loads(sys.argv[6])
+os.environ.pop("OURS_PERCEPTION", None)
+if mode != "off":
+    os.environ["OURS_PERCEPTION"] = mode
+sys.path.insert(0, tree)
+from inference.agent import tool_agent as ta
+from inference.agent.action_names import to_engine_action
+from inference.agent.runtime_state import Frame, HistoryEntry, write_runtime_state
+
+
+class Scripted:
+    """A blue 2x2 block moved by the arrows, an orange cell that turns green once the block reaches column 26, and a
+    bar in the bottom edge band that loses a cell per action."""
+
+    def __init__(self, path):
+        self.path, self.step, self.pos, self.lit = path, 0, (20, 20), False
+        self.hist = [HistoryEntry(action="", frame=self.frame())]
+        write_runtime_state(self.path, current_frame=self.frame(), history=self.hist)
+        self.valid = ["UP", "DOWN", "LEFT", "RIGHT", "MOUSE"]
+
+    def grid(self):
+        g = [[2] * 64 for _ in range(64)]
+        for c in range(max(0, 64 - self.step)):
+            g[63][c] = 0
+        for dr in (0, 1):
+            for dc in (0, 1):
+                g[self.pos[0] + dr][self.pos[1] + dc] = 9
+        g[40][40] = 14 if self.lit else 12
+        return tuple(tuple(row) for row in g)
+
+    def frame(self):
+        return Frame(grid=self.grid(), step=self.step, level=1)
+
+    def __call__(self, args):
+        if "query" in args:
+            return {"record": None}
+        done = []
+        for a in args["actions"]:
+            name = a["action"].upper()
+            before = self.grid()
+            dr, dc = {"DOWN": (2, 0), "LEFT": (0, -2), "RIGHT": (0, 2)}.get(name, (0, 0))
+            self.pos = (self.pos[0] + dr, self.pos[1] + dc)
+            self.lit = self.lit or self.pos[1] >= 26
+            self.step += 1
+            after = self.grid()
+            changed = any(before[r][4:60] != after[r][4:60] for r in range(4, 60))
+            display = f"MOUSE(row={a['row']}, col={a['col']})" if name == "MOUSE" else name
+            result = {"executed": True, "action_num": self.step, "level": 1, "score": 0, "state": "NOT_FINISHED",
+                      "board_changed": before != after, "gameplay_changed": changed, "no_op": not changed,
+                      "done": False, "level_completed": False, "game_over": False, "run_complete": False,
+                      "action_name": name, "action_display": display, "automatic": False}
+            self.hist.append(HistoryEntry(action=display, frame=self.frame(), result=dict(result)))
+            write_runtime_state(self.path, current_frame=self.frame(), history=self.hist)
+            done.append(display)
+        result.update(executed_actions=done, executed_count=len(done), requested_count=len(done),
+                      valid_actions=list(self.valid))
+        return result
+
+
+class Engine:
+    """A real public game in the offline engine, reduced to what the agent reads (no guards); `origins` holds the
+    engine's own scroll state after every entry (bp35's scene camera, else the engine camera)."""
+
+    def __init__(self, path, prefix):
+        import arc_agi
+        from arc_agi import OperationMode
+
+        arc = arc_agi.Arcade(operation_mode=OperationMode.OFFLINE, environments_dir=env_dir)
+        game_id = next(e.game_id for e in arc.available_environments if e.game_id.startswith(prefix))
+        self.env = arc.make(game_id, seed=0)
+        self.raw = self.env.observation_space
+        self.path, self.prefix = path, prefix
+        self.hist = [HistoryEntry(action="", frame=Frame(grid=self.grid(), step=0, level=self.level()))]
+        self.origins = [self.origin()]
+        write_runtime_state(self.path, current_frame=self.hist[-1].frame, history=self.hist)
+
+    def origin(self):
+        game = self.env._game
+        if self.prefix == "bp35":
+            return [game.oztjzzyqoek.camera.y, game.oztjzzyqoek.camera.x]
+        return [game._camera.y, game._camera.x]
+
+    def grid(self):
+        layer = self.raw.frame[-1]
+        rows = layer.tolist() if hasattr(layer, "tolist") else layer
+        return tuple(tuple(int(v) for v in row) for row in rows)
+
+    def level(self):
+        return max(1, min(int(self.raw.win_levels), int(self.raw.levels_completed) + 1))
+
+    @property
+    def valid(self):
+        from arcengine import GameAction
+        from inference.agent.action_names import to_model_actions
+
+        names = [GameAction.from_id(int(a)).name for a in self.raw.available_actions or []]
+        return to_model_actions([n for n in names if n != "RESET"])
+
+    def __call__(self, args):
+        from arcengine import GameAction, GameState
+
+        if "query" in args:
+            return {"record": None}
+        done, stop = [], None
+        for a in args["actions"]:
+            label = str(a["action"]).upper()
+            if label == "MOUSE":
+                name, data, display = "ACTION6", {"x": int(a["col"]), "y": int(a["row"])}, \
+                    f"MOUSE(row={int(a['row'])}, col={int(a['col'])})"
+            else:
+                name, data, display = to_engine_action(label), {}, label
+            before, completed = self.grid(), int(self.raw.levels_completed)
+            self.raw = self.env.step(GameAction[name], data=data)
+            after = self.grid()
+            won = self.raw.state == GameState.WIN
+            result = {"executed": True, "action_num": len(self.hist), "level": self.level(),
+                      "score": int(self.raw.levels_completed), "state": self.raw.state.name,
+                      "board_changed": after != before,
+                      "gameplay_changed": any(x[4:-4] != y[4:-4] for x, y in zip(before[4:-4], after[4:-4])),
+                      "done": won, "level_completed": int(self.raw.levels_completed) > completed and not won,
+                      "game_over": self.raw.state == GameState.GAME_OVER, "run_complete": won,
+                      "action_name": name, "action_display": display, "automatic": False}
+            self.hist.append(HistoryEntry(action=display, frame=Frame(grid=after, step=len(self.hist),
+                                                                       level=self.level()), result=dict(result)))
+            self.origins.append(self.origin())
+            write_runtime_state(self.path, current_frame=self.hist[-1].frame, history=self.hist)
+            done.append(display)
+            stop = next((k for k in ("run_complete", "game_over", "level_completed") if result[k]), None)
+            if stop:
+                break
+        result.update(executed_actions=done, executed_count=len(done), requested_count=len(args["actions"]),
+                      stopped_early=len(done) < len(args["actions"]), valid_actions=list(self.valid))
+        if stop:
+            result["stop_reason"] = stop
+        return result
+
+
+with tempfile.TemporaryDirectory() as tmp:
+    state = Path(tmp) / "run" / "tool_runtime_state.json"
+    game = Scripted(state) if game_name == "scripted" else Engine(state, game_name)
+    agent = ta.ToolAgent(model="local")
+    agent._step_env_callback = game
+    agent._current_valid_actions = list(game.valid)
+    out = {"prompt": agent._system_prompt, "results": []}
+    for code in snippets:
+        out["results"].append(agent._run_python_tool(state, {"code": code}).content)
+    out["origins"] = getattr(game, "origins", None)
+print(json.dumps(out))
+'''
+
+FLAG_OFF_SNIPPETS = [
+    "print(sorted(k for k in dir() if not k.startswith('_')))",
+    "print(sorted(k for k in dir(current_frame) if not k.startswith('_')))",
+    "r = action(['RIGHT', 'RIGHT'])\nprint(r.get('executed_count'), r.get('gameplay_changed'))",
+    "nodes = current_frame.segmentation['nodes']\nprint(len(nodes), nodes[0]['boundary'][:3], nodes[-1]['color'])",
+    "action([{'action': 'MOUSE', 'row': 5, 'col': 5}])\naction(['UP'])\nprint(current_frame.step)",
+    "r = action(['RIGHT'])\nprint(r)",
+    "print(len(history), last_action, previous_frame.step)",
+]
+
+
+def run_child(tree: Path, mode: str, game: str, snippets: list, tmp_path: Path, extra: dict | None = None) -> dict:
+    env, _ = franzen_bed.notebook_env(franzen_bed._cell(franzen_tree.notebook_cells(), "setup_env = {"))
+    env.update(extra or {})
+    script = tmp_path / "child.py"
+    script.write_text(CHILD)
+    r = subprocess.run([str(BED_PY), str(script), str(tree), mode, game, str(GAMES), json.dumps(env),
+                        json.dumps(snippets)], capture_output=True, text=True, timeout=600)
+    assert r.returncode == 0, r.stdout[-2000:] + r.stderr[-4000:]
+    return json.loads(r.stdout.strip().splitlines()[-1])
+
+
+@needs_tree
+@needs_bed
+@pytest.mark.parametrize("others", ["off", "on"])
+def test_flag_off_prompt_and_tool_results_are_byte_identical(trees, tmp_path, others):
+    extra = dict(OTHERS) if others == "on" else {}
+    base = run_child(trees["base"], "off", "scripted", FLAG_OFF_SNIPPETS, tmp_path, extra)
+    for mode in ("off", "0"):
+        ours = run_child(trees["ours"], mode, "scripted", FLAG_OFF_SNIPPETS, tmp_path, extra)
+        assert ours["prompt"] == base["prompt"], mode
+        assert ours["results"] == base["results"], mode
+    stdout = json.loads(base["results"][0])["stdout"] + json.loads(base["results"][1])["stdout"]
+    for name in ("view_offset", "left_view", "logical_grid", "segmentation8"):
+        assert name not in stdout and name not in base["prompt"]
+
+
+@needs_tree
+@needs_bed
+@needs_games
+def test_flag_on_bp35_scroll_line_and_offsets_match_the_engine(op, trees, tmp_path):
+    out = run_child(trees["ours"], "1", "bp35", [
+        "r = action(['RIGHT'] * 4)\nprint(r.get('executed_count'))",
+        "print(view_offset, current_frame.view_offset, history[3].frame.view_offset, history[4].frame.view_offset)\n"
+        "print(left_view, sorted(k for k in dir() if k in ('view_offset', 'left_view', 'logical_grid')))",
+    ], tmp_path, OTHERS)
+    assert op.PROMPT_LINES in out["prompt"]
+    first, second = (json.loads(r)["stdout"] for r in out["results"])
+    assert first.splitlines() == ["[view] scrolled at step 4: content moved (+18,+0); view_offset now (-18,+0)", "4"]
+    camera = out["origins"]
+    engine = (camera[4][0] - camera[0][0], camera[4][1] - camera[0][1])  # frame = world - camera
+    assert engine == (-18, 0)
+    assert second.splitlines() == [f"{engine} {engine} (0, 0) {engine}",
+                                   "[] ['left_view', 'logical_grid', 'view_offset']"]
+
+
+@needs_tree
+@needs_bed
+@needs_games
+def test_flag_on_ls20_logical_grid_and_segmentation8_in_the_sandbox(trees, tmp_path):
+    out = run_child(trees["ours"], "1", "ls20", [
+        "print(logical_grid())",
+        "g = logical_grid()\nprint(g.cell, g.origin, g.shape, len(g.mixed), g.box(5, 2), g.cell_of(27, 16))",
+        "a, b = current_frame.segmentation, current_frame.segmentation8\n"
+        "print(len(b['nodes']) <= len(a['nodes']), sorted(a) == sorted(b), sorted(b['nodes'][0]) == sorted(a['nodes'][0]))",
+        "def row5():\n    return logical_grid(cell=5, origin=(0, 4)).rows[5]\nprint(row5())",
+        "print(row5(), logical_grid(history[0].frame).rows == logical_grid().rows)",
+    ], tmp_path, OTHERS)
+    printed = [json.loads(r)["stdout"].splitlines() for r in out["results"]]
+    assert printed[0][0] == "cells 5x5 px from (0,4): 12 rows x 12 cols; '*' = mixed (15, see .mixed)"
+    assert printed[0][6] == "  5 ccGGGGGGGGcc" and len(printed[0]) == 13
+    assert printed[1] == ["(5, 5) (0, 4) (12, 12) 15 (25, 14, 29, 18) (5, 2)"]
+    assert printed[2] == ["True True True"]
+    assert printed[3] == ["ccGGGGGGGGcc"] and printed[4] == ["ccGGGGGGGGcc True"]  # a retained function uses it
+
+
+@needs_tree
+@needs_bed
+@needs_games
+@needs_run
+def test_flag_on_lf52_scroll_and_the_cart_that_left_the_view(trees, tmp_path):
+    """exp-073b's lf52 actions, sent in snippets: the RIGHT at step 155 scrolls the world by 8 columns; on level 4
+    the RIGHT at step 204 takes the cart off the view's right edge."""
+    data = json.loads(EXP073B.read_text())
+    game = next(g for g in data["game_runs"] if g["game_id"].startswith("lf52"))
+
+    def acts(first: int, last: int) -> str:
+        out = []
+        for rec in game["history"][first - 1:last]:
+            a = rec["action"]
+            out.append({"action": "MOUSE", "row": int(a["data"]["y"]), "col": int(a["data"]["x"])}
+                       if a["id"] == "ACTION6" else NAMES[a["id"]])
+        return f"r = action({json.dumps(out)})\nprint(r.get('executed_count'), r.get('level'))"
+
+    out = run_child(trees["ours"], "1", "lf52", [acts(1, 19), acts(20, 118), acts(119, 154), acts(155, 155),
+                                                 acts(156, 198), acts(199, 203), acts(204, 204),
+                                                 "print(view_offset, left_view)"], tmp_path, OTHERS)
+    printed = [json.loads(r)["stdout"].splitlines() for r in out["results"]]
+    assert [p[-1] for p in printed[:7]] == ["19 2", "99 3", "36 3", "1 3", "43 4", "5 4", "1 4"]
+    assert not any(line.startswith("[view]") for p in printed[:3] for line in p)
+    assert printed[3][0] == "[view] scrolled at step 155: content moved (+0,-8); view_offset now (+0,+8)"
+    assert printed[6][0] == ("[view] left the view: Y 14px at the right edge (last seen step 203, rows 23-28, cols "
+                             "59-63); see left_view")
+    assert printed[7] == ["(0, 0) [{'colour': 'Y', 'pixels': 14, 'step': 203, 'box': [23, 59, 28, 63], "
+                          "'world_box': [23, 59, 28, 63], 'edge': 'right'}]"]
+
+
+def _harness_env(**extra: str) -> dict:
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH" and not k.startswith("OURS_")
+           and k != "EXPOSE_RESET"}
+    nb_env, _ = franzen_bed.notebook_env(franzen_bed._cell(franzen_tree.notebook_cells(), "setup_env = {"))
+    env.update(nb_env)
+    env.update(franzen_bed.BED_CONTEXT)
+    env.update({"ARC3_MAX_ACTIVE_STREAMS": "0", "PYTHONHASHSEED": "0", **extra})
+    return env
+
+
+@needs_tree
+@needs_bed
+@needs_games
+@pytest.mark.parametrize("game,others", [("ls20", "on"), ("ls20", "off"), ("vc33", "on")])
+def test_flag_off_drive_is_byte_identical(trees, tmp_path, game, others):
+    """His real ToolAgent.analyze() over 22 turns of a real game (tests/franzen_ledger_checks.py drive): with the
+    flag unset or "0" the requests on the wire, the stored history and the transcript equal the tree without it."""
+    flags = dict(OTHERS) if others == "on" else {}
+    runs = {"base": ("base", flags), "off": ("ours", flags), "zero": ("ours", {**flags, "OURS_PERCEPTION": "0"})}
+    procs = {}
+    for name, (tree, extra) in runs.items():
+        out = tmp_path / f"{game}-{name}.json"
+        procs[name] = (out, subprocess.Popen(
+            [str(BED_PY), str(LEDGER_CHECKS), "drive", str(trees[tree]), str(GAMES), str(out), game, "22"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=_harness_env(**extra)))
+    results = {}
+    for name, (out, proc) in procs.items():
+        stdout, stderr = proc.communicate(timeout=600)
+        assert proc.returncode == 0, stdout[-2000:] + stderr[-4000:]
+        results[name] = json.loads(out.read_text())
+    base = results["base"]
+    assert base["level_ups"] >= 1 and len(base["requests"]) >= 40, "the drive must reach a level-up and trims"
+    for name in ("off", "zero"):
+        assert [q["sha"] for q in results[name]["requests"]] == [q["sha"] for q in base["requests"]], name
+        assert (results[name]["history_sha"], results[name]["transcript_sha"]) == (
+            base["history_sha"], base["transcript_sha"]), name
+
+
+@pytest.mark.slow
+@needs_tree
+@needs_bed
+@needs_games
+def test_bed_with_all_eight_patches_and_flags(tmp_path):
+    result = franzen_bed.run_bed(tmp_path / "bed", games=["ls20", "vc33", "sb26", "bp35"], seconds=120,
+                                 patches=[*SEVEN, PATCH], env_add={**OTHERS, "OURS_PERCEPTION": "1"},
+                                 expect="[view] scrolled at step", expect_in="any",
+                                 programs=["search", "mem", "effects", "perception"])
+    failed = [name for name, ok in result["checks"].items() if not ok]
+    assert not failed, (failed, result["facts"])
+
+
+def test_flag_name_does_not_collide_with_cell_4():
+    """--env-add refuses a key cell 4 already sets; an arm adds OURS_PERCEPTION that way."""
+    assert "OURS_PERCEPTION" not in franzen_bed._cell(franzen_tree.notebook_cells(), "setup_env = {")
