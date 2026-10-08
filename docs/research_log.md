@@ -2227,3 +2227,11 @@ exp-072h (pushed 00:15) and exp-073b (pushed 01:37) are still QUEUED (no machine
           exp-074s save run (the next submission candidate). No API cancel exists, and a freed slot would only queue
           too, so nothing is deleted. scripts/kaggle_queue.py was stopped twice by the session's 2-hour cap on
           background commands; queue state is in scratchpad/queue-oct7f.state.json and exp-074s is next.
+
+## 2026-10-08 07:03 · LB draw: exp-070d (D' copy) = 28.87 · rank 410 of 3,969
+Submission 56922501 (submitted 21:57 UTC Oct 7, COMPLETE by 07:02 Oct 8): public 28.87 (was 4.70, rank 1,050).
+          Squarely in the Franzen-family distribution (~28.5 +/- 3.3 per draw), as pre-registered.
+LB now:   Tufa Labs 55.89, Yi-Chia Chen 55.77, Majkel1337 42.66, the last dance 39.30, dreach.ai 39.11; 17 teams >= 35,
+          270 >= 30, 412 >= 28.87, 901 >= 25.
+Queue:    exp-072h and exp-073b have been QUEUED since 00:15 and 01:37: the RTX PRO 6000 pool fills after the 00:00 UTC
+          daily reset (teams' 9 h reruns), so our test runs barely start between ~00:00 and ~09:00 UTC.

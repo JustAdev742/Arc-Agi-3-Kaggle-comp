@@ -146,6 +146,10 @@ public 25 (scripts/arm_table.py), then the validation score. If the top two are 
 noise, the second slot goes to the best configuration that differs from it (diversification against the private half).
 If fewer than two configurations reach 3 draws, the unmodified base fills the second slot.
 
+### LB, 2026-10-08 07:02 UTC: our D' copy drew **28.87** (rank 410 of 3,969; was 4.70)
+Next submission candidate: exp-074s (D' + REAP-448 at load + 14 streams + input-path fallback; full-length public-25
+49.45 vs Franzen v3's 45.6-47.5, +14% output tok/s); its save run waits for a free RTX slot. See research_log.md.
+
 ### State at 2026-10-07 21:4x UTC (supersedes the queue below)
 - The week's quota (reset Oct 3) was unused until Oct 7 21:18; ~0.3 GPU-h went to four short failed sessions
   (lesson 0029: Kaggle's latest image moved to Python 3.13; every kernel now pins Franzen's GPU image).
