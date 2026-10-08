@@ -154,10 +154,15 @@ If fewer than two configurations reach 3 draws, the unmodified base fills the se
   length on the public 25 (exp-073b), against Franzen v3's four passes 45.6-47.5 (mean 46.49). Its save run is
   COMPLETE and checked (16:19 UTC); **the owner submits it** (it supersedes exp-074s, never submitted).
 - REAP fidelity question closed: the shift is real but confined to image turns, and costs no measured score.
-- Running: exp-075 (the candidate's exact config at full length: a repeat of exp-073b plus the sandbox fix, for the
-  between-run noise). Being built on the CPU bed: harness patches M2 budget meter, M3 search helper, M4 win ledger
-  (docs/research/beat-tufa/new-methods.md), each behind a flag, for one bundle arm at full length.
-- GPU quota: about 13.5 of 30 h used this week after exp-075 (reset Sat 2026-10-10 00:00 UTC).
+- Running (full length, 25 x 121 min): exp-075 (the candidate's exact config: a repeat of exp-073b plus the sandbox
+  fix, for the between-run noise) and exp-076 (the same with UkisAI's Swift-1.5 W4A16, a reasoning-efficient
+  Flash-Next derivative, as the served model; v1 stopped in 52 s on a model-view bug, v2 running).
+- Being built on the CPU bed (agents): harness patches M2 budget meter, M3 search helper, M4 win ledger
+  (docs/research/beat-tufa/new-methods.md), each behind a flag, for one bundle arm (exp-077) at full length.
+- Built, not yet run: an FR-Spec map tuned to our outputs (99.9% of output tokens draftable vs 98.8%;
+  --hot-tokens), riding along in exp-077. Being derived: the kept-expert list of a public REAP-384 build, for a
+  fidelity probe (decode is bound by reading expert weights once >= 10 requests run, so fewer experts = faster).
+- GPU quota: 10.1 of 30 h used before exp-075/076 (scripts/kaggle_quota.py); reset Sat 2026-10-10 00:00 UTC.
 
 ### LB, 2026-10-08 07:02 UTC: our D' copy drew **28.87** (rank 410 of 3,969; was 4.70)
 
