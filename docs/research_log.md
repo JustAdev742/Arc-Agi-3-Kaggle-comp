@@ -2411,3 +2411,27 @@ Checked:  inputs mounted after 0 s; "our harness patches applied successfully: 1
           (4/6 levels, 59 actions); submission.parquet written; no error or traceback in the log.
 Next:     the owner submits this version ("Submit to Competition"); today's slot (Oct 8 UTC) is free: the last
           submission, 56922501, was made Oct 7 21:57 UTC.
+
+## 2026-10-08 16:25 · exp-076 · Swift-1.5 W4A16 as the served target (same tokenizer and template), full length · RUNNING
+Why:      score is elastic to decisions per hour (0.6-0.8, plan.md), and 86% of Franzen's generated tokens are
+          reasoning. UkisAI's Swift-1.5 (Qwen3.8-Flash-Next derivative: overthinking tokens penalised, accuracy
+          recovered with RL/OPD, post-trained for coding and long-horizon agents) claims 31-63% fewer thinking tokens
+          at <1% accuracy loss on GPQA/MMLU-Pro/AIME/LCB at xhigh effort; on Terminal-Bench (agentic) its mean output
+          rose 12% (median -18%) with +2 points. Released 09-22; both leaders jumped 09-28 (intel.md hypothesis 3).
+          P11 (effort "medium", exp-037) cut reasoning 40% but lost as much quality; a trained model may not.
+Checked:  the public Kaggle copy phuongncn/arc3-qwen38-swift-w4a16-autoround (verbatim HF
+          ukisai/Swift-1.5-Qwen3.8-Flash-Next-W4A16-AutoRound, split in two instances for the 50-file limit):
+          tokenizer.json sha256 = TOKENIZER_SHA (the FR-Spec map fits), chat_template.jinja byte-identical, same
+          generation config values. Differences: AutoRound 0.16 with iters 50; linear_attn projections INT4 (Intel's
+          build keeps them BF16), so the server may load differently or fail; its own MTP file is left out (the draft
+          stays his albucino MTP of the original model). Its LICENSE file is the Qwen Community License 1.0; the HF
+          card adds the Swift Open License v1.0 (free, commercial use included, under US$1M revenue). Prize
+          eligibility of a Swift submission is the owner's call.
+Builder:  scripts/build_franzen_nb.py --model swift (cell 4 links both mounted instances into /tmp/ours-model-view,
+          swaps the kernel's model source), --reap-no-verify (same 448 kept expert ids, no router sha256 check: Swift's
+          routers may differ), --fail-fast (a watchdog exits a test arm when its server dies or is not healthy 35 min
+          in; off in a rerun). 30 builder tests pass. scripts/kaggle_quota.py reads the weekly GPU quota.
+Run:      scottmahony/arc3-dprime-swift-r14a05-full v1 (pushed 16:25, QUEUED) = exp-075 with the Swift target: D' +
+          REAP-448 (unverified) + 14 streams + acceptance 0.5 + sandbox fix, 25 games x 121 min. Read: output tokens
+          per request (exp-073b: ~1,990), requests and actions per game, accept length, levels and score vs
+          exp-073b/exp-075. Quota: 10.1 h of 30 used before exp-075/076.

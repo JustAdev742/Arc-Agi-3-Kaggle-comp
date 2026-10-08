@@ -60,6 +60,18 @@ Options change a non-submission run only, or a named setting everywhere:
   joins the kernel's sources. Needs ``--input-fallback``; refuses ``--full25``, ``--patch`` and speculative
   acceptance thresholds other than 1.0. A REAP arm is the same command plus ``--reap-kept``.
 
+- ``--model NAME``: serve another checkpoint of the same architecture and format instead of Intel's W4A16; ``swift``
+  is UkisAI's Swift-1.5 (a reasoning-efficient RL/OPD derivative of Flash-Next, the same tokenizer and chat
+  template), whose Kaggle copy is one HF repo split over two model instances. Cell 4's MODEL_DIR becomes a directory
+  of symlinks to both instances (built once they are mounted; its own MTP file stays out, the draft is still his
+  albucino checkpoint) and the kernel's model source is swapped. With ``--reap-kept`` it needs ``--reap-no-verify``.
+- ``--reap-no-verify``: ``--reap-kept`` without the list's ``.meta.json``, so the server drops the same expert ids
+  without checking the routers' sha256 (which belong to the checkpoint the list was made for).
+- ``--fail-fast`` (test arms, with ``--full25``): a watchdog thread started right before ``await bm.run(`` exits the
+  kernel when the SGLang server process has exited, or when it was never healthy 35 min after the notebook
+  started. His notebook releases the benchmark without a server on purpose (a rerun must not idle out), so a test
+  arm whose server died used to play its whole budget without a model. Off in a competition rerun.
+
 Every change is anchored on text that must occur exactly once, and listed in the first markdown cell. Writes
 ``<out>/<slug>.ipynb`` and ``<out>/kernel-metadata.json`` (private, internet off, RTX PRO 6000).
 """
@@ -132,6 +144,28 @@ PROBE_BEGIN = "# >>> ours (--probe)"
 PROBE_END = "# <<< ours (--probe)"
 PROBE_PARAMS = {"max_tokens": 192, "top_logprobs": 5, "concurrency": 8, "health_minutes": 30, "data_wait_s": 300,
                 "max_minutes": 150}
+# --model: serve another checkpoint of the same architecture and format in place of Intel's W4A16 (cell 4's MODEL_DIR
+# and the kernel's model source); the MTP draft stays his albucino checkpoint
+MODEL_LINE = ("MODEL_DIR         = '/kaggle/input/models/dfranzen/intel-qwen3.8-flash-next-w4a16-autoround/transformers/"
+              "default/1'\n")
+INTEL_SOURCE = "dfranzen/intel-qwen3.8-flash-next-w4a16-autoround/Transformers/default/1"
+MODELS = {
+    "swift": {
+        "what": ("Swift-1.5 Qwen3.8-Flash-Next W4A16 AutoRound (UkisAI's reasoning-efficient RL/OPD derivative of "
+                 "Flash-Next; HF ukisai/Swift-1.5-Qwen3.8-Flash-Next-W4A16-AutoRound, Kaggle copy "
+                 "phuongncn/arc3-qwen38-swift-w4a16-autoround in two instances)"),
+        "sources": ["phuongncn/arc3-qwen38-swift-w4a16-autoround/PyTorch/w4a16-a/1",
+                    "phuongncn/arc3-qwen38-swift-w4a16-autoround/PyTorch/w4a16-b/1"],
+        "skip": ["model_mtp.safetensors"],  # its own MTP weights: not in the index, and the draft is his albucino MTP
+    },
+}
+MODEL_VIEW = "/tmp/ours-model-view"
+MODEL_BEGIN = "# >>> ours (--model)"
+MODEL_END = "# <<< ours (--model)"
+# --fail-fast: a test arm ends when its server is gone (his notebook plays on without one, by design for the rerun)
+FAIL_FAST_BEGIN = "# >>> ours (--fail-fast)"
+FAIL_FAST_END = "# <<< ours (--fail-fast)"
+FAIL_FAST_HEALTH_MINUTES = 35
 
 
 def _replace_once(text: str, old: str, new: str, what: str) -> str:
@@ -315,8 +349,10 @@ def _apply_code(names: list[str]) -> str:
     )
 
 
-def _reap(cell: str, kept_path: Path) -> tuple[str, list[tuple[str, str]], str]:
-    """Cell 12 with the REAP steps, the (path, text) files the notebook must write first, and the change line."""
+def _reap(cell: str, kept_path: Path, verify: bool = True) -> tuple[str, list[tuple[str, str]], str]:
+    """Cell 12 with the REAP steps, the (path, text) files the notebook must write first, and the change line.
+    verify=False leaves the list's .meta.json (the router sha256 of the checkpoint it was made for) out, for a
+    derivative checkpoint whose routers differ: the same expert ids are dropped without the check."""
     import sglang_reap_patch
 
     if REAP_BEGIN in cell or "--json-model-override-args" in cell:
@@ -329,7 +365,7 @@ def _reap(cell: str, kept_path: Path) -> tuple[str, list[tuple[str, str]], str]:
     files = [(REAP_FILES["script"], REAP_SCRIPT.read_text()), (REAP_FILES["kept"], kept_path.read_text())]
     meta = sglang_reap_patch.meta_path(kept_path)
     total = "?"
-    if meta.is_file():
+    if meta.is_file() and verify:
         layers = json.loads(meta.read_text())["layers"]
         if sorted(int(k) for k in layers) != sorted(kept):
             raise SystemExit(f"--reap-kept: {meta} does not cover the layers of {kept_path}")
@@ -359,11 +395,91 @@ def _reap(cell: str, kept_path: Path) -> tuple[str, list[tuple[str, str]], str]:
               f"experts in each of {len(kept)} layers; cell 12 patches the installed sglang with "
               f"scripts/sglang_reap_patch.py (sha256 {hashlib.sha256(REAP_SCRIPT.read_bytes()).hexdigest()[:12]}) "
               f"after the install, sets {sglang_reap_patch.ENV} for the server and adds --json-model-override-args "
-              f"{override} --speculative-draft-model-override-args {{}} (the MTP draft keeps all experts)")
+              f"{override} --speculative-draft-model-override-args {{}} (the MTP draft keeps all experts)"
+              + ("" if verify else "; the router sha256 check is off (--reap-no-verify: the list was made for "
+                                   "another checkpoint of this architecture)"))
     return cell, files, change
 
 
-INPUT_LITERAL = re.compile(r"""(['"])(/kaggle/input/(?:datasets|competitions|models)/[^'"]+)\1""")
+def _model_code(name: str) -> str:
+    """Cell-4 lines that replace his MODEL_DIR constant: link the checkpoint's Kaggle model instances (one checkpoint
+    split over several instances by Kaggle's 50-file limit) into one directory once they are mounted."""
+    spec = MODELS[name]
+    patterns = []
+    for source in spec["sources"]:
+        owner, slug, _framework, instance, version = source.split("/")
+        patterns.append(f"/kaggle/input/models/{owner}/{slug}/*/{instance}/{version}")  # framework dir: lower case
+    return (
+        f"{MODEL_BEGIN} {name}: {spec['what']}.\n"
+        "# Its instances are linked (symlinks, no copies) into one directory for the server once they are mounted;\n"
+        "# the files in the skip set stay out.\n"
+        "def _ours_model_view(patterns, view, skip, timeout_s=600.0):\n"
+        "    import glob as _ours_glob\n"
+        "    t0 = time.time()\n"
+        "    while True:\n"
+        "        parts = [sorted(p for p in _ours_glob.glob(pat) if os.path.isdir(p)) for pat in patterns]\n"
+        "        if all(len(p) == 1 for p in parts):\n"
+        "            break\n"
+        "        if time.time() - t0 > timeout_s:\n"
+        "            raise RuntimeError(f'model instances not mounted (or ambiguous) after {timeout_s:g} s: '\n"
+        "                               + str(dict(zip(patterns, parts))))\n"
+        "        time.sleep(5)\n"
+        "    os.makedirs(view, exist_ok=True)\n"
+        "    for (part,) in parts:\n"
+        "        for name in sorted(os.listdir(part)):\n"
+        "            if name in skip:\n"
+        "                continue\n"
+        "            src, dst = os.path.join(part, name), os.path.join(view, name)\n"
+        "            if os.path.lexists(dst):\n"
+        "                if os.path.realpath(dst) != os.path.realpath(src):\n"
+        "                    raise RuntimeError(f'model view: {name} is in more than one instance')\n"
+        "                continue\n"
+        "            os.symlink(src, dst)\n"
+        "    if not os.path.isfile(os.path.join(view, 'model.safetensors.index.json')):\n"
+        "        raise RuntimeError(f'model view {view}: no model.safetensors.index.json')\n"
+        "    print(f'ours: model view {view}: {len(os.listdir(view))} files from ' + ', '.join(p[0] for p in parts))\n"
+        "    return view\n"
+        f"MODEL_DIR         = _ours_model_view({patterns!r}, {MODEL_VIEW!r}, {sorted(spec['skip'])!r})\n"
+        f"{MODEL_END}\n")
+
+
+def _fail_fast_code() -> str:
+    """Lines before `await bm.run(` that end a test arm when its SGLang server is gone. His notebook releases the
+    benchmark even when the server is still loading or has died (so a rerun never idles out), which in a test arm
+    means playing the whole budget without a model (exp-072j: ~0.7 GPU-h). Never active in a competition rerun."""
+    return (
+        f"{FAIL_FAST_BEGIN}: a test arm ends (the kernel exits) when its SGLang server process has exited, or when\n"
+        f"# the server was never healthy {FAIL_FAST_HEALTH_MINUTES} min after the notebook started. Off in a "
+        "competition rerun.\n"
+        f"def _ours_server_watch(health_deadline_s={FAIL_FAST_HEALTH_MINUTES * 60}, period_s=30):\n"
+        "    healthy = False\n"
+        "    while True:\n"
+        "        time.sleep(period_s)\n"
+        "        if proc.poll() is not None:\n"
+        "            print(f'ours (--fail-fast): the SGLang server exited with code {proc.returncode}; ending this '\n"
+        "                  'test arm', flush=True)\n"
+        "            try:\n"
+        "                show_log_tail()\n"
+        "            finally:\n"
+        "                os._exit(3)\n"
+        "        if not healthy:\n"
+        "            try:\n"
+        "                with urllib.request.urlopen(f'http://127.0.0.1:{SERVED_MODEL_PORT}/health', timeout=5) as r:\n"
+        "                    healthy = r.status == 200\n"
+        "            except Exception:\n"
+        "                pass\n"
+        "            if not healthy and time.time() - NOTEBOOK_START_TIME > health_deadline_s:\n"
+        "                print(f'ours (--fail-fast): the server is not healthy {health_deadline_s / 60:g} min after the '\n"
+        "                      'start; ending this test arm', flush=True)\n"
+        "                os._exit(3)\n"
+        "if not TRUE_SUBMISSION:\n"
+        "    import threading as _ours_threading\n"
+        "    _ours_threading.Thread(target=_ours_server_watch, daemon=True, name='ours-fail-fast').start()\n"
+        "    print('ours (--fail-fast): server watchdog on')\n"
+        f"{FAIL_FAST_END}\n")
+
+
+INPUT_LITERAL =re.compile(r"""(['"])(/kaggle/input/(?:datasets|competitions|models)/[^'"]+)\1""")
 INPUT_HELPER = (
     "# >>> ours (--input-fallback): Kaggle mounts inputs as /kaggle/input/{datasets/<owner>,competitions}/<slug> or\n"
     "# as /kaggle/input/<slug>; GPU sessions of these notebooks got either on 2026-10-07. Use what this one has.\n"
@@ -492,7 +608,21 @@ def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str]
           server_env: dict[str, str] | None = None, patches: list[Path] | tuple = (), apply_check: bool = True,
           his_repo: Path | None = None, bundle: Path | None = None, base: str = "franzen",
           reap_kept: Path | None = None, wait_inputs: float | None = None,
-          input_fallback: bool = False, probe: Path | None = None) -> list[str]:
+          input_fallback: bool = False, probe: Path | None = None, model: str | None = None,
+          reap_verify: bool = True, fail_fast: bool = False) -> list[str]:
+    if model is not None and model not in MODELS:
+        raise SystemExit(f"--model {model!r}: unknown (known: {', '.join(sorted(MODELS))})")
+    if not reap_verify and not reap_kept:
+        raise SystemExit("--reap-no-verify only applies to --reap-kept")
+    if model is not None and reap_kept and reap_verify:
+        import sglang_reap_patch
+        if sglang_reap_patch.meta_path(Path(reap_kept)).is_file():
+            raise SystemExit("--model with --reap-kept: the list's .meta.json holds the router sha256 of Intel's "
+                             "checkpoint, so the server would refuse another one; add --reap-no-verify to drop the "
+                             "same expert ids without that check")
+    if fail_fast and (full25 is None or probe is not None):
+        raise SystemExit("--fail-fast is for test arms: it needs --full25 and does not combine with --probe (which "
+                         "has its own health checks)")
     probe_spec = None
     if probe is not None:
         if not input_fallback:
@@ -530,6 +660,11 @@ def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str]
         changes.append(f"Save & Run plays all 25 public games, {full25:g} min per game (competition rerun unchanged)")
 
     setup = _one_cell(sources, code, SETUP_ANCHOR, "cell 4")
+    if model is not None:  # before --input-fallback, which wraps the literal this replaces
+        sources[setup] = _replace_once(sources[setup], MODEL_LINE, _model_code(model), "--model")
+        changes.append(f"serves {MODELS[model]['what']} instead of Intel's W4A16 (the MTP draft stays his albucino "
+                       f"checkpoint); cell 4 links its {len(MODELS[model]['sources'])} Kaggle model instances into "
+                       f"{MODEL_VIEW}")
     if input_fallback:
         sources, n = _input_fallback(sources, code, setup)
         changes.append(f"resolves its {n} /kaggle/input paths in either Kaggle mount layout")
@@ -549,7 +684,7 @@ def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str]
         sources[launch], done = _set_server_env(sources[launch], server_env or {})
         changes += done
         if reap_kept:
-            sources[launch], reap_files, done = _reap(sources[launch], Path(reap_kept))
+            sources[launch], reap_files, done = _reap(sources[launch], Path(reap_kept), verify=reap_verify)
             changes.append(done)
 
     preflight = None
@@ -581,6 +716,14 @@ def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str]
             f"before each pass, writes fidelity.json and raises if the server dies or is not healthy "
             f"{p['health_minutes']} min after the start (scripts/fidelity_probe.py sha256 {probe_sha}); the cells "
             "after the benchmark cell are dropped")
+
+    if fail_fast:
+        run_cell = _one_cell(sources, code, PROBE_RUN_ANCHOR, "--fail-fast")
+        at = sources[run_cell].rfind("\n", 0, sources[run_cell].index(PROBE_RUN_ANCHOR)) + 1
+        sources[run_cell] = sources[run_cell][:at] + _fail_fast_code() + sources[run_cell][at:]
+        changes.append(f"test arm fails fast: a watchdog started before the benchmark exits the kernel when the SGLang "
+                       f"server process has exited or is not healthy {FAIL_FAST_HEALTH_MINUTES} min after the start "
+                       "(off in a competition rerun)")
 
     new_cells = []
     if patches:
@@ -646,6 +789,9 @@ def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str]
     out.mkdir(parents=True, exist_ok=True)
     (out / f"{slug}.ipynb").write_text(json.dumps(nb, indent=1, ensure_ascii=False))
     sources_meta = copy.deepcopy(SOURCES)
+    if model is not None:
+        i = sources_meta["model_sources"].index(INTEL_SOURCE)
+        sources_meta["model_sources"][i:i + 1] = MODELS[model]["sources"]
     if probe_spec is not None:
         sources_meta["dataset_sources"].append(probe_spec["dataset"])
     meta = {"id": f"scottmahony/{slug}", "title": slug.replace("-", " "), "code_file": f"{slug}.ipynb",
@@ -693,13 +839,19 @@ def main() -> None:
     ap.add_argument("--probe", type=Path, default=None, metavar="DIR",
                     help="fidelity probe instead of the benchmark; DIR has the probe dataset's dataset-metadata.json "
                          "and manifest.json (kaggle/fidelity/)")
+    ap.add_argument("--model", choices=sorted(MODELS), default=None,
+                    help="serve this checkpoint instead of Intel's W4A16 (the MTP draft stays his)")
+    ap.add_argument("--reap-no-verify", action="store_true",
+                    help="--reap-kept without the router sha256 check (for a derivative checkpoint, e.g. --model)")
+    ap.add_argument("--fail-fast", action="store_true",
+                    help="test arms (--full25): exit the kernel when the SGLang server is gone")
     args = ap.parse_args()
     changes = build(args.out, args.slug, args.full25, _pairs(args.env, "--env"), args.note,
                     env_add=_pairs(args.env_add, "--env-add"), cfg=_pairs(args.cfg, "--cfg"),
                     server_env=_pairs(args.server_env, "--server-env"), patches=args.patch,
                     apply_check=not args.no_apply_check, his_repo=args.his_repo, bundle=args.bundle, base=args.base,
                     reap_kept=args.reap_kept, wait_inputs=args.wait_inputs, input_fallback=args.input_fallback,
-                    probe=args.probe)
+                    probe=args.probe, model=args.model, reap_verify=not args.reap_no_verify, fail_fast=args.fail_fast)
     print(f"built {args.out / (args.slug + '.ipynb')}: {changes or 'unchanged'}")
 
 

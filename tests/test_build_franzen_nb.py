@@ -563,3 +563,149 @@ def test_the_probe_cells_run_against_a_server(tmp_path):
     (data / "requests.jsonl").write_text("{}\n")  # a dataset version that is not the one built for: stops early
     with pytest.raises(RuntimeError, match="not the manifest's"):
         exec(preflight.replace("/kaggle/", f"{kaggle}/"), ns)
+
+
+# --- --model, --reap-no-verify, --fail-fast ----------------------------------------------------------------------------
+
+def _code_cells(path: Path) -> list[str]:
+    return ["".join(c["source"]) for c in json.loads(path.read_text())["cells"] if c["cell_type"] == "code"]
+
+
+def _compiles(src: str) -> None:
+    compile("\n".join(line for line in src.splitlines() if not line.lstrip().startswith(("!", "%"))), "cell", "exec",
+            flags=ast.PyCF_ALLOW_TOP_LEVEL_AWAIT)
+
+
+@pytest.mark.parametrize("base", ["franzen", "dprime"])
+def test_model_swift_links_both_instances_into_one_view_and_swaps_the_model_source(tmp_path, base):
+    changes = bf.build(tmp_path / "m", "m", base=base, model="swift", input_fallback=True, wait_inputs=0)
+    assert any(c.startswith("serves Swift-1.5") for c in changes)
+    codes = _code_cells(tmp_path / "m" / "m.ipynb")
+    setup = next(src for src in codes if bf.SETUP_ANCHOR in src)
+    assert bf.MODEL_LINE not in setup and setup.count(bf.MODEL_BEGIN) == 1
+    assert setup.index(bf.MODEL_END) < setup.index("# >>> ours (--wait-inputs)")  # the view exists before the wait
+    assert "intel-qwen3.8-flash-next" not in "".join(codes)
+    for src in (c for c in codes if not c.startswith("%%")):
+        _compiles(src)
+    meta = json.loads((tmp_path / "m" / "kernel-metadata.json").read_text())
+    assert meta["model_sources"] == ["dfranzen/albucino-qwen3-8-flash-next-drafter/Transformers/default/1",
+                                     *bf.MODELS["swift"]["sources"]]
+    assert bf.INTEL_SOURCE not in meta["model_sources"] and meta["dataset_sources"] == bf.SOURCES["dataset_sources"]
+
+
+def test_the_model_view_links_every_file_once_and_keeps_the_skipped_ones_out(tmp_path, capsys):
+    import time
+    code = bf._model_code("swift")
+    ns = {"os": os, "time": time}
+    exec(code.split("MODEL_DIR         =")[0], ns)  # the function only
+    a = tmp_path / "models/o/s/pytorch/w4a16-a/1"
+    b = tmp_path / "models/o/s/pytorch/w4a16-b/1"
+    a.mkdir(parents=True)
+    b.mkdir(parents=True)
+    (a / "model-00001-of-00002.safetensors").write_text("a")
+    (b / "model-00002-of-00002.safetensors").write_text("b")
+    (b / "model.safetensors.index.json").write_text("{}")
+    (b / "model_mtp.safetensors").write_text("mtp")
+    pats = [str(tmp_path / "models/o/s/*/w4a16-a/1"), str(tmp_path / "models/o/s/*/w4a16-b/1")]
+    view = tmp_path / "view"
+    assert ns["_ours_model_view"](pats, str(view), ["model_mtp.safetensors"], timeout_s=0) == str(view)
+    assert sorted(p.name for p in view.iterdir()) == ["model-00001-of-00002.safetensors",
+                                                     "model-00002-of-00002.safetensors", "model.safetensors.index.json"]
+    assert (view / "model-00001-of-00002.safetensors").read_text() == "a"
+    assert "3 files from" in capsys.readouterr().out
+    assert ns["_ours_model_view"](pats, str(view), ["model_mtp.safetensors"], timeout_s=0) == str(view)  # idempotent
+    (a / "model.safetensors.index.json").write_text("{}")  # the same name in both instances
+    with pytest.raises(RuntimeError, match="more than one instance"):
+        ns["_ours_model_view"](pats, str(tmp_path / "view2"), [], timeout_s=0)
+    with pytest.raises(RuntimeError, match="not mounted"):
+        ns["_ours_model_view"]([str(tmp_path / "missing/*")], str(tmp_path / "view3"), [], timeout_s=0)
+
+
+def test_model_with_reap_needs_reap_no_verify_which_leaves_the_router_check_out(tmp_path):
+    kept = ROOT / "kaggle" / "franzen" / "reap448_kept_experts.json"
+    with pytest.raises(SystemExit, match="--reap-no-verify"):
+        bf.build(tmp_path / "x", "x", base="dprime", model="swift", reap_kept=kept, cfg={"MAXREQ": "14"})
+    with pytest.raises(SystemExit, match="only applies to --reap-kept"):
+        bf.build(tmp_path / "y", "y", base="dprime", reap_verify=False)
+    changes = bf.build(tmp_path / "z", "z", base="dprime", model="swift", reap_kept=kept, reap_verify=False,
+                       cfg={"MAXREQ": "14"})
+    assert any("router sha256 check is off" in c for c in changes)
+    written = [c.splitlines()[0] for c in _code_cells(tmp_path / "z" / "z.ipynb") if c.startswith("%%writefile")]
+    assert f"%%writefile {bf.REAP_FILES['kept']}" in written and f"%%writefile {bf.REAP_FILES['meta']}" not in written
+    verified = bf.build(tmp_path / "v", "v", base="dprime", reap_kept=kept, cfg={"MAXREQ": "14"})  # Intel: checked
+    assert not any("router sha256 check is off" in c for c in verified)
+    assert any(c.startswith(f"%%writefile {bf.REAP_FILES['meta']}") for c in _code_cells(tmp_path / "v" / "v.ipynb"))
+
+
+def test_fail_fast_watches_the_server_from_right_before_the_benchmark(tmp_path):
+    with pytest.raises(SystemExit, match="needs --full25"):
+        bf.build(tmp_path / "x", "x", base="dprime", fail_fast=True)
+    changes = bf.build(tmp_path / "f", "f", base="dprime", full25=25, fail_fast=True)
+    assert any("fails fast" in c for c in changes)
+    run = next(src for src in _code_cells(tmp_path / "f" / "f.ipynb") if "await bm.run(" in src)
+    i, j = run.index(bf.FAIL_FAST_BEGIN), run.index(bf.FAIL_FAST_END)
+    assert i < j < run.index("await bm.run(")
+    _compiles(run)
+    watch = run[i:j]
+
+    class Exit(Exception):
+        pass
+
+    class FakeOs:
+        @staticmethod
+        def _exit(code):
+            raise Exit(code)
+
+    class Proc:
+        def __init__(self, code):
+            self.returncode = code
+
+        def poll(self):
+            return self.returncode
+
+    class Clock:
+        def __init__(self, sleeps):
+            self.t, self.left = 0.0, sleeps
+
+        def time(self):
+            return self.t
+
+        def sleep(self, s):
+            if self.left == 0:
+                raise StopIteration
+            self.left -= 1
+            self.t += s
+
+    class Resp:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    class Urllib:
+        class request:
+            healthy = True
+
+            @classmethod
+            def urlopen(cls, url, timeout):
+                if not cls.healthy:
+                    raise OSError("refused")
+                return Resp()
+
+    def run_watch(proc, healthy, sleeps):
+        Urllib.request.healthy = healthy
+        ns = {"os": FakeOs, "time": Clock(sleeps), "urllib": Urllib, "proc": proc, "show_log_tail": lambda: None,
+              "SERVED_MODEL_PORT": 8001, "NOTEBOOK_START_TIME": 0.0, "TRUE_SUBMISSION": True}  # no thread here
+        exec(watch, ns)
+        ns["_ours_server_watch"]()
+
+    with pytest.raises(Exit):  # the server process is gone
+        run_watch(Proc(1), True, 5)
+    with pytest.raises(StopIteration):  # alive and healthy: keeps watching
+        run_watch(Proc(None), True, 200)
+    with pytest.raises(Exit):  # alive but never healthy past the deadline
+        run_watch(Proc(None), False, 200)
+    assert "if not TRUE_SUBMISSION:" in watch  # never started in a competition rerun
