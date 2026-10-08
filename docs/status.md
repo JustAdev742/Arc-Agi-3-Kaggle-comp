@@ -152,7 +152,7 @@ If fewer than two configurations reach 3 draws, the unmodified base fills the se
 - **Submission candidate: exp-074t** (scottmahony/arc3-dprime-reap448-r14-accept05) = D' + REAP-448 at load + 14 streams
   + MTP acceptance 0.5 + input-path fallback + sandbox fix. This serving config scored **56.00 / 124 levels** at full
   length on the public 25 (exp-073b), against Franzen v3's four passes 45.6-47.5 (mean 46.49). Its save run is
-  running; **the owner submits it** once it is checked (it supersedes exp-074s, never submitted).
+  COMPLETE and checked (16:19 UTC); **the owner submits it** (it supersedes exp-074s, never submitted).
 - REAP fidelity question closed: the shift is real but confined to image turns, and costs no measured score.
 - Running: exp-075 (the candidate's exact config at full length: a repeat of exp-073b plus the sandbox fix, for the
   between-run noise). Being built on the CPU bed: harness patches M2 budget meter, M3 search helper, M4 win ledger

@@ -2401,3 +2401,13 @@ Not run: the 16-stream gate (exp-072i/k). exp-073b's pool peaked at 0.99 with 12
           most 1, so 16 streams would mostly add retractions at long contexts; a 25-min gate (short contexts) would
           overstate the gain.
 LB:       Tufa Labs 55.89, Yi-Chia Chen 55.77, Majkel1337 42.66, then 34-39; no public notebook above Franzen's 34.30.
+
+## 2026-10-08 16:20 · exp-074t save run COMPLETE and checked: submittable · OWNER SUBMITS
+Run:      scottmahony/arc3-dprime-reap448-r14-accept05 v1 (pushed 16:00, ran ~16:03-16:19 UTC);
+          runs/exp074t-dprime-reap448-r14-accept05/kernel-output.
+Checked:  inputs mounted after 0 s; "our harness patches applied successfully: 1" (sandbox fix); GPU RTX PRO 6000
+          (12, 0); "#OURS_FORM ok version=d_prime"; "priority gate active: 14 concurrent streams"; "ARC3 REAP: kept 448 of
+          512 ... router sha256 verified"; acceptance thresholds 0.5/0.5; KV pool 1,477,888 tokens; ft09 played 5 min
+          (4/6 levels, 59 actions); submission.parquet written; no error or traceback in the log.
+Next:     the owner submits this version ("Submit to Competition"); today's slot (Oct 8 UTC) is free: the last
+          submission, 56922501, was made Oct 7 21:57 UTC.
