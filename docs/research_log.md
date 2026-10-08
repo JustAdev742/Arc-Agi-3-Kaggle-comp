@@ -2590,3 +2590,16 @@ Reading:  the speed went into copying its previous turn. Unseparated causes: Swi
   taken to the far end reached ~38.6: consistent with "serving alone does not close the gap".
 - Leaders silent since Oct 2. Tinfield-1 (Sep 21, an agentic Flash-Next post-train, Qwen licence) is the only new
   drop-in candidate; no W4A16 build exists.
+
+## 2026-10-08 19:05 · MTP draft fine-tune on ARC traffic: feasible, modest (docs/research/beat-tufa/mtp-drafter-finetune.md) · PARKED
+- Plan (agent, CPU-only research): train only the draft head's 90.6M BF16 dense weights; the 512 INT4 experts stay
+  as albucino ships them (its codes and scales were reproduced bit-exactly from the BF16 original MTP, which is
+  already a notebook input: Intel's model_extra_tensors.safetensors). Hidden states from a small env-gated
+  Pennyroyal dump patch (SGLang's own return is JSON floats, unusable at 60-120k tokens). Swift ships the original MTP.
+- Cost ~3.5 Kaggle GPU-h (dump + replica check + training 1.3, probe gate 0.45, production gate 0.7, a retry 1.0)
+  and ~2 engineering days. Expected lossless accept 2.78 -> ~2.92-3.05 (+5-10%), ~+3.5-7% score; a perfect draft
+  would reach 3.51 lossless (3.95 at 0.5/0.5) on the probe's logprobs.
+- Risk: under 0.5/0.5 a sharper draft pushes decoding toward greedy (loop risk; exp-076's loops came with accept
+  3.70). Ship lossless first; gate any lossy setting on a loop count (scratchpad tools/dupes.py: exact repeated
+  turns per game).
+- Parked behind this week's arms (quota 13.5 h left until Sat 00:00 UTC); candidate for next week.
