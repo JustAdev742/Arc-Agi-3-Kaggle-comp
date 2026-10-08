@@ -2198,3 +2198,12 @@ Decision: online MXFP8 is dropped (slower dense GEMMs than his BF16 path). REAP-
           candidate: +14% output tokens, same accept length; by the measured elasticity (0.6-0.8) about +8-11% score,
           to be checked at full length (exp-073, running) and on the LB. exp-072d (acceptance 0.5 on the base) is not
           re-run; exp-072g tests acceptance 0.5 on top of REAP-14 instead.
+
+## 2026-10-08 00:21 · exp-072g · REAP-448 + 14 streams + MTP acceptance 0.5: +28% output tok/s over base · FULL-LENGTH TEST QUEUED
+Run:      scottmahony/arc3-dprime-gate-reap448-r14-accept05 v1, D', 25 x 25 min; runs/exp072g-dprime-gate-reap448-r14-accept05.
+Measured: 819.3 tok/s output over 1,579 s (REAP-14: 733.2, base: 641.9); accept length 3.06 (2.64); decode p50 at 12-14
+          running 920-1004 tok/s; 12.57 of 14 running; output per request 1,718 tokens, the same as REAP-14 (1,718): no
+          sign of degenerate (longer, looping) outputs. Gate score 11.69 / 34 levels (REAP-14 8.17 / 32, base 6.71 / 25;
+          gate scores are throughput-dominated and noisy).
+Risk:     lossy by design (draft tokens accepted when confident: roughly a lower effective temperature); judged on score.
+Next:     exp-073b = this at 121 min per game, queued before the exp-072h/i gates.
