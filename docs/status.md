@@ -146,9 +146,20 @@ public 25 (scripts/arm_table.py), then the validation score. If the top two are 
 noise, the second slot goes to the best configuration that differs from it (diversification against the private half).
 If fewer than two configurations reach 3 draws, the unmodified base fills the second slot.
 
+### State at 2026-10-08 16:15 UTC
+- **LB (16:0x):** Tufa Labs 55.89, Yi-Chia Chen 55.77, Majkel1337 42.66, then a band at 34-39. Ours: 28.87 (the D'
+  copy, submission 56922501, 07:02 UTC). No public notebook has a best score above Franzen's own 34.30.
+- **Submission candidate: exp-074t** (scottmahony/arc3-dprime-reap448-r14-accept05) = D' + REAP-448 at load + 14 streams
+  + MTP acceptance 0.5 + input-path fallback + sandbox fix. This serving config scored **56.00 / 124 levels** at full
+  length on the public 25 (exp-073b), against Franzen v3's four passes 45.6-47.5 (mean 46.49). Its save run is
+  running; **the owner submits it** once it is checked (it supersedes exp-074s, never submitted).
+- REAP fidelity question closed: the shift is real but confined to image turns, and costs no measured score.
+- Running: exp-075 (the candidate's exact config at full length: a repeat of exp-073b plus the sandbox fix, for the
+  between-run noise). Being built on the CPU bed: harness patches M2 budget meter, M3 search helper, M4 win ledger
+  (docs/research/beat-tufa/new-methods.md), each behind a flag, for one bundle arm at full length.
+- GPU quota: about 13.5 of 30 h used this week after exp-075 (reset Sat 2026-10-10 00:00 UTC).
+
 ### LB, 2026-10-08 07:02 UTC: our D' copy drew **28.87** (rank 410 of 3,969; was 4.70)
-Next submission candidate: exp-074s (D' + REAP-448 at load + 14 streams + input-path fallback; full-length public-25
-49.45 vs Franzen v3's 45.6-47.5, +14% output tok/s); its save run waits for a free RTX slot. See research_log.md.
 
 ### State at 2026-10-07 21:4x UTC (supersedes the queue below)
 - The week's quota (reset Oct 3) was unused until Oct 7 21:18; ~0.3 GPU-h went to four short failed sessions

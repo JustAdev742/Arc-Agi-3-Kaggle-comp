@@ -2387,3 +2387,17 @@ Reading:  the shift exceeds every noise floor we can measure and lives on the im
           text-only calibration dropping experts that image tokens route to. It does not show up as a score loss: with
           REAP-448 + acceptance 0.5, exp-073b scored 56.00 and won vc33, tn36 and tr87. Kept. A REAP calibrated on our own
           logged ARC traffic (image turns included) is the obvious way to shrink it; that is a follow-up, not a blocker.
+
+## 2026-10-08 16:13 · exp-075 pushed (candidate config at full length); harness levers M2/M3/M4 being built · RUNNING
+exp-075: scottmahony/arc3-dprime-r14a05-sandbox-full v1 (pushed 16:12, RUNNING at once) = exp-074t's notebook with
+          --full25 121: the submission candidate's exact config, all 25 public games at 121 min per game. It repeats
+          exp-073b (56.00) plus the sandbox fix (ours-01), so it gives the between-run spread of this config, which
+          every harness arm on top of it needs (Franzen v3's within-run pass SD 0.93 is the only spread we have).
+Building: three CPU-only agents, one per method of docs/research/beat-tufa/new-methods.md, each a flag-gated patch on
+          top of ours-01 with tests and a bed run: ours-02 budget meter (M2, OURS_BUDGET_METER, with EXPOSE_RESET=on),
+          ours-03 win ledger re-pinned at trims (M4, OURS_WIN_LEDGER), ours-04 search helper + guarded run_plan (M3,
+          OURS_SEARCH_HELPER). Plan: one bundle arm at full length against exp-073b/exp-075, then ablate if it wins.
+Not run: the 16-stream gate (exp-072i/k). exp-073b's pool peaked at 0.99 with 12.3 of 14 running and a queue of at
+          most 1, so 16 streams would mostly add retractions at long contexts; a 25-min gate (short contexts) would
+          overstate the gain.
+LB:       Tufa Labs 55.89, Yi-Chia Chen 55.77, Majkel1337 42.66, then 34-39; no public notebook above Franzen's 34.30.
