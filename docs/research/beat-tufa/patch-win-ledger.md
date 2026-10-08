@@ -229,3 +229,16 @@ OURS_WIN_LEDGER=1` (the patch is inert with the flag off), so the pair differs i
 Re-run the fact-check on a new run's boards: build the bundle (`scripts/franzen_tree.py bundle DIR --patch ... --patch
 ...`), then `~/.cache/arc3-franzen-bed/venv/bin/python -I scratchpad/m4/tools/factcheck.py DIR/src/ARC3-Inference
 environment_files OUT.json RUN/artifacts/*_events.jsonl` (`FACTCHECK_MUTATE=1` for the corruption test).
+
+## Composed with ours-02 and ours-04 (2026-10-08, lead)
+
+`ours-03-win-ledger.patch` applies on top of his patch + ours-01 only. With ours-02 (budget meter) and ours-04
+(search helper) it conflicts in two places where all three insert code: the sandbox's state refresh
+(`runtime_globals["budget"]` vs `["level_wins"]`) and the module level right before `_build_system_prompt` in
+tool_agent.py. Both conflicts are independent insertions, resolved by keeping both blocks.
+`kaggle/franzen/patches/ours-03b-win-ledger-on-02-04.patch` is the same change rebased onto 01 + 02 + 04 (built with
+`franzen_tree.py build` + `git apply -3` + `franzen_tree.py diff`); a bundle arm applies 01, 02, 04, 03b in that
+order (`franzen_tree.py check`: ok). Bed, all four flags on (OURS_BUDGET_METER, OURS_WIN_LEDGER, OURS_SEARCH_HELPER,
+EXPOSE_RESET=on, `--program search`, 3 games x 120 s): 18/18 checks, 298 requests, 61 trims, no tracebacks; the
+budget line in 141 of 165 ls20 and 184 of 224 vc33 requests (none on sb26, which has no bar) and the ledger in
+153/212/187 of 165/224/199.

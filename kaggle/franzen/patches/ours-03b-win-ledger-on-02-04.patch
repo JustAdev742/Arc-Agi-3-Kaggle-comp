@@ -1,0 +1,583 @@
+diff --git a/ARC3-Inference/inference/agent/python_tool_sandbox.py b/ARC3-Inference/inference/agent/python_tool_sandbox.py
+index 70cde14..d8c53be 100644
+--- a/ARC3-Inference/inference/agent/python_tool_sandbox.py
++++ b/ARC3-Inference/inference/agent/python_tool_sandbox.py
+@@ -416,6 +416,17 @@ _SANDBOX_BOOTSTRAP = textwrap.dedent(
+             runtime_globals["last_action_call_result"] = action_result
+             if "budget" in state_payload:  # ours (budget meter): sent only with OURS_BUDGET_METER on
+                 runtime_globals["budget"] = state_payload.get("budget")
++            if "level_wins" in state_payload:  # ours (M4, OURS_WIN_LEDGER): win records with their boards
++                level_wins = []
++                for item in state_payload.get("level_wins") or []:
++                    item = dict(item)
++                    for name in ("start", "prewin"):
++                        index = item.pop(name + "_index", None)
++                        ok = isinstance(index, int) and 0 <= index < len(history)
++                        item[name + "_frame"] = history[index].frame if ok else None
++                    item["win_frame"] = _frame_from_payload(item.get("win_frame"))
++                    level_wins.append(item)
++                runtime_globals["level_wins"] = level_wins
+ 
+         # Both refusals derive from BaseException, not Exception, so a
+         # defensive `except Exception:` around action(...) - which models write
+diff --git a/ARC3-Inference/inference/agent/tool_agent.py b/ARC3-Inference/inference/agent/tool_agent.py
+index 7b5731b..002e905 100644
+--- a/ARC3-Inference/inference/agent/tool_agent.py
++++ b/ARC3-Inference/inference/agent/tool_agent.py
+@@ -1200,6 +1200,8 @@ def _prune_control_kind_enabled(kind: str) -> bool:
+                  `short` mode) - a restatement of unchanged state
+     - 'stub'   : the placeholder that ARC3_STUB_DEAD_REASONING leaves behind
+     """
++    if kind == _OURS_LEDGER_KIND:
++        return False  # ours (M4): the ledger is replaced at trims only; pruning it would move the cached prefix
+     if _prune_control_context_enabled():
+         return True
+     env_name = _CONTROL_KIND_ENV.get(kind)
+@@ -2733,6 +2735,343 @@ def _search_call_timeout(code: str, retained: dict[str, str] | None, base: int)
+     if not limits:
+         return base
+     return max(base, int(-(-max(limits) // 1)) + _SEARCH_EXTRA_SECONDS)
++# --- ours (M4): an exact win ledger, re-pinned at every context trim ----------------------------------------------
++# OURS_WIN_LEDGER=1, read at call time; unset or off leaves every prompt, trim and tool result byte-identical.
++# Facts the harness computes from the recorded boards, never written by the model and never interpreted. At each
++# level-up the opener gets a short record of how the level was won: its actions (run-length encoded), object changes
++# from the winning attempt's first board to the board before the winning action, and the winning action's own
++# changes up to the moment the level ended. At each context trim one ledger message (every win record, the current
++# level's game overs and resets, the retained function names) goes right after the system prompt, where the trim has
++# already broken the prefix cache; it stays byte-identical until the next trim moves the history head again.
++# `level_wins` in the sandbox holds the records with their boards.
++_OURS_LEDGER_KIND = "ledger"
++_OURS_LEDGER_MAX_CHARS = 1500
++_OURS_CHANGES_SHOWN = 4
++
++
++def _ours_win_ledger_enabled() -> bool:
++    return _get_env_bool("OURS_WIN_LEDGER", False)
++
++
++def _ours_is_ledger(message: Any) -> bool:
++    return isinstance(message, dict) and message.get(_CONTROL_MESSAGE_KEY) == _OURS_LEDGER_KIND
++
++
++def _ours_count_history(messages: list[dict[str, Any]]) -> int:
++    """Messages other than the ledger; with the flag off there is none, so this is len(messages)."""
++    return sum(1 for message in messages if not _ours_is_ledger(message))
++
++
++def _ours_grid_change_count(grid_a: Any, grid_b: Any) -> int:
++    count = 0
++    for row_a, row_b in zip(grid_a, grid_b):
++        if row_a != row_b:
++            count += sum(1 for a, b in zip(row_a, row_b) if a != b)
++    return count
++
++
++def _ours_node_cells(grid: Any, node: dict[str, Any]) -> set[tuple[int, int]]:
++    """A segment's cells: every boundary corner is a cell of it, so flood-fill its colour from the first one."""
++    start = (int(node["boundary"][0][0]), int(node["boundary"][0][1]))
++    value = grid[start[0]][start[1]]
++    rows = len(grid)
++    seen = {start}
++    stack = [start]
++    while stack:
++        r, c = stack.pop()
++        for nr, nc in ((r + 1, c), (r - 1, c), (r, c + 1), (r, c - 1)):
++            if 0 <= nr < rows and 0 <= nc < len(grid[nr]) and (nr, nc) not in seen and grid[nr][nc] == value:
++                seen.add((nr, nc))
++                stack.append((nr, nc))
++    return seen
++
++
++def _ours_board_changes(grid_a: Any, grid_b: Any, border: int) -> list[str] | None:
++    """Exact object changes between two boards as prompt lines (None when their shapes differ).
++
++    Objects are his segments (4-connected, one colour). An object whose box lies inside the outer `border` cells
++    (HUD and budget bars) is not compared. Every line is a plain statement about the two boards:
++    - moved / rotated: the only object of that shape and colour on each board is at a new place / pose;
++    - recolored: the same shape at the same place has another colour;
++    - disappeared / appeared: objects of a shape and colour at places where the other board has none of them
++      (several alike objects are listed by place, never paired into moves).
++    Not listed (the caller's wording says "include"): parts carried along by a moved object, cells a moved object
++    now covers or has uncovered, and same-colour regions that only changed shape around the changes.
++    """
++    from collections import Counter
++
++    from inference.utils.frame_diff import _node_bbox, _node_topleft
++    from inference.utils.grid_utils import ARC_COLOR_CHARS
++    from inference.utils.segmentation import segment_layer
++
++    rows = len(grid_a)
++    cols = max((len(row) for row in grid_a), default=0)
++    if not rows or rows != len(grid_b) or cols != max((len(row) for row in grid_b), default=0):
++        return None
++
++    def objects(grid: Any) -> list[dict[str, Any]]:
++        kept = []
++        for node in segment_layer(grid, ARC_COLOR_CHARS).get("nodes", []):
++            if not node.get("boundary"):
++                continue
++            r0, c0, r1, c1 = _node_bbox(node)
++            if r1 < border or c1 < border or r0 >= rows - border or c0 >= cols - border:
++                continue
++            kept.append(node)
++        return kept
++
++    def place(node: dict[str, Any]) -> tuple[int, int]:
++        r, c = _node_topleft(node)
++        return int(r), int(c)
++
++    by_a: dict[str, list[dict[str, Any]]] = {}
++    by_b: dict[str, list[dict[str, Any]]] = {}
++    for node in objects(grid_a):
++        by_a.setdefault(node["hash"], []).append(node)
++    for node in objects(grid_b):
++        by_b.setdefault(node["hash"], []).append(node)
++    moved, gone, new = [], [], []
++    for key in sorted(set(by_a) | set(by_b)):
++        group_a, group_b = by_a.get(key, []), by_b.get(key, [])
++        seen_a = Counter((place(n), n.get("pose_hash")) for n in group_a)
++        seen_b = Counter((place(n), n.get("pose_hash")) for n in group_b)
++        if seen_a == seen_b:
++            continue
++        if len(group_a) == 1 and len(group_b) == 1:
++            moved.append((group_a[0], group_b[0]))
++            continue
++        only_a, only_b = seen_a - seen_b, seen_b - seen_a
++        for node in group_a:
++            spot = (place(node), node.get("pose_hash"))
++            if only_a[spot] > 0:
++                only_a[spot] -= 1
++                gone.append(node)
++        for node in group_b:
++            spot = (place(node), node.get("pose_hash"))
++            if only_b[spot] > 0:
++                only_b[spot] -= 1
++                new.append(node)
++
++    # Same shape, same place, another colour (or the same alike object turned in place).
++    recolored, turned = [], []
++    used_new: set[int] = set()
++    rest_gone = []
++    for node in gone:
++        match = None
++        for j, other in enumerate(new):
++            if j in used_new or place(other) != place(node):
++                continue
++            if other["hash"] == node["hash"] or (
++                other.get("shape_hash") == node.get("shape_hash") and other["color"] != node["color"]
++            ):
++                match = j
++                break
++        if match is None:
++            rest_gone.append(node)
++            continue
++        used_new.add(match)
++        (turned if new[match]["hash"] == node["hash"] else recolored).append((node, new[match]))
++    rest_new = [node for j, node in enumerate(new) if j not in used_new]
++
++    # Leave out what only follows from the moves: carried parts, covered or uncovered cells, reshaped regions.
++    movers = []
++    for node_a, node_b in moved:
++        (ra, ca), (rb, cb) = place(node_a), place(node_b)
++        movers.append((
++            (rb - ra, cb - ca), _node_bbox(node_a), _node_bbox(node_b),
++            _ours_node_cells(grid_a, node_a), _ours_node_cells(grid_b, node_b),
++        ))
++    covered_after = set().union(*(m[4] for m in movers)) if movers else set()
++    covered_before = set().union(*(m[3] for m in movers)) if movers else set()
++    drop_gone: set[int] = set()
++    drop_new: set[int] = set()
++
++    def inside(box: Any, other: Any) -> bool:
++        return box[0] <= other[0] and box[1] <= other[1] and other[2] <= box[2] and other[3] <= box[3]
++
++    for i, node in enumerate(rest_gone):
++        for shift, box_a, box_b, _, _ in movers:
++            if not inside(box_a, _node_bbox(node)):
++                continue
++            target = (place(node)[0] + shift[0], place(node)[1] + shift[1])
++            hit = next((j for j, other in enumerate(rest_new) if j not in drop_new and other["hash"] == node["hash"]
++                        and place(other) == target and inside(box_b, _node_bbox(other))), None)
++            if hit is not None:
++                drop_gone.add(i)
++                drop_new.add(hit)
++                break
++    cells_gone = {i: _ours_node_cells(grid_a, node) for i, node in enumerate(rest_gone) if i not in drop_gone}
++    cells_new = {j: _ours_node_cells(grid_b, node) for j, node in enumerate(rest_new) if j not in drop_new}
++    for i, cells in cells_gone.items():
++        if movers and cells <= covered_after:
++            drop_gone.add(i)
++    for j, cells in cells_new.items():
++        if movers and cells <= covered_before:
++            drop_new.add(j)
++    for i, cells in cells_gone.items():
++        for j, other in cells_new.items():
++            if rest_new[j]["color"] == rest_gone[i]["color"] and 2 * len(cells & other) >= min(len(cells), len(other)):
++                drop_gone.add(i)
++                drop_new.add(j)
++
++    lines: list[str] = []
++    for node_a, node_b in sorted(moved, key=lambda pair: (-int(pair[0].get("pixels") or 0), place(pair[0]))):
++        rotation = ""
++        rot_a, rot_b = node_a.get("rotation"), node_b.get("rotation")
++        if node_a.get("pose_hash") != node_b.get("pose_hash") and rot_a is not None and rot_b is not None:
++            modulus = 180 if node_a.get("rotational_symmetry") == 2 else 360
++            if (rot_b - rot_a) % modulus:
++                rotation = f" rotated_by {(rot_b - rot_a) % modulus}"
++        if place(node_a) != place(node_b):
++            lines.append(f"moved: color {node_a['color']} {node_a['pixels']}px "
++                         f"{list(place(node_a))}->{list(place(node_b))}{rotation}")
++        elif rotation:
++            lines.append(f"rotated: color {node_a['color']} {node_a['pixels']}px by {rotation.split()[-1]} "
++                         f"at {list(place(node_a))}")
++    for node, _ in turned:
++        lines.append(f"rotated: color {node['color']} {node['pixels']}px at {list(place(node))}")
++
++    def spots(places: list[tuple[int, int]]) -> str:
++        shown = ", ".join(str(list(p)) for p in places[:3])
++        return shown + (", among other places" if len(places) > 3 else "")
++
++    groups: dict[tuple, list[tuple[int, int]]] = {}
++    for node_a, node_b in recolored:
++        groups.setdefault((node_a["color"], node_b["color"], node_a["pixels"]), []).append(place(node_a))
++    for (before, after, pixels), places in sorted(groups.items(), key=lambda kv: (-len(kv[1]), kv[0])):
++        lines.append(f"recolored {before}->{after} ({pixels}px) at {spots(sorted(places))}")
++    for verb, nodes, dropped in (("disappeared", rest_gone, drop_gone), ("appeared", rest_new, drop_new)):
++        by_key: dict[str, list[dict[str, Any]]] = {}
++        for i, node in enumerate(nodes):
++            if i not in dropped:
++                by_key.setdefault(node["hash"], []).append(node)
++        for key, members in sorted(by_key.items(), key=lambda kv: (-int(kv[1][0].get("pixels") or 0), kv[0])):
++            first = members[0]
++            count_a, count_b = len(by_a.get(key, [])), len(by_b.get(key, []))
++            alike = f" ({count_a} alike before, {count_b} after)" if max(count_a, count_b) > 1 else ""
++            lines.append(f"{verb}: color {first['color']} {first['pixels']}px at "
++                         f"{spots(sorted(place(n) for n in members))}{alike}")
++    return lines
++
++
++def _ours_shown_changes(lines: list[str], limit: int) -> str:
++    return "; ".join(lines[:limit]) + ("; more not listed" if len(lines) > limit else "")
++
++
++def _ours_rle(actions: list[str], max_chars: int = 200) -> str:
++    runs: list[list[Any]] = []
++    for action in actions:
++        if runs and runs[-1][0] == action:
++            runs[-1][1] += 1
++        else:
++            runs.append([action, 1])
++    parts = [f"{name} x{count}" if count > 1 else str(name) for name, count in runs]
++    text = ", ".join(parts)
++    if len(text) <= max_chars or len(parts) < 3:
++        return text
++    head: list[str] = []
++    for part in parts[:-1]:
++        if len(", ".join([*head, part])) > max_chars - len(parts[-1]) - 30:
++            break
++        head.append(part)
++    skipped = sum(count for _, count in runs[len(head):-1])
++    return ", ".join(head) + f", ... {skipped} more actions ..., " + parts[-1]
++
++
++def _ours_level_spans(entries: list[HistoryEntry]) -> list[dict[str, Any]]:
++    """History split into levels: entry indices of the level's first board, of its RESETs, of its game overs and
++    of the winning action (None while the level is being played)."""
++    spans: list[dict[str, Any]] = []
++    if not entries:
++        return spans
++    current: dict[str, Any] = {"level": entries[0].frame.level, "start": 0, "resets": [], "game_overs": [],
++                               "end": None}
++    for index in range(1, len(entries)):
++        entry, before = entries[index], entries[index - 1]
++        result = entry.result or {}
++        if str(entry.action or "").strip().upper() == "RESET":
++            current["resets"].append(index)
++        if result.get("game_over"):
++            current["game_overs"].append(index)
++        if (result.get("level_completed") or result.get("run_complete")
++                or entry.frame.level > before.frame.level):
++            current["end"] = index
++            spans.append(current)
++            if result.get("run_complete"):
++                return spans  # the last level is won: there is no current level
++            current = {"level": entry.frame.level, "start": index, "resets": [], "game_overs": [], "end": None}
++    spans.append(current)
++    return spans
++
++
++def _ours_terminal_grid(chain: Any, before_grid: Any, after_grid: Any) -> Any:
++    """The finished board of a level-completing action, from its collapsed animation chain, or None.
++
++    The engine renders the finished board and then, in the same action, the next level's start: the chain's last
++    change is then a jump of at least 20 cells and at least twice every earlier change (the rule checked against the
++    engine's exact winning board on 43 dev levels). Anything else is left unanswered."""
++    if not chain or len(chain) < 3 or chain[0] != before_grid or chain[-1] != after_grid:
++        return None
++    changes = [_ours_grid_change_count(a, b) for a, b in zip(chain, chain[1:])]
++    if changes[-1] >= 20 and changes[-1] >= 2 * max(changes[:-1]):
++        return chain[-2]
++    return None
++
++
++def _ours_game_over_text(entries: list[HistoryEntry], indices: list[int]) -> str:
++    if not indices:
++        return "no game over"
++    parts = [f"step {entries[i].frame.step} (after {entries[i].action})" for i in indices[:4]]
++    more = f" and {len(indices) - 4} more" if len(indices) > 4 else ""
++    return f"{len(indices)} game over{'s' if len(indices) > 1 else ''}: " + ", ".join(parts) + more
++
++
++def _ours_win_record(entries: list[HistoryEntry], span: dict[str, Any], chain: Any, border: int) -> dict[str, Any]:
++    start, end = span["start"], span["end"]
++    level = span["level"]
++    first_step, win_step = entries[start].frame.step, entries[end].frame.step
++    attempt = max([start, *[i for i in span["resets"] if i < end]])
++    prewin = end - 1
++    attempt_actions = [str(entries[i].action) for i in range(attempt + 1, end + 1)]
++    actions = win_step - first_step
++    header = (f"won in {actions} action{'s' if actions != 1 else ''} (steps {first_step + 1}-{win_step}), "
++              + _ours_game_over_text(entries, span["game_overs"]))
++    since = "the level's first board"
++    if attempt != start:
++        header += f"; the winning attempt began after the RESET at step {entries[attempt].frame.step}"
++        since = "that RESET"
++    actions_label = "Actions" if attempt == start else "Actions after that RESET"
++    net_text = ""
++    if prewin != attempt:
++        net = _ours_board_changes(entries[attempt].frame.grid, entries[prewin].frame.grid, border)
++        if net:
++            net_text = (f"Before the winning action, changes since {since} include: "
++                        f"{_ours_shown_changes(net, _OURS_CHANGES_SHOWN)}.")
++        elif entries[attempt].frame.grid == entries[prewin].frame.grid:
++            net_text = f"Before the winning action, the board was the same as at {since}."
++    terminal = _ours_terminal_grid(chain, entries[prewin].frame.grid, entries[end].frame.grid)
++    effect_text = ""
++    if terminal is not None:
++        effect = _ours_board_changes(entries[prewin].frame.grid, terminal, border)
++        if effect:
++            effect_text = ("The winning action itself, before the level ended, made changes including: "
++                           f"{_ours_shown_changes(effect, _OURS_CHANGES_SHOWN - 1)}.")
++        elif terminal == entries[prewin].frame.grid:
++            effect_text = "When the level ended, the board was the same as before the winning action."
++    details = " ".join(text for text in (net_text, effect_text) if text)
++    opener = [f"Level {level} record (exact facts from the recorded boards): {header}.",
++              f"{actions_label}: {_ours_rle(attempt_actions, 120)}."]
++    opener += [text for text in (net_text, effect_text) if text]
++    opener.append(f"({border}-cell edge band not compared; `level_wins` in python has the boards.)")
++    return {
++        "level": level, "first_step": first_step, "win_step": win_step, "actions": actions,
++        "game_overs": [[entries[i].frame.step, str(entries[i].action)] for i in span["game_overs"]],
++        "attempt_index": attempt, "prewin_index": prewin, "attempt_actions": attempt_actions,
++        "terminal": terminal, "opener_lines": opener,
++        "ledger_line": (f"- Level {level}: {header}. {actions_label}: {_ours_rle(attempt_actions, 100)}."
++                        + (" " + details if details else "")),
++        "ledger_short": f"- Level {level}: {header}.",
++    }
+ 
+ 
+ def _build_system_prompt(*, tool_output_tokens: int) -> str:
+@@ -4931,6 +5270,8 @@ class ToolAgent:
+         previous_step_summary: dict[str, Any] | None = None,
+     ) -> str:
+         history_entries = history_entries or []
++        # ours (M4): keep the win ledger current; the record of a level just won goes into this opener
++        ours_win_record = self._ours_ledger_observe(history_entries) if _ours_win_ledger_enabled() else None
+         current_step = max(current_frame.step if current_frame is not None else 0, max(0, action_num)) + 1
+         current_level = current_frame.level if current_frame is not None else 1
+         summary_level = None
+@@ -5078,6 +5419,8 @@ class ToolAgent:
+                     if _level_transfer_guidance_enabled()
+                     else "You have progressed to a new level!"
+                 )
++                if ours_win_record is not None:
++                    lines.extend(ours_win_record["opener_lines"])
+             else:
+                 lines.append(
+                     self._manual_reset_context_line(previous_step_summary)
+@@ -5893,6 +6236,14 @@ class ToolAgent:
+                 state["budget"] = public(self._ours_budget(refreshed_history))
+             return state
+ 
++        if _ours_win_ledger_enabled():  # ours (M4): `level_wins` in the sandbox, added to whatever the state holds
++            _his_serialized_runtime_state = _serialized_runtime_state
++
++            def _serialized_runtime_state(**kwargs: Any) -> dict[str, Any]:
++                state = _his_serialized_runtime_state(**kwargs)
++                state["level_wins"] = self._ours_level_wins_payload()
++                return state
++
+         terminal_action_result: dict[str, Any] | None = None
+         snippet_executed_actions = 0
+ 
+@@ -6456,13 +6807,13 @@ class ToolAgent:
+             # after pruning, so a dropped resumption opener cannot consume a
+             # retention slot
+             messages = _apply_history_image_window(messages, keep_images)
+-        before_trim = len(messages)
++        before_trim = _ours_count_history(messages)
+         trimmed = self._trim_messages_for_context(messages, tools=tools)
+         if not trimmed:
+             if original_history:
+                 self._note_history_evicted()
+             return []
+-        token_trim_dropped = len(trimmed) < before_trim
++        token_trim_dropped = _ours_count_history(trimmed) < before_trim
+         trimmed_history = trimmed[1:]
+         history = self._keep_recent_history_turns(
+             trimmed_history,
+@@ -6599,6 +6950,11 @@ class ToolAgent:
+     ) -> list[dict[str, Any]]:
+         if not messages:
+             return []
++        ours_ledger = _ours_win_ledger_enabled()
++        if ours_ledger:
++            # ours (M4): trim the history without the ledger, keeping room for it, then pin it back (_ours_ledger_pin)
++            messages = [messages[0], *(message for message in messages[1:] if not _ours_is_ledger(message))]
++            extra_safety_tokens = max(0, extra_safety_tokens) + self._ours_ledger_reserve()
+         system_message = messages[0]
+         history = list(messages[1:])
+         preserve_recent = max(0, preserve_recent)
+@@ -6680,6 +7036,8 @@ class ToolAgent:
+         # yielding the slot to another game costs nothing.
+         if len(history) != len(messages) - 1:
+             self._note_history_evicted()
++        if ours_ledger:
++            return self._ours_ledger_pin(system_message, history)
+         return [system_message, *history]
+ 
+     def _force_reduce_messages(
+@@ -6692,11 +7050,133 @@ class ToolAgent:
+             return []
+         system_message = messages[0]
+         history = list(messages[1:])
++        if _ours_win_ledger_enabled():
++            # ours (M4): drop a real block, never just the ledger - which the next trim would put straight back
++            history = [message for message in history if not _ours_is_ledger(message)]
+         if not self._drop_oldest_history_block(history, preserve_recent=max(0, preserve_recent)):
+             return list(messages)
+         self._note_history_evicted()
+         return [system_message, *history]
+ 
++    # --- ours (M4): the win ledger ----------------------------------------------------------------------------------
++
++    def _ours_ledger_state(self) -> dict[str, Any]:
++        state = getattr(self, "_ours_ledger", None)
++        session = getattr(self, "_session_runtime_dir", None)
++        if state is None or state.get("session") != session:
++            state = {"session": session, "wins": {}, "step": 0, "current": "", "message": None, "head": None}
++            self._ours_ledger = state
++        return state
++
++    def _ours_ledger_observe(self, history_entries: list[HistoryEntry]) -> dict[str, Any] | None:
++        """Record the wins in history not yet recorded and the current level's game overs and resets.
++
++        Returns the record of the level whose winning action is the last history entry (the level-up the opener
++        announces), else None. Only that action's animation chain can still be read, so only its own changes are
++        reported; earlier wins found here (a game resumed mid-way) get records without them."""
++        state = self._ours_ledger_state()
++        entries = list(history_entries or [])
++        if not entries:
++            return None
++        border = max(0, _get_env_int("ARC3_NOOP_GUARD_BORDER", 4))
++        spans = _ours_level_spans(entries)
++        latest = None
++        for span in spans:
++            if span["end"] is None:
++                continue
++            is_last = span["end"] == len(entries) - 1
++            if span["level"] not in state["wins"]:
++                chain = getattr(self, "_last_animation_chain", None) if is_last and _animation_enabled() else None
++                state["wins"][span["level"]] = _ours_win_record(entries, span, chain, border)
++            if is_last:
++                latest = state["wins"][span["level"]]
++        state["step"] = entries[-1].frame.step
++        current = spans[-1]
++        if current["end"] is None:
++            start_step = entries[current["start"]].frame.step
++            so_far = entries[-1].frame.step - start_step
++            manual = [entries[i].frame.step for i in current["resets"]
++                      if not (entries[i].result or {}).get("automatic")]
++            text = (f"- Level {current['level']} (current, since step {start_step}): {so_far} "
++                    f"action{'s' if so_far != 1 else ''} so far, "
++                    f"{_ours_game_over_text(entries, current['game_overs'])}")
++            if manual:
++                text += f"; RESET by you at step{'s' if len(manual) > 1 else ''} " + ", ".join(map(str, manual))
++            state["current"] = text + "."
++        else:
++            state["current"] = ""
++        return latest
++
++    def _ours_ledger_text(self) -> str:
++        state = self._ours_ledger_state()
++        records = [state["wins"][level] for level in sorted(state["wins"])]
++        head = [f"Ledger of exact facts from the recorded boards, as of step {state['step']} (placed here because "
++                "older messages of this conversation were trimmed):"]
++        tail = [state["current"]] if state["current"] else []
++        if _persistent_functions() and getattr(self, "_kept_functions", None):
++            tail.append("- Retained functions: " + ", ".join(sorted(self._kept_functions)) + ".")
++        if records:
++            tail.append("`level_wins` in python holds the win records with their boards.")
++        body = [record["ledger_line"] for record in records]
++        for index, record in enumerate(records):  # oldest first, shortened to fit
++            if len("\n".join([*head, *body, *tail])) <= _OURS_LEDGER_MAX_CHARS:
++                break
++            body[index] = record["ledger_short"]
++        return "\n".join([*head, *body, *tail]) if (body or tail) else ""
++
++    def _ours_level_wins_payload(self) -> list[dict[str, Any]]:
++        """`level_wins` for the sandbox: the records, with history indices for the attempt's first board and the
++        board before the winning action, and the finished board when the animation showed it."""
++        state = self._ours_ledger_state()
++        wins = []
++        for level in sorted(state["wins"]):
++            record = state["wins"][level]
++            terminal = record["terminal"]
++            wins.append({
++                "level": level, "first_step": record["first_step"], "win_step": record["win_step"],
++                "actions": record["actions"], "game_overs": record["game_overs"],
++                "attempt_actions": record["attempt_actions"], "start_index": record["attempt_index"],
++                "prewin_index": record["prewin_index"], "record": "\n".join(record["opener_lines"][:-1]),
++                "win_frame": None if terminal is None else _ascii_frame_view_payload(
++                    Frame(grid=terminal, step=record["win_step"], level=level)),
++            })
++        return wins
++
++    def _ours_ledger_message(self) -> dict[str, Any] | None:
++        text = self._ours_ledger_text()
++        if not text:
++            return None
++        return _mark_control_message({"role": "user", "content": text}, _OURS_LEDGER_KIND)
++
++    def _ours_ledger_tokens(self, message: dict[str, Any] | None) -> int:
++        if message is None:
++            return 0
++        return max(0, self._estimate_request_input_tokens([message]) - self._estimate_request_input_tokens([]))
++
++    def _ours_ledger_reserve(self) -> int:
++        """Room for the ledger in the trimmer's budget: the larger of the pinned one and one built now."""
++        state = self._ours_ledger_state()
++        return max(self._ours_ledger_tokens(state["message"]), self._ours_ledger_tokens(self._ours_ledger_message()))
++
++    def _ours_ledger_pin(self, system_message: dict[str, Any], history: list[dict[str, Any]]) -> list[dict[str, Any]]:
++        """Messages for the trimmed history, with the ledger right after the system prompt once a trim happened.
++
++        The ledger is rebuilt only when the first history message differs from the one it was last pinned above
++        (history was dropped from the front, or that message itself changed): the request then differs from the
++        previous one right after the system prompt anyway, so a new ledger moves no cached prefix. Otherwise the same
++        message object goes back in the same place, so the prefix the server has cached is unchanged."""
++        state = self._ours_ledger_state()
++        if not history:
++            return [system_message]
++        head = history[0]
++        if state["head"] is None:
++            state["head"] = head  # the first request of the game: nothing trimmed yet
++        elif head is not state["head"] and head != state["head"]:
++            state["message"], state["head"] = self._ours_ledger_message(), head
++        if state["message"] is None:
++            return [system_message, *history]
++        return [system_message, state["message"], *history]
++
+     def analyze(
+         self,
+         state_path: Path,
