@@ -38,8 +38,17 @@ spans (k counts assistant headers in the prompt from 0); the other spans' rows a
 Each chunk file ``<dir>/<rid>/c<chunk>-p<start>.safetensors`` uses the safetensors layout (8-byte little-endian header
 size, JSON header, little-endian data), so ``safetensors.torch.load_file`` reads it, and so does
 :func:`read_safetensors`; its ``__metadata__["arc3_hc_dump"]`` is the chunk's index line plus :data:`TENSORS`, the
-description of every tensor. ``<dir>/format.json`` describes the whole dump. :func:`load_request` merges a request's
-chunks.
+description of every tensor. ``<dir>/format.json`` describes the whole dump, :data:`INDEX_FIELDS` the index lines.
+:func:`load_request` merges a request's chunks.
+
+Why image rows and chunk boundaries are recorded: for every prefill chunk of a request with images (``contains_mm_inputs``
+is per request, so every chunk of it), the MTP draft-extend takes the target's input embeddings
+``forward_batch.mm_input_embeds`` as its embedding input, unshifted, and replaces only the chunk's last row by the next
+token's embedding (qwen4_exp_mtp.py ``_prepare_input_embeds``); text-only chunks use the shifted token ids. To build
+the same draft KV for prompt rows, a trainer needs each chunk's ``start``/``n``, whether it had ``mm_embeds`` (index
+line), the token ids, and the vision features at image rows (``img_embeds``). ``mm_input_embeds`` is read after the
+forward: without speculative decoding it is the tensor the language model received, which Qwen4ExpModel never writes
+in place (its first layer concatenates it into the 4 streams).
 """
 from __future__ import annotations
 
@@ -81,7 +90,7 @@ IM_START, IM_END, ASSISTANT, NEWLINE, THINK = 248045, 248046, 74455, 198, 248068
 MM_PAD_MIN = 1_000_000  # schedule_batch.py MM_PAD_SHIFT_VALUE: an image row's input id is 1e6 + hash % 2**30
 FP8_MAX = 448.0  # largest finite float8_e4m3fn
 DEFAULT_CONTEXT = 256
-QUANT_BLOCK = 1024  # rows quantized at a time on the GPU (bounds the float32 temporaries to ~84 MB)
+QUANT_BLOCK = 1024  # rows gathered and quantized at a time on the GPU (a few 42 MB float32 temporaries)
 TENSORS = {
     "token_ids": "I32 [n]: the chunk's input ids as the scheduler sent them; an image row holds SGLang's pad value "
                  "(>= 1,000,000, i.e. >= the vocabulary size) instead of <|image_pad|>",
