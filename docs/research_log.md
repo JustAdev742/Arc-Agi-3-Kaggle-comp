@@ -2279,3 +2279,11 @@ The 10:43 entry was wrong: kagglesdk's ApiSaveKernelResponse (this version) has 
           Sessions cannot be cancelled through the API without an id from elsewhere; kaggle_cancel.py says so.
 Queue:    exp-072j (REAP-14 + acceptance 0.5 + 4 speculative steps, gate) pushed 12:42, QUEUED; exp-072h and exp-073b
           still report QUEUED since 00:15 / 01:37 although new sessions are being accepted (likely stale states).
+
+## 2026-10-08 12:50 · one of the two old QUEUED sessions is live and holds a slot without starting · NEEDS OWNER (optional)
+exp-074s (12:20) and exp-072j (12:42) were accepted and started within ~10 min, so the pool has room now; yet at
+          12:49 a push of exp-073b was refused ("Maximum batch GPU session count of 2 reached") with exp-072j running.
+          So exactly one of exp-072h (arc3-dprime-gate-reap448-r14-active16, pushed 00:15) and exp-073b
+          (arc3-dprime-reap448-r14-accept05-full, 01:37) is a live session that has not started in 11-12 h, and the
+          other is a stale status. The API cannot cancel either (no session id), and both report QUEUED with no log.
+          Only the Kaggle web page can: Cancel on either kernel frees our second slot.
