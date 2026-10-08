@@ -26,7 +26,8 @@ the last tool call it emitted says which snippet comes next. The programs exerci
 - ``print``: a long board dump (tool-output middle truncation; fills the context, so history is trimmed and the
   priority gate hands the slot over), then acts;
 - ``stale``: repeats one action until it stops changing the board: ARC3_STALE_STATE_BLOCK refuses the next call;
-- ``undo``: UNDO where the game offers it (sb26; EXPOSE_UNDO=on), else a plain action;
+- ``undo``: UNDO where the game offers it (sb26; EXPOSE_UNDO=on), else RESET where it is offered (EXPOSE_RESET=on),
+  else a plain action;
 - ``chat``: a reply without a tool call (the "You have not acted yet" nudge);
 - ``think``: ~3k tokens of reasoning without a tool call (LOCAL_ANALYZER_YIELD_TOKENS=2048: the turn yields);
 - every ``--overflow-every`` requests (if the request is long enough) an SGLang context-length error, which the
@@ -82,7 +83,7 @@ MARKER = re.compile(r"bed:([a-z]+):(\d+)")
 TAGS = (("retained", ("BED retained True",)), ("not_retained", ("BED retained False",)),
         ("frame_diff", ("BED frame_diff",)), ("batch_noop", ("no_op_action",)),
         ("stale_state", ("stale_state", "StaleStateActionError")), ("undo", ("BED undo executed",)),
-        ("solve", ("BED solve",)), ("long_output", ("BED long output",)),
+        ("solve", ("BED solve",)), ("long_output", ("BED long output",)), ("reset", ("BED reset executed",)),
         ("search_found", ("BED search found",)), ("search_raised", ("BED search raised",)),
         ("search_budget", ("BED search budget timeout True",)), ("run_plan_mismatch", ("BED run_plan mismatch 2 1",)))
 
@@ -97,7 +98,7 @@ _PICK = """def bed_pick(actions, step):
 
 SNIPPETS = {
     "solve": ["""# bed:solve:0
-acts = set(valid_actions)
+acts = set(valid_actions) - {'RESET'}  # EXPOSE_RESET=on lists RESET too
 moved = [t for t in transitions if 'RESET' not in str(t.action)]
 plan = None
 if current_frame.level == 1 and not moved:
@@ -146,6 +147,9 @@ for i in range(10):
 if 'UNDO' in valid_actions:
     r = action(['UNDO'])
     print('BED undo executed', r.get('executed_count'), r.get('stop_reason'))
+elif 'RESET' in valid_actions:
+    r = action(['RESET'])
+    print('BED reset executed', r.get('executed_count'), r.get('stop_reason'))
 else:
     keys = [a for a in valid_actions if a not in ('RESET', 'MOUSE')]
     r = action([keys[0]] if keys else [{'action': 'MOUSE', 'row': 30, 'col': 30}])
@@ -324,6 +328,8 @@ class MockModel:
                   "tags": [tag for tag, needles in TAGS if any(n in tool_text for n in needles)]}
         if self.expect:
             record["expect_in_system"] = bool(messages) and self.expect in _text(messages[0].get("content"))
+            record["expect_in_user"] = any(self.expect in _text(m.get("content")) for m in messages
+                                           if m.get("role") == "user")
         try:
             if self.overflow_every and n % self.overflow_every == 0 and len(messages) >= 12:
                 record["status"] = 400
@@ -572,12 +578,14 @@ def coverage(out: Path, inner_report: dict, records: list[dict], analysis: dict,
         "frame_diff_calls": tags["frame_diff"], "batch_noop_stops": tags["batch_noop"],
         "stale_state_refusals": tags["stale_state"], "undo_executed": tags["undo"],
         "undo_actions": sum(r["action_ids"].get("ACTION7", 0) for r in game_runs.values()),
+        "reset_executed": tags["reset"],  # the undo slot RESETs where RESET is offered and UNDO is not
         "nudges": sum(bool(r.get("nudge")) for r in records),
         "yields_after_think": sum(n for (role, nudge), n in following.get("think", {}).items() if role == "user" and not nudge),
         "tracebacks_in_log": log_text.count("Traceback (most recent call last)"),
     }
     if expect:
         facts["expect_seen"] = sum(bool(r.get("expect_in_system")) for r in records)
+        facts["expect_user_seen"] = sum(bool(r.get("expect_in_user")) for r in records)
     checks = {
         "harness made requests": facts["requests"] > 0,
         "no game crashed": not facts["games_crashed"],
@@ -596,7 +604,8 @@ def coverage(out: Path, inner_report: dict, records: list[dict], analysis: dict,
     if undo_games:
         checks["UNDO executed"] = facts["undo_actions"] > 0
     if expect:
-        checks[f"--expect text in the system prompt ({expect!r})"] = facts["expect_seen"] > 0
+        checks[f"--expect text in the system prompt or a user prompt ({expect!r})"] = (
+            facts["expect_seen"] > 0 or facts["expect_user_seen"] > 0)
     if "search" in programs:
         for tag in ("search_found", "search_raised", "search_budget", "run_plan_mismatch"):
             facts[tag] = tags[tag]
@@ -697,7 +706,8 @@ def main() -> None:
     ap.add_argument("--patch", action="append", default=[], type=Path, metavar="FILE")
     ap.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
                     help="extra environment for the harness process only (not in the notebook)")
-    ap.add_argument("--expect", default="", help="text that must appear in the system prompt the mock receives")
+    ap.add_argument("--expect", default="", help="text that must appear in the system prompt or a user prompt the "
+                    "mock receives")
     ap.add_argument("--keep-context", action="store_true", help="keep the notebook's 128k context settings")
     ap.add_argument("--python", type=Path, default=None, help="interpreter with the harness dependencies")
     ap.add_argument("--env-dir", type=Path, default=None, help="game files (default: environment_files/)")
