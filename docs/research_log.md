@@ -2452,3 +2452,12 @@ Expected: accept length +1-2% (a per-position acceptance of ~0.8 times 0.987 -> 
 Builder:  --hot-tokens FILE: a cell before the launcher writes the map (base64, sha256 checked), cell 12 reads it and
           his TOKEN_MAP_SHA becomes its sha256, so his own assert checks it. 31 builder tests pass.
 Next:     ride along in the next full-length arm and read the accept length against exp-073b (3.10) / exp-075.
+
+## 2026-10-08 16:36 · exp-076 v1 stopped in 52 s (model view left out an indexed file); v2 pushed · RUNNING
+v1:       ERROR at cell 12's checkpoint check: "Missing/empty shard: /tmp/ours-model-view/model_mtp.safetensors". The
+          view was built and both instances were mounted, but Swift's index names its BF16 MTP file (31 mtp.* tensors),
+          which the builder had left out. Intel's index also names MTP tensors (1,565, model_extra_tensors.safetensors)
+          that the target load skips, and the REAP filter only matches model.(language_model.)layers.* names, so the
+          file goes back in. Cost: under 1 GPU-minute (output kept in runs/exp076v1-dprime-swift-failed-mtp-shard).
+v2:       same arm with the file linked; pushed 16:36 (QUEUED). Its next unknowns are server-side (INT4 linear_attn
+          projections, the config's new fields); --fail-fast ends it within ~1 min if the server dies.

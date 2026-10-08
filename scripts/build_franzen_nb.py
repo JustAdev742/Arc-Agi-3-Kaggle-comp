@@ -63,8 +63,8 @@ Options change a non-submission run only, or a named setting everywhere:
 - ``--model NAME``: serve another checkpoint of the same architecture and format instead of Intel's W4A16; ``swift``
   is UkisAI's Swift-1.5 (a reasoning-efficient RL/OPD derivative of Flash-Next, the same tokenizer and chat
   template), whose Kaggle copy is one HF repo split over two model instances. Cell 4's MODEL_DIR becomes a directory
-  of symlinks to both instances (built once they are mounted; its own MTP file stays out, the draft is still his
-  albucino checkpoint) and the kernel's model source is swapped. With ``--reap-kept`` it needs ``--reap-no-verify``.
+  of symlinks to both instances (built once they are mounted; the draft is still his albucino MTP checkpoint) and the
+  kernel's model source is swapped. With ``--reap-kept`` it needs ``--reap-no-verify``.
 - ``--reap-no-verify``: ``--reap-kept`` without the list's ``.meta.json``, so the server drops the same expert ids
   without checking the routers' sha256 (which belong to the checkpoint the list was made for).
 - ``--fail-fast`` (test arms, with ``--full25``): a watchdog thread started right before ``await bm.run(`` exits the
@@ -162,7 +162,9 @@ MODELS = {
                  "phuongncn/arc3-qwen38-swift-w4a16-autoround in two instances)"),
         "sources": ["phuongncn/arc3-qwen38-swift-w4a16-autoround/PyTorch/w4a16-a/1",
                     "phuongncn/arc3-qwen38-swift-w4a16-autoround/PyTorch/w4a16-b/1"],
-        "skip": ["model_mtp.safetensors"],  # its own MTP weights: not in the index, and the draft is his albucino MTP
+        # its own BF16 MTP weights (model_mtp.safetensors) stay in: the index names them (exp-076 v1 stopped at
+        # "Missing/empty shard" without them), and the target skips mtp.* tensors as it does Intel's
+        "skip": [],
     },
 }
 MODEL_VIEW = "/tmp/ours-model-view"
