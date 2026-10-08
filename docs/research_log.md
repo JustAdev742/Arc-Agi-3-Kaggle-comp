@@ -2738,3 +2738,26 @@ Decisions: train with the token map the arm serves (the ARC map, hot_tokens_64k_
           ablation); --require-hot on; embedding mode and the 256-row context are settled by A5's variants.
           scripts/fidelity_probe.py now also records spec_correct_drafts_histogram (future probes).
 Next:     session A after the Sat 00:00 UTC quota reset.
+
+## 2026-10-08 23:15 · exp-078/079 · seven-patch bundle: 39.73 (RESET exposed) and 45.02 (RESET off); the fresh start halves solves · 07 REJECTED
+Runs:     scottmahony/arc3-dprime-r14a05-harness7-full v1 (exp-078, 20:32-22:50) and
+          scottmahony/arc3-dprime-r14a05-harness7-noreset-full v1 (exp-079, 20:51-23:08, in parallel): exp-077's bundle +
+          effect table (06b) + fresh start (07, 80k tokens and 20 min on a level, max 2), all flags; exp-079 without
+          EXPOSE_RESET. runs/exp078-..., runs/exp079-...; transcripts in scratchpad sa078/ and /sa079 (see status).
+Score:    exp-078 39.73 / 95 levels / 4,692 actions; exp-079 45.02 / 102 / 4,527. Base config 49.45 / 56.00 / 42.89
+          (mean 49.4); exp-077 (no 06b/07, RESET on) 48.96 / 107 / 5,528. The two seven-patch runs average 42.4.
+Serving:  836 and 851 output tok/s (exp-077 806, base 788-791), accept 3.11-3.12: more tokens, fewer actions.
+Fresh starts (whole-game transcripts, tools/fresh_outcomes.py): 27 and 26 fired, on 22 levels in each run. Those
+          levels were solved later in 6 of 22 (exp-078) and 8 of 22 (exp-079): 14 of 44 (32%). In the base runs' hazard,
+          a level still unsolved at 20 active minutes is solved by 60 minutes about 61% of the time (time-allocation.md
+          §3), so the fresh start roughly halves the solve rate of the levels it touches (~4 SE). Examples: tr87 L3
+          (exp-078) fresh-started at 21.8 and 55.6 min at the same step 126, 34 minutes and ~120k tokens without an
+          action, 2/6 levels vs 5-6 in every other run; s5i5 L4 two fresh starts 2 actions apart.
+Reading:  clearing the conversation throws away working understanding the ledger does not carry, at the point where
+          the level is usually about to fall (the hazard at 20-30 min is still 0.04-0.05/min). The 35-of-44 "bad draw"
+          finding does not transfer to a mid-level re-roll: the re-roll starts over without the time a fresh level has.
+          RESET exposure: exp-079 (off) 45.02 vs exp-078 (on) 39.73, RESETs 12 vs 47; consistent with exp-077's sc25.
+          06b (effect table): no separate reading; effects() was called 27 and 17 times.
+Decision: 07 rejected as configured (a later trigger, e.g. >= 50 min where the hazard is ~0.016/min, would be a new
+          hypothesis). Candidates drop 06b/07 and RESET exposure: exp-080 = exp-077's set (01/02/04/03b/05) + FR-Spec
+          map, RESET off, pushed 23:1x (bed 23/23). LB order: exp-074t, then exp-080 once it reads healthy.
