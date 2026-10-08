@@ -2620,3 +2620,21 @@ Decision: no full-length REAP-384 arm now. A ~10% capacity gain cannot be seen i
           the shift now reaches every turn type, and the week's remaining quota (~9 h after the running arms) goes
           to the harness arms. Revisit with an ARC-calibrated REAP (image turns in the calibration set), which
           should shrink the shift at either size.
+
+## 2026-10-08 20:03 · exp-076g · Swift-1.5 gate at his serving: no loops, but behind the Intel model · SWIFT DROPPED
+Run:      scottmahony/arc3-dprime-swift-gate-lossless v1 (19:21-20:01 UTC): D' serving (10 streams, no REAP, lossless
+          acceptance), Swift-1.5 W4A16 as the target at the vendor's sampling (temperature 1.0, top_k 20, top_p 0.95;
+          the server log confirms "default chat sampling params ... temperature 1.0"), 25 games x 25 min;
+          runs/exp076g-dprime-swift-gate-lossless.
+Measured: 3.05, 15 levels in 10 games, 1,082 actions; 0 exact repeated turns of 324 and no "stuck in a loop" (exp-076:
+          69% repeats). Server 686 tok/s mean decode at 9.3 running, accept length 2.54, 633 output tok/s.
+Against:  exp-072a6, the same gate with Intel's W4A16 (D' unchanged, temperature 0.7): 6.71, 25 levels in 12 games,
+          accept 2.64, 692 tok/s, 0 repeats. Swift won fewer levels in 9 games and more in 3 (m0r0 2-0, lf52 1-0, sc25 1-0).
+Reading:  the loops of exp-076 came from our serving changes (relaxed acceptance 0.5/0.5 and/or the unverified REAP-448
+          ids and/or temperature 0.7), not from Swift itself. At the setting where it does not loop it plays no
+          better than the Intel model (one gate draw each; gates of one config differ by several points, e.g. exp-072f
+          8.17 vs exp-072g 11.69), and our throughput levers (REAP, relaxed acceptance) are the ones that broke it.
+          Not worth more quota before Nov 2: Swift is dropped. Gate B (BF16 attention projections) is not built.
+Quota:    Kaggle refused exp-078's push at 20:02 with "running sessions are projected to exceed maximum weekly GPU
+          quota": a running session reserves up to 12 h (time_reserved 10.41 h for exp-077 at 20:02) and a new one
+          starts only while used + reserved < 30 h. From here every session runs alone until the Sat 00:00 UTC reset.
