@@ -33,7 +33,9 @@ the last tool call it emitted says which snippet comes next. The programs exerci
 - every ``--overflow-every`` requests (if the request is long enough) an SGLang context-length error, which the
   harness answers by force-draining history and retrying;
 - only with ``--program search`` (for kaggle/franzen/patches/ours-04-search-helper.patch, OURS_SEARCH_HELPER=1):
-  ``search()`` and ``run_plan()`` in the sandbox, with their own coverage checks.
+  ``search()`` and ``run_plan()`` in the sandbox, with their own coverage checks;
+- only with ``--program mem`` (for kaggle/franzen/patches/ours-05-level-mem.patch, OURS_LEVEL_MEM=1): ``mem``
+  written in one call, read in the next, a write the sandbox must refuse, with their own coverage checks.
 
 Usage it reports: prompt tokens estimated from the text and images, cached tokens as the longest message prefix
 shared with a recent request (a radix cache in miniature), completion tokens from the reply. It also writes an
@@ -85,7 +87,12 @@ TAGS = (("retained", ("BED retained True",)), ("not_retained", ("BED retained Fa
         ("stale_state", ("stale_state", "StaleStateActionError")), ("undo", ("BED undo executed",)),
         ("solve", ("BED solve",)), ("long_output", ("BED long output",)), ("reset", ("BED reset executed",)),
         ("search_found", ("BED search found",)), ("search_raised", ("BED search raised",)),
-        ("search_budget", ("BED search budget timeout True",)), ("run_plan_mismatch", ("BED run_plan mismatch 2 1",)))
+        ("search_budget", ("BED search budget timeout True",)), ("run_plan_mismatch", ("BED run_plan mismatch 2 1",)),
+        ("mem_write", ("BED mem write",)), ("mem_read_ok", ("BED mem read ok",)),
+        ("mem_lost", ("BED mem read missing", "BED mem absent")),
+        ("mem_stale", ("BED mem earlier STALE", "BED mem read STALE")),
+        ("mem_carried", ("BED mem earlier same-level",)), ("mem_refused", ("NOT SAVED: mem['bed_set'] is a set",)),
+        ("mem_listed", ('"mem": "',)))
 
 # --- the scripted model -----------------------------------------------------------------------------------------
 
@@ -210,7 +217,30 @@ try:
 except {_REFUSALS} as e:
     print('BED run_plan refused', type(e).__name__)
 """]
-OPTIONAL_PROGRAMS = ("search",)
+# mem: for kaggle/franzen/patches/ours-05-level-mem.patch with OURS_LEVEL_MEM=1. The first snippet does not act, so
+# the second runs in the same turn: it reads back what the first wrote, then stores a set, which the sandbox must
+# refuse by name (keeping the earlier value), and acts. A later turn's first snippet finds the earlier turn's value
+# when the level is the same; an entry from another level would print STALE.
+SNIPPETS["mem"] = ["""# bed:mem:0
+try:
+    prev = mem.get('bed')
+    print('BED mem earlier', 'none' if prev is None else 'same-level' if prev['level'] == current_frame.level else 'STALE')
+    mem['bed'] = {'level': current_frame.level, 'step': current_frame.step, 'n': (prev or {}).get('n', 0) + 1}
+    print('BED mem write', mem['bed'])
+except NameError:
+    print('BED mem absent')
+""", """# bed:mem:1
+try:
+    got = mem.get('bed')
+    print('BED mem read', 'missing' if got is None else 'ok' if got['level'] == current_frame.level else 'STALE')
+    mem['bed_set'] = {1, 2}
+except NameError:
+    print('BED mem absent')
+keys = [a for a in valid_actions if a not in ('RESET', 'UNDO', 'MOUSE')]
+r = action([keys[0]] if keys else [{'action': 'MOUSE', 'row': 24, 'col': 24}])
+print('BED mem acted', r.get('executed_count'))
+"""]
+OPTIONAL_PROGRAMS = ("search", "mem")
 
 
 def _text(content) -> str:
@@ -621,6 +651,15 @@ def coverage(out: Path, inner_report: dict, records: list[dict], analysis: dict,
         checks["a search ended on its own time limit with a best_partial"] = facts["search_budget"] > 0
         checks["run_plan executed a matching action and stopped at the planted mismatch"] = (
             facts["run_plan_mismatch"] > 0)
+    if "mem" in programs:
+        for tag in ("mem_write", "mem_read_ok", "mem_lost", "mem_stale", "mem_carried", "mem_refused", "mem_listed"):
+            facts[tag] = tags[tag]
+        checks["mem written in one call was read back in the next"] = facts["mem_read_ok"] > 0
+        checks["mem never lost between two calls, nor showed another level's value"] = (
+            facts["mem_lost"] == 0 and facts["mem_stale"] == 0)
+        checks["mem kept a value across turns on one level"] = facts["mem_carried"] > 0
+        checks["a set written to mem was refused by name"] = facts["mem_refused"] > 0
+        checks["tool results listed mem's keys"] = facts["mem_listed"] > 0
     return {"facts": facts, "checks": checks}
 
 
@@ -724,7 +763,8 @@ def main() -> None:
     ap.add_argument("--overflow-every", type=int, default=41, help="answer every Nth request with a context error (0: never)")
     ap.add_argument("--latency", type=float, default=0.15, help="mock seconds per reply before decode time")
     ap.add_argument("--program", action="append", default=[], choices=OPTIONAL_PROGRAMS,
-                    help="add an optional mock program to the cycle (search: ours-04-search-helper.patch)")
+                    help="add an optional mock program to the cycle (search: ours-04-search-helper.patch; "
+                         "mem: ours-05-level-mem.patch)")
     ap.add_argument("--his-repo", type=Path, default=None)
     ap.add_argument("--bundle", type=Path, default=None)
     ap.add_argument("-v", "--verbose", action="store_true", help="echo the harness output")

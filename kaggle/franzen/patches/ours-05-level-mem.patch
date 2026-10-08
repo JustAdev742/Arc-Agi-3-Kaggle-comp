@@ -1,0 +1,278 @@
+diff --git a/ARC3-Inference/inference/agent/python_tool_sandbox.py b/ARC3-Inference/inference/agent/python_tool_sandbox.py
+index 14bdf62..8ea62f6 100644
+--- a/ARC3-Inference/inference/agent/python_tool_sandbox.py
++++ b/ARC3-Inference/inference/agent/python_tool_sandbox.py
+@@ -362,6 +362,100 @@ _SANDBOX_BOOTSTRAP = textwrap.dedent(
+             "result": None,
+         }
+         runtime_globals["__builtins__"]["__import__"] = _safe_import
++        # ours (M1c, patch ours-05-level-mem; OURS_LEVEL_MEM): `mem`, a dict the host keeps between calls on one
++        # level. It comes with the initial state only when the flag is on; without it there is no `mem` and the
++        # final message is unchanged.
++        _ours_mem_in = (initial.get("state") or {}).get("ours_mem")
++        _ours_mem_writes = {}  # key -> current_frame.step of its last top-level write to `mem` in this call
++        _ours_mem_before = {}  # key -> the JSON of its value when this call started
++
++        def _ours_mem_dump(value):
++            return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
++
++        if isinstance(_ours_mem_in, dict):
++            class _OursMem(dict):
++                # writes into a stored value, or to a dict that replaced `mem`, are found by JSON at the end
++                def __setitem__(self, key, value):
++                    dict.__setitem__(self, key, value)
++                    if self is _ours_mem:
++                        _ours_mem_writes[key] = getattr(runtime_globals.get("current_frame"), "step", None)
++
++                def update(self, *args, **kwargs):
++                    for key, value in dict(*args, **kwargs).items():
++                        self[key] = value
++
++                def setdefault(self, key, default=None):
++                    if key not in self:
++                        self[key] = default
++                    return dict.__getitem__(self, key)
++
++            _ours_mem = runtime_globals["mem"] = _OursMem(_ours_mem_in.get("values") or {})
++            _ours_mem_before = {key: _ours_mem_dump(value) for key, value in _ours_mem.items()}
++
++        def _ours_mem_problem(values):
++            # the first place where JSON would not give back the same value, as a short sentence; "" if none
++            stack, seen, budget = [("mem", values)], set(), 2_000_000
++            while stack:
++                path, value = stack.pop()
++                for key, item in (value.items() if type(value) is dict else enumerate(value)):
++                    budget -= 1
++                    if budget < 0:
++                        return ""
++                    if type(value) is dict and type(key) is not str:
++                        return f"{path} has the key {repr(key)[:40]} (a {type(key).__name__}); JSON keeps only str keys"
++                    kind = type(item)
++                    if kind is str or kind is int or kind is float or kind is bool or item is None:
++                        continue
++                    where = f"{path}[{key!r}]"[:80]
++                    if kind is not list and kind is not dict:
++                        return (f"{where} is a {kind.__name__}; JSON gives back only dict, list, str, int, float, "
++                                "bool and None")
++                    if id(item) not in seen:
++                        seen.add(id(item))
++                        stack.append((where, item))
++            return ""
++
++        def _ours_mem_check():
++            if "mem" not in runtime_globals:
++                return {"refused": "`mem` was deleted"}
++            if not isinstance(runtime_globals["mem"], dict):
++                return {"refused": f"`mem` was replaced by a {type(runtime_globals['mem']).__name__}"}
++            values = dict(dict.items(runtime_globals["mem"]))
++            cap = int(_ours_mem_in.get("cap") or 0)
++            try:
++                size = len(_ours_mem_dump(values).encode("utf-8"))
++            except RecursionError:
++                return {"refused": "mem is nested too deeply"}
++            except UnicodeEncodeError:
++                return {"refused": "mem holds a str that is not valid UTF-8"}
++            except (TypeError, ValueError) as exc:
++                if "ircular" in str(exc):
++                    return {"refused": "mem holds a value that contains itself"}
++                return {"refused": _ours_mem_problem(values) or f"mem holds a value JSON cannot store ({str(exc)[:80]})"}
++            if size > cap:
++                return {"refused": f"mem would be {size / 1024:.1f} KB, over its {cap // 1024} KB limit"}
++            problem = _ours_mem_problem(values)
++            if problem:
++                return {"refused": problem}
++            writes = _ours_mem_writes if runtime_globals["mem"] is _ours_mem else {}
++            steps = {}
++            for key, value in values.items():
++                if key in writes:
++                    steps[key] = writes[key]
++                elif _ours_mem_before.get(key) == _ours_mem_dump(value):
++                    steps[key] = (_ours_mem_in.get("steps") or {}).get(key)
++                else:  # changed inside a stored value, or by a replaced `mem`: the host uses the call's last step
++                    steps[key] = None
++            return {"values": values, "steps": steps, "bytes": size}
++
++        def _ours_mem_result():
++            if not isinstance(_ours_mem_in, dict):
++                return {}
++            try:
++                return {"ours_mem": _ours_mem_check()}
++            except Exception:  # never cost the call its output: the host then keeps the previous mem
++                return {"ours_mem": {"refused": "mem could not be checked"}}
++
+         _animation_views = []
+ 
+         def frame_diff(before=None, after=None):
+@@ -702,6 +796,7 @@ _SANDBOX_BOOTSTRAP = textwrap.dedent(
+                 {
+                     "type": "final",
+                     **_collect_retention_payload(),
++                    **_ours_mem_result(),
+                     "stdout": stdout.getvalue(),
+                     "result": _json_safe(runtime_globals.get("result")),
+                     "action_results": _json_safe(action_results),
+@@ -726,6 +821,7 @@ _SANDBOX_BOOTSTRAP = textwrap.dedent(
+                 {
+                     "type": "error",
+                     **_collect_retention_payload(),
++                    **_ours_mem_result(),
+                     "error": _sanitize_exception(exc),
+                     "stdout": stdout.getvalue(),
+                     "action_results": _json_safe(action_results),
+@@ -966,6 +1062,8 @@ def run_sandboxed_python(
+                     "keepable_functions": list(message.get("keepable_functions") or []),
+                     **({"retention_rejected": message.get("retention_rejected", [])}
+                        if kept_functions is not None else {}),
++                    # ours (M1c, OURS_LEVEL_MEM): what the call left in `mem`, sent only when the host sent mem
++                    **({"ours_mem": message["ours_mem"]} if "ours_mem" in message else {}),
+                 }
+ 
+             _wait_for_process_exit(process)
+diff --git a/ARC3-Inference/inference/agent/tool_agent.py b/ARC3-Inference/inference/agent/tool_agent.py
+index e36ec65..8292fe2 100644
+--- a/ARC3-Inference/inference/agent/tool_agent.py
++++ b/ARC3-Inference/inference/agent/tool_agent.py
+@@ -2745,6 +2745,14 @@ def _build_system_prompt(*, tool_output_tokens: int) -> str:
+             )) if _persistent_functions() else EPHEMERAL_FUNCTIONS_LINE
+         ),
+     )
++    if _get_env_bool("OURS_LEVEL_MEM", False):  # ours (M1c, patch ours-05-level-mem): the per-level `mem` store
++        prompt += (
++            "- `mem` is a dict kept across `python` calls on the current level; it is emptied when the level "
++            "changes. Other variables still reset.\n"
++            "- It holds only JSON data (str keys; lists, not tuples or sets) up to 200 KB. A call that breaks "
++            "this has its changes to `mem` refused.\n"
++            "- Tool results list mem's keys with the `current_frame.step` at which each was last written.\n"
++        )
+     if _level_transfer_guidance_enabled():
+         prompt = apply_level_transfer_system_guidance(prompt)
+     return prompt
+@@ -5898,6 +5906,25 @@ class ToolAgent:
+                 ),
+             }
+ 
++        # ours (M1c, patch ours-05-level-mem; OURS_LEVEL_MEM): `mem` goes to the sandbox with the initial state
++        # only, and the frame of every state built here is noted, so the call's last level and step are known after
++        ours_mem = None
++        if _get_env_bool("OURS_LEVEL_MEM", False):
++            from inference.utils import level_mem as _ours_level_mem
++
++            ours_mem = self._ours_mem = _ours_level_mem.open_store(
++                getattr(self, "_ours_mem", None), self._session_runtime_dir,
++                current_frame.level if current_frame is not None else None)
++            ours_mem_frame: list[Any] = [None]
++            _ours_state_without_mem = _serialized_runtime_state
++
++            def _serialized_runtime_state(**kwargs: Any) -> dict[str, Any]:
++                state = _ours_state_without_mem(**kwargs)
++                if ours_mem_frame[0] is None:
++                    state["ours_mem"] = _ours_level_mem.sandbox_payload(ours_mem)
++                ours_mem_frame[0] = state.get("current_frame") or {}
++                return state
++
+         # per snippet: a repeat across snippets is the model choosing, not a
+         # loop failing to converge
+         self._repeat_state_seen.clear()
+@@ -5919,6 +5946,12 @@ class ToolAgent:
+         ]
+         payload: dict[str, Any] = {"tool": "python"}
+         self._record_retained_functions(sandbox_result, payload)
++        if ours_mem is not None:  # ours (M1c): keep, refuse or empty what the call left in `mem`; list its keys
++            ours_mem_end = ours_mem_frame[0] or {}
++            self._ours_mem, ours_mem_text = _ours_level_mem.close_store(
++                ours_mem, sandbox_result.get("ours_mem"), ours_mem_end.get("level"), ours_mem_end.get("step"))
++            if ours_mem_text:
++                payload["mem"] = ours_mem_text
+         rendered_stdout = str(sandbox_result.get("stdout", "") or "")
+         rendered_error = str(sandbox_result.get("error", "") or "")
+         if rendered_error:
+diff --git a/ARC3-Inference/inference/utils/level_mem.py b/ARC3-Inference/inference/utils/level_mem.py
+new file mode 100644
+index 0000000..3a2a00b
+--- /dev/null
++++ b/ARC3-Inference/inference/utils/level_mem.py
+@@ -0,0 +1,84 @@
++"""ours (M1c, patch ours-05-level-mem): the host side of `mem`, a per-level data store for the python sandbox.
++
++OURS_LEVEL_MEM=1 turns it on (read at call time; off by default, and then nothing here runs). The sandbox starts
++every python call with fresh variables, on purpose: data computed from an earlier board goes stale. So models
++rebuild the same structures call after call, or lose them to a NameError. `mem` keeps plain JSON data across calls,
++but only on the level it was written on, and every tool result lists its keys with the `current_frame.step` at which
++each was last written, so the age of a value is visible.
++
++A store is {"scope": [game session, level], "values": {...}, "steps": {key: step}, "bytes": n, "note": text}. It
++goes to the sandbox with a call's initial state and comes back in the call's final message, checked there
++(python_tool_sandbox.py: plain JSON within CAP_BYTES, or a refusal with the reason). The host keeps the store as it
++was when nothing comes back (a timeout, a crashed sandbox) or when the sandbox refused it, and empties it when the
++game or the level is not the one it was written on, including a level that changed during the call itself: what
++that call wrote may describe the old board.
++"""
++from __future__ import annotations
++
++from typing import Any
++
++CAP_BYTES = 200 * 1024
++SHOWN_KEYS = 40
++
++
++def _empty(session: str, level: Any, note: str = "") -> dict[str, Any]:
++    return {"scope": [session, level], "values": {}, "steps": {}, "bytes": 2, "note": note}
++
++
++def open_store(store: dict[str, Any] | None, session: Any, level: Any) -> dict[str, Any]:
++    """The store for a call in game SESSION on LEVEL: STORE itself, or an empty one if STORE was written elsewhere."""
++    session = str(session)
++    if store is not None and store["scope"] == [session, level]:
++        return store
++    note = ""
++    if store is not None and store["values"] and store["scope"][0] == session:
++        note = f"mem was emptied because the level changed (level {store['scope'][1]} -> {level})."
++    return _empty(session, level, note)
++
++
++def sandbox_payload(store: dict[str, Any]) -> dict[str, Any]:
++    """What the sandbox gets with the call's initial state (it builds `mem` from this)."""
++    return {"values": store["values"], "steps": store["steps"], "cap": CAP_BYTES}
++
++
++def close_store(store: dict[str, Any], returned: Any, level: Any, step: Any) -> tuple[dict[str, Any], str]:
++    """(the store to keep, the text of the tool result's "mem" field, "" for none) after a call that ended on LEVEL
++    at STEP; RETURNED is what the sandbox sent back (None when the call timed out or the sandbox died)."""
++    session, start_level = store["scope"]
++    if level != start_level:
++        wrote = isinstance(returned, dict) and bool(returned.get("values"))
++        if not (store["values"] or wrote):
++            return _empty(session, level), ""
++        return _empty(session, level), (f"mem was emptied because the level changed during this call (level "
++                                        f"{start_level} -> {level}); nothing this call wrote to it was kept.")
++    notes = [store["note"]] if store.get("note") else []
++    kept = dict(store, note="")
++    if not isinstance(returned, dict):
++        if store["values"]:
++            notes.append("This call did not finish, so mem keeps its contents from before it.")
++    elif "refused" in returned:
++        notes.append(f"NOT SAVED: {returned['refused']}. mem keeps its contents from before this call.")
++    else:
++        values, steps = returned.get("values") or {}, returned.get("steps") or {}
++        kept.update(values=values, steps={key: step if steps.get(key) is None else steps[key] for key in values},
++                    bytes=int(returned.get("bytes") or 2))
++        if store["values"] and not values:
++            notes.append("mem is empty now.")
++    listing = describe(kept, step)
++    if notes and listing:
++        return kept, " ".join(notes) + " Keys: " + listing
++    return kept, " ".join(notes) or listing
++
++
++def describe(store: dict[str, Any], step: Any) -> str:
++    """mem's keys with the step each was last written at, the step now and the size; "" when mem is empty."""
++    keys = list(store["values"])
++    if not keys:
++        return ""
++    shown = ", ".join(f"{key if len(key) <= 40 else key[:37] + '...'} (step {store['steps'].get(key)})"
++                      for key in keys[:SHOWN_KEYS])
++    if len(keys) > SHOWN_KEYS:
++        shown += f", and {len(keys) - SHOWN_KEYS} more keys"
++    size = store["bytes"]
++    used = f"{size} bytes" if size < 1024 else f"{size / 1024:.1f} KB"
++    return f"{shown}; now step {step}, {used} of {CAP_BYTES // 1024} KB"
