@@ -538,3 +538,129 @@ So the draft's token d is emitted with probability at least `A(p) = 1 if p ≥ s
 - **Literature** via web search and fetch: AngelSpec, FastMTP, SambaNova 2503.07807, the vLLM speculators MTP guide, and the
   transformers 5.16.0 release notes.
 - **exp-076 facts.** `docs/research_log.md`, entry 2026-10-08 18:55.
+
+## 9. Step 1 implemented: the dump patch and the snapshot driver (2026-10-08, CPU only, nothing run on a GPU)
+
+Asked for as "section 7"; numbered 9 because sections 7 and 8 exist and are cited above.
+
+**Outcome.** Step 0 of the plan in 6.6 is built and tested on CPU: the dump patch, the driver, the span rule, the loop filter and the game split. Nothing has run on a GPU. So the dump's speed, the FP8 error on real `H` and the disk use are still unmeasured, and session A measures them first.
+
+### 9.1 What was built
+| File | Role |
+|---|---|
+| `scripts/sglang_hc_dump_patch.py` | Runtime module (installed as `sglang/srt/arc3_hc_dump.py`) and installer (`apply`, `revert`, `check-wheel`), in the style of the REAP patch |
+| `scripts/hc_dump_driver.py` | Plans maximal snapshots from `<game>-<id>_p<k>_requests.jsonl`, applies the hygiene rules and the game split, replays the snapshots with `max_tokens` 1, and checks the dump of every request |
+| `tests/test_sglang_hc_dump_patch.py` | 36 tests: span rule, ring buffer, number formats, files, the SGLang hooks, the installer alone and with REAP |
+| `tests/test_hc_dump_driver.py` | 13 tests: planning on samples of the bed's logs and on synthetic logs; replay against fake servers, one of which dumps through the real `Dumper` |
+| `tests/fixtures/hc_dump_driver/` | 181 KB: shortened samples of the bed's exp-078 logs (ls20, sb26); how they were cut is in its NOTICE.md |
+
+**The patch** (`python -I scripts/sglang_hc_dump_patch.py apply --site-packages SP`):
+- **Two anchored edits to `qwen4_exp.py`; 20 lines added, none changed:**
+  - A module flag right before `class Qwen4ExpForConditionalGeneration`. `ARC3_HC_DUMP` is read once, at import; the dump module is imported only when the variable is set.
+  - Two `if _ARC3_HC_DUMP:` checks in that class's `forward`. The first, before `super().forward`, copies the batch's input ids, because the multimodal embedding clamps image rows in place. The second, after it, hands `self.model.last_hc_hidden_states` to `capture`.
+  - With the variable unset, the two checks are the only work added (a test runs the edited method with the flag off and on).
+- **Accepted base files:** the wheel's file (sha256 `35a1785c...`) and that file after the REAP patch (`37515e12...`); both hashes are pinned.
+- **Apply REAP first:**
+  - The REAP installer accepts only the pristine file. So it refuses a file this patch has edited, and it also refuses to run again on the combined file.
+  - `revert` undoes this patch.
+  - The edits do not overlap, so both orders give the same text (tested on the real file).
+- **`capture`:**
+  - Dumps EXTEND and MIXED batches only. It skips DECODE, TARGET_VERIFY and draft batches, ranks other than 0, and CUDA-graph capture.
+  - A chunk that fails is logged and recorded in the index, and that request is no longer dumped. The server keeps running.
+
+**Row selection** (`scan_spans`, `select_rows`; pure functions):
+- **Span rule.** A span starts after `<|im_start|> assistant \n <think> \n` and ends at `<|im_end|>`, inclusive. Edge cases:
+  - Empty reasoning: `<think>` is followed by `\n\n`, which is one token (271). The span starts at that token.
+  - A header without `<think>`: the span starts right after `assistant \n`.
+  - A `<|im_start|>` inside a span ends the span at the row before it.
+  - The generation prompt opens a last span one position past the prompt. It has no rows.
+- **Context.** Each span that has rows in a chunk gets the `ARC3_HC_DUMP_CONTEXT` rows (default 256) before its first row.
+  - Context rows from earlier chunks come from a per-request ring buffer of the last 256 rows.
+  - So the result does not depend on how the prompt was chunked. A test compares 32 chunkings, down to one token per chunk.
+- **Plan files.** `<dump>/plans/<rid>.json` (`{"loss_spans": [...]}`) limits the span rows to the turns the trainer will use. The driver writes it before each request. The other spans' rows are kept only where they serve as context.
+- `ARC3_HC_DUMP_KEEP=all` keeps every row, for the replica check.
+
+**Files.** One file per request chunk, `<dump>/<rid>/c<chunk>-p<start>.safetensors`, in the plain safetensors layout. It is written without the library, and `safetensors.torch.load_file` reads it (tested). Contents:
+- **Tensors:**
+  - `token_ids` I32 [n]. Image rows keep SGLang's pad value, which is ≥ 1,000,000.
+  - `positions` I32 [n] and `mrope_positions` I32 [3, n].
+  - `hc_pos` I32 [k] and `hc_role` U8 [k] (1 for a span row, 0 for a context row).
+  - `hc` F8_E4M3 [k, 10240] with `hc_scale` BF16 [k], one scale per row as planned. Two options: `ARC3_HC_DUMP_SCALE_GROUPS=4` gives [k, 4], one scale per stream; `ARC3_HC_DUMP_DTYPE=bf16` stores raw BF16 rows.
+  - `img_pos` I32 [m] and `img_embeds` BF16 [m, 2560], for the image rows among the kept rows.
+- **Self-description:**
+  - Every file's `__metadata__` describes its tensors.
+  - `format.json` describes the dump.
+  - `index.jsonl` has one line per chunk: spans, counts, `qerr_*`, bytes.
+  - `load_request` merges the chunks of one request.
+- **Size:**
+  - `ARC3_HC_DUMP_MAX_GB` stops writing before the cap is passed (a tmpfs is RAM).
+  - A kept FP8 row takes 10,247 bytes, and every prefill token adds 20.
+
+**The driver** (`python -I scripts/hc_dump_driver.py --logs DIR ... [--dry-run]`):
+- **Dependencies.** Stdlib only. It loads `fidelity_probe.py` and `fidelity_sample.py` from its own folder.
+- **Snapshots.** A snapshot is a request that the next request does not extend, plus the last request. "Extends" means the same tools and template kwargs, with this request's messages (compared without `_arc3_control`) as a prefix of the next one's.
+- **Turns.** A turn is identified by its tool-call ids, which are unique per generation in real logs, or else by its JSON.
+- **Excluded from the loss:**
+  - exact repeats of an earlier turn's text ("repeat");
+  - turns that mention "stuck in a loop", case-insensitive ("stuck");
+  - unless `--keep-duplicates` is given, turns that an earlier snapshot already has ("covered"). History trims keep recent turns, and the first snapshot holds the context they were generated in.
+  - A snapshot with no loss turn left is dropped.
+- **Split.** `--split train` (the default) leaves out the 11 holdout games of 2.6; `holdout` and `all` are the other choices.
+- **Replay:**
+  - Each logged request goes through `fidelity_probe.build_body` with `max_tokens` 1, temperature 0, and the snapshot id as `rid` (SGLang's chat endpoint accepts `rid`).
+  - Before each request the driver writes the plan file. After it, the driver checks the request in the index: rows must cover positions 0 to the server's `prompt_tokens`, and the number of assistant headers must equal the assistant messages + 1.
+  - It stops at the first request that is not dumped, after three failures in a row, or before `--max-dump-gb`, `--max-prefill-tokens` or `--max-minutes` would be passed.
+  - It flushes the prefix cache before each request unless the server reports `disable_radix_cache`.
+- **Outputs:**
+  - `plan.json`;
+  - `snapshots.jsonl`: rid → game, split, source line, turns and loss spans; this is the trainer's map;
+  - `replay.jsonl` and `replay-summary.json`.
+
+### 9.2 Facts checked or corrected in this step
+| Fact | Label |
+|---|---|
+| The hook point is `Qwen4ExpForConditionalGeneration.forward(self, *args, **kwargs)` (qwen4_exp.py:1952-1958). `self.model` is a `Qwen4ExpVLModel`, whose `forward` sets `last_hc_hidden_states` (None for idle batches). That value is the last decoder layer's `mlp_hyper_connection.combine` output, [tokens, 10240] BF16: the input of `hyper_connection_mixer.mix`. The model runner calls `model.forward(forward_batch.input_ids, forward_batch.positions, forward_batch, **kwargs)`. The MTP class (`Qwen4ExpForCausalLMMTP`) is not a subclass, so draft batches never reach the hook | [source] |
+| The header ids `248045 74455 198 248068 198` and `<|im_end|>` = 248046 hold for the served tokenizer (sha256 06b95093) and chat template (sha256 c3cf9e34). Tested on 9 snapshots from Franzen's M2 demo logs (ft09, tu93) and the bed (ls20): every assistant turn has exactly this header, and the span count is assistant messages + 1. Empty reasoning renders as `<think>` followed by token 271 (`\n\n`) | [verified] |
+| SGLang replaces `<|image_pad|>` (248056) with pad values 1,000,000 + hash mod 2^30. During the forward, `embed_mm_inputs` clamps the batch's `input_ids` to 248,319 **in place**. So the ids must be copied before `super().forward`, which the patch does. The tokenizer's largest id is 248,076 | [source] / [verified] |
+| **Correction to 2.1: unshifted draft embeddings are not limited to chunks that contain an image.** `contains_mm_inputs()` is decided per request: every extend batch carries each request's `multimodal_inputs`. So every prefill chunk of a request with images uses `mm_input_embeds` unshifted, except each chunk's last row. Every request in our traffic has images. So at serving, every *prefilled* prompt row gets that draft KV (user, tool and system turns, and past turns not served from the cache); only decoded tokens get the shifted embedding. To match serving, a trainer should give context rows the unshifted embedding (with the vision features from `img_embeds` at image rows) and span rows the shifted one. The dump records each chunk's boundaries and its `mm_embeds` flag for this | [source] |
+| `mm_input_embeds` can be read after the forward. Without speculative decoding it is the same tensor the language model received, and Qwen4ExpModel never writes it in place: its first layer concatenates it into the 4 streams | [source] |
+| In this version `--disable-cuda-graph` is a deprecated alias that turns off both decode and **prefill** CUDA graphs. Prefill graphs exist here (breakable, tc_piecewise, full), and under one the Python hook would run only at capture time. The patch skips batches under capture and logs this once | [source, server_args.py] |
+| The chat endpoint accepts `rid` and passes it to the scheduler, so the dump directories carry the driver's snapshot ids | [source] |
+| Span share in maximal snapshots, measured with the real tokenizer on 9 snapshots of ar25, ft09, re86 and tu93: spans are 43-81% of each snapshot's prefill, 57% overall. 27% of those span rows are turns that an earlier snapshot already holds. Skipping them gives **2.38 prefill tokens per loss row**, inside the 2.2-2.5 of 2.5 | [measured] |
+| Driver dry run on Franzen's M2 demo logs (10 holdout games, 25 minutes): 22 snapshots, 527 loss turns, 184 covered occurrences skipped, no repeats or loop mentions, 2.26M prefill tokens. That gives about 0.92M loss rows and 1.06M kept rows, about 10.9 GB in FP8. On 4 games the loss-row estimate (from completion tokens) is within 3 tokens of the tokenized count: 374,709 against 374,706 | [measured] |
+| **FP8 codec.** The numpy codec is bit-identical to torch 2.14 on 2M values. torch 2.14 saturates overflow to ±448 where older releases gave NaN; the dump clamps before converting, so both agree. On Gaussian rows the relative RMS error is 2.6% per row | [verified] |
+| **One scale per row.** It stays accurate for streams within about 10^3× of each other, since e4m3 spans 2^-9 to 448. At 10^5× the small streams are lost while the row error still reads 3%. The target's final mixer normalizes each stream on its own (`hc_per_branch_norm`), so the index also reports `qerr_stream_max`. Real `H` has not been measured | [estimate] |
+
+### 9.3 Running it in session A (not yet tested on a GPU)
+1. **Inputs.** Franzen's notebook inputs, plus:
+   - the request logs of the loop-free runs named in 2.6, attached as `kernel_sources` (resolve both mount layouts, lesson 0030);
+   - the four scripts (the patch, the driver, `fidelity_probe.py`, `fidelity_sample.py`) in one folder, as `%%writefile` cells or a small dataset.
+2. **Patch.** After his install cell, apply REAP first if REAP is served. Then run `python -I .../sglang_hc_dump_patch.py apply --site-packages SP` on the same site-packages. It exits non-zero on any mismatch.
+3. **Storage test** (2.5). Write 10 GB to `/dev/shm` and to `/tmp`, choose the dump directory, and set `ARC3_HC_DUMP_MAX_GB` below what passed.
+4. **Server.** Start it with cell 12's environment and arguments, with these changes:
+   - add `ARC3_HC_DUMP=<dir>` to `env`;
+   - drop the `--speculative-*` arguments;
+   - add `--disable-cuda-graph` (or `--cuda-graph-backend-decode disabled --cuda-graph-backend-prefill disabled`) and `--disable-radix-cache`;
+   - set `--max-running-requests 1` and `--chunked-prefill-size 8192`.
+
+   Keep his `--chat-template` and `--default-chat-template-kwargs`. Keep `SGLANG_SM120_ONLINE_MXFP8` as he serves it, because the target's numerics must match serving. Flags that only make sense with a radix cache, such as `--mamba-radix-cache-strategy`, may need to go; check serve.log.
+5. **Driver.** First a dry run: `python -I hc_dump_driver.py --logs <log dirs> --split train --dry-run`. Then the real run with `--out /kaggle/working/hc-run --dump-dir <dir> --max-dump-gb <cap> --max-minutes <budget>`.
+6. **Checks.**
+   - In `replay-summary.json`, `dump_ok` must equal `sent`.
+   - Then read `qerr_stream_max` in the index, now on real `H`. If it is above about 0.05, dump again with `ARC3_HC_DUMP_SCALE_GROUPS=4`, which costs 6 bytes more per row.
+
+### 9.4 What remains
+- **The trainer (section 3):**
+  - a reader of this format (`load_request` returns per-request arrays sorted by position);
+  - the replica of the MTP block;
+  - INT4 dequantization, chain masks and the KL loss;
+  - CPU tests against HF 5.19.
+- **The replica check of 5.2.** It needs a driver mode that is not built: the 16 probe requests and their recorded greedy outputs, dumped with `ARC3_HC_DUMP_KEEP=all` (BF16 advisable). The outputs have to be sent as a continuation, for example to `/generate` with `input_ids` and the images.
+- **Export and gates.** Section 4 (export) and the gates of 5.3-5.5.
+- **A builder option for session A.** Not written: `build_franzen_nb.py` was out of scope for this step, so the cells in 9.3 are manual.
+
+### 9.5 Open questions
+1. Should the trainer reproduce the unshifted draft embeddings for context rows in the prompt (9.2)? I'd say yes, because that is what serving does. The replica check decides.
+2. One FP8 scale per row (as planned) or one per stream? Decide from `qerr_stream_max` in session A.
+3. Duplicated turns. By default only the first snapshot, the generation-time context, carries a turn as loss. Also training on the post-trim copies (`--keep-duplicates`) would add about 36% more span rows on the demo logs; that is an ablation.
+4. Which runs are both loop-free and lossless? The driver cannot tell from the logs, so the list of runs to replay must be chosen by hand.

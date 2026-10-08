@@ -164,7 +164,7 @@ def stream():
 
 
 def dump(tmp_path, ids, cuts, *, context=C, keep="spans", dtype="fp8", loss_spans=None, rid="req-1", seed=0,
-         mm=True):
+         mm=True, scale_groups=1):
     rng = np.random.default_rng(seed)
     n = len(ids)
     hc = hd.bf16_value(hd.bf16_bits(rng.standard_normal((n, 32)).astype(np.float32) * np.exp(rng.uniform(-3, 3, (n, 1)))))
@@ -174,7 +174,7 @@ def dump(tmp_path, ids, cuts, *, context=C, keep="spans", dtype="fp8", loss_span
     if loss_spans is not None:
         (out / "plans").mkdir(parents=True)
         (out / "plans" / f"{rid}.json").write_text(json.dumps({"loss_spans": loss_spans}))
-    dumper = hd.Dumper(out, context=context, keep=keep, dtype=dtype)
+    dumper = hd.Dumper(out, context=context, keep=keep, dtype=dtype, scale_groups=scale_groups, streams=4)
     bounds = [0, *cuts, n]
     records = []
     for lo, hi in itertools.pairwise(bounds):
@@ -220,6 +220,21 @@ def test_a_dump_does_not_depend_on_how_the_prompt_was_chunked(tmp_path):
     assert np.array_equal(hd.bf16_value(ref["img_embeds"]), hd.bf16_value(hd.bf16_bits(embeds[sorted(images)])))
     assert ref["token_ids"].tolist() == ids and ref["positions"].tolist() == list(range(len(ids)))
     assert ref["mrope_positions"][2].tolist() == [3 * p for p in range(len(ids))]
+
+
+def test_one_scale_per_stream_survives_any_chunking(tmp_path):
+    ids = stream()
+    ref_dir, hc, _, records = dump(tmp_path, ids, [], scale_groups=4)
+    ref = hd.load_request(ref_dir, "req-1")
+    assert ref["hc_scale"].shape == (len(ref["hc_pos"]), 4) and records[0]["scale_groups"] == 4
+    exact = hc[ref["hc_pos"]]
+    group_max = np.abs(exact).reshape(len(exact), 4, -1).max(2).repeat(8, axis=1)
+    rows = hd.dequantize(ref["hc"], ref["hc_scale"])
+    assert np.all(np.abs(rows - exact) <= np.abs(exact) * 2.0 ** -4 + group_max * 2.0 ** -18)
+    for cuts in ([5, 40, 41, 90], list(range(3, len(ids), 3))):
+        got = hd.load_request(dump(tmp_path, ids, cuts, scale_groups=4)[0], "req-1")
+        for key in ("hc_pos", "hc_role", "hc", "hc_scale", "img_pos"):
+            assert np.array_equal(got[key], ref[key]), (key, cuts)
 
 
 def test_context_rows_older_than_one_small_chunk_come_from_the_ring(tmp_path):
@@ -282,6 +297,24 @@ def test_fp8_rows_round_trip_within_their_error_bound():
     assert hd.quantize_rows(x[:0])["codes"].shape == (0, 10240)
 
 
+def test_a_small_stream_beside_a_large_one_shows_in_the_stream_error():
+    rng = np.random.default_rng(4)
+    x = rng.standard_normal((16, 10240)).astype(np.float32)
+    x[:, :2560] *= 1000  # e4m3 spans 2**-9..448: a stream 1000x the others still sits in its normal range
+    assert hd.quantize_rows(hd.bf16_value(hd.bf16_bits(x)), streams=4)["qerr_stream_max"] < 0.04
+    x[:, :2560] *= 100  # at 1e5x one scale per row flushes the small streams into FP8's subnormals
+    x = hd.bf16_value(hd.bf16_bits(x))
+    row = hd.quantize_rows(x, streams=4)
+    per_stream = hd.quantize_rows(x, groups=4, streams=4)
+    assert row["qerr_max"] < 0.04 and row["qerr_stream_max"] > 0.2  # the row-level error hides it
+    assert per_stream["qerr_max"] < 0.04 and per_stream["qerr_stream_max"] < 0.04 and per_stream["scale"].shape == (16, 4)
+    back = hd.dequantize(per_stream["codes"], per_stream["scale"])
+    scale = hd.bf16_value(per_stream["scale"]).repeat(2560, axis=1)
+    assert np.all(np.abs(back - x) <= np.abs(x) * 2.0 ** -4 + scale * 2.0 ** -10)
+    with pytest.raises(ValueError, match="do not split"):
+        hd.quantize_rows(x[:, :100], groups=3)
+
+
 def test_rows_are_gathered_and_quantized_in_blocks(monkeypatch):
     rng = np.random.default_rng(2)
     x = rng.standard_normal((50, 32)).astype(np.float32) * np.exp(rng.uniform(-4, 4, (50, 1))).astype(np.float32)
@@ -321,9 +354,11 @@ def test_the_numpy_codecs_match_torch_bit_for_bit():
     assert np.array_equal(hd.bf16_bits(y), torch.from_numpy(y).to(torch.bfloat16).view(torch.int16).numpy().view(np.uint16))
     rows = hd.bf16_value(hd.bf16_bits(rng.standard_normal((70, 10240)).astype(np.float32) * 5))
     rows[2] = 0
-    a, b = hd.quantize_rows(rows), hd.quantize_rows(torch.from_numpy(rows).to(torch.bfloat16))
-    assert np.array_equal(a["codes"], b["codes"]) and np.array_equal(a["scale"], b["scale"])
-    assert abs(a["qerr_max"] - b["qerr_max"]) < 1e-5
+    for groups in (1, 4):
+        a = hd.quantize_rows(rows, groups=groups, streams=4)
+        b = hd.quantize_rows(torch.from_numpy(rows).to(torch.bfloat16), groups=groups, streams=4)
+        assert np.array_equal(a["codes"], b["codes"]) and np.array_equal(a["scale"], b["scale"])
+        assert abs(a["qerr_max"] - b["qerr_max"]) < 1e-5 and abs(a["qerr_stream_max"] - b["qerr_stream_max"]) < 1e-5
 
 
 def test_chunk_files_are_self_describing_safetensors(tmp_path):
@@ -448,6 +483,7 @@ def test_capture_dumps_every_request_of_an_extend_batch(tmp_path, monkeypatch, c
     off = len(a)
     assert np.allclose(hd.dequantize(rb["hc"], rb["hc_scale"]), hc[off + rb["hc_pos"] - 40], rtol=2.0 ** -4, atol=1e-3)
     assert ra["chunks"][0]["mm_embeds"] is True and ra["img_pos"] is None  # the image rows are outside the kept range
+    assert ra["chunks"][0]["streams"] == 2  # the model's hc_count, for qerr_stream_max
 
 
 def test_capture_ignores_decode_verify_and_odd_batches(tmp_path, monkeypatch):
@@ -469,7 +505,8 @@ def test_capture_ignores_decode_verify_and_odd_batches(tmp_path, monkeypatch):
     hd.capture(MODEL, args, {}, hc, None)  # nothing kept before the forward: nothing to do
     fb.rids = ["m"]
     hd.capture(MODEL, (), {"forward_batch": fb}, hc, hd.input_ids_before((), {"forward_batch": fb}))
-    assert [r["rid"] for r in hd.read_index(tmp_path)] == ["m"]
+    index = hd.read_index(tmp_path)
+    assert [(r["rid"], "event" in r, r["streams"]) for r in index] == [("m", False, 2)]  # a chunk, not an error
 
 
 def test_capture_with_torch_tensors_writes_what_numpy_writes(tmp_path, monkeypatch):

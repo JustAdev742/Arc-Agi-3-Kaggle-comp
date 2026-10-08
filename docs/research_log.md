@@ -2660,3 +2660,26 @@ Decision: no scheduler patch. Lesson 0036: a public-25 run shows these give-ups 
           finding supports re-rolling a stuck level (ours-07 fresh start) over abandoning it.
 Checked:  re-running scratchpad timealloc/rerun.py (seeded, 4.3 min on the CPU) reproduced the table exactly (giveup30
           -6.91, giveup40 -1.74, giveup50 -0.19, franzen_gate -1.19, last-level B=10 +0.26).
+
+## 2026-10-08 20:30 · MTP draft fine-tune, step 1 built: hidden-state dump patch + snapshot replay driver (CPU) · BUILT
+Files:    scripts/sglang_hc_dump_patch.py (installs sglang/srt/arc3_hc_dump.py and 20 added lines in qwen4_exp.py, sha256
+          pinned to the wheel's file or that file after REAP; `apply`, `revert`, `check-wheel`), scripts/hc_dump_driver.py
+          (maximal snapshots from `*_requests.jsonl`, loop filter, game holdout, replay with max_tokens 1, per-request
+          dump check, `--dry-run`), 49 tests (46 pass + 3 torch-only skips in .venv; all 49 pass with torch 2.14),
+          docs/research/beat-tufa/mtp-drafter-finetune.md §9. Unset ARC3_HC_DUMP = two bool checks per forward.
+Plan corrections (agent, verified in the wheel's source and the served tokenizer):
+          - image rows' ids must be copied before `super().forward` (the multimodal embedding clamps them in place);
+          - the unshifted draft-embedding path applies to every prefill chunk of a request with images;
+          - 2.2-2.5 prefill tokens per loss row holds only with duplicate turns skipped (measured 2.38; 27% of span rows
+            repeat across snapshots because trims keep recent turns);
+          - REAP's patch must be applied first (its installer accepts only the pristine file);
+          - prefill CUDA graphs exist in this SGLang, so --disable-cuda-graph is required for the hook;
+          - one FP8 scale per row can hide a weak stream; each index line reports qerr_stream_max and
+            ARC3_HC_DUMP_SCALE_GROUPS=4 gives one scale per stream.
+Dry run:  Franzen's 10-game demo logs -> 22 snapshots, 527 loss turns, 2.26M prefill tokens, ~0.92M loss rows, ~10.9 GB FP8.
+Decisions: trainer reproduces the unshifted embeddings for prefilled context rows (the replica check confirms);
+          scale per row vs per stream from qerr_stream_max in session A; duplicate turns skipped by default
+          (`--keep-duplicates` is a later ablation); training data from lossless loop-free runs only: exp-073
+          (lossless, 0 repeats); exp-073b/075 are loop-free but relaxed (0.5/0.5), use only if exp-073 is too small.
+Open:     whether exp-073's kernel output holds `*_requests.jsonl` (our pulls skip .jsonl); the replica-check driver
+          mode and the step-2 trainer (plan §3) are not built. GPU work waits for the Sat 00:00 UTC quota reset.

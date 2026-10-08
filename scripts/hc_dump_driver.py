@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """Replay maximal snapshots of logged ARC agent conversations through the hyper-connection dump server, for the MTP
-draft fine-tune (docs/research/beat-tufa/mtp-drafter-finetune.md, sections 2.4-2.6 and 7).
+draft fine-tune (docs/research/beat-tufa/mtp-drafter-finetune.md, sections 2.4-2.6 and 9).
 
     python -I scripts/hc_dump_driver.py --logs RUN_DIR [--logs RUN_DIR2] --dry-run [--split train]
     python -I scripts/hc_dump_driver.py --logs RUN_DIR --out OUT --dump-dir /dev/shm/hc \\
@@ -422,7 +422,7 @@ def replay(result: dict, out: Path, *, base_url: str, model: str = "flashnext", 
                "notes": notes, "planned": len(result["replay"]), "sent": 0, "ok": 0, "dump_ok": 0,
                "prefill_tokens": 0, "stopped": None, "failed": False, "dump_dir": str(dump_dir) if dump_dir else None}
     failures_in_a_row = 0
-    with open(out / "replay.jsonl", "a", encoding="utf-8") as results:
+    with open(out / "replay.jsonl", "w", encoding="utf-8") as results:
         for snapshot, row in iter_rows(result):
             elapsed_min = (time.time() - t0) / 60
             if max_minutes is not None and elapsed_min >= max_minutes:

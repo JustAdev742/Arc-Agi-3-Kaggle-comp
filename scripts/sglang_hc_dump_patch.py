@@ -1,5 +1,5 @@
 """Dump of the Flash-Next target's hyper-connection states for the MTP draft fine-tune, in Pennyroyal SGLang
-(sglang-0.5.19+gd00d88efc8d6; docs/research/beat-tufa/mtp-drafter-finetune.md, sections 2.4 and 7).
+(sglang-0.5.19+gd00d88efc8d6; docs/research/beat-tufa/mtp-drafter-finetune.md, sections 2.4 and 9).
 
 One file, two roles (as scripts/sglang_reap_patch.py):
 
@@ -30,8 +30,9 @@ deprecated ``--disable-cuda-graph`` disables both phases in this version), so th
 chunk; ``--disable-radix-cache`` (cached prefix rows are never recomputed, so never dumped); ``--max-running-requests
 1``; no speculative decoding; requests with ``max_tokens`` 1 (pure DECODE batches are not dumped). More variables:
 ``ARC3_HC_DUMP_CONTEXT`` (rows of context, default 256), ``ARC3_HC_DUMP_KEEP=all`` (every row, for the replica check
-of section 5.2), ``ARC3_HC_DUMP_DTYPE=bf16`` (raw BF16 rows instead of FP8), ``ARC3_HC_DUMP_MAX_GB`` (stop before the
-files would exceed it; a tmpfs is RAM). A file ``<dir>/plans/<rid>.json`` holding ``{"loss_spans": [k, ...]}``
+of section 5.2), ``ARC3_HC_DUMP_DTYPE=bf16`` (raw BF16 rows instead of FP8), ``ARC3_HC_DUMP_SCALE_GROUPS=4`` (one FP8
+scale per hyper-connection stream instead of one per row; read ``qerr_stream_max`` in the index first),
+``ARC3_HC_DUMP_MAX_GB`` (stop before the files would exceed it; a tmpfs is RAM). A file ``<dir>/plans/<rid>.json`` holding ``{"loss_spans": [k, ...]}``
 (scripts/hc_dump_driver.py writes it before it sends request ``rid``) restricts that request's span rows to those
 spans (k counts assistant headers in the prompt from 0); the other spans' rows are kept only as context.
 
@@ -73,6 +74,7 @@ ENV_CONTEXT = "ARC3_HC_DUMP_CONTEXT"
 ENV_KEEP = "ARC3_HC_DUMP_KEEP"
 ENV_DTYPE = "ARC3_HC_DUMP_DTYPE"
 ENV_MAX_GB = "ARC3_HC_DUMP_MAX_GB"
+ENV_SCALE_GROUPS = "ARC3_HC_DUMP_SCALE_GROUPS"
 MODEL_FILE = Path("sglang/srt/models/qwen4_exp.py")
 MODULE_FILE = Path("sglang/srt/arc3_hc_dump.py")
 # sglang/srt/models/qwen4_exp.py in dfranzen/pennyroyal-v253 wheels/sglang-0.5.19+gd00d88efc8d6-cp312-cp312-linux_x86_64.whl
@@ -102,7 +104,9 @@ TENSORS = {
     "hc_role": "U8 [k]: 1 = row of a kept assistant span, 0 = context row",
     "hc": "F8_E4M3 [k, 10240] (dtype fp8) or BF16 [k, 10240] (dtype bf16): kept rows of the target's "
           "last_hc_hidden_states, 4 hyper-connection streams x 2560, stream-major",
-    "hc_scale": "BF16 [k] (fp8 only): row scale; row value = float(hc) * float(hc_scale), scale = max|row| / 448",
+    "hc_scale": "BF16 [k] or [k, G] (fp8 only): the scale of each row, or of each of its G equal column groups "
+                "(ARC3_HC_DUMP_SCALE_GROUPS; 4 = one per stream); value = float(hc) * float(its scale), scale = "
+                "max|row or group| / 448",
     "img_pos": "I32 [m]: positions of the image rows among the kept rows",
     "img_embeds": "BF16 [m, hidden]: the target's input embedding at those rows (forward_batch.mm_input_embeds, i.e. "
                   "the vision features it consumed); text rows' embeddings follow from token_ids",
@@ -117,8 +121,10 @@ INDEX_FIELDS = {
     "loss_spans, plan": "the spans the request's plan file keeps (null: all) and that file's name",
     "images, images_kept, mm_embeds, hidden": "image rows in the chunk, image rows written with their embedding, "
                                               "whether the batch had mm_input_embeds, the embedding width",
-    "dtype, context, keep": "the settings",
+    "dtype, context, keep, scale_groups": "the settings",
     "qerr_max, qerr_mean, nonfinite_rows": "relative RMS error of the rows quantized for the chunk; rows with NaN/Inf",
+    "qerr_stream_max, streams": "the largest relative RMS error of one hyper-connection stream of a row (streams = "
+                                "the model's hc_count); the target's final mixer normalizes each stream on its own",
     "missing_prefix": "positions before the request's first chunk, never seen (a radix-cache hit) and not dumped",
     "bytes, bytes_total, t": "the file's size, the dump's size so far, the time",
     "event": "a line with an 'event' key reports a problem: 'error' (that request is no longer dumped) or 'stopped' "
@@ -288,10 +294,14 @@ def fp8_value(codes) -> np.ndarray:
 
 
 def dequantize(codes, scale_bits=None) -> np.ndarray:
-    """Rows of a chunk file as float32: FP8 codes times their BF16 row scale, or BF16 bits when there is no scale."""
+    """Rows of a chunk file as float32: FP8 codes times their BF16 scale (one per row [k], or per column group
+    [k, G]), or BF16 bits when there is no scale."""
     if scale_bits is None:
         return bf16_value(codes)
-    return fp8_value(codes) * bf16_value(scale_bits)[:, None]
+    values, scale = fp8_value(codes), bf16_value(scale_bits)
+    if scale.ndim == 1:
+        return values * scale[:, None]
+    return (values.reshape(len(values), scale.shape[1], -1) * scale[:, :, None]).reshape(values.shape)
 
 
 # ----------------------------------------------------------------------------------------------- torch / numpy rows
@@ -326,73 +336,93 @@ def _bf16_rows(x) -> np.ndarray:
     return bf16_bits(np.asarray(x, np.float32))
 
 
-def quantize_rows(x, dtype: str = "fp8") -> dict:
+def quantize_rows(x, dtype: str = "fp8", *, groups: int = 1, streams: int = 1) -> dict:
     """``x`` [k, W] (torch on any device, or numpy float32) -> codes on the CPU and error statistics.
 
-    fp8: ``scale = bf16(max|row| / 448)`` (1 for an all-zero row), ``code = fp8(clamp(row / scale, +-448))``;
-    returns codes uint8 [k, W], scale bits uint16 [k]. bf16: codes are the BF16 bit patterns, no scale. qerr is the
-    relative RMS error of each dequantized row (max and mean); nonfinite counts rows with a NaN or Inf."""
+    fp8: each row is cut into ``groups`` equal column groups (1: the whole row; 4: one per hyper-connection stream),
+    ``scale = bf16(max|group| / 448)`` (1 for an all-zero group), ``code = fp8(clamp(value / scale, +-448))``; returns
+    codes uint8 [k, W] and scale bits uint16 [k] (one group) or [k, groups]. bf16: codes are the BF16 bit patterns,
+    no scale. qerr_max / qerr_mean: relative RMS error of each dequantized row; qerr_stream_max: the largest relative
+    RMS error of one of a row's ``streams`` equal column groups (the target's final mixer normalizes each stream on
+    its own, and a small stream next to a large one is what one scale per row can lose); nonfinite: rows with a NaN
+    or Inf."""
     k = int(x.shape[0])
     width = int(x.shape[1]) if len(x.shape) > 1 else 0
+    if groups < 1 or streams < 1 or width % groups or width % streams:
+        raise ValueError(f"rows of width {width} do not split into {groups} scale groups and {streams} streams")
+    out = {"codes": np.zeros((0, width), np.uint8 if dtype == "fp8" else np.uint16), "nonfinite": 0,
+           "scale": (np.zeros((0, groups) if groups > 1 else 0, np.uint16)) if dtype == "fp8" else None,
+           "qerr_max": 0.0, "qerr_mean": 0.0, "qerr_stream_max": 0.0}
     if k == 0:
-        return {"codes": np.zeros((0, width), np.uint8 if dtype == "fp8" else np.uint16),
-                "scale": np.zeros(0, np.uint16) if dtype == "fp8" else None, "qerr_max": 0.0, "qerr_mean": 0.0,
-                "nonfinite": 0}
-    codes, scales, errs, bad = [], [], [], 0
+        return out
+    codes, scales, errs, stream_errs = [], [], [], []
     for b in range(0, k, QUANT_BLOCK):
         xb = x[b:b + QUANT_BLOCK]
+        n = int(xb.shape[0])
         if _is_torch(xb):
             import torch
 
-            xf = xb.float()
-            bad += int((~torch.isfinite(xf)).any(dim=1).sum())
+            xf = xb.float().reshape(n, width)
+            out["nonfinite"] += int((~torch.isfinite(xf)).any(dim=1).sum())
             if dtype == "bf16":
                 codes.append(_bf16_rows(xb))
                 continue
-            amax = xf.abs().amax(dim=1)
+            xg = xf.reshape(n, groups, width // groups)
+            amax = xg.abs().amax(dim=2)
             scale = torch.where(amax > 0, amax / FP8_MAX, torch.ones_like(amax)).to(torch.bfloat16)
-            q = (xf / scale.float().unsqueeze(1)).clamp_(-FP8_MAX, FP8_MAX).to(torch.float8_e4m3fn)
-            deq = q.float() * scale.float().unsqueeze(1)
-            errs.append(((deq - xf).norm(dim=1) / xf.norm(dim=1).clamp_min(1e-30)).cpu().numpy())
-            codes.append(q.view(torch.uint8).cpu().numpy())
+            q = (xg / scale.float().unsqueeze(2)).clamp_(-FP8_MAX, FP8_MAX).to(torch.float8_e4m3fn)
+            diff = (q.float() * scale.float().unsqueeze(2)).reshape(n, width) - xf
+            errs.append((diff.norm(dim=1) / xf.norm(dim=1).clamp_min(1e-30)).cpu().numpy())
+            per_stream = (diff.reshape(n, streams, -1).norm(dim=2)
+                          / xf.reshape(n, streams, -1).norm(dim=2).clamp_min(1e-30))
+            stream_errs.append(per_stream.amax(dim=1).cpu().numpy())
+            codes.append(q.reshape(n, width).view(torch.uint8).cpu().numpy())
             scales.append(scale.view(torch.int16).cpu().numpy().view(np.uint16))
         else:
-            xf = np.asarray(xb, np.float32)
-            bad += int((~np.isfinite(xf)).any(axis=1).sum())
+            xf = np.asarray(xb, np.float32).reshape(n, width)
+            out["nonfinite"] += int((~np.isfinite(xf)).any(axis=1).sum())
             if dtype == "bf16":
                 codes.append(bf16_bits(xf))
                 continue
-            amax = np.abs(xf).max(axis=1)
+            xg = xf.reshape(n, groups, width // groups)
+            amax = np.abs(xg).max(axis=2)
             with np.errstate(invalid="ignore"):
                 scale = bf16_bits(np.where(amax > 0, amax / np.float32(FP8_MAX), np.float32(1.0)))
-            sf = bf16_value(scale)[:, None]
+            sf = bf16_value(scale)[:, :, None]
             with np.errstate(invalid="ignore", divide="ignore"):
-                q = fp8_bits(np.clip(xf / sf, -FP8_MAX, FP8_MAX))
-                deq = fp8_value(q) * sf
-                norm = np.maximum(np.linalg.norm(xf, axis=1), 1e-30)
-                errs.append(np.linalg.norm(deq - xf, axis=1) / norm)
-            codes.append(q)
+                q = fp8_bits(np.clip(xg / sf, -FP8_MAX, FP8_MAX))
+                diff = (fp8_value(q) * sf).reshape(n, width) - xf
+                errs.append(np.linalg.norm(diff, axis=1) / np.maximum(np.linalg.norm(xf, axis=1), 1e-30))
+                per_stream = (np.linalg.norm(diff.reshape(n, streams, -1), axis=2)
+                              / np.maximum(np.linalg.norm(xf.reshape(n, streams, -1), axis=2), 1e-30))
+                stream_errs.append(per_stream.max(axis=1))
+            codes.append(q.reshape(n, width))
             scales.append(scale)
-    out = {"codes": np.concatenate(codes), "scale": np.concatenate(scales) if dtype == "fp8" else None,
-           "nonfinite": bad, "qerr_max": 0.0, "qerr_mean": 0.0}
-    if errs:
-        err = np.concatenate(errs)
-        finite = err[np.isfinite(err)]
-        if finite.size:
-            out["qerr_max"], out["qerr_mean"] = float(finite.max()), float(finite.mean())
+    out["codes"] = np.concatenate(codes)
+    if dtype == "fp8":
+        scale = np.concatenate(scales)
+        out["scale"] = scale[:, 0] if groups == 1 else scale
+        for key, values in (("qerr", np.concatenate(errs)), ("qerr_stream", np.concatenate(stream_errs))):
+            finite = values[np.isfinite(values)]
+            if finite.size:
+                out[f"{key}_max"] = float(finite.max())
+                if key == "qerr":
+                    out["qerr_mean"] = float(finite.mean())
     return out
 
 
-def quantize_take(x, rows: np.ndarray, dtype: str = "fp8") -> dict:
+def quantize_take(x, rows: np.ndarray, dtype: str = "fp8", *, groups: int = 1, streams: int = 1) -> dict:
     """:func:`quantize_rows` of ``x[rows]``, gathered QUANT_BLOCK rows at a time (no full copy on the GPU)."""
-    parts = [quantize_rows(_take(x, rows[b:b + QUANT_BLOCK]), dtype) for b in range(0, len(rows), QUANT_BLOCK)]
+    parts = [quantize_rows(_take(x, rows[b:b + QUANT_BLOCK]), dtype, groups=groups, streams=streams)
+             for b in range(0, len(rows), QUANT_BLOCK)]
     if len(parts) < 2:
-        return parts[0] if parts else quantize_rows(_take(x, rows), dtype)
+        return parts[0] if parts else quantize_rows(_take(x, rows), dtype, groups=groups, streams=streams)
     sizes = [len(p["codes"]) for p in parts]
     return {"codes": np.concatenate([p["codes"] for p in parts]),
             "scale": np.concatenate([p["scale"] for p in parts]) if dtype == "fp8" else None,
             "nonfinite": sum(p["nonfinite"] for p in parts), "qerr_max": max(p["qerr_max"] for p in parts),
-            "qerr_mean": sum(p["qerr_mean"] * k for p, k in zip(parts, sizes)) / sum(sizes)}
+            "qerr_mean": sum(p["qerr_mean"] * k for p, k in zip(parts, sizes)) / sum(sizes),
+            "qerr_stream_max": max(p["qerr_stream_max"] for p in parts)}
 
 
 # ------------------------------------------------------------------------------------------------- safetensors files
@@ -457,7 +487,7 @@ class _Ring:
     pos: int
     written: bool
     code: np.ndarray | None = None
-    scale: int | None = None
+    scale: np.ndarray | None = None
     embed: np.ndarray | None = None
 
 
@@ -480,11 +510,14 @@ class Dumper:
     (on any device) or numpy arrays (tests)."""
 
     def __init__(self, out: str | os.PathLike, *, context: int = DEFAULT_CONTEXT, keep: str = "spans",
-                 dtype: str = "fp8", max_bytes: int = 0, max_requests: int = 64):
-        if keep not in ("spans", "all") or dtype not in ("fp8", "bf16") or context < 0 or max_bytes < 0:
+                 dtype: str = "fp8", max_bytes: int = 0, scale_groups: int = 1, streams: int = 1,
+                 max_requests: int = 64):
+        if (keep not in ("spans", "all") or dtype not in ("fp8", "bf16") or context < 0 or max_bytes < 0
+                or scale_groups < 1 or streams < 1):
             raise ValueError(f"arc3 HC dump: bad settings keep={keep!r} dtype={dtype!r} context={context} "
-                             f"max_bytes={max_bytes}")
+                             f"max_bytes={max_bytes} scale_groups={scale_groups} streams={streams}")
         self.out, self.context, self.keep, self.dtype, self.max_bytes = Path(out), context, keep, dtype, max_bytes
+        self.scale_groups, self.streams = scale_groups, streams
         self.requests: collections.OrderedDict[str, _Request] = collections.OrderedDict()
         self.max_requests = max_requests
         self.bytes = self.files = self.rows = 0
@@ -501,13 +534,16 @@ class Dumper:
         try:
             context = int(os.environ.get(ENV_CONTEXT, "") or DEFAULT_CONTEXT)
             max_bytes = int(float(os.environ.get(ENV_MAX_GB, "") or 0) * 1e9)
+            groups = int(os.environ.get(ENV_SCALE_GROUPS, "") or 1)
         except ValueError as exc:
-            raise ValueError(f"arc3 HC dump: {ENV_CONTEXT} / {ENV_MAX_GB} must be numbers ({exc})") from None
+            raise ValueError(f"arc3 HC dump: {ENV_CONTEXT}, {ENV_MAX_GB} and {ENV_SCALE_GROUPS} must be numbers "
+                             f"({exc})") from None
         return cls(out, context=context, keep=(os.environ.get(ENV_KEEP, "") or "spans").strip(),
-                   dtype=(os.environ.get(ENV_DTYPE, "") or "fp8").strip(), max_bytes=max_bytes)
+                   dtype=(os.environ.get(ENV_DTYPE, "") or "fp8").strip(), max_bytes=max_bytes, scale_groups=groups)
 
     def settings(self) -> dict:
-        return {"context": self.context, "keep": self.keep, "dtype": self.dtype, "max_bytes": self.max_bytes}
+        return {"context": self.context, "keep": self.keep, "dtype": self.dtype, "max_bytes": self.max_bytes,
+                "scale_groups": self.scale_groups, "streams": self.streams}
 
     def _setup(self) -> None:
         if self._ready:
@@ -595,7 +631,8 @@ class Dumper:
         image = ids >= image_min_id
 
         rows = np.union1d(kept, feed).astype(np.int64)  # sorted; q's row j is chunk row rows[j]
-        q = quantize_take(hc, rows, self.dtype)
+        streams = self.streams if int(hc.shape[1]) % self.streams == 0 else 1  # a statistic: never fail on it
+        q = quantize_take(hc, rows, self.dtype, groups=self.scale_groups, streams=streams)
         emb_rows = rows[image[rows]] if mm_embeds is not None else np.zeros(0, np.int64)
         emb = _bf16_rows(_take(mm_embeds, emb_rows)) if len(emb_rows) else None
         emb_at = {int(i): j for j, i in enumerate(emb_rows)}
@@ -617,7 +654,7 @@ class Dumper:
         tensors += [("hc_pos", "I32", hc_pos), ("hc_role", "U8", hc_role),
                     ("hc", "F8_E4M3" if self.dtype == "fp8" else "BF16", hc_codes)]
         if self.dtype == "fp8":
-            scales = np.array([r.scale for r in carried], np.uint16)
+            scales = np.array([r.scale for r in carried], np.uint16).reshape((len(carried), *q["scale"].shape[1:]))
             tensors.append(("hc_scale", "BF16", np.concatenate([scales, q["scale"][k_idx]])))
         if img:
             tensors += [("img_pos", "I32", np.array([p for p, _ in img], np.int32)),
@@ -632,7 +669,8 @@ class Dumper:
                 req.loss_spans), "plan": req.plan, "images": int(image.sum()), "images_kept": len(img),
             "mm_embeds": mm_embeds is not None, "hidden": hidden, "dtype": self.dtype, "context": self.context,
             "keep": self.keep, "qerr_max": round(q["qerr_max"], 5), "qerr_mean": round(q["qerr_mean"], 5),
-            "nonfinite_rows": q["nonfinite"], "missing_prefix": req.missing_prefix if req.chunks == 0 else 0,
+            "qerr_stream_max": round(q["qerr_stream_max"], 5), "streams": streams,
+            "scale_groups": self.scale_groups, "nonfinite_rows": q["nonfinite"], "missing_prefix": req.missing_prefix if req.chunks == 0 else 0,
         }
         meta = {"arc3_hc_dump": json.dumps({"format": FORMAT, "version": VERSION, **record, "tensors": TENSORS})}
         parts = encode_safetensors(tensors, meta)
@@ -655,7 +693,7 @@ class Dumper:
             else:
                 j = int(np.searchsorted(rows, i))
                 req.ring.append(_Ring(start + i, False, q["codes"][j].copy(),
-                                      int(q["scale"][j]) if q["scale"] is not None else None,
+                                      np.array(q["scale"][j]) if q["scale"] is not None else None,
                                       emb[emb_at[i]].copy() if i in emb_at else None))
         req.chunks += 1
         req.next_start = start + n
@@ -780,12 +818,8 @@ def capture(model, args, kwargs, hc, ids_before) -> None:
             return
         if torch.distributed.is_available() and torch.distributed.is_initialized() and torch.distributed.get_rank():
             return
-    if _DUMPER is None:
-        _DUMPER = Dumper.from_env()
-        logger.info("arc3 HC dump: writing to %s (%s)", _DUMPER.out, _DUMPER.settings())
-    dumper = _DUMPER
-    if dumper.stopped:
-        return
+    config = getattr(model, "config", None)
+    width = getattr(config, "hc_count", 0) * getattr(config, "hidden_size", 0)
     starts, lens = _lens(fb, "extend_prefix_lens_cpu", "extend_prefix_lens"), _lens(fb, "extend_seq_lens_cpu",
                                                                                     "extend_seq_lens")
     rids = list(getattr(fb, "rids", None) or [])
@@ -794,11 +828,16 @@ def capture(model, args, kwargs, hc, ids_before) -> None:
         _warn_once("shape", "arc3 HC dump: batch layout not understood (rids %s, extend lens %s, %s hidden rows, "
                             "%s ids); skipped", len(rids), lens, int(hc.shape[0]), len(ids_before))
         return
-    config = getattr(model, "config", None)
-    width = getattr(config, "hc_count", 0) * getattr(config, "hidden_size", 0)
     if width and int(hc.shape[1]) != width:
         _warn_once("width", "arc3 HC dump: hidden rows are %s wide, expected hc_count x hidden_size = %s; skipped",
                    int(hc.shape[1]), width)
+        return
+    if _DUMPER is None:
+        _DUMPER = Dumper.from_env()
+        _DUMPER.streams = int(getattr(config, "hc_count", 0) or 1)  # for qerr_stream_max
+        logger.info("arc3 HC dump: writing to %s (%s)", _DUMPER.out, _DUMPER.settings())
+    dumper = _DUMPER
+    if dumper.stopped:
         return
     vocab = getattr(config, "vocab_size", None)
     image_min_id = min(MM_PAD_MIN, int(vocab)) if vocab else MM_PAD_MIN
