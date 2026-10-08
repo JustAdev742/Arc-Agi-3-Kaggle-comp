@@ -2207,3 +2207,17 @@ Measured: 819.3 tok/s output over 1,579 s (REAP-14: 733.2, base: 641.9); accept 
           gate scores are throughput-dominated and noisy).
 Risk:     lossy by design (draft tokens accepted when confident: roughly a lower effective temperature); judged on score.
 Next:     exp-073b = this at 121 min per game, queued before the exp-072h/i gates.
+
+## 2026-10-08 01:39 · exp-073 · D' + REAP-448 + 14 streams, full length (121 min/game): 49.45, stable · KEPT (submission candidate)
+Run:      scottmahony/arc3-dprime-reap448-r14-full v1, 25 public games, 121 min per game (the hidden set's compute per
+          game), 23:33-01:35 UTC; runs/exp073-dprime-reap448-r14-full (report.txt).
+Measured: mean score 49.45 (our scorer), 108 levels, 5,602 actions; 7 games won. Server: 735.3 output tok/s over 7,311 s
+          (steady: the 25-min gate gave 733.2), decode p50 838, 12.72 of 14 running, accept length 2.67, cache share
+          93.5%, 2,461 completions all HTTP 200, 9 read timeouts (his 8.2 h v3: 9), no memory errors.
+Against:  Franzen v3's four passes at the same compute per game: 45.80, 45.59, 47.46, 47.12 (mean 46.49; his
+          throughput 610 tok/s). +2.96 over the mean, +2.0 over his best pass. One run, and not identical conditions
+          (D' priority; 1 pass of 25 games over 121 min vs 4 passes of 25 over 484 min), so this is "consistent with
+          the predicted +8-11%", not a measurement of it. The throughput gain (+14% same-conditions, +20% vs his v3)
+          is the measured part.
+Decision: exp-074s (the same serving change on D''s unmodified submission path, plus the input-path fallback) is the
+          next submission; its save run is queued first. exp-073b (+ acceptance 0.5, full length) is running.
