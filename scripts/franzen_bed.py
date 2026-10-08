@@ -36,6 +36,8 @@ the last tool call it emitted says which snippet comes next. The programs exerci
   ``search()`` and ``run_plan()`` in the sandbox, with their own coverage checks;
 - only with ``--program mem`` (for kaggle/franzen/patches/ours-05-level-mem.patch, OURS_LEVEL_MEM=1): ``mem``
   written in one call, read in the next, a write the sandbox must refuse, with their own coverage checks.
+- only with ``--program effects`` (for kaggle/franzen/patches/ours-06-effect-table.patch, OURS_EFFECT_TABLE=1):
+  one action, then ``effects()`` in the sandbox, which must return the current level's table.
 
 Usage it reports: prompt tokens estimated from the text and images, cached tokens as the longest message prefix
 shared with a recent request (a radix cache in miniature), completion tokens from the reply. It also writes an
@@ -241,6 +243,17 @@ r = action([keys[0]] if keys else [{'action': 'MOUSE', 'row': 24, 'col': 24}])
 print('BED mem acted', r.get('executed_count'))
 """]
 OPTIONAL_PROGRAMS = ("search", "mem")
+# effects: for kaggle/franzen/patches/ours-06-effect-table.patch with OURS_EFFECT_TABLE=1 (or note). One snippet: an
+# action, then effects(), whose first line must name the current level.
+SNIPPETS["effects"] = ['''# bed:effects:0
+acts = [a for a in valid_actions if a not in ('RESET', 'UNDO', 'MOUSE')] or [{'action': 'MOUSE', 'row': 30, 'col': 30}]
+action(acts[:1])
+lines = effects().splitlines()
+print('BED effects table', current_frame.level, len(lines), lines[0][:50])
+print('BED effects level', lines[0].startswith('Level %d: ' % current_frame.level))
+''']
+OPTIONAL_PROGRAMS += ("effects",)
+TAGS += (("effects_table", ("BED effects table",)), ("effects_level", ("BED effects level True",)))
 
 
 def _text(content) -> str:
@@ -660,6 +673,10 @@ def coverage(out: Path, inner_report: dict, records: list[dict], analysis: dict,
         checks["mem kept a value across turns on one level"] = facts["mem_carried"] > 0
         checks["a set written to mem was refused by name"] = facts["mem_refused"] > 0
         checks["tool results listed mem's keys"] = facts["mem_listed"] > 0
+    if "effects" in programs:
+        facts["effects_calls"], facts["effects_current_level"] = tags["effects_table"], tags["effects_level"]
+        checks["effects() returned the current level's table in the sandbox"] = (
+            facts["effects_calls"] > 0 and facts["effects_current_level"] == facts["effects_calls"])
     return {"facts": facts, "checks": checks}
 
 
@@ -764,7 +781,7 @@ def main() -> None:
     ap.add_argument("--latency", type=float, default=0.15, help="mock seconds per reply before decode time")
     ap.add_argument("--program", action="append", default=[], choices=OPTIONAL_PROGRAMS,
                     help="add an optional mock program to the cycle (search: ours-04-search-helper.patch; "
-                         "mem: ours-05-level-mem.patch)")
+                         "mem: ours-05-level-mem.patch; effects: ours-06-effect-table.patch)")
     ap.add_argument("--his-repo", type=Path, default=None)
     ap.add_argument("--bundle", type=Path, default=None)
     ap.add_argument("-v", "--verbose", action="store_true", help="echo the harness output")
