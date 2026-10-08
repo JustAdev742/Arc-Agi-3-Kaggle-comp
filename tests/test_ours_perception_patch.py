@@ -342,18 +342,24 @@ def test_left_view(op):
     floor = [[5] * 64 for _ in range(64)]
     for c in range(64):
         floor[63][c] = 13  # a bar in the edge band
-    cart = box(20, 58, 6, 6)  # touches the right edge
-    gem = box(40, 30, 3, 3)  # in the middle
-    a = paint(paint(paint(floor, cart, 11), gem, 14), box(2, 10, 2, 8), 8)  # and a red HUD piece in the band
-    b = floor  # the cart, the gem and the HUD piece are all gone
-    history = [entry("", a, 0), entry("RIGHT", b, 1), entry("LEFT", paint(floor, box(20, 50, 6, 6), 11), 2)]
-    tracker = fed(op, history[:2])
-    record = {"colour": "Y", "pixels": 36, "step": 0, "box": [20, 58, 25, 63], "world_box": [20, 58, 25, 63],
+
+    def scene(cart_col: int) -> list:
+        """A cart, a gem in the middle, a red HUD piece in the band and a lamp on the left edge."""
+        out = paint(floor, box(20, cart_col, 6, 6), 11)
+        return paint(paint(paint(out, box(40, 30, 3, 3), 14), box(2, 10, 2, 8), 8), box(30, 0, 4, 6), 2)
+
+    # the cart drives right and off the right edge; the gem, the HUD piece and the lamp vanish in the same step
+    history = [entry("", scene(54), 0), entry("RIGHT", scene(58), 1), entry("RIGHT", floor, 2),
+               entry("LEFT", paint(floor, box(20, 50, 6, 6), 11), 3)]
+    tracker = fed(op, history[:3])
+    record = {"colour": "Y", "pixels": 36, "step": 1, "box": [20, 58, 25, 63], "world_box": [20, 58, 25, 63],
               "edge": "right"}
-    assert tracker.exits[1] == [record] and tracker.left == [record]  # not the gem (mid-view), not the HUD piece
-    assert tracker.line(1) == ("[view] left the view: Y 36px at the right edge (last seen step 0, rows 20-25, cols "
+    assert tracker.exits[2] == [record] and tracker.left == [record]  # not the gem, the HUD piece or the lamp
+    assert tracker.line(2) == ("[view] left the view: Y 36px at the right edge (last seen step 1, rows 20-25, cols "
                                "58-63); see left_view")
     assert fed(op, history).left == []  # the colour is back in view
+    # a cart that stood at the edge and vanished did not leave the view
+    assert fed(op, [entry("", scene(58), 0), entry("SPACE", scene(58), 1), entry("RIGHT", floor, 2)]).exits[2] == []
     # pushed out by a scroll: the record carries the world box of the frame it was last seen in
     g = world(seed=9)
     a = paint(view(g, 60, 60), box(2, 20, 4, 4), 1)  # a w object near the top, unique colour
