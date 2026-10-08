@@ -2714,7 +2714,7 @@ does not explain. Only the 20:02 refusal itself is certain. Lesson 0035 now list
 the queue runner retry rather than plan around a rule. exp-079 is queued as soon as its bed passes; if Kaggle
 accepts it while exp-078 runs, the two run in parallel.
 
-## 2026-10-08 21:41 · MTP draft fine-tune, step 2 built: replica, trainer, draft writer (CPU) · BUILT
+## 2026-10-08 21:40 · MTP draft fine-tune, step 2 built: replica, trainer, draft writer (CPU) · BUILT
 Files:    scripts/mtp_replica.py (the MTP block as SGLang serves it, each part citing the wheel lines it mirrors: fusion,
           gated-residual hyper-connections, FP8 e4m3 K/V, QSA selection, frozen INT4 g32 experts, final mixer, FR-Spec
           hot lm_head; `check` exit 0 GO / 2 NO-GO), scripts/mtp_train.py (chained forward KL over the hot vocabulary,
