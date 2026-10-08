@@ -38,7 +38,8 @@ GAMES = ROOT / "environment_files"
 LEDGER_CHECKS = ROOT / "tests" / "franzen_ledger_checks.py"
 EXP073B = ROOT / "runs" / "exp073b-dprime-reap448-r14-accept05-full" / "kernel-output" / "benchmark.json"
 OTHERS = {"OURS_BUDGET_METER": "1", "OURS_SEARCH_HELPER": "1", "OURS_WIN_LEDGER": "1", "OURS_LEVEL_MEM": "1",
-          "OURS_EFFECT_TABLE": "1", "OURS_FRESH_START": "1", "EXPOSE_RESET": "on"}
+          "OURS_EFFECT_TABLE": "1", "OURS_FRESH_START": "1", "EXPOSE_RESET": "on"}  # the seven's flags, exp-078
+ARM = {k: v for k, v in OTHERS.items() if k != "EXPOSE_RESET"}  # the next arm (exp-079): RESET not exposed
 NAMES = {"ACTION1": "UP", "ACTION2": "DOWN", "ACTION3": "LEFT", "ACTION4": "RIGHT", "ACTION5": "SPACE",
          "ACTION7": "UNDO", "RESET": "RESET"}
 
@@ -358,8 +359,15 @@ def test_left_view(op):
     assert tracker.line(2) == ("[view] left the view: Y 36px at the right edge (last seen step 1, rows 20-25, cols "
                                "58-63); see left_view")
     assert fed(op, history).left == []  # the colour is back in view
-    # a cart that stood at the edge and vanished did not leave the view
+    # a cart that stood at the edge and vanished did not leave the view, nor did a bar that drove to the edge and
+    # changed colour there (sp80), nor a wide line beside a narrow one of its colour that moved (re86's crosshair)
     assert fed(op, [entry("", scene(58), 0), entry("SPACE", scene(58), 1), entry("RIGHT", floor, 2)]).exits[2] == []
+    bar = [entry("", paint(floor, box(16, 40, 4, 20), 9), 0), entry("RIGHT", paint(floor, box(16, 44, 4, 20), 9), 1),
+           entry("SPACE", paint(floor, box(16, 44, 4, 20), 8), 2)]
+    assert fed(op, bar).exits[2] == []
+    cross = [paint(paint(paint(floor, box(4, 30, 56, 1), 12), box(row, 4, 1, 60), 12), [(row, 30)], 0)
+             for row in (20, 23)]
+    assert fed(op, [entry("", cross[0], 0), entry("DOWN", cross[1], 1), entry("DOWN", floor, 2)]).exits[2] == []
     # pushed out by a scroll: the record carries the world box of the frame it was last seen in
     g = world(seed=9)
     a = paint(view(g, 60, 60), box(2, 20, 4, 4), 1)  # a w object near the top, unique colour
@@ -741,9 +749,9 @@ def run_child(tree: Path, mode: str, game: str, snippets: list, tmp_path: Path, 
 
 @needs_tree
 @needs_bed
-@pytest.mark.parametrize("others", ["off", "on"])
+@pytest.mark.parametrize("others", ["off", "on", "arm"])
 def test_flag_off_prompt_and_tool_results_are_byte_identical(trees, tmp_path, others):
-    extra = dict(OTHERS) if others == "on" else {}
+    extra = {"off": {}, "on": OTHERS, "arm": ARM}[others]
     base = run_child(trees["base"], "off", "scripted", FLAG_OFF_SNIPPETS, tmp_path, extra)
     for mode in ("off", "0"):
         ours = run_child(trees["ours"], mode, "scripted", FLAG_OFF_SNIPPETS, tmp_path, extra)
@@ -762,7 +770,7 @@ def test_flag_on_bp35_scroll_line_and_offsets_match_the_engine(op, trees, tmp_pa
         "r = action(['RIGHT'] * 4)\nprint(r.get('executed_count'))",
         "print(view_offset, current_frame.view_offset, history[3].frame.view_offset, history[4].frame.view_offset)\n"
         "print(left_view, sorted(k for k in dir() if k in ('view_offset', 'left_view', 'logical_grid')))",
-    ], tmp_path, OTHERS)
+    ], tmp_path, ARM)
     assert op.PROMPT_LINES in out["prompt"]
     first, second = (json.loads(r)["stdout"] for r in out["results"])
     assert first.splitlines() == ["[view] scrolled at step 4: content moved (+18,+0); view_offset now (-18,+0)", "4"]
@@ -784,7 +792,7 @@ def test_flag_on_ls20_logical_grid_and_segmentation8_in_the_sandbox(trees, tmp_p
         "print(len(b['nodes']) <= len(a['nodes']), sorted(a) == sorted(b), sorted(b['nodes'][0]) == sorted(a['nodes'][0]))",
         "def row5():\n    return logical_grid(cell=5, origin=(0, 4)).rows[5]\nprint(row5())",
         "print(row5(), logical_grid(history[0].frame).rows == logical_grid().rows)",
-    ], tmp_path, OTHERS)
+    ], tmp_path, ARM)
     printed = [json.loads(r)["stdout"].splitlines() for r in out["results"]]
     assert printed[0][0] == "cells 5x5 px from (0,4): 12 rows x 12 cols; '*' = mixed (15, see .mixed)"
     assert printed[0][6] == "  5 ccGGGGGGGGcc" and len(printed[0]) == 13
@@ -814,7 +822,7 @@ def test_flag_on_lf52_scroll_and_the_cart_that_left_the_view(trees, tmp_path):
 
     out = run_child(trees["ours"], "1", "lf52", [acts(1, 19), acts(20, 118), acts(119, 154), acts(155, 155),
                                                  acts(156, 198), acts(199, 203), acts(204, 204),
-                                                 "print(view_offset, left_view)"], tmp_path, OTHERS)
+                                                 "print(view_offset, left_view)"], tmp_path, ARM)
     printed = [json.loads(r)["stdout"].splitlines() for r in out["results"]]
     assert [p[-1] for p in printed[:7]] == ["19 2", "99 3", "36 3", "1 3", "43 4", "5 4", "1 4"]
     assert not any(line.startswith("[view]") for p in printed[:3] for line in p)
@@ -838,11 +846,11 @@ def _harness_env(**extra: str) -> dict:
 @needs_tree
 @needs_bed
 @needs_games
-@pytest.mark.parametrize("game,others", [("ls20", "on"), ("ls20", "off"), ("vc33", "on")])
+@pytest.mark.parametrize("game,others", [("ls20", "arm"), ("ls20", "off"), ("vc33", "on")])
 def test_flag_off_drive_is_byte_identical(trees, tmp_path, game, others):
     """His real ToolAgent.analyze() over 22 turns of a real game (tests/franzen_ledger_checks.py drive): with the
     flag unset or "0" the requests on the wire, the stored history and the transcript equal the tree without it."""
-    flags = dict(OTHERS) if others == "on" else {}
+    flags = {"off": {}, "on": OTHERS, "arm": ARM}[others]
     runs = {"base": ("base", flags), "off": ("ours", flags), "zero": ("ours", {**flags, "OURS_PERCEPTION": "0"})}
     procs = {}
     for name, (tree, extra) in runs.items():
@@ -869,7 +877,7 @@ def test_flag_off_drive_is_byte_identical(trees, tmp_path, game, others):
 @needs_games
 def test_bed_with_all_eight_patches_and_flags(tmp_path):
     result = franzen_bed.run_bed(tmp_path / "bed", games=["ls20", "vc33", "sb26", "bp35"], seconds=120,
-                                 patches=[*SEVEN, PATCH], env_add={**OTHERS, "OURS_PERCEPTION": "1"},
+                                 patches=[*SEVEN, PATCH], env_add={**ARM, "OURS_PERCEPTION": "1"},
                                  expect="[view] scrolled at step", expect_in="any",
                                  programs=["search", "mem", "effects", "perception"])
     failed = [name for name, ok in result["checks"].items() if not ok]
