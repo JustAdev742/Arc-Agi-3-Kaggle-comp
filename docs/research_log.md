@@ -2512,3 +2512,18 @@ Checked:  21 tests; full suite 365 passed; bed 18/18 with a mock program that ca
           ends in 1.6-2.3 s ("no plan in that model"); r11l L3 weighted A* 7 clicks in 0.12 s, and in the real engine
           its first click is refused (the model's own board model was wrong), where run_plan would stop after 1 action.
 Unknown:  whether the model uses it, and its effect on levels and tokens: needs the full-length arm.
+
+## 2026-10-08 18:03 · exp-077 built: harness bundle (M2 + M3 + M4, all flags on) + ARC FR-Spec map, full length · QUEUED
+Patches:  ours-01 (sandbox), ours-02 budget meter (agent: detector found the bar in 9/10 demo games, silent on sb26,
+          named 244 of 258 recorded budget deaths and none wrongly; 77 of 3,989 late readings off by > 2, mostly
+          around dc22 falls and su15 penalties), ours-04 search helper, ours-03b win ledger (agent: 0 wrong facts in
+          11,538 clauses over 77 recorded game-passes; ~284 tokens per level-up, ~402 per trim). 03 conflicted with
+          02 and 04 (independent insertions at the same places), so 03b is 03 rebased onto 01+02+04; apply order 01,
+          02, 04, 03b. Bed with all four flags on: 18/18 checks, 61 trims, no tracebacks, the budget line and ledger
+          present where expected.
+Arm:      scottmahony/arc3-dprime-r14a05-harness3-full = exp-075 + those patches + OURS_BUDGET_METER=1,
+          OURS_WIN_LEDGER=1, OURS_SEARCH_HELPER=1, EXPOSE_RESET=on + --hot-tokens (ARC map) + --fail-fast; 25 x 121 min.
+          Queued ahead of the REAP-384 probe; pushes when a GPU slot frees (exp-075/076 end ~18:25-18:50).
+Read:     score and levels vs exp-073b (56.00) and exp-075; accept length (map) vs 3.10; budget deaths, RESETs, search()
+          calls, ledger inserts, tokens per level. If it wins, ablate by halves; two more patches (M1c level mem, P2
+          effect table) are being built for a later arm.
