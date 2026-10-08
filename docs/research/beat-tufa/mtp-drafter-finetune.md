@@ -721,7 +721,7 @@ Asked for as "section 7"; numbered 9 because sections 7 and 8 exist and are cite
 - `dense`: the whole prompt, without QSA.
 - `cut2048`, `cut256`: only the last 2,048 or 256 prompt rows, dense. `cut256` is the training regime (256 rows of context before a span).
 
-The gap between `full` and `cut256`, and how often their first proposals agree, measures what the training windows give up.
+The gap between `full` and `cut256`, and how often their first proposals agree from the same rows (`first_proposal_agree_with_full`), measures what the training windows give up.
 
 **Go/no-go (`GATE`).**
 - On `full`: |mean(replica − SGLang)| ≤ 0.05 accept length and Pearson r ≥ 0.9, over at least 8 compared requests. These are the plan's criteria plus the minimum count.

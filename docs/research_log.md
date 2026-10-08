@@ -2713,3 +2713,28 @@ reset. At 20:48, with exp-078 running, kaggle_quota.py reported reserved 0.00 h 
 does not explain. Only the 20:02 refusal itself is certain. Lesson 0035 now lists the four readings and says to let
 the queue runner retry rather than plan around a rule. exp-079 is queued as soon as its bed passes; if Kaggle
 accepts it while exp-078 runs, the two run in parallel.
+
+## 2026-10-08 21:41 · MTP draft fine-tune, step 2 built: replica, trainer, draft writer (CPU) · BUILT
+Files:    scripts/mtp_replica.py (the MTP block as SGLang serves it, each part citing the wheel lines it mirrors: fusion,
+          gated-residual hyper-connections, FP8 e4m3 K/V, QSA selection, frozen INT4 g32 experts, final mixer, FR-Spec
+          hot lm_head; `check` exit 0 GO / 2 NO-GO), scripts/mtp_train.py (chained forward KL over the hot vocabulary,
+          step weights 0.51/0.31/0.18, AdamW lr 5e-5, held-out accept proxies before/after), scripts/mtp_write_draft.py
+          (rewrites only the trained tensors' bytes in albucino's files; checker with the launcher's own rules),
+          scripts/mtp_probe_dump.py (prompt + recorded output dumps for the replica check). 107 tests pass with CPU
+          torch (scratchpad sglcpu), 27 + 21 skips in .venv; ruff clean. Plan doc §10 has the session-A procedure
+          (A0-A11, ~1.3-1.7 GPU-h estimate).
+Established on CPU: the batched training chain equals the serving-style incremental draft (with and without FP8 K/V);
+          QSA selection, gated residuals, norms and RoPE match the wheel's own reference functions within 1e-5; INT4
+          pack/unpack matches compressed-tensors; frozen experts get no gradient; the writer's output passes the
+          launcher's `prepare_draft_view`. Not established: numerics against SGLang's fused kernels on real weights,
+          training speed and memory, and whether training helps (all session A).
+Plan corrections: the draft uses 1-D positions, not M-RoPE; its K/V pass through an FP8 cache (training rounds them
+          with a straight-through gradient); SGLang's accept length is completion_tokens / verify_ct; v1 trains 88.9M
+          parameters. No per-token SGLang draft proposals exist, so the replica gate compares per-request accept
+          lengths with runs/fidelity-base (|mean diff| <= 0.05, r >= 0.9, >= 8 requests).
+Decisions: train with the token map the arm serves (the ARC map, hot_tokens_64k_arc.pt); the replica check uses the
+          generic map, as fidelity-base served it. The training dump serves REAP-448 (the served target; REAP applied
+          before the dump patch); the replica check runs without REAP, as fidelity-base did. KL at T 1.0 (T 0.7 is an
+          ablation); --require-hot on; embedding mode and the 256-row context are settled by A5's variants.
+          scripts/fidelity_probe.py now also records spec_correct_drafts_histogram (future probes).
+Next:     session A after the Sat 00:00 UTC quota reset.

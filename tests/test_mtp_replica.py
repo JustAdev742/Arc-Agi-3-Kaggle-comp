@@ -450,6 +450,10 @@ def test_the_replica_check_passes_against_itself_and_fails_against_a_different_d
     assert s["requests"] == 3 and s["mean_diff"] == 0 and s["mae"] == 0
     assert s["replica_step_rates"] == s["sglang_step_rates"]
     assert result["verdict"]["go"] and result["requests"][0]["agree_with_full"].keys() == {"dense", "cut8"}
+    assert all(0 <= v <= 1 for r in result["requests"] for v in r["agree_with_full"].values())
+    assert 0 <= result["summary"]["cut8"]["first_proposal_agree_with_full"] <= 1
+    # variants are compared at the rows both chained from, not by verify index (paths diverge after a mismatch)
+    assert mr._agreement({4: 1, 7: 2, 9: 5}, {4: 1, 8: 2, 9: 6}) == 0.5 and mr._agreement({4: 1}, {5: 1}) is None
     other = tiny_model(12, fp8=True)  # another draft: the per-request accept lengths no longer agree
     result = mr.replica_check(other, tmp_path / "dump", records, variants=("full",), gate=gate, logger=lambda m: None)
     assert not result["verdict"]["go"] and result["summary"]["full"]["mae"] > 0

@@ -46,7 +46,8 @@ HARNESS_SAMPLING = {"top_p": 0.95, "top_k": 20}  # Franzen's cell 4; irrelevant 
 # Response extras, tried in order by the warm-up: Pennyroyal SGLang's ChatCompletionRequest has both fields
 # (entrypoints/openai/protocol.py); a server that rejects one falls back to plain OpenAI logprobs.
 EXTRAS_LADDER = ({"return_token_ids": True, "return_meta_info": True}, {"return_token_ids": True}, {})
-SPEC_KEYS = ("spec_accept_length", "spec_verify_ct", "spec_num_correct_drafts", "spec_num_proposed_drafts")
+SPEC_KEYS = ("spec_accept_length", "spec_verify_ct", "spec_num_correct_drafts", "spec_num_proposed_drafts",
+             "spec_correct_drafts_histogram")
 SERVER_KEYS = (
     "version", "model_path", "served_model_name", "json_model_override_args", "quantization", "dtype",
     "kv_cache_dtype", "context_length", "mem_fraction_static", "max_running_requests", "max_total_num_tokens",

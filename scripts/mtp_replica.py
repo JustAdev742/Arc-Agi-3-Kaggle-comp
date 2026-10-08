@@ -797,7 +797,7 @@ def simulate_greedy(kv: DraftKV, prompt_len: int, out_ids, *, mode: str = "full"
     (completion tokens / verify_ct) and ``accept_length_strict`` ((verify_ct + correct_drafts) / verify_ct)."""
     n = len(out_ids)
     produced, t = 1, prompt_len - 1
-    verify, correct, hist, proposals = 0, 0, [0] * (steps + 1), []
+    verify, correct, hist, proposals, origins = 0, 0, [0] * (steps + 1), [], []
     while produced < n:
         props, _ = kv.chain(t, steps=steps, mode=mode, start=start)
         a = 0
@@ -809,11 +809,13 @@ def simulate_greedy(kv: DraftKV, prompt_len: int, out_ids, *, mode: str = "full"
         correct += a
         hist[a] += 1
         proposals.append(props)
+        origins.append(t)
         produced += a + 1
         t += a + 1
     return {"verify_ct": verify, "correct_drafts": correct, "histogram": hist,
             "accept_length": n / verify if verify else None,
-            "accept_length_strict": (verify + correct) / verify if verify else None, "proposals": proposals}
+            "accept_length_strict": (verify + correct) / verify if verify else None, "proposals": proposals,
+            "origins": origins}
 
 
 # ------------------------------------------------------------------------------------------- the replica check
@@ -960,10 +962,11 @@ def replica_check(model: MTPReplica, dump_dir, records: list, *, variants=("full
             mode, cut = parse_variant(name)
             start = max(0, state["prompt_len"] - cut) if cut is not None else 0
             sim = simulate_greedy(kv, state["prompt_len"], state["out"], mode=mode, start=start)
-            row["variants"][name] = {k: v for k, v in sim.items() if k != "proposals"}
-            row["variants"][name]["first_proposals"] = sim["proposals"][:8]
+            row["variants"][name] = {k: v for k, v in sim.items() if k not in ("proposals", "origins")}
+            # first proposal per chain origin (row t): variants whose paths diverge still compare at shared rows
+            row["variants"][name]["first_proposals"] = {int(o): int(p[0]) for o, p in zip(sim["origins"], sim["proposals"])}
         names = list(row["variants"])
-        if len(names) > 1:  # how often the variants propose the same first token at the same verify step
+        if len(names) > 1:  # how often the variants propose the same first token from the same row
             base = row["variants"][names[0]]
             row["agree_with_" + names[0]] = {n: _agreement(base["first_proposals"], row["variants"][n]["first_proposals"])
                                             for n in names[1:]}
@@ -974,14 +977,18 @@ def replica_check(model: MTPReplica, dump_dir, records: list, *, variants=("full
                           row['variants'][n]['accept_length'] is not None)
                + f" sglang={row['reference'].get('accept_length')}")
     summaries = {name: summarize(rows, name) for name in variants}
+    for n in list(variants)[1:]:
+        key = "agree_with_" + variants[0]
+        vals = [r[key][n] for r in rows if r.get(key, {}).get(n) is not None]
+        summaries[n]["first_proposal_" + key] = statistics.fmean(vals) if vals else None
     verdict = gate_verdict(summaries[gate_variant], gate) if gate_variant in summaries else None
     return {"requests": rows, "summary": summaries, "gate_variant": gate_variant, "verdict": verdict,
             "embed_mode": embed_mode}
 
 
-def _agreement(a: list, b: list):
-    pairs = list(zip(a, b))
-    return sum(x[0] == y[0] for x, y in pairs) / len(pairs) if pairs else None
+def _agreement(a: dict, b: dict):
+    shared = a.keys() & b.keys()
+    return sum(a[o] == b[o] for o in shared) / len(shared) if shared else None
 
 
 def load_probe_records(probe_jsonl, reference_json=None, pass_name: str = "seq") -> list:
