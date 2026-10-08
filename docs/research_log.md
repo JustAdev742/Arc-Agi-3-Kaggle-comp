@@ -2558,3 +2558,18 @@ Correction: earlier entries compared single runs with Franzen v3's "pass SD 0.93
 Next:     harness bundle exp-077 (pushed 18:27) is read as "no large harm / any large gain" only; a fair test of a
           +2-5 point lever needs ~10+ paired runs, so mechanism checks (bed, logs: budget deaths, search use,
           NameErrors, re-derivation calls) carry most of the weight for small levers.
+
+## 2026-10-08 18:55 · exp-076 · Swift-1.5 as the served target: 4.44, 23 levels: the model falls into exact repeat loops · REJECTED (as configured)
+Run:      scottmahony/arc3-dprime-swift-r14a05-full v2 (16:38-18:53 UTC) = exp-075 with Swift-1.5 W4A16 as the target
+          (REAP-448 ids unverified, 14 streams, acceptance 0.5, albucino draft); runs/exp076-dprime-swift-r14a05-full.
+Server:   healthy and fast: 859 output tok/s (exp-075: 788), accept length 3.70 (3.09), 3,663 completions all HTTP 200,
+          1,730 output tokens per request (exp-075: 2,032).
+Measured: 4.44 / 23 levels / 4,083 actions (exp-075: 42.89 / 104). In the last-call logs 411 of 595 assistant turns
+          (69%) are exact repeats of an earlier turn (reasoning and code), in 14 games (ft09 131 of 132); the model
+          writes "I'm stuck in a loop" 226 times and repeats the same turn again. Intel runs: exp-073 0, exp-073b 0,
+          exp-075 1 repeat in ~560 turns each, so relaxed acceptance alone does not do this to the Intel model.
+Reading:  the speed went into copying its previous turn. Unseparated causes: Swift itself in this multi-turn,
+          preserve_thinking harness; the draft trained for the original model plus lossy acceptance (accept length
+          3.70 fits a draft whose copies get accepted); the unverified REAP ids; Swift's lighter quantization (INT4
+          linear attention). Diagnostic gate exp-076g queued (his serving: 10 streams, no REAP, lossless acceptance,
+          25 x 25 min, ~0.7 GPU-h): no loops there -> the problem is the lossy draft/REAP; loops there -> Swift is out.
