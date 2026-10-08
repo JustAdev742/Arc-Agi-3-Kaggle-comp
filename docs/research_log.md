@@ -2658,3 +2658,5 @@ Decision: no scheduler patch. Lesson 0036: a public-25 run shows these give-ups 
           opposite sign to the rerun, so scheduling changes are judged in a rerun-shaped model only. The large prize
           is an early signal of a hopeless level (oracle bound +8.1), which time-on-level cannot give; the 35-of-44
           finding supports re-rolling a stuck level (ours-07 fresh start) over abandoning it.
+Checked:  re-running scratchpad timealloc/rerun.py (seeded, 4.3 min on the CPU) reproduced the table exactly (giveup30
+          -6.91, giveup40 -1.74, giveup50 -0.19, franzen_gate -1.19, last-level B=10 +0.26).
