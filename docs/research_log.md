@@ -2243,3 +2243,15 @@ Kaggle's API exposes the weekly GPU quota (kagglesdk GetAcceleratorQuotaStatisti
           kernel_session_id that only the push response carries, so scripts/push_eval.py now pushes through the SDK
           and appends it to <folder>/sessions.jsonl, and scripts/kaggle_cancel.py cancels by it. The two sessions
           queued now were pushed with the CLI and cannot be cancelled.
+
+## 2026-10-08 10:50 · harness bug fix: a tool timeout keeps retained functions; import time allowed · BUILT (rides with exp-074s)
+Why:      Franzen's tool_agent clears every retained function when a python call times out (the timeout result has no
+          keepable_functions): in his demo r11l lost 13 helpers to one 30 s timeout and the level then went 10.1 min
+          with 1 action; one snippet died on `import time` (docs/research/beat-tufa/franzen-run-analysis.md,
+          new-methods.md M1). Not a behaviour change: the prompt's 30 s limit (and the code's min(30, ...)) stay.
+What:     kaggle/franzen/patches/ours-sandbox-timeout-keeps-work.patch (2 files, +10 lines): on a "Tool timed out"
+          result with nothing keepable, keep the previous functions and say so; add time to SAFE_MODULES.
+Checked:  tests/test_ours_sandbox_patch.py (patch applies to the notebook's tree; with the harness venv: a timeout
+          keeps both functions, the normal path still drops undefined ones, import time works, a 5 s sleep times
+          out at 2 s); the builder's apply check passed. Expected +0.1 to +0.4 (new-methods.md), too small to measure;
+          kept as a bug fix. exp-074s rebuilt with it (not yet pushed: no free RTX slot).

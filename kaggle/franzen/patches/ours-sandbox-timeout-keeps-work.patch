@@ -1,0 +1,32 @@
+diff --git a/ARC3-Inference/inference/agent/python_tool_sandbox.py b/ARC3-Inference/inference/agent/python_tool_sandbox.py
+index 58a94b3..14bdf62 100644
+--- a/ARC3-Inference/inference/agent/python_tool_sandbox.py
++++ b/ARC3-Inference/inference/agent/python_tool_sandbox.py
+@@ -48,6 +48,8 @@ _SANDBOX_BOOTSTRAP = textwrap.dedent(
+     HOST_STDOUT = sys.stdout
+ 
+     SAFE_MODULES = {
++        # ours: models import time for their own timing (an ImportError cost a whole snippet in Franzen's demo)
++        "time",
+         "bisect",
+         "collections",
+         "copy",
+diff --git a/ARC3-Inference/inference/agent/tool_agent.py b/ARC3-Inference/inference/agent/tool_agent.py
+index 84a9cdd..e36ec65 100644
+--- a/ARC3-Inference/inference/agent/tool_agent.py
++++ b/ARC3-Inference/inference/agent/tool_agent.py
+@@ -4616,6 +4616,14 @@ class ToolAgent:
+             return
+         try:
+             previous = self._kept_functions
++            # ours (sandbox timeout keeps work): a timed-out call returns no keepable_functions, which used to clear
++            # every retained function (r11l lost 13 helpers to one 30 s timeout); keep the previous ones instead.
++            if (str(sandbox_result.get("error") or "").startswith("Tool timed out")
++                    and not sandbox_result.get("keepable_functions") and previous):
++                payload["function_retention"] = ("The call timed out, so nothing it defined was kept; your "
++                                                 + str(len(previous)) + " previously retained functions are still "
++                                                 "available.")
++                return
+             kept = {}
+             signatures = {}
+             for item in sandbox_result.get("keepable_functions") or []:
