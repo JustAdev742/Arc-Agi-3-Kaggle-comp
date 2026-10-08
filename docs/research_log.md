@@ -2471,3 +2471,17 @@ Reading:  total decode throughput is flat from ~10 running on; REAP-14's gain ca
           would add running requests on the flat part and pool pressure at long contexts: dropped. Grouping by batch
           size mixes in context length (busier periods are later, with longer contexts), so the 13-14 dip is not
           clean evidence of a cost; the plateau is.
+
+## 2026-10-08 16:44 · REAP-384 kept list recovered from sh0wie's public build; probe arm built · QUEUED for a free slot
+Why:      at >= 10 running requests the decode step reads almost every routed expert (top-10 of 448 for ~56 verify
+          tokens), so the step time follows the expert bytes: dropping 448 -> 384 experts cuts them by 1/7 (and frees
+          ~7 GiB). The open question is quality, which REAP-448 already showed lives on image turns.
+Built:    scripts/reap_kept_experts.py --pruned sh0wie/Qwen3.8-Flash-Next-REAP-384-bf16@6a377af8: all 48 layers, every
+          one of the 384 rows matched one of Intel's BF16 router rows bitwise (read 95 MB + 180 MB; MTP router not in
+          that repo's index, the draft keeps all experts anyway). kaggle/franzen/reap384_kept_experts.json + .meta.json
+          (same Intel router sha256 per layer as the 448 list, so the load check applies unchanged).
+          The two public lists disagree: of sh0wie's 384, a median 15.5 per layer (3-36) are experts lee-chang's 448
+          list pruned (calibrations: ~686K tokens of agentic coding vs 16.5M tokens of agentic traffic with images).
+Next:     probe arm scottmahony/arc3-fidelity-reap384 (D', 10 streams, lossless, the same 154 requests), then
+          fidelity_compare against base v1/v2 and REAP-448; a full-length arm only if its shift is not much larger
+          than REAP-448's.
