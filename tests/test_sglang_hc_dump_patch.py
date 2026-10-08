@@ -282,6 +282,18 @@ def test_fp8_rows_round_trip_within_their_error_bound():
     assert hd.quantize_rows(x[:0])["codes"].shape == (0, 10240)
 
 
+def test_rows_are_gathered_and_quantized_in_blocks(monkeypatch):
+    rng = np.random.default_rng(2)
+    x = rng.standard_normal((50, 32)).astype(np.float32) * np.exp(rng.uniform(-4, 4, (50, 1))).astype(np.float32)
+    rows = np.sort(rng.choice(50, size=31, replace=False))
+    whole = hd.quantize_rows(x[rows])
+    monkeypatch.setattr(hd, "QUANT_BLOCK", 7)
+    blocked = hd.quantize_take(x, rows)
+    assert np.array_equal(blocked["codes"], whole["codes"]) and np.array_equal(blocked["scale"], whole["scale"])
+    assert blocked["qerr_max"] == whole["qerr_max"] and abs(blocked["qerr_mean"] - whole["qerr_mean"]) < 1e-6
+    assert hd.quantize_take(x, rows[:0])["codes"].shape == (0, 32)
+
+
 def test_bf16_and_fp8_codecs_on_known_values():
     one = np.float32(1.0)
     cases = {one: 0x3F80, one + np.float32(2.0 ** -8): 0x3F80, one + np.float32(3 * 2.0 ** -8): 0x3F82,
@@ -330,6 +342,7 @@ def test_chunk_files_are_self_describing_safetensors(tmp_path):
     assert records[1]["bytes"] == len(raw)
     fmt = json.loads((out / "format.json").read_text())
     assert fmt["tokens"]["im_start"] == 248045 and fmt["settings"]["context"] == C and "span_rule" in fmt
+    assert {f for key in fmt["index"] for f in key.split(", ")} | {"rid"} >= set(records[1]) - {"bytes_total"}
     index = hd.read_index(out)
     assert [r["file"] for r in index] == [r["file"] for r in records] and index[-1]["bytes_total"] == sum(
         r["bytes"] for r in records)

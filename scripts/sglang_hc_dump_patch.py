@@ -98,6 +98,23 @@ TENSORS = {
     "img_embeds": "BF16 [m, hidden]: the target's input embedding at those rows (forward_batch.mm_input_embeds, i.e. "
                   "the vision features it consumed); text rows' embeddings follow from token_ids",
 }
+INDEX_FIELDS = {
+    "rid, dir, file": "request id, its directory (safe_rid) and the chunk's file, relative to the dump directory",
+    "attempt, chunk": "a request prefilled again from an earlier position starts a new attempt; chunk counts from 0",
+    "start, n": "the chunk's first position and its number of rows",
+    "kept, carried, span_rows, context_rows": "rows written; carried ones came from the ring (positions before start)",
+    "spans": "[index, first row, last row or -1 while open, think 0/1, closed_by] of each span touching the chunk",
+    "spans_opened_total": "assistant headers seen so far in the request (after its last chunk: assistant messages + 1)",
+    "loss_spans, plan": "the spans the request's plan file keeps (null: all) and that file's name",
+    "images, images_kept, mm_embeds, hidden": "image rows in the chunk, image rows written with their embedding, "
+                                              "whether the batch had mm_input_embeds, the embedding width",
+    "dtype, context, keep": "the settings",
+    "qerr_max, qerr_mean, nonfinite_rows": "relative RMS error of the rows quantized for the chunk; rows with NaN/Inf",
+    "missing_prefix": "positions before the request's first chunk, never seen (a radix-cache hit) and not dumped",
+    "bytes, bytes_total, t": "the file's size, the dump's size so far, the time",
+    "event": "a line with an 'event' key reports a problem: 'error' (that request is no longer dumped) or 'stopped' "
+             "(the size cap; nothing more is written)",
+}
 
 logger = logging.getLogger(__name__)
 
@@ -357,6 +374,18 @@ def quantize_rows(x, dtype: str = "fp8") -> dict:
     return out
 
 
+def quantize_take(x, rows: np.ndarray, dtype: str = "fp8") -> dict:
+    """:func:`quantize_rows` of ``x[rows]``, gathered QUANT_BLOCK rows at a time (no full copy on the GPU)."""
+    parts = [quantize_rows(_take(x, rows[b:b + QUANT_BLOCK]), dtype) for b in range(0, len(rows), QUANT_BLOCK)]
+    if len(parts) < 2:
+        return parts[0] if parts else quantize_rows(_take(x, rows), dtype)
+    sizes = [len(p["codes"]) for p in parts]
+    return {"codes": np.concatenate([p["codes"] for p in parts]),
+            "scale": np.concatenate([p["scale"] for p in parts]) if dtype == "fp8" else None,
+            "nonfinite": sum(p["nonfinite"] for p in parts), "qerr_max": max(p["qerr_max"] for p in parts),
+            "qerr_mean": sum(p["qerr_mean"] * k for p, k in zip(parts, sizes)) / sum(sizes)}
+
+
 # ------------------------------------------------------------------------------------------------- safetensors files
 
 ST_DTYPES = {"F8_E4M3": "<u1", "BF16": "<u2", "U8": "<u1", "I32": "<i4", "I64": "<i8", "F32": "<f4"}
@@ -442,7 +471,7 @@ class Dumper:
     (on any device) or numpy arrays (tests)."""
 
     def __init__(self, out: str | os.PathLike, *, context: int = DEFAULT_CONTEXT, keep: str = "spans",
-                 dtype: str = "fp8", max_bytes: int = 0, max_requests: int = 1024):
+                 dtype: str = "fp8", max_bytes: int = 0, max_requests: int = 64):
         if keep not in ("spans", "all") or dtype not in ("fp8", "bf16") or context < 0 or max_bytes < 0:
             raise ValueError(f"arc3 HC dump: bad settings keep={keep!r} dtype={dtype!r} context={context} "
                              f"max_bytes={max_bytes}")
@@ -483,7 +512,7 @@ class Dumper:
                 "tokens": {"im_start": IM_START, "im_end": IM_END, "assistant": ASSISTANT, "newline": NEWLINE,
                            "think": THINK, "image_rows": f"token id >= {MM_PAD_MIN} (or >= the vocabulary size)",
                            "tokenizer_sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523"},
-                "span_rule": scan_spans.__doc__, "tensors": TENSORS,
+                "span_rule": scan_spans.__doc__, "tensors": TENSORS, "index": INDEX_FIELDS,
                 "files": "<rid>/c<chunk>-p<start>.safetensors, one per prefill chunk; index.jsonl has one line per "
                          "chunk (and lines with an 'event' key for problems); plans/<rid>.json are the driver's",
                 "source": "scripts/sglang_hc_dump_patch.py (installed as sglang/srt/arc3_hc_dump.py)",
@@ -557,7 +586,7 @@ class Dumper:
         image = ids >= image_min_id
 
         rows = np.union1d(kept, feed).astype(np.int64)  # sorted; q's row j is chunk row rows[j]
-        q = quantize_rows(_take(hc, rows), self.dtype)
+        q = quantize_take(hc, rows, self.dtype)
         emb_rows = rows[image[rows]] if mm_embeds is not None else np.zeros(0, np.int64)
         emb = _bf16_rows(_take(mm_embeds, emb_rows)) if len(emb_rows) else None
         emb_at = {int(i): j for j, i in enumerate(emb_rows)}
