@@ -310,10 +310,11 @@ class MockModel:
 
     def __init__(self, out_dir: Path, *, latency: float = 0.15, decode_tok_s: float = 3000.0,
                  overflow_every: int = 41, expect: str = "", reasoning_chars: int = 700, think_chars: int = 9500,
-                 programs: tuple[str, ...] | list[str] = ()):
+                 programs: tuple[str, ...] | list[str] = (), expect_pinned: str = ""):
         self.out_dir = Path(out_dir)
         self.latency, self.decode_tok_s, self.overflow_every = latency, decode_tok_s, overflow_every
         self.expect, self.reasoning_chars, self.think_chars = expect, reasoning_chars, think_chars
+        self.expect_pinned = expect_pinned
         self.cycle = CYCLE + [p for p in programs if p not in CYCLE]  # --program: optional programs join the cycle
         self.lock = threading.Lock()
         self.log_lock = threading.Lock()
@@ -375,6 +376,9 @@ class MockModel:
                                            if m.get("role") == "user")
             record["expect_at"] = next((i for i, m in enumerate(messages) if self.expect in _text(m.get("content"))),
                                        None)
+            if self.expect_pinned and record["expect_at"] is not None:  # --expect-pinned: what sits at index 1
+                record["pinned_at_1"] = len(messages) > 1 and self.expect_pinned in _text(messages[1].get("content"))
+                record["expect_opens"] = record["expect_at"] == len(messages) - 1
         try:
             if self.overflow_every and n % self.overflow_every == 0 and len(messages) >= 12:
                 record["status"] = 400
@@ -596,7 +600,8 @@ def _free_port() -> int:
 
 
 def coverage(out: Path, inner_report: dict, records: list[dict], analysis: dict, log_text: str, expect: str,
-             games: list[str], programs: tuple[str, ...] | list[str] = (), expect_in: str = "system") -> dict:
+             games: list[str], programs: tuple[str, ...] | list[str] = (), expect_in: str = "system",
+             expect_pinned: str = "") -> dict:
     tags = Counter(tag for r in records for tag in r.get("tags", []))
     gate = inner_report.get("gate_stats", {})
     game_runs = inner_report.get("games", {})
@@ -656,6 +661,18 @@ def coverage(out: Path, inner_report: dict, records: list[dict], analysis: dict,
     elif expect:
         checks[f"--expect text in the system prompt or a user prompt ({expect!r})"] = (
             facts["expect_seen"] > 0 or facts["expect_user_seen"] > 0)
+    if expect and expect_pinned:
+        carrying = [r for r in records if r.get("expect_at") is not None]
+        facts["expect_requests"] = len(carrying)
+        facts["expect_pinned_at_1"] = sum(bool(r.get("pinned_at_1")) for r in carrying)
+        # requests whose last message is the first to hold the --expect text, with only the system prompt and the
+        # pinned message before it
+        facts["expect_opened"] = sum(bool(r.get("expect_opens") and r.get("pinned_at_1") and r.get("messages") == 3)
+                                     for r in carrying)
+        checks["--expect-pinned text at index 1 of every request carrying the --expect text"] = (
+            facts["expect_requests"] > 0 and facts["expect_pinned_at_1"] == facts["expect_requests"])
+        checks["a request opened by the --expect text holds only the system prompt, the pinned text and it"] = (
+            facts["expect_opened"] > 0)
     if "search" in programs:
         for tag in ("search_found", "search_raised", "search_budget", "run_plan_mismatch"):
             facts[tag] = tags[tag]
@@ -686,7 +703,7 @@ def run_bed(out: Path, *, games: list[str], seconds: float, slots: int | None = 
             python: Path | None = None,
             env_dir: Path | None = None, overflow_every: int = 41, latency: float = 0.15, verbose: bool = False,
             his_repo: Path | None = None, bundle: Path | None = None,
-            programs: tuple[str, ...] | list[str] = ()) -> dict:
+            programs: tuple[str, ...] | list[str] = (), expect_pinned: str = "") -> dict:
     sys.path.insert(0, str(ROOT / "scripts"))
     import franzen_report
     import franzen_tree
@@ -699,7 +716,8 @@ def run_bed(out: Path, *, games: list[str], seconds: float, slots: int | None = 
                                  his_patch=franzen_tree.his_patch_text(nb))
     nb_env, names = notebook_env(_cell(cells, "setup_env = {"))
     slots = slots if slots is not None else max(1, len(games) - 1)
-    model = MockModel(out, latency=latency, overflow_every=overflow_every, expect=expect, programs=programs)
+    model = MockModel(out, latency=latency, overflow_every=overflow_every, expect=expect, programs=programs,
+                      expect_pinned=expect_pinned)
     server = serve(model, _free_port())
     url = f"http://127.0.0.1:{server.server_address[1]}/v1"
     overrides = {"LOCAL_ANALYZER_BASE_URL": url, "OPENAI_BASE_URL": url, "ARC3_MAX_ACTIVE_STREAMS": str(slots),
@@ -738,7 +756,7 @@ def run_bed(out: Path, *, games: list[str], seconds: float, slots: int | None = 
     analysis = franzen_report.analyze(out, out / "bed.log") if (out / "benchmark.json").exists() else {
         "totals": {"prefix_breaks": 0}, "transcripts": {}}
     result = coverage(out, inner_report, records, analysis, (out / "bed.log").read_text(errors="replace"), expect,
-                      games, programs, expect_in)
+                      games, programs, expect_in, expect_pinned)
     result.update(exit_code=code, seconds=round(time.time() - t0, 1), overrides=changed, inner=inner_report)
     if code != 0:
         result["checks"]["child exited 0"] = False
@@ -774,6 +792,9 @@ def main() -> None:
                     "mock receives (or anywhere in a request with --expect-in any)")
     ap.add_argument("--expect-in", choices=("system", "any"), default="system",
                     help="where --expect must appear: the system prompt or a user prompt (default), or any message")
+    ap.add_argument("--expect-pinned", default="", help="with --expect: text that must sit right after the system "
+                    "prompt (index 1) in every request carrying the --expect text, and in at least one request of "
+                    "just the system prompt, it and the message that first carries the --expect text")
     ap.add_argument("--keep-context", action="store_true", help="keep the notebook's 128k context settings")
     ap.add_argument("--python", type=Path, default=None, help="interpreter with the harness dependencies")
     ap.add_argument("--env-dir", type=Path, default=None, help="game files (default: environment_files/)")
@@ -793,7 +814,7 @@ def main() -> None:
                      keep_context=args.keep_context,
                      python=args.python, env_dir=args.env_dir, overflow_every=args.overflow_every,
                      latency=args.latency, verbose=args.verbose, his_repo=args.his_repo, bundle=args.bundle,
-                     programs=args.program)
+                     programs=args.program, expect_pinned=args.expect_pinned)
     sys.exit(0 if all(result["checks"].values()) else 1)
 
 
