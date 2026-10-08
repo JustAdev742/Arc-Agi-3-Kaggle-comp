@@ -30,7 +30,9 @@ the last tool call it emitted says which snippet comes next. The programs exerci
 - ``chat``: a reply without a tool call (the "You have not acted yet" nudge);
 - ``think``: ~3k tokens of reasoning without a tool call (LOCAL_ANALYZER_YIELD_TOKENS=2048: the turn yields);
 - every ``--overflow-every`` requests (if the request is long enough) an SGLang context-length error, which the
-  harness answers by force-draining history and retrying.
+  harness answers by force-draining history and retrying;
+- only with ``--program search`` (for kaggle/franzen/patches/ours-04-search-helper.patch, OURS_SEARCH_HELPER=1):
+  ``search()`` and ``run_plan()`` in the sandbox, with their own coverage checks.
 
 Usage it reports: prompt tokens estimated from the text and images, cached tokens as the longest message prefix
 shared with a recent request (a radix cache in miniature), completion tokens from the reply. It also writes an
@@ -80,7 +82,9 @@ MARKER = re.compile(r"bed:([a-z]+):(\d+)")
 TAGS = (("retained", ("BED retained True",)), ("not_retained", ("BED retained False",)),
         ("frame_diff", ("BED frame_diff",)), ("batch_noop", ("no_op_action",)),
         ("stale_state", ("stale_state", "StaleStateActionError")), ("undo", ("BED undo executed",)),
-        ("solve", ("BED solve",)), ("long_output", ("BED long output",)))
+        ("solve", ("BED solve",)), ("long_output", ("BED long output",)),
+        ("search_found", ("BED search found",)), ("search_raised", ("BED search raised",)),
+        ("search_budget", ("BED search budget timeout True",)), ("run_plan_mismatch", ("BED run_plan mismatch 2 1",)))
 
 # --- the scripted model -----------------------------------------------------------------------------------------
 
@@ -174,6 +178,36 @@ SNIPPETS["print"][1] = _use("bed:print:1")
 CYCLE = ["define", "noop", "print", "stale", "undo", "chat", "think"]
 NO_TOOL = {"chat", "think"}
 
+# Optional programs (--program NAME), appended to the cycle only when asked for, so a plain bed run is unchanged.
+# search: for kaggle/franzen/patches/ours-04-search-helper.patch with OURS_SEARCH_HELPER=1. The first snippet acts
+# not at all: search() over the step counter (each action advances current_frame.step by one), whose call should get
+# the longer tool time limit, and a search over an endless space that must end on its own 2 s limit with a
+# best_partial. The second runs run_plan over two actions whose second prediction is planted wrong: it must stop
+# there (a refusal by the harness's no-op or stale-state guards is reported instead).
+_REFUSALS = "(StaleStateActionError, KnownNoOpActionError, KnownDeathActionError, RepeatedActionInStateError)"
+SNIPPETS["search"] = ["""# bed:search:0
+acts = [a for a in valid_actions if a not in ('RESET', 'UNDO', 'MOUSE')] or [{'action': 'MOUSE', 'row': 30, 'col': 30}]
+s0 = current_frame.step
+r = search(s0, lambda s, a: s + 1, lambda s: s == s0 + 2, acts[:1])
+print('BED search', r['status'], len(r['plan'] or []))
+print('BED search', 'raised' if r['time_limit'] > 30 else 'kept', r['time_limit'])
+def bed_endless(s, a):
+    for _ in range(2000):
+        pass
+    return 2 * s + a
+t = search(0, bed_endless, lambda s: False, [1, 2], time_limit=2)
+print('BED search budget', t['status'], t['best_partial'] is not None, t['seconds'])
+""", f"""# bed:search:1
+acts = [a for a in valid_actions if a not in ('RESET', 'UNDO', 'MOUSE')] or [{{'action': 'MOUSE', 'row': 30, 'col': 30}}]
+s0 = current_frame.step
+try:
+    q = run_plan(acts[:1] * 2, lambda f: f.step, [s0 + 1, s0 + 99])
+    print('BED run_plan', q['stop'], q['executed'], q['mismatch_at'])
+except {_REFUSALS} as e:
+    print('BED run_plan refused', type(e).__name__)
+"""]
+OPTIONAL_PROGRAMS = ("search",)
+
 
 def _text(content) -> str:
     if isinstance(content, str):
@@ -208,7 +242,7 @@ def _last_marker(messages: list[dict]) -> tuple[str, int] | None:
     return None
 
 
-def next_step(messages: list[dict]) -> tuple[str, int]:
+def next_step(messages: list[dict], cycle: list[str] = CYCLE) -> tuple[str, int]:
     """(program, snippet index) for this request, from the conversation alone."""
     last = _last_marker(messages)
     role = messages[-1].get("role") if messages else "user"
@@ -220,7 +254,7 @@ def next_step(messages: list[dict]) -> tuple[str, int]:
     if last is None:
         return "solve", 0
     program = last[0]
-    following = CYCLE[(CYCLE.index(program) + 1) % len(CYCLE)] if program in CYCLE else CYCLE[0]
+    following = cycle[(cycle.index(program) + 1) % len(cycle)] if program in cycle else cycle[0]
     return following, 0
 
 
@@ -228,10 +262,12 @@ class MockModel:
     """Replies, usage, the request log (mock.jsonl) and an SGLang-style serve.log."""
 
     def __init__(self, out_dir: Path, *, latency: float = 0.15, decode_tok_s: float = 3000.0,
-                 overflow_every: int = 41, expect: str = "", reasoning_chars: int = 700, think_chars: int = 9500):
+                 overflow_every: int = 41, expect: str = "", reasoning_chars: int = 700, think_chars: int = 9500,
+                 programs: tuple[str, ...] | list[str] = ()):
         self.out_dir = Path(out_dir)
         self.latency, self.decode_tok_s, self.overflow_every = latency, decode_tok_s, overflow_every
         self.expect, self.reasoning_chars, self.think_chars = expect, reasoning_chars, think_chars
+        self.cycle = CYCLE + [p for p in programs if p not in CYCLE]  # --program: optional programs join the cycle
         self.lock = threading.Lock()
         self.log_lock = threading.Lock()
         self.n = 0
@@ -275,7 +311,7 @@ class MockModel:
             self.recent.append(keys)
             self.inflight += 1
             running = self.inflight
-        program, index = next_step(messages)
+        program, index = next_step(messages, self.cycle)
         last = messages[-1] if messages else {}
         with self.lock:  # each tool result once, wherever it sits (an acting call's is followed by the opener)
             fresh = [m for m in messages if m.get("role") == "tool"
@@ -509,7 +545,7 @@ def _free_port() -> int:
 
 
 def coverage(out: Path, inner_report: dict, records: list[dict], analysis: dict, log_text: str, expect: str,
-             games: list[str]) -> dict:
+             games: list[str], programs: tuple[str, ...] | list[str] = ()) -> dict:
     tags = Counter(tag for r in records for tag in r.get("tags", []))
     gate = inner_report.get("gate_stats", {})
     game_runs = inner_report.get("games", {})
@@ -561,6 +597,14 @@ def coverage(out: Path, inner_report: dict, records: list[dict], analysis: dict,
         checks["UNDO executed"] = facts["undo_actions"] > 0
     if expect:
         checks[f"--expect text in the system prompt ({expect!r})"] = facts["expect_seen"] > 0
+    if "search" in programs:
+        for tag in ("search_found", "search_raised", "search_budget", "run_plan_mismatch"):
+            facts[tag] = tags[tag]
+        checks["search() found a plan in the sandbox"] = facts["search_found"] > 0
+        checks["a call that calls search( got the longer tool time limit"] = facts["search_raised"] > 0
+        checks["a search ended on its own time limit with a best_partial"] = facts["search_budget"] > 0
+        checks["run_plan executed a matching action and stopped at the planted mismatch"] = (
+            facts["run_plan_mismatch"] > 0)
     return {"facts": facts, "checks": checks}
 
 
@@ -568,7 +612,8 @@ def run_bed(out: Path, *, games: list[str], seconds: float, slots: int | None = 
             env: dict | None = None, env_add: dict | None = None, patches: list[Path] | tuple = (),
             sets: dict | None = None, expect: str = "", keep_context: bool = False, python: Path | None = None,
             env_dir: Path | None = None, overflow_every: int = 41, latency: float = 0.15, verbose: bool = False,
-            his_repo: Path | None = None, bundle: Path | None = None) -> dict:
+            his_repo: Path | None = None, bundle: Path | None = None,
+            programs: tuple[str, ...] | list[str] = ()) -> dict:
     sys.path.insert(0, str(ROOT / "scripts"))
     import franzen_report
     import franzen_tree
@@ -581,7 +626,7 @@ def run_bed(out: Path, *, games: list[str], seconds: float, slots: int | None = 
                                  his_patch=franzen_tree.his_patch_text(nb))
     nb_env, names = notebook_env(_cell(cells, "setup_env = {"))
     slots = slots if slots is not None else max(1, len(games) - 1)
-    model = MockModel(out, latency=latency, overflow_every=overflow_every, expect=expect)
+    model = MockModel(out, latency=latency, overflow_every=overflow_every, expect=expect, programs=programs)
     server = serve(model, _free_port())
     url = f"http://127.0.0.1:{server.server_address[1]}/v1"
     overrides = {"LOCAL_ANALYZER_BASE_URL": url, "OPENAI_BASE_URL": url, "ARC3_MAX_ACTIVE_STREAMS": str(slots),
@@ -620,7 +665,7 @@ def run_bed(out: Path, *, games: list[str], seconds: float, slots: int | None = 
     analysis = franzen_report.analyze(out, out / "bed.log") if (out / "benchmark.json").exists() else {
         "totals": {"prefix_breaks": 0}, "transcripts": {}}
     result = coverage(out, inner_report, records, analysis, (out / "bed.log").read_text(errors="replace"), expect,
-                      games)
+                      games, programs)
     result.update(exit_code=code, seconds=round(time.time() - t0, 1), overrides=changed, inner=inner_report)
     if code != 0:
         result["checks"]["child exited 0"] = False
@@ -658,6 +703,8 @@ def main() -> None:
     ap.add_argument("--env-dir", type=Path, default=None, help="game files (default: environment_files/)")
     ap.add_argument("--overflow-every", type=int, default=41, help="answer every Nth request with a context error (0: never)")
     ap.add_argument("--latency", type=float, default=0.15, help="mock seconds per reply before decode time")
+    ap.add_argument("--program", action="append", default=[], choices=OPTIONAL_PROGRAMS,
+                    help="add an optional mock program to the cycle (search: ours-04-search-helper.patch)")
     ap.add_argument("--his-repo", type=Path, default=None)
     ap.add_argument("--bundle", type=Path, default=None)
     ap.add_argument("-v", "--verbose", action="store_true", help="echo the harness output")
@@ -667,7 +714,8 @@ def main() -> None:
                      slots=args.slots, notebook=args.notebook, env=_pairs(args.env), env_add=_pairs(args.env_add),
                      patches=args.patch, sets=_pairs(args.set), expect=args.expect, keep_context=args.keep_context,
                      python=args.python, env_dir=args.env_dir, overflow_every=args.overflow_every,
-                     latency=args.latency, verbose=args.verbose, his_repo=args.his_repo, bundle=args.bundle)
+                     latency=args.latency, verbose=args.verbose, his_repo=args.his_repo, bundle=args.bundle,
+                     programs=args.program)
     sys.exit(0 if all(result["checks"].values()) else 1)
 
 
