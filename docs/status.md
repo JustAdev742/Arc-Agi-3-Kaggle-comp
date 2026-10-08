@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-10-08 20:50 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
+Last updated: 2026-10-08 23:20 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
 
 ## Competition facts: verified vs. unconfirmed
 
@@ -145,6 +145,33 @@ score over at least 3 draws each. A difference under 0.5 points is a tie, broken
 public 25 (scripts/arm_table.py), then the validation score. If the top two are variants of one configuration within
 noise, the second slot goes to the best configuration that differs from it (diversification against the private half).
 If fewer than two configurations reach 3 draws, the unmodified base fills the second slot.
+
+### State at 2026-10-08 23:20 UTC
+- **exp-074t still not submitted** at 23:11; today's slot closes at 00:00 UTC.
+- **Full-length runs today** (public 25, 121 min per game):
+
+  | run | config | score | levels |
+  |---|---|---|---|
+  | exp-073 / 073b / 075 | base | 49.45 / 56.00 / 42.89 | |
+  | exp-077 | four patches + RESET exposed | 48.96 | 107 |
+  | exp-078 | seven patches + RESET exposed | 39.73 | 95 |
+  | exp-079 | seven patches, RESET off | 45.02 | 102 |
+
+- **The fresh start (07) is rejected.** The levels it touched were solved in 14 of 44 cases, against about 61% expected
+  from the base runs' hazard (lesson 0037).
+- **RESET exposure is dropped.** sc25 lost every level to deliberate resets; exp-079 (off) beat exp-078 (on).
+- **exp-080 is running** (23:15 to about 01:35): the base candidate + budget meter, search helper, win ledger, level
+  mem + ARC FR-Spec map, RESET off, no 06b/07. Bed 23/23.
+- **Recommended LB order:**
+  1. exp-074t: today if possible, else tomorrow.
+  2. Then exp-080's version, once it reads healthy. It is directly submittable at
+     https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-harness4-noreset-full.
+- **Built today:** MTP draft fine-tune steps 1-2 (dump, replay, replica, trainer, writer; 156 tests).
+  - In progress: the session-A notebook builder and the ours-08 perception patch.
+  - Session A runs after the Sat 00:00 UTC quota reset.
+- GPU quota: 24.9 of 30 h used before exp-080, so about 2.6 h will remain until the reset.
+- **For you, no urgency:** a misdirected download left `/sa079` at the container's filesystem root. It holds 68 MB of
+  exp-079 transcripts, which I read in place. A safety check blocked my removal; delete it if you like.
 
 ### State at 2026-10-08 20:50 UTC
 - **exp-074t is still not submitted.** Last submission: the D' copy, Oct 7 21:57 (28.87). Today's slot closes at
