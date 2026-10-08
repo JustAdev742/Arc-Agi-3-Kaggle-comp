@@ -1,0 +1,119 @@
+diff --git a/ARC3-Inference/inference/agent/tool_agent.py b/ARC3-Inference/inference/agent/tool_agent.py
+index eff21ef..f986f84 100644
+--- a/ARC3-Inference/inference/agent/tool_agent.py
++++ b/ARC3-Inference/inference/agent/tool_agent.py
+@@ -7219,6 +7219,88 @@ class ToolAgent:
+             return [system_message, *history]
+         return [system_message, state["message"], *history]
+ 
++    # --- ours (fresh start, patch ours-07-fresh-start) ----------------------------------------------------------------
++    # OURS_FRESH_START=1 (read at call time, default off). Once the current level has cost OURS_FRESH_START_TOKENS
++    # generated tokens AND OURS_FRESH_START_MINUTES of wall clock without a level-up, the next turn starts from an
++    # empty conversation: the requests are then built by the usual trim path from the system prompt, the ledger
++    # (OURS_WIN_LEDGER) and the turn's full opener (state line, board, retained functions), which begins with one line
++    # saying what happened. At most OURS_FRESH_START_MAX per level; each later one needs OURS_FRESH_START_GROWTH times
++    # the previous gap in tokens and in time. Decided only where a turn starts, before its first request, so no request
++    # or tool call is in flight. Recorded as a trim (_note_history_evicted), so the priority gate re-prices the game and
++    # hands its slot over at the turn's first request, as after any trim; the level's token and action counts the gate
++    # reads are left alone. With the flag off nothing here runs.
++
++    @staticmethod
++    def _ours_fresh_settings() -> tuple[int, float, float, int]:
++        """(tokens, seconds, growth, most) for the first fresh start on a level; read at call time."""
++        return (max(1, _get_env_int("OURS_FRESH_START_TOKENS", 80000)),
++                60.0 * max(0.0, _get_env_float("OURS_FRESH_START_MINUTES", 20.0)),
++                max(1.0, _get_env_float("OURS_FRESH_START_GROWTH", 1.5)),
++                max(0, _get_env_int("OURS_FRESH_START_MAX", 2)))
++
++    def _ours_fresh_due(self, level: int, now: float) -> dict[str, Any] | None:
++        """Count a fresh start and return the level's state when one is due, else None.
++
++        Harness state only: this agent's generated tokens and the monotonic clock since the level was first seen (or
++        since the level's previous fresh start), both of which must reach the threshold scaled by growth**count. A
++        new level (or game session) starts a new count, so nothing carries over a level-up."""
++        tokens = max(0, int(self._session_generated_tokens))
++        session = getattr(self, "_session_runtime_dir", None)
++        state = getattr(self, "_ours_fresh", None)
++        if state is None or state["level"] != level or state["session"] != session:
++            state = {"session": session, "level": level, "level_tokens": tokens, "level_time": now, "count": 0,
++                     "since_tokens": tokens, "since_time": now, "line": "", "pending": False, "status": ""}
++            self._ours_fresh = state
++        need_tokens, need_seconds, growth, most = self._ours_fresh_settings()
++        scale = growth ** state["count"]
++        if (state["count"] >= most or tokens - state["since_tokens"] < need_tokens * scale
++                or now - state["since_time"] < need_seconds * scale):
++            return None
++        state.update(count=state["count"] + 1, since_tokens=tokens, since_time=now)
++        return state
++
++    def _ours_fresh_start(self, state_path: Path, current_frame: Frame | None, action_num: int) -> str:
++        """At the start of a turn: clear the conversation when a fresh start is due and return the opener's line.
++
++        Also returns the line while the turn that cleared the history has not been committed (a failed request rolls
++        the history back to the cleared one, and the retry has to say why the conversation is empty); else ""."""
++        now = time.monotonic()
++        level = int(current_frame.level) if current_frame is not None else 1
++        state = self._ours_fresh_due(level, now)
++        if state is None:
++            state = getattr(self, "_ours_fresh", None)
++            if state is None or not state["pending"]:
++                return ""
++            if any(not _ours_is_ledger(message) for message in self._history_messages):
++                state["pending"] = False  # the opener carrying the line was committed
++                return ""
++            state["status"] = ("ours_fresh_start_repeated: the turn that cleared the history was not committed, so "
++                               "this opener carries the line again.")
++            return state["line"]
++        step = max(current_frame.step if current_frame is not None else 0, max(0, action_num)) + 1
++        level_tokens = max(0, int(self._session_generated_tokens) - state["level_tokens"])
++        minutes = (now - state["level_time"]) / 60.0
++        dropped = sum(1 for message in self._history_messages if not _ours_is_ledger(message))
++        state["line"] = (f"Conversation history was cleared at step {step} after {level_tokens:,} generated tokens on "
++                         "this level without a level-up; the facts stated by the harness are exact.")
++        state["pending"] = True
++        self._history_messages = []
++        self._note_history_evicted()
++        self._resume_after_yield = False  # the cleared conversation opens like a new turn: full opener, current board
++        if _ours_win_ledger_enabled():
++            # a head no message equals: the trim path rebuilds the ledger and pins it after the system prompt
++            self._ours_ledger_state()["head"] = {"ours_fresh_start": state["count"]}
++        most = self._ours_fresh_settings()[3]
++        game = state_path.name.removesuffix(RUNTIME_STATE_FILENAME).rstrip("_") or state_path.name
++        state["status"] = (f"ours_fresh_start: conversation history cleared at step {step} (fresh start "
++                           f"{state['count']} of at most {most} on level {level}) after {level_tokens} generated "
++                           f"tokens and {minutes:.1f} min on the level without a level-up; {dropped} history "
++                           f"messages dropped; ledger {'kept' if _ours_win_ledger_enabled() else 'off'}.")
++        log.warning("ours fresh start %d/%d: %s level %d step %d after %d generated tokens and %.1f min on the level; "
++                    "%d history messages dropped", state["count"], most, game, level, step, level_tokens, minutes,
++                    dropped)
++        return state["line"]
++
+     def analyze(
+         self,
+         state_path: Path,
+@@ -7251,6 +7333,15 @@ class ToolAgent:
+             history_entries=history_entries,
+             previous_step_summary=self._last_step_summary,
+         )
++        # ours (fresh start): decided here, where a turn starts; off unless OURS_FRESH_START=1
++        ours_fresh_line = ""
++        if _get_env_bool("OURS_FRESH_START", False):
++            try:
++                ours_fresh_line = self._ours_fresh_start(state_path, current_frame, action_num)
++            except Exception:  # it must never cost a turn
++                log.warning("ours fresh start check failed", exc_info=True)
++        if ours_fresh_line:
++            user_prompt = ours_fresh_line + "\n" + user_prompt
+         display_action_num = _display_action_number(action_num)
+         self._wm_absorbed_in_turn = False
+ 
+@@ -7270,6 +7361,9 @@ class ToolAgent:
+                 transcript_updated("".join(transcript_parts))
+ 
+         append_transcript("SYSTEM PROMPT", self._system_prompt)
++        if ours_fresh_line and self._ours_fresh["status"]:
++            append_transcript("ANALYZER STATUS", self._ours_fresh["status"])
++            self._ours_fresh["status"] = ""
+ 
+         previous_history_messages = list(self._history_messages)
+         # Mirrors the history snapshot: a turn abandoned on a request failure is
