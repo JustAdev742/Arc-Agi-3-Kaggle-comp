@@ -291,3 +291,21 @@ def test_the_cli_replays_and_exits_non_zero_when_nothing_is_dumped(tmp_path):
         code = dd.main(["--logs", str(FIXTURES), "--out", str(tmp_path / "o2"), "--base-url", server.url,
                         "--dump-dir", str(tmp_path / "nodump"), "--health-wait", "10"])
     assert code == 1 and time.time() - t0 < 60
+
+
+def test_the_dump_cap_counts_what_an_earlier_run_wrote_to_the_same_dump(tmp_path):
+    # session A dumps the held-out games and then the train split into one directory, one driver run each, with a
+    # cumulative --max-dump-gb: the cap must count the earlier runs' bytes before this run's first snapshot
+    result = dd.plan(dd.discover([FIXTURES]), split="all")
+    one = dd.plan(dd.discover([FIXTURES]), split="all", max_snapshots=1)
+    dump = tmp_path / "dump"
+    with DumpingServer(dump) as server:
+        first = dd.replay(one, tmp_path / "o1", base_url=server.url, dump_dir=dump, health_wait=10,
+                          logger=lambda m: None)
+        written = first["dump_bytes"]
+        est = result["replay"][0]["kept_rows_est"] * dd.ROW_BYTES
+        cap = (written + est - 1) / 1e9  # the next snapshot alone fits; with what is already there it does not
+        second = dd.replay(result, tmp_path / "o2", base_url=server.url, dump_dir=dump, health_wait=10,
+                           max_dump_gb=cap, logger=lambda m: None)
+    assert first["sent"] == first["dump_ok"] == 1 and written > 0
+    assert second["sent"] == 0 and "--max-dump-gb" in second["stopped"] and not second["failed"]

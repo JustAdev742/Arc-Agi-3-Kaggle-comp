@@ -789,3 +789,154 @@ Total: about 1.3-1.7 GPU-hours [estimate].
 3. **KL target temperature.** 1.0 (default) or the server's 0.7 (`--target-temperature`)?
 4. **Steps outside the map.** `--require-hot` drops a step whose realized token is outside the FR-Spec map (plan 3.4). Turning it off is an ablation.
 5. **Which map.** Train with the map the arm serves: Pennyroyal's generic one, or the ARC map of exp-077. A draft is trained for one map as well as for one target (S6).
+
+## 11. Session-A notebook (2026-10-09, CPU only, nothing run on a GPU)
+
+**Outcome.** `scripts/build_mtp_session.py` builds the session-A notebook: D' up to its launcher, then one cell per step of 10.4, all run by `scripts/mtp_session_a.py`. The built notebook is 872,603 bytes (43 cells). It compiles cell by cell, and its step cells ran end to end on CPU, through GO, NO-GO and a failed step, against stub scripts and a stub `sglang serve`. Nothing has run on Kaggle. So boot times, dump speed, training speed, the replica's numbers and the kernel-output mount paths are still unmeasured.
+
+### 11.1 Build, check, push
+
+```bash
+.venv/bin/python scripts/build_mtp_session.py --out $SCRATCH/sessA/nb            # -> arc3-mtp-session-a.ipynb + kernel-metadata.json
+.venv/bin/python -m pytest -q tests/test_build_mtp_session.py tests/test_mtp_session_a.py
+# lead, evening UTC window (lesson 0031): .venv/bin/python scripts/push_eval.py $SCRATCH/sessA/nb
+```
+Options:
+- `--set KEY=VALUE` changes one entry of the session configuration (dotted key, JSON value; the type is checked), for example `--set storage.train_gb=30` or `--set train.minutes=60`.
+- `--no-reap` dumps the unpruned target.
+- `--hot-tokens FILE` sets the training map.
+- `--logs-dataset` and `--reference-dataset OWNER/SLUG` are the fallbacks of 11.3.
+
+The builder refuses:
+- a D' file that is not the vendored one;
+- a launcher whose anchors or launch section it does not know;
+- a `session_hours` above 10, or one shorter than the steps' worst case (325 minutes with the defaults).
+
+**Before pushing, check:**
+1. The tests pass. Rebuild after any change to the nine scripts: the notebook carries copies, sha256-checked, and `session-a.json` records their hashes.
+2. The notebook is under 900 KB (lesson 0033). D''s harness-patch cell is 577 KB of it.
+3. `kaggle kernels pull <kernel> -m` after the push shows the pinned image and every source: three datasets (Pennyroyal, the bundle, the probe prompts), two models, the competition, and two kernel sources, `scottmahony/arc3-fidelity-base` and `scottmahony/arc3-dprime-reap448-r14-full`.
+4. Neither kernel source has a newer version than the one pinned: v1/v2 of arc3-fidelity-base, v1 of exp-073. A new version changes the files, and the inputs step stops at minute 1 on the size or sha256 check.
+
+**What to read in the first minutes of the log:**
+- the `[session A inputs]` lines: three inputs found, with their directories. This is the first evidence of how kernel outputs mount.
+- the two `[session A A0]` write-test lines and the storage plan.
+- cell 12's `arc3 REAP` line, then A1's `(base: the wheel's file + scripts/sglang_reap_patch.py)`.
+
+### 11.2 The cells
+
+| Cells | What runs | Time [estimate] |
+|---|---|---|
+| D' 0-11 | As `build_franzen_nb.py --base dprime --input-fallback --wait-inputs 120 --reap-kept ... --compact` builds them (a test compares them): cell 4's setup and bundle copy (the harness patch is applied but never used), the wheel precache, the arc-agi install, the bundle sources | 2-3 min |
+| after cell 4 | `mkdir /kaggle/arc3-mtp`; nine `--compact` cells (`mtp_session_a.py`, `sglang_hc_dump_patch.py`, `hc_dump_driver.py`, `fidelity_probe.py`, `fidelity_sample.py`, `mtp_probe_dump.py`, `mtp_replica.py`, `mtp_train.py`, `mtp_write_draft.py`; each checks its sha256 before writing); then the setup cell: it loads the module, holds `SESSION_A_CONFIG` as a literal, refuses a competition rerun, and runs **inputs** (both layouts, waiting up to 300 s) and **A0** | inputs < 1 min; A0 1-5 min |
+| before cell 12 | REAP-448's three files (compact); the ARC FR-Spec map written to `/kaggle/arc3-hot-tokens.pt` (file sha256 `ec15348b...`, the same bytes `--hot-tokens` ships) | seconds |
+| cell 12 | D''s launcher with REAP's two edits, cut right before `# ---- launch detached and wait for health ----`. It installs Pennyroyal, patches sglang with REAP and validates the target and the draft view. It builds `args` and `env` and finds the generic map `tok` (his sha256 assert, `becfa41d...`). It starts no server | ~5 min |
+| A1-A11, end | One call each: `SESSION.go(step)` guards every cell; A5 is `SESSION.replica_gate()`; the last cell is `SESSION.finish()` | see 10.4 and below |
+
+### 11.3 Inputs and how they mount
+- **Prompts.** `scottmahony/arc3-fidelity-prompts` holds `requests.jsonl`, sha256 `c8055841...` (kaggle/fidelity/manifest.json).
+- **Reference.** The kernel output of `scottmahony/arc3-fidelity-base`, its `fidelity.json`. That kernel has two versions: v1 is runs/fidelity-base (sha256 `aae535ab...`) and v2 is runs/fidelity-base2 (`32e1aeae...`). Both are the same notebook (D', no REAP, generic map, lossless, greedy) [verified: local copies].
+  - A kernel source most likely mounts the latest version, v2, but this is unverified. The configuration accepts either.
+  - `session-a.json` records which one (`inputs.reference.versions`). A3 and A5 then use that run's records. The check of 10.3 is unchanged.
+- **Training logs.** The kernel output of `scottmahony/arc3-dprime-reap448-r14-full`: exp-073, v1 only, lossless, REAP-448, 14 streams.
+  - Its log shows `save_request_logs=True` [verified: runs/exp073-.../kernel-output/*.log].
+  - The Kaggle API listing (2026-10-08 23:16, names plus a Range request per file) shows the 25 `<game>-<id>_p0_requests.jsonl` at the **top level** of the output: 12-113 MB each, 1.48 GB in all [verified, kaggle/mtp/exp073-request-logs.json].
+  - Their contents were not downloaded, so the notebook pins byte sizes, not sha256.
+- **Mount paths.** Lesson 0030 established the two layouts for datasets (`datasets/<owner>/<slug>` or `<slug>`) and competitions. This repo has no run with a kernel source, so the kernel-output paths are **unverified**.
+  - `locate` tries `<slug>`, then `notebooks/<owner>/<slug>`, `kernels/...` and `code/...`, then any directory named `<slug>` up to four levels under /kaggle/input.
+  - In each candidate it also looks one or two levels down, for a version or `output` folder.
+  - If none holds the pinned files after 300 s, the session stops and prints a listing of /kaggle/input. That listing settles the layout.
+- **Fallback.** If kernel outputs cannot be mounted, the owner makes one private dataset:
+  - download with `kaggle kernels output scottmahony/arc3-dprime-reap448-r14-full -p DIR --file-pattern '_requests\.jsonl$'` (1.5 GB);
+  - add `runs/fidelity-base2/kernel-output/fidelity.json`;
+  - upload with `kaggle datasets create -t`;
+  - rebuild with `--logs-dataset OWNER/SLUG --reference-dataset OWNER/SLUG`.
+  - The same sizes and sha256 are checked. Nothing was uploaded here.
+
+### 11.4 The dump servers and the radix-cache flags [source: the wheel's server_args.py, arg_groups/overrides.py, managers/schedule_policy.py]
+A2 and A6 take cell 12's `args`, word for word and in its order (`dump_server_args`; tests run the real launcher cell for them), with these changes:
+- **Dropped:** every `--speculative-*` flag with its values: the ten NEXTN flags, the FR-Spec map and REAP's draft override.
+- **Dropped in A2 only:** REAP's `--json-model-override-args`. A6 keeps it.
+- **Changed:** `--max-running-requests` 10 → 1. `--chunked-prefill-size` is already 8192 in D'.
+- **Added:** `--disable-cuda-graph --disable-radix-cache`.
+
+The environment is cell 12's `env` plus the dump variables:
+- `ARC3_REAP_KEPT_EXPERTS` is removed for A2 and kept for A6.
+- REAP's code is inert without that variable, so A2 serves the full 512-expert target, as the reference did.
+- A2 sets `ARC3_HC_DUMP_KEEP=all` and `ARC3_HC_DUMP_DTYPE=bf16`. Both servers set `ARC3_HC_DUMP_MAX_GB` from A0's plan.
+
+**Launcher flags that only matter with a prefix cache stay in.** Under `--disable-radix-cache` they are inert:
+- `--schedule-policy lpm` becomes FCFS: `SchedulePolicy._validate_and_adjust_policy` maps a cache-aware policy to FCFS when the tree cache is disabled.
+- `--mamba-radix-cache-strategy extra_buffer` and `--mamba-track-interval 64` do nothing. `_mamba_radix_cache_resolution` returns early, so `uses_mamba_radix_cache` stays false. `mamba_extra_buffer_of` is false, and the extra-buffer validation never runs. The mamba cache ratio is 1.
+- `--page-size 64` (forced for compressed QSA) is legal without a radix cache. `_qwen4_exp_overrides` names `--disable-radix-cache` as one of the two configurations it supports.
+- The overlap scheduler stays on. Nothing turns it off, as in serving.
+
+`--disable-cuda-graph` sets both phases' backends to DISABLED. The launcher's `--cuda-graph-max-bs-decode` and `--cuda-graph-bs-decode` set only sizes, so they do not override it (server_args.py, the legacy-flag block of the CUDA-graph config).
+
+**Server checks.** After `/health`, the session reads `/server_info`.
+- It stops on any of: radix cache not disabled; speculative decoding on; an expert override other than the one expected (none for A2, 448 for A6).
+- `max_running_requests` other than 1 or `chunked_prefill_size` other than 8192 is only a warning. The drivers send one request at a time, and the replica check rebuilds the reference's own chunk grid.
+
+### 11.5 Changes to 10.4
+1. **A0.**
+   - It writes 12 GB (at most 150 s) to `/tmp`, then to `/dev/shm`, and plans from the results (`plan_storage`).
+   - The disk comes first: a tmpfs is RAM, and a dump server holds about 106-119 GB. Dumps placed on a tmpfs must fit beside a 125 GB server.
+   - Caps: probe dump 8.5 GB (BF16). The training dump's directory holds the held-out snapshots plus the train split: 34 GB in all, of which held-out games take at most 6 GB.
+   - The session stops at A0 when the probe dump fits nowhere or the training cap would be under 6 GB.
+2. **A1.** REAP is applied by cell 12 (the notebook is built with `--reap-kept`). A1 applies the dump patch and checks that it reports the REAP base.
+3. **A3.** At least 10 of the 16 probe requests must be dumped completely; plan 10.4 required all 16. A request that is not dumped completely is left out of the check, with a warning. The gate still needs 8 compared requests.
+4. **A5.** A NO-GO (exit 2) does not fail the notebook. `replica_gate` records the verdict (`session-a.json`: verdict `no-go`, `stopped_at` A5, `exit_code` 2) and writes the reports. No server is left running, every later cell prints "skipped", and the version completes normally. A failure of any other kind raises and stops the notebook (exit code 1 in `session-a.json`).
+5. **A7.** Plan 10.4 dumped `--split holdout --max-snapshots 12`. That takes the first 12 snapshots in file order, which can all come from the first one or two games. Instead:
+   - One snapshot per held-out game, each from that game's own log file, under a shared 20-minute budget and the 6 GB cap.
+   - Then the train split, at most 30 minutes and up to 33.5 GB in all.
+   - **Fixed in `hc_dump_driver.py`:** `--max-dump-gb` now counts what earlier runs wrote to the same dump directory from the first snapshot on. Before, the index was read only after a run's first request, so each held-out run, a single snapshot, ignored the cap. A test covers it.
+6. **A9.**
+   - It trains with the ARC map: its sha256 is checked, and it is the map the arm will serve.
+   - The budget is 75 minutes, less a 50-minute reserve kept before the session deadline.
+   - `TrainWatch` projects the run's end from its first six steps. If the planned steps cannot fit, it restarts once with the step count that does, so the cosine schedule and the final evaluation still happen.
+7. **A10.** It uses the generic map, as A5 and the reference did. It forecasts the probe gate for the trained dense weights under that map; the weights were trained for the ARC map.
+8. **A11.** Before writing about 4.1 GB, it checks that `/kaggle/working` stays under 19.5 GB. The dumps never go to `/kaggle/working`.
+9. **Deadline.**
+   - The module stops any step that would run past 7 h after the notebook started. Kaggle's limit is 12 h.
+   - The steps' budgets add up to 325 minutes at worst.
+   - Expected total: about 1.6-2.8 h [estimate]. That is cell 12 5 min, two boots 6-9 min each, A3 2-4, A5 5-15, A7 15-25, A9 30-75, A10 5-15, A11 3-5.
+
+### 11.6 Review of `scripts/mtp_session_a.py` (written by the agent lost to the container restart)
+The module was complete and close to right; the command lines it builds match the scripts' options (a test checks every option against the real argparse). Changed:
+- `server_problems` stopped the session on `max_running_requests`/`chunked_prefill_size`; those are now warnings (`server_notes`), radix/speculation/experts stay fatal.
+- A3 treated exit 1 of `mtp_probe_dump.py` (any request not dumped) as fatal before reading the summary; now the summary decides (11.5.3).
+- A7 gave each of the 11 held-out games its own budget of `holdout_minutes` + 15 minutes (hours at worst) and passed the whole log folder (each run hashed all 1.5 GB of logs); now one shared budget, the game's own file, the cumulative cap (11.5.5), and a warning when `qerr_stream_max` p99 exceeds 0.05 with one scale per row.
+- `write_test` looped without writing for `chunk_mb` < 16 (an empty block); fixed.
+- `fail` overwrote the first stop when a later step was called by hand; it keeps the first and records the rest as warnings, and records `/kaggle/working`'s sizes. `finish` stops a server left running and tolerates links.
+- New: `go`, `replica_gate` (11.5.4), the generic map's sha256 check in `set_launcher`, the A11 size guard, `locate` looking up to two levels below a candidate, accepted-version labels on inputs.
+
+### 11.7 Tests
+- `tests/test_mtp_session_a.py` (17 tests):
+  - the dump servers' arguments and environment;
+  - the server checks;
+  - `plan_storage` (disk, quota, tmpfs within the RAM budget, too small);
+  - the write test, `fs_type`, and inputs in each layout (versions, sizes, sha256);
+  - `draft_source`, `TrainWatch`, `last_json_object`, `index_stats`;
+  - three whole sessions, GO, NO-GO and a failed A3, with stub scripts and a stub server. Every command line is checked against the real script's options.
+- `tests/test_build_mtp_session.py` (13 tests):
+  - every code cell compiles, and the notebook is under 900 KB;
+  - the setup cell loads the shipped module by path and builds the session (a competition rerun is refused);
+  - cells 0-11 equal `build_franzen_nb.py`'s, and cell 12 is its cut;
+  - the shipped files round-trip byte for byte, and a corrupted one is refused;
+  - the training map equals the `--hot-tokens` arm's file;
+  - A2 and A6 come from executing the real launcher cell, as its args plus and minus exactly the listed flags;
+  - the notebook's own step cells run against the real module, GO to the end and NO-GO stopping before any training;
+  - the configuration literal, the kernel metadata (including the dataset fallbacks), the time budget and `--set`.
+- `tests/test_hc_dump_driver.py`: one new test, the cumulative cap.
+- Results: `tests/test_build_franzen_nb.py` is unchanged and passes. The torch suites (`test_mtp_replica`, `test_mtp_train`, `test_mtp_write_draft`, `test_sglang_hc_dump_patch`) pass with CPU torch 2.14.
+
+### 11.8 Open risks for the GPU run
+1. **Kernel-output mount paths are unverified** (11.3). The inputs step stops within about 6 minutes of the start and lists /kaggle/input, before the install. If kernel sources do not mount, use the dataset fallback.
+2. **v2 of arc3-fidelity-base as the reference.** Both versions were checked to have usable records (154 of 154 in the seq pass). The 154/154 continuation re-encoding check of 10.2 was done on v1 only. `mtp_replica.py` still leaves out any request whose dumped output differs.
+3. **Boot without CUDA graphs and without a draft.** It should be faster than serving's 8 minutes, but it is unmeasured. The boot budget is 20 minutes per server.
+4. **Dump speed.** The hook copies every prefill chunk's hidden states to the host. With the probe's BF16 rows that is 8.2 GB. A slow hook stretches A3 and A7; the time caps bound both.
+5. **Overlap scheduling** stays on in the dump servers. The hook then runs in the scheduler's worker thread, which CPU tests cannot cover.
+6. **Storage.** `/tmp`'s real quota is unknown, and the write test proves only 12 GB. If `/tmp` fills during A7, the server logs errors, the driver stops after three failures in a row, and training uses what was dumped (with a warning). `/dev/shm`'s size is also unknown, and A0 measures it.
+7. **Training speed and memory** (10.5). `TrainWatch` bounds the time, but a step slower than about 30 s would leave few steps.
+8. **A10 under the generic map** forecasts the gate only for a probe served with that map (11.5.7).
+9. **Notebook size.** It is 872,603 bytes, under the 900 KB rule but with only about 27 KB of room. Adding about 30 KB of compressed code would need the harness-patch cell dropped, or the scripts shipped as one payload.

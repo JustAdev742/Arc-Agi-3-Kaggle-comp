@@ -418,6 +418,7 @@ def replay(result: dict, out: Path, *, base_url: str, model: str = "flashnext", 
     tail = IndexTail(dump_dir) if dump_dir else None
     if dump_dir:
         (Path(dump_dir) / "plans").mkdir(parents=True, exist_ok=True)
+        tail.poll()  # what earlier runs wrote to this dump counts toward --max-dump-gb from the first snapshot on
     summary = {"started_utc": time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(t0)), "server_info": info,
                "notes": notes, "planned": len(result["replay"]), "sent": 0, "ok": 0, "dump_ok": 0,
                "prefill_tokens": 0, "stopped": None, "failed": False, "dump_dir": str(dump_dir) if dump_dir else None}

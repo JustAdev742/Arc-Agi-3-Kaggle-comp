@@ -13,13 +13,16 @@ call this module with the launcher's ``args`` and ``env``:
 - A2  probe dump server: the launcher's arguments without ``--speculative-*`` and without REAP's override, plus
       ``--disable-cuda-graph --disable-radix-cache``, ``--max-running-requests 1`` and ``--chunked-prefill-size 8192``
       (:func:`dump_server_args`); ``ARC3_HC_DUMP_KEEP=all``, ``ARC3_HC_DUMP_DTYPE=bf16``.
-- A3  scripts/mtp_probe_dump.py: the held-out probe requests plus the greedy outputs the reference run recorded.
+- A3  scripts/mtp_probe_dump.py: the held-out probe requests plus the greedy outputs the reference run recorded
+      (at least ``probe.min_requests`` dumped completely).
 - A4  stop the server.
-- A5  scripts/mtp_replica.py check. Exit 2 (NO-GO) ends the session here: :class:`Stop` with ``code`` 2.
+- A5  scripts/mtp_replica.py check. Exit 2 (NO-GO) ends the session here: :meth:`Session.replica_gate` records the
+      verdict (``code`` 2), writes the reports and returns False, and every later cell is skipped by
+      :meth:`Session.go`, so the notebook ends normally without training.
 - A6  training dump server: as A2 but with the served target (REAP's override kept when it is served), dump rows of
       assistant spans with context, FP8.
-- A7  scripts/hc_dump_driver.py: the first snapshot of each held-out game (the evaluation set), then the train split,
-      under the size and time caps.
+- A7  scripts/hc_dump_driver.py: the first snapshot of each held-out game (the evaluation set; one shared time budget
+      and a cumulative size cap), then the train split, under the size and time caps.
 - A8  stop the server; scripts/mtp_train.py plan.
 - A9  scripts/mtp_train.py train with a time budget (:class:`TrainWatch`: when the planned steps cannot fit, one
       restart with the number of steps that does).
@@ -29,8 +32,13 @@ call this module with the launcher's ``args`` and ``env``:
 Every command's output goes to the notebook log and to ``<working>/logs/<name>.log``. ``<working>/session-a.json``
 records the inputs, the storage decision, each step (commands, exit codes, times, a census line), the servers'
 arguments and settings, and the verdicts; it is rewritten after every step, so a session that stops early still says
-where and why. A failed step stops a running server and raises :class:`Stop`, which ends the notebook (on Kaggle the
-version then shows an error; its outputs are kept). Stdlib only: the notebook kernel's Python runs it.
+where and why. A failed step stops a running server and raises :class:`Stop` (code 1), which ends the notebook (the
+Kaggle version then shows an error). Stdlib only: the notebook kernel's Python runs it; the torch steps run in the
+Pennyroyal venv's python (``python_torch``) with the launcher's environment.
+
+Inputs (``config["inputs"]``, :func:`locate`): each is found in either mount layout (lesson 0030; kernel outputs under
+``<slug>`` or ``notebooks/<owner>/<slug>``, or any directory of that name up to four levels down, with the files up to
+two levels below it) and checked against pinned sha256 values (one or several accepted versions) or byte sizes.
 """
 from __future__ import annotations
 
@@ -170,22 +178,34 @@ def num_experts_override(info: dict) -> int | None:
 
 
 def server_problems(info: dict, *, num_experts: int | None) -> list[str]:
-    """Settings of a running dump server (its /server_info) that are not what the dump needs."""
+    """Settings of a running dump server (its /server_info) that make the dump wrong: a prefix cache (cached rows are
+    never recomputed, so never dumped), speculative decoding, or another expert count than the target it must
+    mirror. The session stops on any of them."""
     if "error" in info:
         return [f"/server_info: {info['error']}"]
     problems = []
     if info.get("disable_radix_cache") is not True:
         problems.append(f"disable_radix_cache is {info.get('disable_radix_cache')!r}, not true")
-    if info.get("max_running_requests") != 1:
-        problems.append(f"max_running_requests is {info.get('max_running_requests')!r}, not 1")
-    if info.get("chunked_prefill_size") != 8192:
-        problems.append(f"chunked_prefill_size is {info.get('chunked_prefill_size')!r}, not 8192")
     if info.get("speculative_algorithm"):
         problems.append(f"speculative decoding is on ({info['speculative_algorithm']})")
     if num_experts_override(info) != num_experts:
         problems.append(f"json_model_override_args {info.get('json_model_override_args')!r}: expected a "
                         f"num_experts override of {num_experts}")
     return problems
+
+
+def server_notes(info: dict) -> list[str]:
+    """Settings that differ from what was asked but do not change what is dumped (warnings): the drivers send one
+    request at a time, and the dump does not depend on the server's chunk grid (the replica check rebuilds the
+    reference run's grid from its own cache hits)."""
+    if "error" in info:
+        return []
+    notes = []
+    if info.get("max_running_requests") != 1:
+        notes.append(f"max_running_requests is {info.get('max_running_requests')!r}, not 1")
+    if info.get("chunked_prefill_size") != 8192:
+        notes.append(f"chunked_prefill_size is {info.get('chunked_prefill_size')!r}, not 8192")
+    return notes
 
 
 # ----------------------------------------------------------------------------------------------- storage (A0)
@@ -235,7 +255,7 @@ def write_test(directory, *, gb: float, seconds: float, chunk_mb: int = 256, ech
     except OSError as exc:
         rec["error"] = f"{type(exc).__name__}: {exc}"
         return rec
-    block = os.urandom(16 << 20) * (chunk_mb // 16)
+    block = (os.urandom(16 << 20) * max(1, -(-chunk_mb // 16)))[:max(1, chunk_mb) << 20]
     written, t0 = 0, time.time()
     try:
         with open(target / "fill.bin", "wb") as f:
@@ -363,13 +383,20 @@ def check_source(spec: dict, folder: Path) -> dict | None:
     return found
 
 
-def locate(spec: dict, root: str = INPUT_ROOT) -> dict | None:
-    """{"dir", "files"...} of the first candidate directory holding the source's files, else None."""
+def locate(spec: dict, root: str = INPUT_ROOT, depth: int = 2) -> dict | None:
+    """{"dir", "files"...} of the first candidate directory holding the source's files, else None. The files may
+    also sit up to ``depth`` levels below a candidate (a layout that adds a version or ``output`` folder)."""
+    seen = set()
     for folder in candidate_dirs(spec, root):
-        if os.path.isdir(folder):
-            found = check_source(spec, Path(folder))
+        if not os.path.isdir(folder):
+            continue
+        for path, _, _ in _walk_dirs(folder, depth):
+            if path in seen:
+                continue
+            seen.add(path)
+            found = check_source(spec, Path(path))
             if found is not None:
-                return {"dir": folder, **found}
+                return {"dir": path, **found}
     return None
 
 
@@ -600,11 +627,51 @@ class Session:
                 self.stop_server(step, raising=False)
             except Exception as exc:  # the stop below matters more
                 message += f" (stopping the server failed too: {exc!r})"
-        self.state.update(verdict="no-go" if code == 2 else "failed", stopped_at=step, reason=message, exit_code=code,
-                          finished_utc=_utc())
+        if self.state["verdict"] in ("no-go", "failed"):  # already stopped: keep the first stop as the reason
+            self.state["warnings"].append(f"{step} after the stop at {self.state['stopped_at']}: {message}")
+        else:
+            self.state.update(verdict="no-go" if code == 2 else "failed", stopped_at=step, reason=message,
+                              exit_code=code, finished_utc=_utc())
+        self._record_working()
         self.save()
         self.echo(f"[session A] STOP at {step}: {message}")
         return Stop(f"session A stops at {step}: {message} (reports: {self.state_path})", code)
+
+    def _record_working(self) -> int:
+        """What /kaggle/working holds now (bytes per entry, total), into the state."""
+        sizes = {}
+        for p in sorted(self.working.iterdir()):
+            with contextlib.suppress(OSError):
+                sizes[p.name] = dir_bytes(p) if p.is_dir() and not p.is_symlink() else os.lstat(p).st_size
+        total = sum(sizes.values())
+        self.state.update(working_bytes=sizes, working_total_gb=round(total / GB, 2))
+        return total
+
+    def go(self, step: str) -> bool:
+        """Whether the cell of STEP runs: after a NO-GO at A5 every later step is skipped (the notebook ends
+        normally, with session-a.json saying why); after a failure the notebook has already stopped."""
+        if self.state["verdict"] == "no-go":
+            self.echo(f"[session A {step}] skipped: the session stopped at {self.state['stopped_at']} "
+                      f"({self.state['verdict']}, exit {self.state['exit_code']})")
+            return False
+        if self.state["verdict"] == "failed":
+            raise Stop(f"session A stopped at {self.state['stopped_at']}: {self.state['reason']}", 1)
+        return True
+
+    def replica_gate(self) -> bool:
+        """A5 as the notebook runs it: the replica check, which on NO-GO (exit 2) ends the session cleanly (reports
+        written, no server running, nothing later runs) instead of failing the notebook. True on GO."""
+        try:
+            self.replica_check("A5")
+        except Stop as exc:
+            if exc.code != 2:
+                raise
+            self.finish()
+            self.echo("[session A] NO-GO: the replica does not reproduce SGLang's accept counts, so nothing is "
+                      "trained in this session (plan 6.6 stop rule). Read replica-check.json (section 10.3, "
+                      "'Reading a failure').")
+            return False
+        return True
 
     @contextlib.contextmanager
     def step(self, step: str, title: str):
@@ -723,8 +790,12 @@ class Session:
                                               + "; ".join(input_listing(root)))
                 time.sleep(poll_s)
             for key, hit in found.items():
+                labels = specs[key].get("labels") or {}
+                versions = sorted({labels[v] for k, v in hit.items() if k.endswith(".sha256") and v in labels})
+                hit["versions"] = versions
                 self.echo(f"[session A inputs] {key}: {hit['dir']} ({specs[key]['kind']} {specs[key]['id']}), "
-                          f"{len(specs[key].get('files') or {})} file(s) checked")
+                          f"{len(specs[key].get('files') or {})} file(s) checked"
+                          + (f"; {', '.join(versions)}" if versions else ""))
             self.inputs = found
             self.state["inputs"] = found
         return found
@@ -767,6 +838,12 @@ class Session:
             self.launcher["albucino"] = str(draft_source(draft_dir))
         except ValueError as exc:
             raise self.fail("A1", str(exc)) from None
+        want = (self.cfg.get("probe") or {}).get("generic_map_sha256")
+        if want:  # the map the reference run served with (cell 12's own assert checks the same file)
+            got = sha256_file(generic_map) if Path(generic_map).is_file() else None
+            if got != want:
+                raise self.fail("A1", f"{generic_map}: sha256 {got} is not the generic FR-Spec map the reference run "
+                                      f"served with ({want[:12]}...)")
         self.state["launcher"] = {k: v for k, v in self.launcher.items() if k not in ("env", "precache_thread")}
         self.state["launcher"]["env_keys"] = sorted(self.launcher["env"])
         self.save()
@@ -830,7 +907,10 @@ class Session:
             expect = self.cfg["server"]["num_experts"] if reap else None
             record["server_info"] = info
             record["problems"] = server_problems(info, num_experts=expect)
+            record["notes"] = server_notes(info)
             self.save()
+            for note in record["notes"]:
+                self.warn(f"{step}: {note}")
             if record["problems"]:
                 raise self.fail(step, "the dump server is not configured as the dump needs: " + "; ".join(record["problems"]))
             self.server_kind = kind
@@ -968,14 +1048,21 @@ class Session:
                             "--count", cfg["count"], "--max-rows", max_rows, "--out", out,
                             "--dump-dir", self.storage_plan["probe_dump"], "--base-url", self.base_url(),
                             "--model", self.launcher["model"], "--health-wait", 300],
-                     minutes=self.cfg["budgets_min"]["A3"])
-            summary = json.loads((out / "probe-dump-summary.json").read_text())
+                     minutes=self.cfg["budgets_min"]["A3"], ok=(0, 1))  # 1: some request was not dumped completely
+            path = out / "probe-dump-summary.json"
+            if not path.is_file():
+                raise self.fail("A3", f"{path.name} was not written; see logs/A3.log")
+            summary = json.loads(path.read_text())
             result = {k: summary.get(k) for k in ("sent", "ok", "dump_ok", "stopped")}
             self.state["probe_dump"] = result
             self.save()
             if (summary.get("dump_ok") or 0) < cfg["min_requests"]:
-                raise self.fail("A3", f"only {summary.get('dump_ok')} probe requests dumped (the gate needs "
-                                      f"{cfg['min_requests']})")
+                raise self.fail("A3", f"only {summary.get('dump_ok')} of {summary.get('sent')} probe requests dumped "
+                                      f"completely (the replica check needs {cfg['min_requests']}; "
+                                      f"{summary.get('stopped') or 'see probe/probe-dump.jsonl'})")
+            if summary.get("dump_ok") != summary.get("sent"):
+                self.warn(f"A3: {summary.get('sent') - summary.get('dump_ok')} probe request(s) not dumped "
+                          "completely; the replica check leaves them out")
         return result
 
     def base_url(self) -> str:
@@ -1027,12 +1114,24 @@ class Session:
         with self.step("A7", "dump the training data: one snapshot per held-out game, then the train split"):
             self.require_go("A7")
             self._server_alive("A7")
+            # The held-out games share one time budget and a size cap. Both caps are cumulative over the dump
+            # directory: the driver's --max-dump-gb compares the server's running byte count, and before each game
+            # the dump's index says how much the earlier games wrote.
+            t0 = time.time()
             for game in cfg["holdout_games"]:
+                left_min = cfg["holdout_minutes"] - (time.time() - t0) / 60
+                written_gb = index_stats(plan["train_dump"])["bytes"] / GB
+                if left_min < 1 or written_gb >= plan["holdout_gb"]:
+                    self.warn(f"A7: held-out games from {game} on skipped ({written_gb:.2f} GB written of "
+                              f"{plan['holdout_gb']} GB, {max(left_min, 0):.0f} of {cfg['holdout_minutes']} min left)")
+                    break
                 out = self.working / "hc-holdout" / game
-                self.run("A7", [self.python, "-I", "-u", driver, "--logs", logs, "--split", "holdout", "--games", game,
+                files = sorted(Path(logs).glob(f"{game}-*_p*_requests.jsonl")) or [Path(logs)]
+                self.run("A7", [self.python, "-I", "-u", driver, *[x for f in files for x in ("--logs", f)],
+                                "--split", "holdout", "--games", game,
                                 "--max-snapshots", cfg["holdout_snapshots_per_game"], "--out", out,
-                                "--max-dump-gb", plan["holdout_gb"], "--max-minutes", cfg["holdout_minutes"], *common],
-                         name=f"A7-holdout-{game}", minutes=cfg["holdout_minutes"] + 15, ok=(0, 1))
+                                "--max-dump-gb", plan["holdout_gb"], "--max-minutes", round(left_min, 1), *common],
+                         name=f"A7-holdout-{game}", minutes=left_min + 5, ok=(0, 1))
                 result["holdout"][game] = self._replay_summary(out)
                 self._server_alive("A7")
             if not any((s or {}).get("dump_ok") for s in result["holdout"].values()):
@@ -1056,6 +1155,10 @@ class Session:
                       f"{q['qerr_stream_max']['p99']}; nonfinite rows {q['nonfinite_rows']}; errors {q['errors']}")
             if q["nonfinite_rows"]:
                 self.warn(f"A7: {q['nonfinite_rows']} dumped rows hold NaN/Inf")
+            p99 = q["qerr_stream_max"]["p99"]
+            if p99 is not None and p99 > cfg.get("qerr_warn", 0.05) and int(cfg["scale_groups"]) == 1:
+                self.warn(f"A7: qerr_stream_max p99 {p99} > {cfg.get('qerr_warn', 0.05)}: one FP8 scale per row loses "
+                          "a weak stream; the next dump should use scale_groups 4 (ARC3_HC_DUMP_SCALE_GROUPS=4)")
         return result
 
     def _replay_summary(self, out: Path) -> dict | None:
@@ -1074,7 +1177,8 @@ class Session:
     # ------------------------------------------------------------------------------------------- A8, A9
 
     def snapshot_args(self) -> list[str]:
-        files = sorted((self.working / "hc-holdout").glob("*/snapshots.jsonl")) + [self.working / "hc-train" / "snapshots.jsonl"]
+        files = [*sorted((self.working / "hc-holdout").glob("*/snapshots.jsonl")),
+                 self.working / "hc-train" / "snapshots.jsonl"]
         out = []
         for path in files:
             if path.is_file():
@@ -1158,6 +1262,13 @@ class Session:
         out = self.working / "mtp-draft"
         with self.step("A11", "write the fine-tuned draft directory (albucino's files, dense tensors replaced)"):
             self.require_go("A11")
+            need = dir_bytes(self.launcher["albucino"])  # the writer copies albucino's files (~4.1 GB)
+            limit = float(self.cfg.get("working_limit_gb", 19.5)) * GB
+            have = self._record_working()
+            if have + need > limit - 0.5 * GB:
+                raise self.fail("A11", f"/kaggle/working holds {have / GB:.2f} GB; the draft directory needs "
+                                       f"{need / GB:.2f} GB more, past Kaggle's {limit / GB:g} GB output limit "
+                                       "(trained-dense.safetensors is kept; write the draft in the next session)")
             self.run("A11", [self.python, "-I", "-u", self.script("mtp_write_draft.py"), "write",
                              "--draft", self.launcher["albucino"],
                              "--trained", self.working / "mtp-train" / "trained-dense.safetensors", "--out", out],
@@ -1170,10 +1281,13 @@ class Session:
         return result
 
     def finish(self) -> dict:
-        sizes = {p.name: dir_bytes(p) if p.is_dir() else p.stat().st_size for p in sorted(self.working.iterdir())}
-        total = sum(sizes.values())
-        self.state.update(working_bytes=sizes, working_total_gb=round(total / GB, 2), finished_utc=_utc(),
-                          minutes=round(self.elapsed_min(), 1))
+        """The last cell (also run by :meth:`replica_gate` on NO-GO): stops a server left running, records what
+        /kaggle/working holds and the verdict, and prints the summary."""
+        if self.server is not None:
+            self.stop_server("finish", raising=False)
+        total = self._record_working()
+        sizes = self.state["working_bytes"]
+        self.state.update(finished_utc=_utc(), minutes=round(self.elapsed_min(), 1))
         if total > float(self.cfg.get("working_limit_gb", 19.5)) * GB * 0.95:
             self.warn(f"/kaggle/working holds {total / GB:.1f} GB, near Kaggle's limit")
         if self.state["verdict"] == "running":
