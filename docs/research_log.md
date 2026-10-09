@@ -2820,3 +2820,8 @@ Tally:    base config 56.00 / 42.89 (+49.45 lossless); bundle 48.96 (RESET on), 
 Decision: the bundle's LB candidate becomes exp-081 (a superset of exp-080 whose added helpers are exact and used where
           they apply). LB order: exp-074t today, then exp-081, alternating for >= 3 draws each. The week's quota is spent
           (~29.3 of 30 h); next GPU work after Sat 00:00 UTC: MTP session A.
+
+## 2026-10-09 03:55 · LB: exp-074t submitted (56980485, Oct 9 00:14 UTC) · PENDING
+The owner's submission 56980485 comes from scottmahony/arc3-dprime-reap448-r14-accept05 (scriptVersionId 356462444;
+the submission's `url` field in the Kaggle API), i.e. exp-074t, the base candidate. Its draw is the first LB number for
+the REAP-448 + 14 streams + relaxed-acceptance config. Next slot (Oct 10): exp-081; then alternate.

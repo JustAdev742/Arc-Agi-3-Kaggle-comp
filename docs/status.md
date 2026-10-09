@@ -147,8 +147,9 @@ noise, the second slot goes to the best configuration that differs from it (dive
 If fewer than two configurations reach 3 draws, the unmodified base fills the second slot.
 
 ### State at 2026-10-09 03:50 UTC
-- **Submit today (Oct 9): exp-074t**, from https://www.kaggle.com/code/scottmahony/arc3-dprime-reap448-r14-accept05.
-- **Tomorrow: exp-081**, from https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-harness4-percept-full.
+- **exp-074t is submitted:** submission 56980485, Oct 9 00:14 UTC, from arc3-dprime-reap448-r14-accept05 (script version
+  356462444, per the API's `url` field). It is pending. This was today's slot.
+- **Next (Oct 10): exp-081**, from https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-harness4-percept-full.
   - It is the harness bundle plus the perception helpers; RESET is not exposed, and there is no fresh start or effect
     table.
   - Then alternate the two, so each has at least 3 draws.
