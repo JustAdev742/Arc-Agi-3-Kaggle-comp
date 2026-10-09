@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-10-08 23:20 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
+Last updated: 2026-10-09 01:40 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
 
 ## Competition facts: verified vs. unconfirmed
 
@@ -145,6 +145,22 @@ score over at least 3 draws each. A difference under 0.5 points is a tie, broken
 public 25 (scripts/arm_table.py), then the validation score. If the top two are variants of one configuration within
 noise, the second slot goes to the best configuration that differs from it (diversification against the private half).
 If fewer than two configurations reach 3 draws, the unmodified base fills the second slot.
+
+### State at 2026-10-09 01:40 UTC
+- **Submit today (Oct 9): exp-074t.** Yesterday's slot went unused. Link:
+  https://www.kaggle.com/code/scottmahony/arc3-dprime-reap448-r14-accept05
+  - Tomorrow: exp-080's version, https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-harness4-noreset-full.
+  - Then alternate the two, so each has at least 3 draws under the pre-registered rule. The leaderboard (55 games per
+    draw) is now the instrument for the harness bundle; the public 25 can't resolve it.
+- **exp-080: 46.48.** That is the four-patch bundle with RESET off. It has no detectable effect: the bundle's two runs
+  average 47.7 against the base's 49.4 (±4). The mechanisms all work. The m0r0 and s5i5 collapses are bad draws, not
+  patch faults.
+- **exp-081 is running** (01:35 to about 03:50): exp-080 + the perception helpers (ours-08b). It is the week's last
+  ~2.9 h of quota, and it gets read by mechanism, not by its mean.
+- **Built tonight:** the MTP draft session-A notebook (scripts/build_mtp_session.py, 872 KB) and ours-08/08b
+  perception. After the Sat 00:00 UTC quota reset, push session A first, about 1.6-2.8 GPU-h.
+- **Lost to a container restart (~23:40) and redone:** the queue runner and the session-A agent. The agent's partial
+  module had been saved.
 
 ### State at 2026-10-08 23:20 UTC
 - **exp-074t still not submitted** at 23:11; today's slot closes at 00:00 UTC.
