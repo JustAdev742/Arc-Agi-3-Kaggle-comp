@@ -2790,3 +2790,18 @@ Changes to §10.4: A0 tests 12 GB on /tmp then /dev/shm (probe cap 8.5 GB, train
 Open risks (GPU only): kernel-output mount paths (never used in this repo; the module searches both layouts and
           lists /kaggle/input), the reference kernel's v2 (fidelity-base2) vs v1, dump speed with CUDA graphs off, the
           dump hook under the overlap scheduler's worker thread, /tmp and /dev/shm sizes, training speed and memory.
+
+## 2026-10-09 01:37 · exp-080 · four patches + FR-Spec map, RESET off: 46.48; no harness bundle beats the base · READ
+Run:      scottmahony/arc3-dprime-r14a05-harness4-noreset-full v1 (23:15-01:31) = base candidate + budget meter, search
+          helper, win ledger, level mem + ARC FR-Spec map, EXPOSE_RESET off; runs/exp080-dprime-r14a05-harness4-noreset-full.
+Score:    46.48 / 107 levels / 5,388 actions; vs the other runs -2.84 (per-game SD 26.9, SE 5.4). Serving: 824 output
+          tok/s, accept 3.15. Mechanisms healthy (budget bar 22 games, ledger 24/24, mem used, 0 repeats, 20 RESETs all
+          automatic). Collapses: m0r0 0/6 (147 actions on level 1, baseline 30; mem/run_plan/meter normal, no patch
+          fault found) and s5i5 1/8 (first slot at 33 min); gains: tn36 7/7, sc25 5/6, sp80 4/6.
+Tally (public 25, 121 min): base config 56.00 / 42.89 (+ exp-073 lossless 49.45); four-patch bundle 48.96 (RESET on)
+          / 46.48 (RESET off), mean 47.7; seven-patch bundle 39.73 / 45.02. Bundle4 - base ~ -1.7 +/- 4: no gain visible;
+          the mechanisms work but do not move the public-25 score at this precision.
+Decision: exp-074t stays the primary candidate. The LB (55 games per draw, about twice a public-25 run's precision) is
+          the instrument for the bundle: alternate exp-074t and exp-080 on the daily slot so each has >= 3 draws (the
+          pre-registered rule). exp-081 (exp-080 + perception, ours-08b) pushed 01:3x with the last ~2.9 h of the week's
+          quota; read by mechanism (bp35/lf52 scroll lines, lattice games), not by its mean.
