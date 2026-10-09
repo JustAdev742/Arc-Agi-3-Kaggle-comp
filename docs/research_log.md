@@ -2776,7 +2776,7 @@ Validated (agent, against the engines' own camera): 39 recorded runs x 25 games,
 Plan:     an arm = exp-080 + 08b, read against exp-080 itself, after the Sat quota reset (lesson 0037: judge it by the
           games it touches, e.g. bp35/lf52 scroll levels and lattice games, not only the mean).
 
-## 2026-10-09 00:19 · MTP draft fine-tune: session-A notebook built (CPU), ready for the Sat quota reset · BUILT
+## 2026-10-09 00:18 · MTP draft fine-tune: session-A notebook built (CPU), ready for the Sat quota reset · BUILT
 Files:    scripts/build_mtp_session.py (builder; build_franzen_nb.py unchanged), scripts/mtp_session_a.py (A0-A11 step
           functions; written by an agent lost to a container restart, reviewed and finished by a second one),
           kaggle/mtp/exp073-request-logs.json (sizes of exp-073's 25 request logs, 1.48 GB on Kaggle), tests
