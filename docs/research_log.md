@@ -2805,3 +2805,18 @@ Decision: exp-074t stays the primary candidate. The LB (55 games per draw, about
           the instrument for the bundle: alternate exp-074t and exp-080 on the daily slot so each has >= 3 draws (the
           pre-registered rule). exp-081 (exp-080 + perception, ours-08b) pushed 01:3x with the last ~2.9 h of the week's
           quota; read by mechanism (bp35/lf52 scroll lines, lattice games), not by its mean.
+
+## 2026-10-09 03:55 · exp-081 · exp-080 + perception helpers (ours-08b): 50.00, the perception mechanism works at scale · READ
+Run:      scottmahony/arc3-dprime-r14a05-harness4-percept-full v1 (01:35-03:47) = exp-080 + OURS_PERCEPTION;
+          runs/exp081-dprime-r14a05-harness4-percept-full; transcripts scratchpad sa081/.
+Score:    50.00 / 113 levels / 5,690 actions; +1.29 vs the mean of the other runs (per-game SD 18.8, SE 3.8). Serving 803
+          output tok/s, accept 3.14.
+Mechanism: "[view] scrolled" notes in exactly the two scrolling games, bp35 (9) and lf52 (6); the model read view_offset
+          46x in bp35 and 26x in lf52, left_view 10x in lf52 (the off-screen cart), logical_grid() 28x in 6 games (ar25 12,
+          m0r0 7); segmentation8 unused. lf52 3/10 (base runs 1-3), bp35 1/9 (unchanged). NameErrors 35 in ~2,770 tool
+          results (bundles before: 53-64).
+Tally:    base config 56.00 / 42.89 (+49.45 lossless); bundle 48.96 (RESET on), 46.48, 50.00 (+perception); seven-patch
+          39.73 / 45.02. No bundle differs from the base beyond noise.
+Decision: the bundle's LB candidate becomes exp-081 (a superset of exp-080 whose added helpers are exact and used where
+          they apply). LB order: exp-074t today, then exp-081, alternating for >= 3 draws each. The week's quota is spent
+          (~29.3 of 30 h); next GPU work after Sat 00:00 UTC: MTP session A.
