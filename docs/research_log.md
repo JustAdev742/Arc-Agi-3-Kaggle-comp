@@ -2775,3 +2775,18 @@ Validated (agent, against the engines' own camera): 39 recorded runs x 25 games,
           patches 27/27; exp-080's stack + 08b 26/26 (RESET not exposed). Thresholds were tuned on the same recorded runs.
 Plan:     an arm = exp-080 + 08b, read against exp-080 itself, after the Sat quota reset (lesson 0037: judge it by the
           games it touches, e.g. bp35/lf52 scroll levels and lattice games, not only the mean).
+
+## 2026-10-09 00:19 · MTP draft fine-tune: session-A notebook built (CPU), ready for the Sat quota reset · BUILT
+Files:    scripts/build_mtp_session.py (builder; build_franzen_nb.py unchanged), scripts/mtp_session_a.py (A0-A11 step
+          functions; written by an agent lost to a container restart, reviewed and finished by a second one),
+          kaggle/mtp/exp073-request-logs.json (sizes of exp-073's 25 request logs, 1.48 GB on Kaggle), tests
+          test_mtp_session_a.py (17) and test_build_mtp_session.py (13); all pass with the drafter suites (150 in .venv).
+          Plan doc §11. Built notebook: scratchpad sessA/nb/arc3-mtp-session-a.ipynb, 872,603 bytes (27 KB under the
+          ~900 KB limit).
+Changes to §10.4: A0 tests 12 GB on /tmp then /dev/shm (probe cap 8.5 GB, training dump 34 GB); A3 needs >= 10 of 16
+          probe requests dumped; A5 NO-GO ends the session cleanly (reports written, later cells skip); A7 one snapshot
+          per held-out game, then the train split for <= 30 min; A9 trains with the ARC map (sha pinned) within 75 min;
+          a 7 h deadline (expected 1.6-2.8 h).
+Open risks (GPU only): kernel-output mount paths (never used in this repo; the module searches both layouts and
+          lists /kaggle/input), the reference kernel's v2 (fidelity-base2) vs v1, dump speed with CUDA graphs off, the
+          dump hook under the overlap scheduler's worker thread, /tmp and /dev/shm sizes, training speed and memory.
