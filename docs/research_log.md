@@ -2806,7 +2806,7 @@ Decision: exp-074t stays the primary candidate. The LB (55 games per draw, about
           pre-registered rule). exp-081 (exp-080 + perception, ours-08b) pushed 01:3x with the last ~2.9 h of the week's
           quota; read by mechanism (bp35/lf52 scroll lines, lattice games), not by its mean.
 
-## 2026-10-09 03:55 · exp-081 · exp-080 + perception helpers (ours-08b): 50.00, the perception mechanism works at scale · READ
+## 2026-10-09 03:49 · exp-081 · exp-080 + perception helpers (ours-08b): 50.00, the perception mechanism works at scale · READ
 Run:      scottmahony/arc3-dprime-r14a05-harness4-percept-full v1 (01:35-03:47) = exp-080 + OURS_PERCEPTION;
           runs/exp081-dprime-r14a05-harness4-percept-full; transcripts scratchpad sa081/.
 Score:    50.00 / 113 levels / 5,690 actions; +1.29 vs the mean of the other runs (per-game SD 18.8, SE 3.8). Serving 803

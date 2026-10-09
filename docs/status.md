@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-10-09 01:40 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
+Last updated: 2026-10-09 03:50 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
 
 ## Competition facts: verified vs. unconfirmed
 
@@ -145,6 +145,18 @@ score over at least 3 draws each. A difference under 0.5 points is a tie, broken
 public 25 (scripts/arm_table.py), then the validation score. If the top two are variants of one configuration within
 noise, the second slot goes to the best configuration that differs from it (diversification against the private half).
 If fewer than two configurations reach 3 draws, the unmodified base fills the second slot.
+
+### State at 2026-10-09 03:50 UTC
+- **Submit today (Oct 9): exp-074t**, from https://www.kaggle.com/code/scottmahony/arc3-dprime-reap448-r14-accept05.
+- **Tomorrow: exp-081**, from https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-harness4-percept-full.
+  - It is the harness bundle plus the perception helpers; RESET is not exposed, and there is no fresh start or effect
+    table.
+  - Then alternate the two, so each has at least 3 draws.
+- **exp-081 scored 50.00** with 113 levels, the best bundle draw. Still within noise of the base (+1.3, SE 3.8).
+  - The perception notes fired in exactly the two scrolling games, and the model used them.
+  - Bundle draws so far: 48.96, 46.48 and 50.00. Base draws: 56.00 and 42.89.
+- **GPU quota is spent until the Sat 00:00 UTC reset** (about 29.3 of 30 h used).
+  - First push after the reset: the MTP session-A notebook (scripts/build_mtp_session.py).
 
 ### State at 2026-10-09 01:40 UTC
 - **Submit today (Oct 9): exp-074t.** Yesterday's slot went unused. Link:
