@@ -3040,3 +3040,22 @@ Also:     the seven zero-level games in ten full-length runs (dc22 x2, g50t x2, 
           level 1 for the whole budget", not crashes: 24-280 actions in ~121 min, state gave_up. In exp-078 g50t the
           model spent 34 min analysing without acting, then lost its slot at a trim and was never rescheduled (D′'s
           gate deprioritises games without progress by design; exp-078 was rejected anyway).
+
+## 2026-10-10 11:27 · bimodal games (tn36, vc33, sp80, cn04): losing runs never click an object they assume inert · ANALYSED → patch I1+I2 in build
+Data:     docs/postmortems/bimodal-games-2026-10-10.md (subagent; 16 game-runs of exp073/073b/075/083, every action replayed
+          through the local engine; per-level action counts match report.json for all 16).
+Finding:  each game splits on one level (tn36 L2, vc33 L4, sp80 L2, cn04 L2). In 7 of the 8 losing game-runs the agent never
+          clicked (or clicked 48 min late) an object it had assumed inert: tn36's demo boxes, vc33's gate after it turned
+          orange, sp80's red bars, cn04's "sockets". Every run that won the level clicked that object first; in vc33 and cn04
+          the click alone won the level 1-16 min later (5 of 5). Three losing runs had written the probe down and deferred
+          it. Slot waits, parking, long thinking and tool errors did not separate winners from losers. Same top stuck mode as
+          levels2plus-exp054.md (15 of 48) and exp073b-failure-analysis.md (8 of 17).
+Proposal: two zero-action prompt notices. I1, after 10 min on a level without a level-up (then every 10 min and after each
+          GAME OVER): the action types unused on this level plus up to 6 never-clicked object kinds, new kinds first; in the
+          replay it names the critical object in 5 of the 8 losing levels and fires on 21 of 55 solved levels. I2: an object
+          other than the click target shows a colour new to the game (12 firings in 16 game-runs; all four vc33 firings are
+          on the L4 gate).
+Estimate: 4-9 levels across these 16 game-runs if the model acts on a quarter to half of the lines (inference); floor 0.
+Next:     flag-gated patch (OURS_UNTRIED) for both candidate stacks, tests, and a replay over all 25 games with the shipped
+          code; then one full-length GPU arm read first by mechanism (named object clicked within 3 actions, state change,
+          level-up within 15 min), since ~1 level per run is inside score noise.
