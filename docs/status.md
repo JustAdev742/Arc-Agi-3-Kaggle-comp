@@ -362,6 +362,10 @@ git history; Milestone 2 has closed.)
 
 ## Follow-ups noticed (not fixed on purpose)
 
+- RULE 2026-10-10: do not push a new version of `scottmahony/arc3-mtp-session-a` while any notebook mounts it
+  (exp-083 and the B1 probe pin its draft manifest's sha256 and would refuse another version). Train the next
+  draft under a new slug; turn the draft into a private Kaggle model before a final submission depends on it.
+
 - OPEN 2026-10-10: the submission's first-request grace (`ARC3_HTTP_RETRY_INITIAL_SECONDS` 900 s) covers a server
   ready up to ~31 min after the notebook start; on a slow-storage day (lesson 0038) the first 14 games could end
   before it is up. Add `--env ARC3_HTTP_RETRY_INITIAL_SECONDS=2400` at the next candidate rebuild (no effect when
