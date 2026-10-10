@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-10-10 13:28 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
+Last updated: 2026-10-10 14:31 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
 
 ## Competition facts: verified vs. unconfirmed
 
@@ -145,6 +145,16 @@ score over at least 3 draws each. A difference under 0.5 points is a tie, broken
 public 25 (scripts/arm_table.py), then the validation score. If the top two are variants of one configuration within
 noise, the second slot goes to the best configuration that differs from it (diversification against the private half).
 If fewer than two configurations reach 3 draws, the unmodified base fills the second slot.
+
+### State at 2026-10-10 14:31 UTC
+- **exp-085 (exp-084 + untried-objects notices): 53.77, 119 levels**, 2nd of 11 full-length runs; easy-10 best ever
+  (69 levels); all 4 critical levels of the post-mortem won. The model clicked a named object within 3 actions after
+  19.8% of the "not yet tried" lines (10.1% without them), one firing short of the pre-registered 20% bar, so by the
+  rule it does not replace exp-084 yet. **Replicate pushed 14:31** (version 2, ~2.3 h); its rule is in the research
+  log (14:31): pooled click rate >= 20%, >= 3 of 4 critical levels, no harm -> exp-085 replaces exp-084.
+- MTP session A2 failed (infra, research log 13:28); the adopted draft stays.
+- **LB plan (owner):** Oct 11 exp-083 (unchanged). Oct 12: exp-084, or exp-085 if the replicate passes (I will say
+  which, with the link and version, before Oct 12 00:00 UTC).
 
 ### State at 2026-10-10 11:57 UTC
 - **New arm exp-085 running** (pushed 11:56, ~2.3 GPU-h): exp-084 + the untried-objects notices (ours-10,

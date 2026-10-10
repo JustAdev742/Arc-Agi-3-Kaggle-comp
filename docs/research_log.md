@@ -3102,7 +3102,7 @@ Decision: not retried this week. v2's expected gain over the adopted draft is sm
 Note for the candidates: they start one server, with the precache running, as A2 did: today's 20-min load is inside the
           40-min first-request grace of exp-083/084/085.
 
-## 2026-10-10 14:32 · exp-085 · untried-objects notices: 53.77 / 119 levels, critical levels 4 of 4, but the click rate is 19.8% against a 20% bar · NARROW FAIL on (1) → replicate pushed
+## 2026-10-10 14:31 · exp-085 · untried-objects notices: 53.77 / 119 levels, critical levels 4 of 4, but the click rate is 19.8% against a 20% bar · NARROW FAIL on (1) → replicate pushed
 Run:      scottmahony/arc3-dprime-r14a05-h4-percept-untried-full v1 (11:56-~14:20); runs/exp085-dprime-r14a05-h4-percept-untried-full
           (report.json; "our harness patches applied successfully: 7"). Serving as exp-084: accept 3.34, 822 tok/s, 11.7 running.
 Score:    53.77, 119 levels (2nd of 11 full-length runs; bundle runs 39.73-50.00 / 95-114, base runs 42.89-56.00 / 104-124).
