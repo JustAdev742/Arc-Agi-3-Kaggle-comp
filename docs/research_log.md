@@ -2911,3 +2911,25 @@ Lead:     reasoning effort "medium" on every request (juliancamilovilla, Franzen
           before the data (entry 01:42).
 Infra:    other teams also hit Kaggle input-mount failures (lessons 0030, 0038); unpinned GPU notebooks now get image
           37c64f7d... (we pin Franzen's).
+
+## 2026-10-10 02:48 · MTP session A v2 · GO; the fine-tuned draft gains +0.24 accept length on held-out games · TRAINED (B1 queued)
+Run:      scottmahony/arc3-mtp-session-a v2 (00:50-02:18 UTC, 88 min, ~1.5 GPU-h); runs/mtp-session-a-v2 (session-a.json,
+          replica-check*.json, logs; pulled with the new paced scripts/kaggle_pull.py after the CLI drew 429s).
+Boots:    probe server 709 s; training server 1,601 s (26.7 min, weights 38/38 at 1,590 s): past the old fixed 20-min
+          limit, kept alive by the progress-aware wait (commit 8392c2e). Storage was still slow (lesson 0038).
+A5 GO:    replica vs SGLang on the 16 dumped probe requests: full context mean diff -0.039 (rule <= 0.05), Pearson 0.95
+          (>= 0.9); dense-only -0.048 / 0.94; cut to 2,048 tokens -0.094; to 256 -0.186 (so 2k training windows cost
+          ~0.05).
+Data:     training dump 53 of 75 planned snapshots (5.9M prefill tokens, 33.0 GB, stopped at the 33.5 GB cap), plus one
+          held-out snapshot per held-out game (11 games); 1,830 train windows (2.75M rows, 10 games), 447 held-out.
+A9:       356 steps in 1,776 s (planned to fit the budget). Held-out games (ar25 ft09 lp85 r11l re86 sb26 sc25 tn36), original
+          -> trained: accept realized 2.755 -> 2.995 (+0.240), greedy 2.870 -> 3.150 (+0.279), expected at T 0.7 2.770
+          -> 3.011 (+0.241); KL step 1/2/3 0.53/1.19/1.81 -> 0.25/0.48/0.67; top-1 agreement step 1/2/3 0.81/0.71/0.64
+          -> 0.86/0.79/0.75.
+A10:      the trained weights in the replica on the 16 probe requests (generic map): 2.957 vs SGLang's 2.729 with the
+          original draft (+0.228): the forecast of the probe gate, whose pass mark is +0.08.
+A11:      /kaggle/working/mtp-draft: albucino's 12 files with 26 dense tensors replaced (4.16 GB; manifest sha256
+          be8c2d3a..., dense shard 642797ac...).
+Next:     B1 = B0's build + --draft (kernel scottmahony/arc3-fidelity-reap448-arcmap-draft), read with
+          scripts/probe_accept_gate.py against B0; if it passes, a full-length arm with the draft (relaxed
+          acceptance, with the loop checks of plan 6.4 S3).
