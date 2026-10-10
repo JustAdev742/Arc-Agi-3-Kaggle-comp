@@ -6,9 +6,10 @@
 The queue file is a JSON list of items, in priority order:
 
     {"name": "exp045", "folder": "<built folder>", "kernel": "scottmahony/arc3-taaf-gate", "run": "exp045-gate",
-     "kind": "full" | "stress" | "franzen" | "probe", "after": "<name>" (optional: push only once that item was pushed),
+     "kind": "full" | "stress" | "franzen" | "probe" | "files", "after": "<name>" (optional: push only once that item was pushed),
      "requires_ok": "<run>" (optional: push only if runs/<run>/summary.json is a clean stress test; skipped if not),
-     "pull_only": true (optional: pushed elsewhere; only pull it when it finishes)}
+     "pull_only": true (optional: pushed elsewhere; only pull it when it finishes),
+     "pull_pattern": "<regex>" (kind "files": the output files to download, e.g. reports but not a 4 GB model)}
 
 Every 2 minutes it tries to push the first eligible item with scripts/push_eval.py (Kaggle refuses pushes while both
 GPU slots are busy, so a failed push just waits; a kernel already RUNNING or QUEUED counts as pushed, so a run pushed
@@ -80,6 +81,20 @@ def pull(item: dict) -> str:
             summary = {"run_name": run_name, "kernel": kernel, "status": "no_output", "log_errors": oom}
         (ROOT / "runs" / run_name / "summary.json").write_text(json.dumps(summary, indent=1) + "\n")
         return f"{name}: {summary}" + (f"\n  log: {oom}" if oom else "")
+    if item.get("kind") == "files":  # any notebook: the outputs matching item["pull_pattern"] (e.g. MTP session A)
+        out_dir = ROOT / "runs" / run_name / "kernel-output"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        run([KAGGLE, "kernels", "output", kernel, "-p", str(out_dir), "--file-pattern", item["pull_pattern"], "-q",
+             "-o"], timeout=3600)
+        files = sorted(p for p in out_dir.rglob("*") if p.is_file())
+        lines = [f"{name}: pulled {len(files)} file(s), {sum(p.stat().st_size for p in files) / 1e6:.1f} MB: "
+                 + ", ".join(str(p.relative_to(out_dir)) for p in files[:12]) + (" ..." if len(files) > 12 else "")]
+        state = out_dir / "session-a.json"  # scripts/mtp_session_a.py's record of the steps
+        if state.exists():
+            s = json.loads(state.read_text())
+            lines.append(f"  verdict {s.get('verdict')}, stopped at {s.get('stopped_at')}: {s.get('reason')}")
+            lines += [f"  {e.get('step')}: {e.get('status')}" for e in s.get("steps") or []]
+        return "\n".join(lines)
     if item.get("kind") == "probe":  # a fidelity probe (build_franzen_nb.py --probe): fidelity.json, serve.log, logs
         out_dir = ROOT / "runs" / run_name / "kernel-output"
         out_dir.mkdir(parents=True, exist_ok=True)
