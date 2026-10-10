@@ -2898,3 +2898,16 @@ Modelled: in the rerun model (110 games, 532 min, 14 slots; 200 x 4 paired draws
           pay (right: +0.17, wrong: -0.27 to -0.33); synthetic detectors pay only near AUC 0.9 with <= 1% false
           positives at entry.
 Decision: no priority patch; lesson 0039. The +8 oracle stays out of reach without a far stronger signal.
+
+## 2026-10-10 02:12 · intel refresh (docs/research/beat-tufa/intel-oct10.md): leaders up, nothing published; one lead → exp-082 · NOTED
+LB (CSV + monitor, 01:04 UTC): Yi-Chia Chen 55.77 -> 59.17, Tufa 55.89 -> 56.52 (both Oct 8 submissions), mtg 38.33
+          -> 44.32 (#3), SparseTech 29.33 -> 37.98; none of the top 11 teams' 35 members published anything since Oct 8.
+          We are at 28.87 (rank 504). D′-family draws on the LB 27.97-31.54 vs Franzen copies 25.8 +/- 3.9.
+Notebooks: no public notebook beats Franzen's 34.30; new scores above 30 are copy draws (30.75, 30.82). Prompt
+          additions, a world-model simulator, NVFP4 on SGLang (33-min start, 9.80), temperature 0.4 (22.17) and shorter
+          drains are noise or negative.
+Lead:     reasoning effort "medium" on every request (juliancamilovilla, Franzen's stack): hard 15 17 -> 32 levels,
+          easy 10 47.5 -> 41, at ~25 slot-minutes per game. Tested as exp-082 (full length, ours-09), rule fixed
+          before the data (entry 01:42).
+Infra:    other teams also hit Kaggle input-mount failures (lessons 0030, 0038); unpinned GPU notebooks now get image
+          37c64f7d... (we pin Franzen's).
