@@ -15,7 +15,8 @@ import statistics
 import sys
 from pathlib import Path
 
-HARD = set(["bp35", "cd82", "cn04", "dc22", "g50t", "ka59", "lf52", "ls20", "m0r0", "s5i5", "sk48", "sp80", "su15", "tn36", "wa30"])
+HARD = {"bp35", "cd82", "cn04", "dc22", "g50t", "ka59", "lf52", "ls20", "m0r0", "s5i5", "sk48", "sp80", "su15",
+        "tn36", "wa30"}
 
 
 def row(run: Path) -> dict:
