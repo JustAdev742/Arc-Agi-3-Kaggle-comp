@@ -2949,3 +2949,16 @@ Next:     exp-083 (pushed next): the exp-074t candidate + ARC map + this draft a
           with the plan's loop gate (6.4 S3: exact-repeat turns <= 1 per 500; "stuck in a loop" mentions, output tokens
           per request and finish_reason=length share no worse than the albucino runs) and accept/tok/s against
           exp-077/080/081 (ARC map, albucino: accept 3.14-3.15, 803-824 tok/s).
+
+## 2026-10-10 04:05 · exp-082 · reasoning effort "medium": 32.53, the lowest of nine full-length runs · DROPPED (rule)
+Run:      scottmahony/arc3-dprime-r14a05-effort-medium-full v1 (01:43-04:03 UTC, ~2.4 GPU-h); runs/exp082-...; every request
+          carried reasoning_effort medium (bp35's request log: 134 of 134). Server ready ~2.5 min after the 12-min
+          release (slow storage; costs ~1%, not the gap).
+Measured: 32.53 / 84 levels / 5,769 actions; hard 15: 29 levels (8 earlier full runs: 39-58), easy 10: 55 (56-66).
+          scripts/run_pergame.py against exp-073/073b/075/077/080/081: -16.44 (per-game SD 25.9, SE 5.2). Broad
+          losses: r11l 14 (others 64-100), ls20 4 (29-36), m0r0 0, tu93 20 (56-80), cn04 5, ar25 58; gains only vc33
+          100 and dc22 48. Serving normal (801 tok/s, accept 3.17); output tokens per request 2,063 (others 1,989-2,202)
+          and per action 999 (912-1,377): medium hardly shortened the turns at all on our stack.
+Rule:     hard-15 <= 50 -> drop. Dropped. This agrees with exp-037 (Sep 23, older harness: no gain). The competitor's
+          gains came at ~25 slot-minutes per game; at ~70 (ours and the hidden set's) the lost deliberation costs more
+          than the extra turns buy. Lesson 0040.
