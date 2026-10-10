@@ -3008,3 +3008,13 @@ Loop gate: exact repeated turns 0 of 3,022; "stuck in a loop" 4, all hypothetica
 Score:    48.83 / 114 levels (exp-081 50.00 / 113); hard 15 53 levels; within one run's noise of exp-081.
 Decision: exp-084 replaces exp-081 in the LB rotation from Oct 12 (version 1 is the completed full-length save run).
           With exp-083 (Oct 11) both candidates now carry the draft; both mount scottmahony/arc3-mtp-session-a.
+
+## 2026-10-10 06:55 · MTP session A2 · v2 draft: v1's recipe with all planned snapshots and 3 epochs · PUSHED
+Why:      the v1 training loss was still falling at the end of epoch 2 and A7 stopped at the 33.5 GB cap after 53 of 75
+          snapshots; ~19 GPU-h of this week's quota would otherwise go unused (drafter doc 12.5, option 1).
+What:     scottmahony/arc3-mtp-session-a2 (a new slug: the adopted draft's kernel stays untouched): storage.train_gb 50,
+          train/plan --epochs 3, train.minutes 130 (so the first-steps time projection does not cut the epochs),
+          session_hours 8. Same logs, held-out games and map as v1.
+Rule:     probe only if v2's held-out accept_realized beats v1's 2.995 by >= +0.03; adopt only if probe B2 beats B1 by
+          >= +0.05 in both passes with intervals above 0 (then new production runs for both candidates).
+          Check-in scheduled 09:15 UTC.
