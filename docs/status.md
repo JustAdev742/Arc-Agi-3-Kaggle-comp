@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-10-10 00:15 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
+Last updated: 2026-10-10 00:55 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
 
 ## Competition facts: verified vs. unconfirmed
 
@@ -145,6 +145,17 @@ score over at least 3 draws each. A difference under 0.5 points is a tie, broken
 public 25 (scripts/arm_table.py), then the validation score. If the top two are variants of one configuration within
 noise, the second slot goes to the best configuration that differs from it (diversification against the private half).
 If fewer than two configurations reach 3 draws, the unmodified base fills the second slot.
+
+### State at 2026-10-10 00:55 UTC
+- **MTP session A v1 stopped at A2** (00:14-00:36, ~0.4 GPU-h): the probe server was not healthy after the fixed
+  20-minute wait. Its weights were at 29 of 38 shards.
+  - Kaggle's input storage read 4-5x slower than in any earlier run, even before the server started (research log,
+    00:50). Nothing in our notebook explains it.
+  - Fixed: the wait now continues while the server log grows, up to 50 min, and stops a silent server after 20 min
+    (commit 8392c2e, 3 new tests).
+  - What did work on Kaggle: the inputs and both kernel-output mounts, the storage test, the dump patch.
+- **Session A v2 pushed at 00:50** (same notebook plus the fix). Expected 2-3 h, longer if the storage is slow again.
+- **Today (Oct 10): submit exp-081** (unchanged from the block below).
 
 ### State at 2026-10-10 00:15 UTC
 - **LB: exp-074t drew 27.97** (submission 56980485). Our unchanged D' copy drew 28.87 and D''s author 31.54. With one

@@ -2834,3 +2834,21 @@ throughput. Public-25 to LB for this config: ~49.4 -> 27.97 (ratio 0.57, inside 
 Next LB slots: exp-081 (Oct 10), then alternate with exp-074t (owner's choice of plan; reasons in the conversation:
 same notebook, different draws; averages of >= 3 draws decide).
 GPU: weekly quota reset at 00:00 UTC (0.00 of 30 h used at 00:08). MTP session A queued at 00:10.
+
+## 2026-10-10 00:50 · MTP session A v1: stopped at A2, the probe server's weights loaded 4-5x slower than usual · FAILED (infra) → v2 pushed
+Run:      scottmahony/arc3-mtp-session-a v1 (00:14-00:36 UTC, ~0.4 GPU-h); runs/mtp-session-a-v1 (session-a.json,
+          serve.log, notebook log).
+What ran: inputs OK in 3.2 s (both kernel-output mounts resolved: that open risk is closed), A0 OK (/tmp overlay 487 MB/s,
+          /dev/shm 6.6 GB/s; both dumps planned on /tmp), A1 OK (dump patch on top of REAP). A2 (probe dump server)
+          stopped by the fixed 20-minute health wait with the weights at 29 of 38 shards.
+Why:      /kaggle/input read slowly for the whole session: 26-53 s per shard (all 22 earlier D' runs: 5.3-9.2 s, full
+          load 4-6.5 min); even the 6.7 GB wheel precache, before any server started, took 31.5 s (others 7-10 s, one
+          20.7 s). The storage test fsyncs and ended 2 s earlier, so it is not the cause. Most likely shared-storage
+          contention at the weekly quota reset (Sat 00:14 UTC); not reproducible on demand.
+Fix:      budgets_min.boot (20) now stops only a server whose log has not grown for boot_stall (8) minutes; a server
+          still writing progress may take up to boot_max (50); the wait prints the shard count every 30 s. Normal boots
+          (healthy at 8-10 min, largest quiet gap 146 s of CUDA-graph capture) are unaffected. Steps' worst case 385 of
+          420 min; training time is still set from what is left. 3 new tests (slow-but-progressing boot healthy past
+          boot, quiet boot stopped, boot_max cap); commit 8392c2e.
+Next:     v2 (same notebook + this fix) pushed 00:5x via scratchpad queue-oct10b.json; read with the queue runner's
+          `files` pull.
