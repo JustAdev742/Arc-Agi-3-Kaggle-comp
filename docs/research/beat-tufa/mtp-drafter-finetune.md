@@ -988,3 +988,16 @@ Every one of the 11 held-out games and every prompt-length bucket gains in both 
   manifest's sha256 and refuse anything else, so a new version would stop them. Train the next draft under a new
   slug, and turn the draft into a private Kaggle model before a final submission depends on it.
 - A retrain is needed for any new target or REAP list (S6). It costs one session A: about 1.5 GPU-h with slow storage.
+
+### 12.4 Production (exp-083, full length, relaxed acceptance 0.5/0.5)
+- **Accept and speed.** Accept length 3.33, against 3.14-3.15 for the same config with albucino (+6%). Decode tok/s
+  at equal batch: +4-6% at 10 running requests, +2-4% at 12, about 0 at 13-14. The full-batch gain is smaller than
+  the accept gain; the cause is unmeasured. Output tok/s over the run was unchanged (804), because the run spent
+  less time at a full batch.
+- **No loops.** Exact repeated turns 0 of 3,162; "stuck in a loop" 2 mentions (albucino runs: 1-2).
+  - Turns were 12% shorter in output tokens and more frequent: 6,721 actions, the most of any run.
+  - That fits 6.4's sharpening, and it did no visible harm.
+- **Score.** 50.58 with 116 levels, 2nd of nine full-length runs.
+- **Adopted.** It replaces exp-074t in the LB rotation.
+- **A v2 draft would be cheap.** A7 stopped at the 33.5 GB cap after 53 of 75 snapshots. /tmp had 1.1 TB free, and
+  host RAM is free during training, so about twice the data fits. That needs a new slug (12.3).
