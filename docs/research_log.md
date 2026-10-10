@@ -2853,7 +2853,7 @@ Fix:      budgets_min.boot (20) now stops only a server whose log has not grown 
 Next:     v2 (same notebook + this fix) pushed 00:5x via scratchpad queue-oct10b.json; read with the queue runner's
           `files` pull.
 
-## 2026-10-10 01:31 · probe B0 · REAP-448 + ARC FR-Spec map, albucino draft: the session-B baseline; the map adds +1-2% accept · MEASURED
+## 2026-10-10 01:29 · probe B0 · REAP-448 + ARC FR-Spec map, albucino draft: the session-B baseline; the map adds +1-2% accept · MEASURED
 Run:      scottmahony/arc3-fidelity-reap448-arcmap v1 (00:55-01:26 UTC, ~0.5 GPU-h); runs/fidelity-reap448-arcmap
           (gate-vs-reap448.json). Greedy, lossless acceptance, the 154 held-out probe requests, seq then 8 in flight.
           Its fidelity.json says arm "reap448" (built before the builder labelled arms by map and draft).
