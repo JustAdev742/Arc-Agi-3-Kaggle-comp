@@ -3161,7 +3161,7 @@ Rule:     (1) the effect transfers: I1 named object clicked within 3 actions >= 
           (2) and tokens per level). All three -> exp-086 replaces exp-083 in the LB rotation from its next slot
           (Oct 13); otherwise exp-083 stays. GPU ~2.3 h (this week ~21 of 30 h before it).
 
-## 2026-10-10 19:30 · exp-086 · base candidate + untried-objects notices: 49.35 / 116, click rate 17.2%, critical levels 2 of 4 · FAILED (2) → exp-083 stays
+## 2026-10-10 19:27 · exp-086 · base candidate + untried-objects notices: 49.35 / 116, click rate 17.2%, critical levels 2 of 4 · FAILED (2) → exp-083 stays
 Run:      scottmahony/arc3-dprime-r14a05-arcmap-untried-full v1 (17:00-~19:20); runs/exp086-dprime-r14a05-arcmap-untried-full
           ("our harness patches applied successfully: 2"); normal boot (input precache 247 s, no early release). Serving
           accept 3.34, 820 tok/s.
