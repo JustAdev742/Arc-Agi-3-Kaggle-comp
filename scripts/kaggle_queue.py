@@ -52,20 +52,15 @@ def run(cmd: list[str], timeout: int = 1800) -> str:
         return "timeout"
 
 
-def download(kernel: str, out_dir: Path, pattern: str, waits=(60, 180, 420)) -> str:
-    """kaggle kernels output for the files matching PATTERN, retried when Kaggle answers 429 Too Many Requests
-    (it did on 2026-10-10 while listing a large output: the first pull got 10 of its files and stopped)."""
+def download(kernel: str, out_dir: Path, pattern: str) -> str:
+    """The kernel's output files matching PATTERN, through scripts/kaggle_pull.py: bigger listing pages with pauses
+    and backoff on 429 (`kaggle kernels output` lists 20 per page in a burst; on 2026-10-10 Kaggle answered 429 after
+    the first page of MTP session A's output and kept refusing for over 15 minutes)."""
     out_dir.mkdir(parents=True, exist_ok=True)
-    delays, text = (0, *waits), ""
-    for i, wait in enumerate(delays):
-        time.sleep(wait)
-        text = run([KAGGLE, "kernels", "output", kernel, "-p", str(out_dir), "--file-pattern", pattern, "-o"],
-                   timeout=3600)
-        if "429" not in text and "Too Many Requests" not in text:
-            return text
-        if i + 1 < len(delays):
-            print(f"{now()} {kernel}: output listing refused (429); retrying in {delays[i + 1]} s", flush=True)
-    print(f"{now()} {kernel}: still 429 after {len(delays)} attempts; the pull may be incomplete", flush=True)
+    text = run([PY, "scripts/kaggle_pull.py", kernel, str(out_dir), "--pattern", pattern], timeout=7200)
+    if "stopped after" in text:
+        print(f"{now()} {kernel}: the pull stopped early, the output may be incomplete: {text.splitlines()[-1]}",
+              flush=True)
     return text
 
 
