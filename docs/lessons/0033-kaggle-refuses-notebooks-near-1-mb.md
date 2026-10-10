@@ -1,4 +1,4 @@
-Summary: Kaggle's push API refuses a notebook of about 1.2 MB with a bare "400 Client Error: Bad Request" on SaveKernel (902-927 KB went through), so keep notebooks under ~0.9 MB: ship data as Kaggle datasets or compact encodings, not base64 blobs.
+Summary: Kaggle's push API answers a bare "400 Client Error: Bad Request" on SaveKernel for a notebook of about 1.2 MB (902-927 KB went through) and for a title over 50 characters (54 refused, 46 accepted), so keep notebooks under ~0.9 MB and titles at 50 characters or fewer; scripts/push_eval.py checks the title before pushing.
 
 # Kaggle refuses notebooks near 1 MB (2026-10-08)
 
@@ -8,7 +8,10 @@ notebook without the 270 KB map (901,831 bytes) passed validation at once: Kaggl
 session count of 2 reached", the normal busy reply. The largest notebook pushed before was 832 KB.
 
 How to apply:
-- A 400 on SaveKernel with no message means "look at the notebook itself"; first check its size.
+- A 400 on SaveKernel with no message means "look at the notebook itself"; first check its size and its title.
+- Titles (the slug with dashes as spaces) must be 50 characters or fewer: on 2026-10-10 exp-085's 54-character
+  title was refused with the same bare 400 and the same notebook went through under a 42-character slug.
+  scripts/push_eval.py refuses a longer title before it calls Kaggle (tests/test_push_eval.py).
 - Keep built notebooks under ~0.9 MB (tests/test_build_franzen_nb.py asserts it for --hot-tokens). Franzen's base is
   ~0.8 MB, so patches and data must stay small.
 - Ship binary data compactly (the FR-Spec map now travels as ~3 KB of zlib-compressed delta varints and is written

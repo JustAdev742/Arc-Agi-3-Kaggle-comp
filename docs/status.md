@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-10-10 10:19 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
+Last updated: 2026-10-10 11:57 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
 
 ## Competition facts: verified vs. unconfirmed
 
@@ -145,6 +145,15 @@ score over at least 3 draws each. A difference under 0.5 points is a tie, broken
 public 25 (scripts/arm_table.py), then the validation score. If the top two are variants of one configuration within
 noise, the second slot goes to the best configuration that differs from it (diversification against the private half).
 If fewer than two configurations reach 3 draws, the unmodified base fills the second slot.
+
+### State at 2026-10-10 11:57 UTC
+- **New arm exp-085 running** (pushed 11:56, ~2.3 GPU-h): exp-084 + the untried-objects notices (ours-10,
+  OURS_UNTRIED=1). It comes from a post-mortem of four bimodal public games: in 7 of 8 losing runs the agent never
+  clicked an object it assumed inert (docs/postmortems/bimodal-games-2026-10-10.md). Read first by mechanism (does the
+  model click the named objects?); the rule is in the research log (11:57). If it passes, it replaces exp-084 in the
+  LB rotation.
+- MTP session A2 still running at 11:51 (limit 14:53); check-ins every ~30 min.
+- LB plan unchanged: Oct 11 exp-083, Oct 12 exp-084 (or exp-085 if it passes by then), then alternate.
 
 ### State at 2026-10-10 10:19 UTC
 - **LB: exp-081 drew 34.04** (submission 57026621), our best draw (rank 25 of 4,089). exp-074t drew 27.97 and the

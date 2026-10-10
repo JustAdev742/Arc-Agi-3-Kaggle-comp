@@ -3059,3 +3059,25 @@ Estimate: 4-9 levels across these 16 game-runs if the model acts on a quarter to
 Next:     flag-gated patch (OURS_UNTRIED) for both candidate stacks, tests, and a replay over all 25 games with the shipped
           code; then one full-length GPU arm read first by mechanism (named object clicked within 3 actions, state change,
           level-up within 15 min), since ~1 level per run is inside score noise.
+
+## 2026-10-10 11:57 · exp-085 · exp-084 + ours-10 untried-objects notices (OURS_UNTRIED=1), full length · RUNNING (rule fixed before the data)
+What:     scottmahony/arc3-dprime-r14a05-h4-percept-untried-full v1 (pushed 11:56): exp-084's exact build plus
+          kaggle/franzen/patches/ours-10-untried.patch (sha256 a3a7d89f) and OURS_UNTRIED=1. I1: after 10 min on a level
+          without a level-up (then every 10 min, and at a GAME OVER past that mark), "Not yet tried on this level: <unused
+          action types>; no click has hit <up to 6 object kinds, new on this level first>. Each is a one-action test of
+          whether it is interactive." I2: "After <action>, <object> turned <colour>, a colour new to this game; no click has
+          hit it since." Zero actions; ~100 tokens per I1, ~40 per I2 (replay). Patch doc docs/research/beat-tufa/patch-untried.md;
+          33 tests; the replay with the shipped module names all 7 critical objects of the post-mortem.
+          (The first push, with a 54-character title, drew a bare 400 on SaveKernel; push_eval.py now refuses titles over
+          50 characters, lesson 0033.)
+Read (fixed now):
+          (1) mechanism, per firing from the prompt logs: named object clicked within 3 actions, the click changed the board,
+              level-up within 15 min. Baselines from the replay of exp073b/075/083 (no lines): clicked within 3 actions I1
+              10% (32/318), I2 14% (5/37); level-up within 15 min I1 36%, I2 54%. PASS if the model acts on the lines: I1
+              >= 20% or I2 >= 28% clicked within 3 actions.
+          (2) the four critical levels (tn36 L2, vc33 L4, sp80 L2, cn04 L2): won 2.0 of 4 per run in the base family,
+              3 (exp-081) and 2 (exp-084) in the bundle family.
+          (3) no harm: levels >= 108 and score >= 44 (exp-084 48.83 / 114; exp-081 50.00 / 113; one run's SD ~4.5).
+Decision: if (1) passes and (3) holds, exp-085 replaces exp-084 in the LB rotation from the next free slot (a gain of
+          ~1-2 levels per run cannot be read from one run's score; the LB draws then decide). Otherwise the patch stays off.
+GPU:      ~2.3 h (this week ~16.5 of 30 h with MTP session A2, still running).

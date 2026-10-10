@@ -43,6 +43,21 @@ def _log_attempt(folder: Path, ref: str, resp, error: str) -> None:
         f.write(json.dumps(row) + "\n")
 
 
+MAX_TITLE = 50  # 2026-10-10: a 54-character title drew a bare "400 Bad Request" on SaveKernel; 46 went through
+
+
+def preflight(meta: dict, nb: dict) -> str:
+    """Why Kaggle would refuse or misplace this push ('' when none): the accelerator and the title length."""
+    acc = nb.get("metadata", {}).get("kaggle", {}).get("accelerator")
+    if acc != "nvidiaRtxPro6000":
+        return f"notebook metadata accelerator is {acc!r}, expected 'nvidiaRtxPro6000'; rebuild it"
+    title = str(meta.get("title", ""))
+    if len(title) > MAX_TITLE:
+        return (f"title {title!r} has {len(title)} characters; Kaggle refuses more than {MAX_TITLE} with a bare 400 "
+                "on SaveKernel (lesson 0033): rebuild with a shorter --slug")
+    return ""
+
+
 def main() -> None:
     if len(sys.argv) < 2:
         print(__doc__)
@@ -50,9 +65,9 @@ def main() -> None:
     folder = Path(sys.argv[1])
     meta = json.loads((folder / "kernel-metadata.json").read_text())
     nb = json.loads((folder / meta["code_file"]).read_text())
-    acc = nb.get("metadata", {}).get("kaggle", {}).get("accelerator")
-    if acc != "nvidiaRtxPro6000":
-        raise SystemExit(f"notebook metadata accelerator is {acc!r}, expected 'nvidiaRtxPro6000'; rebuild it")
+    problem = preflight(meta, nb)
+    if problem:
+        raise SystemExit(problem)
     env = dict(os.environ)
     token = ROOT / ".kaggle" / "access_token"
     if token.exists() and not env.get("KAGGLE_API_TOKEN"):
