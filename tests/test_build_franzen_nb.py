@@ -467,7 +467,7 @@ def test_probe_replaces_the_benchmark_and_checks_its_prompts_before_the_server_s
     assert probe.startswith(bf.PROBE_BEGIN) and "arc3_probe.run(" in probe and "TRUE_SUBMISSION" in probe
     assert "arm='base', expect_num_experts=None," in probe
     assert "max_tokens=192, top_logprobs=5, concurrency=8, max_minutes=150," in probe
-    assert "health_deadline=NOTEBOOK_START_TIME + 30 * 60)" in probe and "alive=lambda: proc.poll() is None" in probe
+    assert "health_deadline=NOTEBOOK_START_TIME + 55 * 60)" in probe and "alive=lambda: proc.poll() is None" in probe
     nb = json.loads((tmp_path / "p" / "p.ipynb").read_text())
     codes = ["".join(c["source"]) for c in nb["cells"] if c["cell_type"] == "code"]
     assert not any(bf.PROBE_RUN_ANCHOR in c for c in codes)

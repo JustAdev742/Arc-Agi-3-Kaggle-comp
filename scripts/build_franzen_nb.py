@@ -154,7 +154,7 @@ PROBE_SCRIPT = ROOT / "scripts" / "fidelity_probe.py"
 PROBE_FILE = "/kaggle/arc3-fidelity-probe.py"
 PROBE_BEGIN = "# >>> ours (--probe)"
 PROBE_END = "# <<< ours (--probe)"
-PROBE_PARAMS = {"max_tokens": 192, "top_logprobs": 5, "concurrency": 8, "health_minutes": 30, "data_wait_s": 300,
+PROBE_PARAMS = {"max_tokens": 192, "top_logprobs": 5, "concurrency": 8, "health_minutes": 55, "data_wait_s": 300,
                 "max_minutes": 150}
 # --model: serve another checkpoint of the same architecture and format in place of Intel's W4A16 (cell 4's MODEL_DIR
 # and the kernel's model source); the MTP draft stays his albucino checkpoint
@@ -179,7 +179,7 @@ MODEL_END = "# <<< ours (--model)"
 # --fail-fast: a test arm ends when its server is gone (his notebook plays on without one, by design for the rerun)
 FAIL_FAST_BEGIN = "# >>> ours (--fail-fast)"
 FAIL_FAST_END = "# <<< ours (--fail-fast)"
-FAIL_FAST_HEALTH_MINUTES = 35
+FAIL_FAST_HEALTH_MINUTES = 55  # from the notebook start; MTP session A v1 (2026-10-10) needed ~27 min to load weights
 # --hot-tokens: the MTP draft's FR-Spec vocabulary (his launcher takes Pennyroyal's generic 64k map and checks its sha)
 HOT_MAP_FILE = "/kaggle/arc3-hot-tokens.pt"
 HOT_SHA_RE = re.compile(r'^TOKEN_MAP_SHA = "([0-9a-f]{64})"$', re.M)
