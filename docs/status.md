@@ -154,7 +154,8 @@ If fewer than two configurations reach 3 draws, the unmodified base fills the se
 - **LB plan (owner):** Oct 11 exp-083 (version 1); **Oct 12 exp-085**:
   https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-h4-percept-untried-full (version 1 or 2, same code);
   then alternate exp-083 / exp-085.
-- GPU this week ~21 of 30 h. Nothing running.
+- GPU this week ~21 of 30 h. **Running: exp-086** (exp-083 + the same notices, pushed 17:00, ~2.3 h); if it passes
+  its rule (research log 17:00) it replaces exp-083 from Oct 13.
 
 ### State at 2026-10-10 14:31 UTC
 - **exp-085 (exp-084 + untried-objects notices): 53.77, 119 levels**, 2nd of 11 full-length runs; easy-10 best ever

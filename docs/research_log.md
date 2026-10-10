@@ -3148,3 +3148,15 @@ Decision: exp-085 replaces exp-084 in the LB rotation from Oct 12 (both versions
           would click those objects anyway) and the critical levels. scripts/build_candidates.sh now rebuilds exp-085 byte
           for byte (tests pin it). Follow-up: a later build should drop I2 (OURS_UNTRIED=i1) since it draws no clicks.
 GPU:      this week about 21 h of 30 (A2's 5-h hold before its first cell may or may not have counted).
+
+## 2026-10-10 17:00 · exp-086 · exp-083 (base candidate) + ours-10 untried-objects notices, full length · RUNNING (rule fixed before the data)
+Why:      the notices worked on the bundle stack (exp-085, 16:59); nothing in them depends on the bundle, and the base
+          candidate exp-083 holds the other LB slot. If they transfer, the base slot should carry them too.
+What:     exp-083's exact build (scripts/build_candidates.sh flags) + --patch ours-10-untried.patch + OURS_UNTRIED=1 (I1 and
+          I2, as tested), slug arc3-dprime-r14a05-arcmap-untried-full.
+Rule:     (1) the effect transfers: I1 named object clicked within 3 actions >= 15% of the lines shown (scripts/untried_read.py;
+          1.5x the 10.1% baseline: the effect itself is already established on the bundle stack); (2) critical levels
+          (tn36 L2, vc33 L4, sp80 L2, cn04 L2) >= 3 of 4; (3) no harm against the base family (exp-073/073b/075/083:
+          42.89-56.00, 104-124 levels): levels >= 108 and score >= 44, unless the run's boot was slow (then judged on (1),
+          (2) and tokens per level). All three -> exp-086 replaces exp-083 in the LB rotation from its next slot
+          (Oct 13); otherwise exp-083 stays. GPU ~2.3 h (this week ~21 of 30 h before it).
