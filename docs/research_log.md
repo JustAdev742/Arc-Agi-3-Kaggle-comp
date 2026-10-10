@@ -3101,3 +3101,27 @@ Decision: not retried this week. v2's expected gain over the adopted draft is sm
           v2, accept 3.33 in exp-083/084) stays. Follow-up recorded in docs/status.md.
 Note for the candidates: they start one server, with the precache running, as A2 did: today's 20-min load is inside the
           40-min first-request grace of exp-083/084/085.
+
+## 2026-10-10 14:32 · exp-085 · untried-objects notices: 53.77 / 119 levels, critical levels 4 of 4, but the click rate is 19.8% against a 20% bar · NARROW FAIL on (1) → replicate pushed
+Run:      scottmahony/arc3-dprime-r14a05-h4-percept-untried-full v1 (11:56-~14:20); runs/exp085-dprime-r14a05-h4-percept-untried-full
+          (report.json; "our harness patches applied successfully: 7"). Serving as exp-084: accept 3.34, 822 tok/s, 11.7 running.
+Score:    53.77, 119 levels (2nd of 11 full-length runs; bundle runs 39.73-50.00 / 95-114, base runs 42.89-56.00 / 104-124).
+          Easy 10: 69 levels / 91.57, the best of all runs (others 56-66); hard 15: 50 levels / 28.57 (others 39-58).
+(1) mechanism, from the lines the model actually saw (new scripts/untried_read.py: each "[USER PROMPT]" with the line,
+          its "step N" = entries seen, the board replayed to entry N-1; all 492 named I1 entries matched an object):
+          I1 101 firings: named object clicked within 3 actions 20 (19.8%; baseline without lines 32/318 = 10.1%, two-sided
+          p ~0.02), 10 of those clicks changed the board, a named unused action used 14 (13.9%; baseline 13%), level-up within
+          15 min 40 (39.6%; baseline 36%). I2 12 firings: 1 click (8%; baseline 14%), level-up 8 (67%; baseline 54%).
+          The bar was I1 >= 20% or I2 >= 28%: I1 misses by 0.2 points (one firing), I2 clearly. The replay-reconstructed
+          count (scripts/untried_replay.py on this run) gives 20/107 = 18.7%.
+(2) critical levels: all 4 won (tn36 L2, vc33 L4, sp80 L2, cn04 L2; base family 2.0 per run, exp-081 3, exp-084 2).
+          Attributable to a line within 3 actions: sp80 L2 (step 43: the line named "R r16-19 c8-19 x2", the next action
+          clicked row 17 col 10, the red bar; then the L3 and L4 lines also drew red-bar clicks with level-ups) and tn36 L2
+          in part (two clicks on named objects, no state change). vc33 L4: I2 named the gate at step 62, no click within 3.
+(3) no harm: 119 >= 108 and 53.77 >= 44: PASS.
+Decision: by the rule fixed at 11:57, (1) fails narrowly, so exp-085 does not replace exp-084 now. One replicate decides:
+          version 2 of the same notebook pushed 14:31 (same build, same flag). Rule for it (fixed now, before its data):
+          (1) pooled I1 click rate over both runs' actual firings >= 20% (the same bar; scripts/untried_read.py);
+          (2) the replicate wins >= 3 of the 4 critical levels; (3) the replicate keeps levels >= 108 and score >= 44.
+          All three -> exp-085 replaces exp-084 in the LB rotation from the next free slot; otherwise the patch stays off.
+          I2 drew 1 click in 12 firings: if the patch is kept, a later build should keep I1 only (OURS_UNTRIED=i1).
