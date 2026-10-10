@@ -357,9 +357,14 @@ champion preset are superseded by the move to the Duck family; they are in this 
 
 ## Follow-ups noticed (not fixed on purpose)
 
+- OPEN 2026-10-10: the submission's first-request grace (`ARC3_HTTP_RETRY_INITIAL_SECONDS` 900 s) covers a server
+  ready up to ~31 min after the notebook start; on a slow-storage day (lesson 0038) the first 14 games could end
+  before it is up. Add `--env ARC3_HTTP_RETRY_INITIAL_SECONDS=2400` at the next candidate rebuild (no effect when
+  the server is up in time). Not done now: it would need new save runs of both LB candidates mid-alternation.
+
 - DONE 2026-10-08: gate/test arms kept playing their whole budget after the SGLang server died (exp-072j: ~0.7
   GPU-h). scripts/build_franzen_nb.py --fail-fast (needs --full25; off in a rerun) now exits the kernel when the
-  server process has exited or was never healthy 35 min after the start.
+  server process has exited or was never healthy 35 min after the start (55 min since 2026-10-10).
 
 - Rental runner image (checked 2026-10-07 from the registry's image config, no pull): `gcr.io/kaggle-gpu-images/
   python:v170` is Python 3.12 (`/usr/local/lib/python3.12/dist-packages`), CUDA 12.8, built 2026-06-29, so the M2
