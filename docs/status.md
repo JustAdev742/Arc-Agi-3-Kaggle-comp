@@ -328,32 +328,25 @@ His open-sourced solution (LB 27.89) replaces our vLLM fork as the base; the old
 
 ## Open items (need you)
 
-Current as of 2026-09-23 14:30 UTC. (The earlier items about our own REPL harness, the rtx6000 queue stall and the
-champion preset are superseded by the move to the Duck family; they are in this file's git history.)
+Current as of 2026-10-10 01:03 UTC. (The Sep 23 list, about Milestone 2 and the Duck-family base, is in this file's
+git history; Milestone 2 has closed.)
 
-1. **Milestone 2 (closes 2026-09-30): I recommend not entering.** An entry must be a public notebook under an open
-   license. Our best measured configuration is the unmodified public base (7.86 on the public 25; Duck-family
-   notebooks score about 5-8 on the leaderboard) against a leader at about 19, so a prize is out of reach, and
-   publishing our fork would give away our only differentiated work (the P21 gate, if it proves out). Say so if you
-   want an entry anyway for the visibility; making anything public waits for your word.
-   **The other side of Milestone 2:** entries must be public notebooks by 2026-09-30, so the top teams' current
-   notebooks may become readable this week. If one scores well above our Duck base, adopting it (within its
-   license) is worth more than any patch of ours; I check the public notebook list at each daily check-in.
-2. **GPU quota is the binding constraint: 30 h per week, resetting Saturdays 00:00 UTC.** A full public-25 run costs
-   about 2.5 h, so about 10 full runs a week; single runs differ by about 2.3 points (sd of a difference), so only
-   large effects or clear mechanism changes can be read from one run. **Rented GPUs (2026-09-29): the runner is built**
-   (scripts/rental.py, docs/research/rental-runner.md): our exact notebooks on vast.ai 1-GPU RTX PRO 6000 boxes,
-   about $4.5-5 per public-25 run. You are saving up for it; when ready: a vast.ai account with credit, its API key
-   in `.vast/api_key`, and a new Kaggle token after each rental (the token travels to the box). I quote each batch
-   and rent nothing without your OK; the first rental run is exp-054 unchanged, to calibrate against Kaggle.
-3. **Kaggle's API cannot cancel a running notebook** (the cancel call needs a session id no public call returns; the
-   site's internal endpoint refuses API tokens). A run that should be stopped (like exp-036/039 today, which carry the
-   harmful P4) can only be cancelled from the browser: https://www.kaggle.com/code/scottmahony/arc3-taaf-ours-c and
-   .../arc3-taaf-ours-d (both end on their own about 15:30 and 16:00 UTC today).
-4. **Daily submissions:** 1 per day, 2 final selections (verified on the Rules tab). Tonight's slot (00:03 UTC) is
-   used by a pre-registered rule (research log): a P21 arm if its mechanism and score check out, else the base.
-5. For future sessions put the Kaggle token in the environment as `KAGGLE_API_TOKEN`; consider regenerating it after
-   the competition since it passed through a chat upload.
+1. **Daily LB submission (1 a day; you submit by hand).** Alternate the two candidates so each gets at least 3 draws;
+   the final-selection rule is pre-registered under "Plan for the week of 2026-09-26":
+   - exp-081 (harness bundle + perception): https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-harness4-percept-full
+     (today, Oct 10);
+   - exp-074t (base candidate): https://www.kaggle.com/code/scottmahony/arc3-dprime-reap448-r14-accept05 (Oct 11);
+   - then alternate. Draws so far: exp-074t 27.97; our unchanged D' copy 28.87.
+2. **Rented GPUs (optional, your money).** The vast.ai runner is built (scripts/rental.py): our exact notebooks on a
+   1-GPU RTX PRO 6000, about $4.5-5 per public-25 run. More repeats are the only way to read effects of 1-3 points;
+   Kaggle's 30 h/week gives about 10 runs. Nothing is rented without your OK (a vast.ai account with credit, its key
+   in `.vast/api_key`, and a fresh Kaggle token after each rental).
+3. **Post-training (optional, your money; plan.md lever 9).** The leaders' policy is about 1.6-1.8x ours on unseen
+   games and the likeliest reason is a trained model. A fine-tune of Flash-Next needs a multi-GPU node (8x H200/B200
+   class, roughly $20-40/hour for one to several days). I will not start it without your explicit OK and budget.
+4. **Housekeeping (optional):** a stray folder `/sa079` (exp-079 transcripts, written outside the repo by a
+   mis-set variable) can be deleted; a safety check blocked me from removing it. After the competition, regenerate
+   the Kaggle token (it passed through a chat upload).
 
 ## Follow-ups noticed (not fixed on purpose)
 
