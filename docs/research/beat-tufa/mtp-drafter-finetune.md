@@ -1001,3 +1001,24 @@ Every one of the 11 held-out games and every prompt-length bucket gains in both 
 - **Adopted.** It replaces exp-074t in the LB rotation.
 - **A v2 draft would be cheap.** A7 stopped at the 33.5 GB cap after 53 of 75 snapshots. /tmp had 1.1 TB free, and
   host RAM is free during training, so about twice the data fits. That needs a new slug (12.3).
+
+### 12.5 exp-084 and the case for a v2 draft
+- **exp-084.** The exp-081 bundle plus the draft: accept 3.33 (exp-081 3.14). Decode tok/s at equal batch rose +8%
+  at 8 running requests, +6% at 10, +4% at 12 and +3.5% at 13-14. No exact repeats in 3,022 turns. Score 48.83
+  (exp-081: 50.00). Adopted as well, so both LB candidates now carry the draft.
+- **Training curve (A9-train.log).**
+  - Loss fell from 1.08 to ~0.40 by the end of epoch 1 and to ~0.31-0.36 in epoch 2, still falling slowly as the
+    cosine schedule ran out.
+  - Held-out KL at step 1 was 0.25 against ~0.20-0.26 on training data: a small generalization gap.
+- **v2 options.** Each costs one session A (~1.5 GPU-h), one probe (~0.6) and production checks (~2.5 per candidate).
+  1. *More data, same recipe.* All 75 planned snapshots (A7 stopped at 53 on the 33.5 GB cap) and 3 epochs.
+     Probably a few hundredths of accept length.
+  2. *Longer context.* The A5 replica lost 0.19 accept at 256 tokens of context and 0.09 at 2,048, against full
+     context. The draft trains on 256-row contexts while it serves with full context, which may cost it.
+     - The dump stores 256 context rows per span, so 1-2k rows multiply dump size 4-8x.
+     - Fewer spans, or FP8 at a bigger /tmp cap (1.1 TB free) with streaming instead of RAM-resident training, would
+       be needed.
+  3. *More traffic.* Add exp-083/084's request logs (loop-free; the KL target is the target's logits, so draft-biased
+     samples only choose contexts).
+- **Status.** Not started. Expected gain is small next to its ~7 GPU-h with checks. It is the first thing to run if a
+  week's quota is otherwise idle. It must use a new slug.
