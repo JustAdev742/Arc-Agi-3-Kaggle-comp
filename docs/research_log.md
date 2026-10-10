@@ -2852,3 +2852,17 @@ Fix:      budgets_min.boot (20) now stops only a server whose log has not grown 
           boot, quiet boot stopped, boot_max cap); commit 8392c2e.
 Next:     v2 (same notebook + this fix) pushed 00:5x via scratchpad queue-oct10b.json; read with the queue runner's
           `files` pull.
+
+## 2026-10-10 01:31 · probe B0 · REAP-448 + ARC FR-Spec map, albucino draft: the session-B baseline; the map adds +1-2% accept · MEASURED
+Run:      scottmahony/arc3-fidelity-reap448-arcmap v1 (00:55-01:26 UTC, ~0.5 GPU-h); runs/fidelity-reap448-arcmap
+          (gate-vs-reap448.json). Greedy, lossless acceptance, the 154 held-out probe requests, seq then 8 in flight.
+          Its fidelity.json says arm "reap448" (built before the builder labelled arms by map and draft).
+Measured: 154/154 in both passes; accept seq 2.827, conc 2.804. Against fidelity-reap448 (same server, generic map;
+          scripts/probe_accept_gate.py): seq +0.053 [+0.014, +0.092] (pooled x1.022), conc +0.019 [-0.018, +0.055]
+          (x1.005); the run-to-run floor is +0.025 / -0.030. Production agreed: accept 3.15 with the map vs 3.09-3.10
+          without (exp-077/080 vs exp-073b/075).
+Storage:  still slow at 00:55-01:10: weights 10:14 (15-16 s/shard; normal 4-6.5 min), model precache 613 s (normal
+          222-378 s); the server was healthy 15.3 min after the notebook start, past the 12-min benchmark release
+          (lesson 0038). The 55-minute probe limit (commit 0a595b7) was not needed this time.
+Use:      B0 is the baseline the trained draft must beat (B1: same build plus --draft; gate: mean >= +0.08 with the
+          interval above 0 in both passes, 0 failed).

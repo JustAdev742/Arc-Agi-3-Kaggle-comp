@@ -6,6 +6,8 @@ What happened: MTP session A v1 (Sat 2026-10-10, 00:14 UTC, right after the week
 26-53 s per safetensors shard; all 22 earlier D' runs read 5.3-9.2 s per shard (full load 4-6.5 min). The slowness
 was there before any server started: the 6.7 GB wheel precache took 31.5 s (others 7-10 s). The session's fixed
 20-minute health wait stopped the server at 29 of 38 shards. Nothing in the notebook explained it.
+The probe pushed 40 minutes later (00:55) was still about 2x slow (weights 10:14, healthy 15.3 min after the start,
+past the 12-minute release), so the slowness lasted at least an hour after the Saturday reset.
 
 Where a slow boot bites:
 - Our own waits: the session-A health wait (now: stops only a server whose log stops growing, up to 50 min), the
