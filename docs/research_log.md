@@ -2867,7 +2867,7 @@ Storage:  still slow at 00:55-01:10: weights 10:14 (15-16 s/shard; normal 4-6.5 
 Use:      B0 is the baseline the trained draft must beat (B1: same build plus --draft; gate: mean >= +0.08 with the
           interval above 0 in both passes, 0 failed).
 
-## 2026-10-10 01:44 · exp-082 · reasoning effort "medium" on every request (ours-09), full length · PUSHED (rule fixed before the data)
+## 2026-10-10 01:42 · exp-082 · reasoning effort "medium" on every request (ours-09), full length · PUSHED (rule fixed before the data)
 Why:      intel-oct10.md candidate 1. juliancamilovilla's single-knob runs on Franzen's stack: hard 15 games 17 -> 32
           levels (9 up, 1 down; 37.5 min/game), easy 10 47.5 -> 41 (25 min/game); medium cuts the long-thinking tail
           (p90 completion 5.4k -> 3.4k tokens) and leaves the median turn alone. Against it: our exp-037 (Sep 23,
