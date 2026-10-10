@@ -328,6 +328,8 @@ Our session A also saw 4-5× slower input reads at 00:14 Oct 10 (lesson 0038). O
 
 ### Candidate 1: static reasoning effort "medium" (the only one worth GPU time)
 
+**Tested 2026-10-10 (exp-082, full length): 32.53, the lowest of nine full-length runs; hard 15 29 levels (39-58 before). Dropped by the rule below; lesson 0040.**
+
 - **The change.**
   - A 5-line patch: `kaggle/franzen/patches/ours-09-static-effort.patch`, our own text and not a copy of E1's.
   - Where it goes: in `tool_agent.py`'s chat-template-kwargs builder, before the ladder lines:
