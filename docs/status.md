@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-10-10 00:51 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
+Last updated: 2026-10-10 02:54 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
 
 ## Competition facts: verified vs. unconfirmed
 
@@ -145,6 +145,18 @@ score over at least 3 draws each. A difference under 0.5 points is a tie, broken
 public 25 (scripts/arm_table.py), then the validation score. If the top two are variants of one configuration within
 noise, the second slot goes to the best configuration that differs from it (diversification against the private half).
 If fewer than two configurations reach 3 draws, the unmodified base fills the second slot.
+
+### State at 2026-10-10 02:54 UTC
+- **MTP session A v2: GO, draft trained.** Held-out accept length 2.755 -> 2.995 (+0.24); the replica's forecast of
+  the probe gate is +0.21-0.23 (pass mark +0.08). Training server boot took 26.7 min (slow storage again); the new
+  wait handled it. Outputs pulled with the new paced scripts/kaggle_pull.py (the CLI drew 429s).
+- **Running on Kaggle:**
+  - B1 probe (pushed 02:50): B0 + the trained draft; read against B0 with scripts/probe_accept_gate.py.
+  - exp-082 (pushed 01:43, ~04:15): reasoning effort "medium" at full length; rule fixed in the research log.
+- **Ready to push when B1 passes:** exp-083 = the exp-074t candidate + ARC map + trained draft + 40-min first-request
+  grace, full length (relaxed acceptance as the candidate; read accept, tok/s and the plan's loop checks).
+- **Closed today:** early hopeless-level signal (no patch, lesson 0039); probe B0 (the ARC map alone: +1-2% accept).
+- **LB (owner):** submit exp-081 today, exp-074t tomorrow (links under "Open items").
 
 ### State at 2026-10-10 00:51 UTC
 - **MTP session A v1 stopped at A2** (00:14-00:36, ~0.4 GPU-h): the probe server was not healthy after the fixed
