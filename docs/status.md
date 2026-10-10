@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-10-10 06:49 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
+Last updated: 2026-10-10 10:19 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
 
 ## Competition facts: verified vs. unconfirmed
 
@@ -145,6 +145,12 @@ score over at least 3 draws each. A difference under 0.5 points is a tie, broken
 public 25 (scripts/arm_table.py), then the validation score. If the top two are variants of one configuration within
 noise, the second slot goes to the best configuration that differs from it (diversification against the private half).
 If fewer than two configurations reach 3 draws, the unmodified base fills the second slot.
+
+### State at 2026-10-10 10:19 UTC
+- **LB: exp-081 drew 34.04** (submission 57026621), our best draw (rank 25 of 4,089). exp-074t drew 27.97 and the
+  D′ copy 28.87; one draw each, so the +6 is suggestive only. The top two are Yi-Chia Chen 62.96 and Tufa Labs 56.52.
+- **LB plan (owner), unchanged:** Oct 11 exp-083, Oct 12 exp-084, then alternate (links under "Open items").
+- MTP session A2 still running at 10:17 (its limit is 14:53); check-in 10:48.
 
 ### State at 2026-10-10 06:49 UTC
 - **Both LB candidates now carry the fine-tuned MTP draft** (accept 3.14 -> 3.33; decode +3.5-8% at equal batch; no
@@ -381,7 +387,7 @@ git history; Milestone 2 has closed.)
      https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-harness4-percept-draft-full;
    - exp-083 (base candidate + fine-tuned draft; replaces exp-074t from Oct 11):
      https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-arcmap-draft-full;
-   - then alternate. Draws so far: exp-074t 27.97; our unchanged D' copy 28.87.
+   - then alternate. Draws so far: exp-081 34.04 (Oct 10); exp-074t 27.97; our unchanged D' copy 28.87.
 2. **Rented GPUs (optional, your money).** The vast.ai runner is built (scripts/rental.py): our exact notebooks on a
    1-GPU RTX PRO 6000, about $4.5-5 per public-25 run. More repeats are the only way to read effects of 1-3 points;
    Kaggle's 30 h/week gives about 10 runs. Nothing is rented without your OK (a vast.ai account with credit, its key

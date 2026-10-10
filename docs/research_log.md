@@ -3018,3 +3018,13 @@ What:     scottmahony/arc3-mtp-session-a2 (a new slug: the adopted draft's kerne
 Rule:     probe only if v2's held-out accept_realized beats v1's 2.995 by >= +0.03; adopt only if probe B2 beats B1 by
           >= +0.05 in both passes with intervals above 0 (then new production runs for both candidates).
           Check-in scheduled 09:15 UTC.
+
+## 2026-10-10 10:19 · LB: exp-081 drew 34.04 (submission 57026621) · READ (1 draw)
+exp-081 (D′ + REAP-448 + 14 streams + acceptance 0.5/0.5 + sandbox fix + harness bundle 02/04/03b/05/08b + ARC map,
+RESET not exposed; notebook arc3-dprime-r14a05-harness4-percept-full, script version 356590073, submitted by the owner
+01:08 UTC): **34.04**, rank 25 of 4,089, our best draw (exp-074t 27.97, unchanged D′ copy 28.87). The +6.1 over
+exp-074t is about 1.1 SD of a two-draw difference (~5.5): suggestive, not decisive. Public-25 to LB: 50.00 -> 34.04
+(ratio 0.68; exp-074t's was 0.57, the intel-oct8 band 0.55-0.62).
+Leaderboard at 10:18 UTC: Yi-Chia Chen 62.96 (+3.79 since 01:04), Tufa Labs 56.52, mtg 44.32, Majkel1337 42.66,
+NVARC3 40.97; 20 teams >= 35, 346 >= 30. Gap to #1 28.9, to Tufa 22.5.
+Next LB slots unchanged: Oct 11 exp-083 (exp-074t's draft version), Oct 12 exp-084 (exp-081's), then alternate.
