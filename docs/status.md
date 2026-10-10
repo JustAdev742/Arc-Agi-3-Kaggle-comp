@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-10-10 11:57 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
+Last updated: 2026-10-10 13:28 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
 
 ## Competition facts: verified vs. unconfirmed
 
@@ -152,7 +152,9 @@ If fewer than two configurations reach 3 draws, the unmodified base fills the se
   clicked an object it assumed inert (docs/postmortems/bimodal-games-2026-10-10.md). Read first by mechanism (does the
   model click the named objects?); the rule is in the research log (11:57). If it passes, it replaces exp-084 in the
   LB rotation.
-- MTP session A2 still running at 11:51 (limit 14:53); check-ins every ~30 min.
+- MTP session A2 **failed (infra)**: Kaggle held it ~5 h before its first cell ran (11:49), then the second server's
+  weights loaded at ~2.3 min per shard on cold cache and the session stopped at A6 (research log 13:28). Not retried
+  this week; the adopted draft stays.
 - LB plan unchanged: Oct 11 exp-083, Oct 12 exp-084 (or exp-085 if it passes by then), then alternate.
 
 ### State at 2026-10-10 10:19 UTC
@@ -412,6 +414,11 @@ git history; Milestone 2 has closed.)
    the Kaggle token (it passed through a chat upload).
 
 ## Follow-ups noticed (not fixed on purpose)
+
+- OPEN 2026-10-10: MTP session A's runner restarts the model server between the probe dump (A2) and the training dump
+  (A6); on a slow-storage day the second load reads cold cache at ~8-9 MB/s (lesson 0038). Before any retry of a v2
+  draft (all snapshots, 3 epochs: scripts/build_mtp_session.py --slug arc3-mtp-session-a3 ...), re-read the model
+  shards sequentially before each server start (or raise boot_max for A6). Expected gain of v2 is small.
 
 - RULE 2026-10-10: do not push a new version of `scottmahony/arc3-mtp-session-a` while any notebook mounts it
   (exp-083 and the B1 probe pin its draft manifest's sha256 and would refuse another version). Train the next

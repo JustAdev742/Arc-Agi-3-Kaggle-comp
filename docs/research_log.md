@@ -3081,3 +3081,23 @@ Read (fixed now):
 Decision: if (1) passes and (3) holds, exp-085 replaces exp-084 in the LB rotation from the next free slot (a gain of
           ~1-2 levels per run cannot be read from one run's score; the LB draws then decide). Otherwise the patch stays off.
 GPU:      ~2.3 h (this week ~16.5 of 30 h with MTP session A2, still running).
+
+## 2026-10-10 13:28 · MTP session A2 · stopped at A6: the second server's weights loaded at ~2.3 min per shard (cold cache) · FAILED (infra), not retried
+Run:      scottmahony/arc3-mtp-session-a2 v1, pushed 06:53; status RUNNING from then on, but the notebook's own log starts at
+          11:49:36 UTC (session record: started 11:49:36, finished 13:08:41, 79 min). Kaggle held it ~5 h before executing
+          a cell; whether that counts against the GPU quota is unknown. runs/mtp-session-a2/kernel-output (session-a.json,
+          replica-check.json, serve.log, logs/, the notebook log).
+What ran: inputs ok; A0 storage ok (/tmp 486 MB/s); A2 probe server healthy after 20.4 min (weights ~28 s per shard while
+          the notebook's precache read the inputs sequentially: 185 GB in 1,025 s, ~181 MB/s); A3 probe dump 1 min; A5 replica
+          check GO again (16 requests, mean diff -0.039, Pearson 0.951; as v1).
+Stop:     A6, the training-dump server: 22 of 38 shards after the 50-min boot_max (1-2 shards per 5 min, ~8-9 MB/s), so the
+          session stopped there with no dump, no training and no draft. The first load had the precache warming the page cache;
+          the second found it cold (the probe server's 114 GB and the 185 GB precache had churned it) and read the network
+          storage with the loader's range reads.
+Lesson:   0038 extended: on a slow-storage day a cold-cache reload is ~5x slower than a first load with the precache running.
+          A session that restarts a server should first re-read the model shards sequentially (45 GB at ~180 MB/s, ~4 min).
+Decision: not retried this week. v2's expected gain over the adopted draft is small (a few hundredths of accept, ~1-2% decode),
+          and a retry needs a builder change (pre-read before each server start) plus ~3-5 GPU-h. The adopted draft (session A
+          v2, accept 3.33 in exp-083/084) stays. Follow-up recorded in docs/status.md.
+Note for the candidates: they start one server, with the precache running, as A2 did: today's 20-min load is inside the
+          40-min first-request grace of exp-083/084/085.

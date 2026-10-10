@@ -19,8 +19,15 @@ Where a slow boot bites:
   ready later than about 31 minutes after the start costs the first 14 games outright (~13% of a draw); session A
   v1's storage would have put readiness near 29 minutes.
 
+Again on 2026-10-10 (MTP session A2, 11:49-13:09 UTC): the first server loaded in 20.4 min (~28 s per shard) while
+the notebook's precache read the inputs sequentially (~181 MB/s); a second server started 30 min later found the page
+cache cold and read ~2.3 min per shard (~8-9 MB/s, the loader's range reads), so it was at 22 of 38 shards after the
+50-min limit. Kaggle also showed that kernel as RUNNING for ~5 h before its first cell executed.
+
 How to apply:
 - Size every boot wait for ~30 minutes of weight loading and prefer "still making progress" over a fixed deadline.
+- Before restarting a server in the same session, re-read its weight shards sequentially (a few parallel `cat`s; 45 GB
+  in ~4 min even on a slow day) so the loader hits the page cache instead of the network storage.
 - Next time a submission candidate is rebuilt, add `--env ARC3_HTTP_RETRY_INITIAL_SECONDS=2400`: the grace covers
   only each game's first request, so it costs nothing when the server is up in time.
 - A run with a slow boot is visible in its notebook log ("DEADLINE at ...s from notebook start", or "Precaching:
