@@ -769,3 +769,74 @@ def test_compact_ships_the_same_files_compressed_and_the_bed_reads_them_back(tmp
     written = sum(len(bf.franzen_tree.writefile_body(p[i])[1].encode()) for i in differ[1:])
     saved = (tmp_path / "p" / "p.ipynb").stat().st_size - (tmp_path / "c" / "c.ipynb").stat().st_size
     assert saved > 0.7 * written
+
+
+def _draft_output(root: Path, dense: bytes = b"dense") -> tuple[Path, Path]:
+    """A session-A output's mtp-draft/ with a manifest, and the manifest as pulled (a copy outside it)."""
+    import hashlib
+    d = root / "mtp-draft"
+    d.mkdir(parents=True)
+    (d / bf.DRAFT_DENSE).write_bytes(dense)
+    (d / "config.json").write_text("{}")
+    files = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(d.iterdir())}
+    (d / bf.DRAFT_MANIFEST).write_text(json.dumps({"replaced": ["mtp.fc.weight"], "files": files}, indent=1) + "\n")
+    pulled = root.parent / f"{root.name}-pulled-manifest.json"
+    pulled.write_bytes((d / bf.DRAFT_MANIFEST).read_bytes())
+    return d, pulled
+
+
+@pytest.mark.parametrize("base", ["franzen", "dprime"])
+def test_draft_serves_session_as_output_instead_of_albucino_and_pins_its_version(tmp_path, base):
+    _, manifest = _draft_output(tmp_path / "out")
+    changes = bf.build(tmp_path / "d", "d", base=base, input_fallback=True, wait_inputs=0,
+                       draft="scottmahony/arc3-mtp-session-a", draft_manifest=manifest)
+    assert any(c.startswith("MTP draft: scottmahony/arc3-mtp-session-a's output mtp-draft/") for c in changes)
+    codes = _code_cells(tmp_path / "d" / "d.ipynb")
+    setup = next(src for src in codes if bf.SETUP_ANCHOR in src)
+    assert bf.DRAFT_LINE not in setup and setup.count(bf.DRAFT_BEGIN) == 1
+    assert setup.index(bf.DRAFT_END) < setup.index("# >>> ours (--wait-inputs)")  # resolved before the wait
+    assert "albucino-qwen3-8-flash-next-drafter" not in "".join(codes)
+    assert "'/kaggle/input/notebooks/scottmahony/arc3-mtp-session-a/mtp-draft'" in setup
+    assert "'/kaggle/input/arc3-mtp-session-a/mtp-draft'" in setup
+    for src in (c for c in codes if not c.startswith("%%")):
+        _compiles(src)
+    meta = json.loads((tmp_path / "d" / "kernel-metadata.json").read_text())
+    assert bf.ALBUCINO_SOURCE not in meta["model_sources"] and meta["model_sources"] == [bf.INTEL_SOURCE]
+    assert meta["kernel_sources"] == ["scottmahony/arc3-mtp-session-a"]
+    with pytest.raises(SystemExit, match="go together"):
+        bf.build(tmp_path / "x", "x", base=base, draft="scottmahony/arc3-mtp-session-a")
+    with pytest.raises(SystemExit, match="OWNER/KERNEL"):
+        bf.build(tmp_path / "x", "x", base=base, draft="arc3-mtp-session-a", draft_manifest=manifest)
+    (tmp_path / "bad.json").write_text(json.dumps({"files": {}}))
+    with pytest.raises(SystemExit, match="--draft-manifest"):
+        bf.build(tmp_path / "x", "x", base=base, draft="o/k", draft_manifest=tmp_path / "bad.json")
+
+
+def test_the_draft_dir_is_found_in_either_layout_and_refused_when_it_is_another_version(tmp_path, capsys):
+    import time
+    d, manifest = _draft_output(tmp_path / "input" / "arc3-mtp-session-a")  # the older layout
+    spec = bf._draft_spec("me/arc3-mtp-session-a", manifest)
+    code = bf._draft_code(spec)
+    ns = {"os": os, "time": time}
+    exec(code.split("DRAFT_MODEL_DIR   =")[0], ns)  # the function only
+    cands = [str(tmp_path / "input" / "notebooks" / "me" / "arc3-mtp-session-a" / "mtp-draft"), str(d)]
+    assert ns["_ours_draft_dir"](cands, spec["manifest_sha"], spec["dense_sha"], timeout_s=0) == str(d)
+    assert "ours: MTP draft" in capsys.readouterr().out
+    with pytest.raises(RuntimeError, match="another version"):
+        ns["_ours_draft_dir"](cands, "0" * 64, spec["dense_sha"], timeout_s=0)
+    (d / bf.DRAFT_DENSE).write_bytes(b"truncated")
+    with pytest.raises(RuntimeError, match="its manifest says"):
+        ns["_ours_draft_dir"](cands, spec["manifest_sha"], spec["dense_sha"], timeout_s=0)
+    with pytest.raises(RuntimeError, match="not mounted"):
+        ns["_ours_draft_dir"]([str(tmp_path / "missing")], spec["manifest_sha"], spec["dense_sha"], timeout_s=0)
+
+
+def test_a_draft_probe_is_labelled_by_its_map_and_draft_and_records_both(tmp_path):
+    _, manifest = _draft_output(tmp_path / "out")
+    kept = ROOT / "kaggle" / "franzen" / "reap448_kept_experts.json"
+    hot = ROOT / "kaggle" / "franzen" / "hot_tokens_64k_arc.pt"
+    bf.build(tmp_path / "p", "p", base="dprime", input_fallback=True, probe=ROOT / "kaggle" / "fidelity",
+             reap_kept=kept, hot_tokens=hot, draft="me/arc3-mtp-session-a", draft_manifest=manifest)
+    probe = _code_cells(tmp_path / "p" / "p.ipynb")[-1]
+    assert "arm='reap448-arc-draft', expect_num_experts=448," in probe
+    assert "'hot_tokens': 'hot_tokens_64k_arc.pt sha256 " in probe and "'kernel': 'me/arc3-mtp-session-a'" in probe

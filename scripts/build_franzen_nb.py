@@ -54,7 +54,7 @@ Options change a non-submission run only, or a named setting everywhere:
   scripts/fidelity_sample.py). Everything up to and including the server launch stays; right after cell 4 a
   ``%%writefile /kaggle/arc3-fidelity-probe.py`` cell (scripts/fidelity_probe.py) and a check that the dataset is
   mounted with the manifest's sha256 (before the server starts); the benchmark cell (``await bm.run(...)``) becomes
-  the probe: wait for the server's /health (raise if it dies or is not healthy 30 min after the notebook started),
+  the probe: wait for the server's /health (raise if it dies or is not healthy 55 min after the notebook started),
   replay every sampled request greedy (temperature 0, max_tokens 192, logprobs with top 5) one at a time and then
   8 in flight, and write /kaggle/working/fidelity.json; the cells after it (diagnostics) are dropped and the dataset
   joins the kernel's sources. Needs ``--input-fallback``; refuses ``--full25``, ``--patch`` and speculative
@@ -68,7 +68,7 @@ Options change a non-submission run only, or a named setting everywhere:
 - ``--reap-no-verify``: ``--reap-kept`` without the list's ``.meta.json``, so the server drops the same expert ids
   without checking the routers' sha256 (which belong to the checkpoint the list was made for).
 - ``--fail-fast`` (test arms, with ``--full25``): a watchdog thread started right before ``await bm.run(`` exits the
-  kernel when the SGLang server process has exited, or when it was never healthy 35 min after the notebook
+  kernel when the SGLang server process has exited, or when it was never healthy 55 min after the notebook
   started. His notebook releases the benchmark without a server on purpose (a rerun must not idle out), so a test
   arm whose server died used to play its whole budget without a model. Off in a competition rerun.
 
@@ -77,6 +77,13 @@ Options change a non-submission run only, or a named setting everywhere:
   kaggle/franzen/hot_tokens_64k_arc.pt (scripts/frspec_map.py; same size, special tokens kept) covers 99.9%. A cell
   before the launcher writes FILE (base64, sha256 checked) to /kaggle/arc3-hot-tokens.pt; cell 12 reads it there,
   and its TOKEN_MAP_SHA becomes FILE's sha256, so his own assert checks it.
+- ``--draft OWNER/KERNEL[/SUBDIR] --draft-manifest FILE``: serve a fine-tuned MTP draft written by MTP session A
+  (scripts/mtp_write_draft.py: albucino's files with the dense tensors replaced) instead of his albucino checkpoint.
+  The kernel's output joins the kernel sources and the albucino model source is dropped; cell 4's DRAFT_MODEL_DIR
+  becomes SUBDIR (default ``mtp-draft``) of the mounted output, in either mount layout
+  (``/kaggle/input/notebooks/OWNER/KERNEL`` or ``/kaggle/input/KERNEL``), once mounted. FILE is that output's
+  ``arc3-draft-manifest.json`` as pulled from the run; the notebook refuses a mounted draft whose manifest has another
+  sha256 (another version of the kernel) or whose dense shard does not match it.
 - ``--compact``: each file our cells write (``--patch``, ``--reap-kept``, ``--probe``) is shipped zlib-compressed in
   base64 instead of as a ``%%writefile`` cell: a code cell checks the sha256 of exactly the bytes the %%writefile cell
   would write and writes them (Kaggle refuses a notebook near 1 MB with a bare HTTP 400; lesson 0033).
@@ -174,6 +181,15 @@ MODELS = {
     },
 }
 MODEL_VIEW = "/tmp/ours-model-view"
+# --draft: a fine-tuned MTP draft from MTP session A's kernel output in place of his albucino checkpoint
+DRAFT_LINE = ("DRAFT_MODEL_DIR   = '/kaggle/input/models/dfranzen/albucino-qwen3-8-flash-next-drafter/transformers/"
+              "default/1'\n")
+ALBUCINO_SOURCE = "dfranzen/albucino-qwen3-8-flash-next-drafter/Transformers/default/1"
+DRAFT_MANIFEST = "arc3-draft-manifest.json"  # scripts/mtp_write_draft.py
+DRAFT_DENSE = "mtp-dense.safetensors"
+DRAFT_SUBDIR = "mtp-draft"  # scripts/mtp_session_a.py A11
+DRAFT_BEGIN = "# >>> ours (--draft)"
+DRAFT_END = "# <<< ours (--draft)"
 MODEL_BEGIN = "# >>> ours (--model)"
 MODEL_END = "# <<< ours (--model)"
 # --fail-fast: a test arm ends when its server is gone (his notebook plays on without one, by design for the rerun)
@@ -477,6 +493,60 @@ def _model_code(name: str) -> str:
         f"{MODEL_END}\n")
 
 
+def _draft_spec(draft: str, manifest: Path) -> dict:
+    """--draft OWNER/KERNEL[/SUBDIR] and its manifest: the mount candidates and the sha256 values the notebook checks."""
+    parts = draft.strip("/").split("/")
+    if len(parts) not in (2, 3) or not all(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", x) for x in parts):
+        raise SystemExit(f"--draft {draft!r}: expected OWNER/KERNEL or OWNER/KERNEL/SUBDIR")
+    owner, kernel, subdir = [*parts, DRAFT_SUBDIR][:3]
+    try:
+        raw = Path(manifest).read_bytes()
+        files = json.loads(raw)["files"]
+        dense = files[DRAFT_DENSE]
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise SystemExit(f"--draft-manifest {manifest}: not a {DRAFT_MANIFEST} with the sha256 of {DRAFT_DENSE} "
+                         f"({exc!r})") from None
+    if not re.fullmatch(r"[0-9a-f]{64}", str(dense)):
+        raise SystemExit(f"--draft-manifest {manifest}: {DRAFT_DENSE} has no sha256 ({dense!r})")
+    return {"kernel": f"{owner}/{kernel}", "subdir": subdir, "manifest_sha": hashlib.sha256(raw).hexdigest(),
+            "dense_sha": dense, "candidates": [f"/kaggle/input/notebooks/{owner}/{kernel}/{subdir}",
+                                               f"/kaggle/input/{kernel}/{subdir}"]}
+
+
+def _draft_code(spec: dict) -> str:
+    """Cell-4 lines that replace his DRAFT_MODEL_DIR constant: wait for the kernel output in either layout, then
+    check its manifest and dense shard against the build's sha256 before anything reads the draft."""
+    return (
+        f"{DRAFT_BEGIN}: the MTP draft is {spec['kernel']}'s output {spec['subdir']}/ (MTP session A: albucino's files\n"
+        "# with the dense tensors fine-tuned on ARC traffic, scripts/mtp_write_draft.py), mounted as a kernel source.\n"
+        "def _ours_draft_dir(candidates, manifest_sha, dense_sha, timeout_s=600.0):\n"
+        "    import hashlib\n"
+        "    def sha256(path):\n"
+        "        h = hashlib.sha256()\n"
+        "        with open(path, 'rb') as f:\n"
+        "            for block in iter(lambda: f.read(1 << 24), b''):\n"
+        "                h.update(block)\n"
+        "        return h.hexdigest()\n"
+        "    t0 = time.time()\n"
+        f"    while not (found := [p for p in candidates if os.path.isfile(os.path.join(p, {DRAFT_MANIFEST!r}))]):\n"
+        "        if time.time() - t0 > timeout_s:\n"
+        "            raise RuntimeError(f'MTP draft not mounted after {timeout_s:g} s: {candidates}')\n"
+        "        time.sleep(5)\n"
+        "    path = found[0]\n"
+        f"    got = sha256(os.path.join(path, {DRAFT_MANIFEST!r}))\n"
+        "    if got != manifest_sha:\n"
+        "        raise RuntimeError(f'MTP draft {path}: manifest sha256 {got}, the build expects {manifest_sha} '\n"
+        "                           '(another version of the kernel output?)')\n"
+        f"    got = sha256(os.path.join(path, {DRAFT_DENSE!r}))\n"
+        "    if got != dense_sha:\n"
+        f"        raise RuntimeError(f'MTP draft {{path}}: {DRAFT_DENSE} sha256 {{got}}, its manifest says {{dense_sha}}')\n"
+        "    print(f'ours: MTP draft {path} after {time.time() - t0:.0f} s (manifest {manifest_sha[:12]}, '\n"
+        "          f'dense {dense_sha[:12]})')\n"
+        "    return path\n"
+        f"DRAFT_MODEL_DIR   = _ours_draft_dir({spec['candidates']!r}, {spec['manifest_sha']!r}, {spec['dense_sha']!r})\n"
+        f"{DRAFT_END}\n")
+
+
 HOT_WRITER = """
 def _ours_write_hot_tokens(packed_b64, varint_sha, path):
     # FR-Spec ids: zlib-compressed delta varints -> the list torch.save would store, written as torch's zip layout
@@ -743,7 +813,10 @@ def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str]
           reap_kept: Path | None = None, wait_inputs: float | None = None,
           input_fallback: bool = False, probe: Path | None = None, model: str | None = None,
           reap_verify: bool = True, fail_fast: bool = False, hot_tokens: Path | None = None,
-          compact: bool = False) -> list[str]:
+          compact: bool = False, draft: str | None = None, draft_manifest: Path | None = None) -> list[str]:
+    if (draft is None) != (draft_manifest is None):
+        raise SystemExit("--draft and --draft-manifest go together")
+    draft_spec = _draft_spec(draft, Path(draft_manifest)) if draft is not None else None
     if model is not None and model not in MODELS:
         raise SystemExit(f"--model {model!r}: unknown (known: {', '.join(sorted(MODELS))})")
     if not reap_verify and not reap_kept:
@@ -799,6 +872,11 @@ def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str]
         changes.append(f"serves {MODELS[model]['what']} instead of Intel's W4A16 (the MTP draft stays his albucino "
                        f"checkpoint); cell 4 links its {len(MODELS[model]['sources'])} Kaggle model instances into "
                        f"{MODEL_VIEW}")
+    if draft_spec is not None:  # before --input-fallback too
+        sources[setup] = _replace_once(sources[setup], DRAFT_LINE, _draft_code(draft_spec), "--draft")
+        changes.append(f"MTP draft: {draft_spec['kernel']}'s output {draft_spec['subdir']}/ (a kernel source, either "
+                       f"mount layout; manifest sha256 {draft_spec['manifest_sha'][:12]}, {DRAFT_DENSE} "
+                       f"{draft_spec['dense_sha'][:12]}, both checked in cell 4) instead of his albucino checkpoint")
     if input_fallback:
         sources, n = _input_fallback(sources, code, setup)
         changes.append(f"resolves its {n} /kaggle/input paths in either Kaggle mount layout")
@@ -832,6 +910,10 @@ def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str]
             import sglang_reap_patch
             num_experts = len(sglang_reap_patch.load_kept(Path(reap_kept))[0])
             arm = f"reap{num_experts}"
+        if hot_tokens:
+            arm += "-" + Path(hot_tokens).stem.removeprefix("hot_tokens_64k_").replace("_", "-")
+        if draft_spec is not None:
+            arm += "-draft"
         run_cell = _one_cell(sources, code, PROBE_RUN_ANCHOR, "--probe")
         header = [i for i, s in enumerate(sources) if not code[i] and PROBE_MD_ANCHOR in s]
         if len(header) != 1:
@@ -842,7 +924,12 @@ def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str]
                       "reap_kept": (f"{Path(reap_kept).name} sha256 "
                                     f"{hashlib.sha256(Path(reap_kept).read_bytes()).hexdigest()[:12]}"
                                     if reap_kept else None),
-                      "cfg": dict(cfg or {}), "server_env": dict(server_env or {})}
+                      "cfg": dict(cfg or {}), "server_env": dict(server_env or {}),
+                      "hot_tokens": (f"{Path(hot_tokens).name} sha256 "
+                                     f"{hashlib.sha256(Path(hot_tokens).read_bytes()).hexdigest()[:12]}"
+                                     if hot_tokens else None),
+                      "draft": ({k: draft_spec[k] for k in ("kernel", "subdir", "manifest_sha", "dense_sha")}
+                                if draft_spec is not None else None)}
         preflight, sources[run_cell], sources[header[0]] = _probe_code(probe_spec, arm, num_experts, build_info)
         p = PROBE_PARAMS
         changes.append(
@@ -935,6 +1022,9 @@ def build(out: Path, slug: str, full25: float | None = None, env: dict[str, str]
         sources_meta["model_sources"][i:i + 1] = MODELS[model]["sources"]
     if probe_spec is not None:
         sources_meta["dataset_sources"].append(probe_spec["dataset"])
+    if draft_spec is not None:
+        sources_meta["model_sources"].remove(ALBUCINO_SOURCE)
+        sources_meta["kernel_sources"].append(draft_spec["kernel"])
     meta = {"id": f"scottmahony/{slug}", "title": slug.replace("-", " "), "code_file": f"{slug}.ipynb",
             "language": "python", "kernel_type": "notebook", "is_private": True, "enable_gpu": True,
             "enable_tpu": False, "enable_internet": False, "keywords": [], **sources_meta,
@@ -1008,6 +1098,10 @@ def main() -> None:
                     help="test arms (--full25): exit the kernel when the SGLang server is gone")
     ap.add_argument("--hot-tokens", type=Path, default=None, metavar="FILE",
                     help="the MTP draft's FR-Spec map (kaggle/franzen/hot_tokens_64k_arc.pt)")
+    ap.add_argument("--draft", default=None, metavar="OWNER/KERNEL[/SUBDIR]",
+                    help="serve MTP session A's fine-tuned draft (its output's mtp-draft/) instead of albucino")
+    ap.add_argument("--draft-manifest", type=Path, default=None, metavar="FILE",
+                    help="that output's arc3-draft-manifest.json, as pulled (pins the version the notebook accepts)")
     ap.add_argument("--compact", action="store_true",
                     help="ship the files our cells write zlib-compressed (Kaggle refuses notebooks near 1 MB)")
     args = ap.parse_args()
@@ -1017,7 +1111,8 @@ def main() -> None:
                     apply_check=not args.no_apply_check, his_repo=args.his_repo, bundle=args.bundle, base=args.base,
                     reap_kept=args.reap_kept, wait_inputs=args.wait_inputs, input_fallback=args.input_fallback,
                     probe=args.probe, model=args.model, reap_verify=not args.reap_no_verify, fail_fast=args.fail_fast,
-                    hot_tokens=args.hot_tokens, compact=args.compact)
+                    hot_tokens=args.hot_tokens, compact=args.compact, draft=args.draft,
+                    draft_manifest=args.draft_manifest)
     print(f"built {args.out / (args.slug + '.ipynb')}: {changes or 'unchanged'}")
 
 
