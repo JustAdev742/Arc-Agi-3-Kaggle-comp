@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-10-09 03:50 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
+Last updated: 2026-10-10 00:15 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
 
 ## Competition facts: verified vs. unconfirmed
 
@@ -145,6 +145,18 @@ score over at least 3 draws each. A difference under 0.5 points is a tie, broken
 public 25 (scripts/arm_table.py), then the validation score. If the top two are variants of one configuration within
 noise, the second slot goes to the best configuration that differs from it (diversification against the private half).
 If fewer than two configurations reach 3 draws, the unmodified base fills the second slot.
+
+### State at 2026-10-10 00:15 UTC
+- **LB: exp-074t drew 27.97** (submission 56980485). Our unchanged D' copy drew 28.87 and D''s author 31.54. With one
+  draw each this says nothing yet: a single draw moves about +/-4 points.
+- **Today (Oct 10): submit exp-081**, from https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-harness4-percept-full.
+  Then alternate with exp-074t; a resubmitted notebook scores differently each time, so averages decide.
+- **GPU quota reset (30 h).** MTP session A (scottmahony/arc3-mtp-session-a) was pushed at 00:11 and is running.
+  - Expected 1.6-2.8 h.
+  - Pulled by scripts/kaggle_queue.py's new `files` kind, which takes reports and logs but not the 4 GB draft.
+  - A NO-GO at the replica check ends it early with the reports written.
+- Next GPU work depends on session A: if GO, session B (probe gate) and C (production gate) with the trained draft.
+  The builder needs a `--draft` option for those once session A's log shows how kernel outputs mount.
 
 ### State at 2026-10-09 03:50 UTC
 - **exp-074t is submitted:** submission 56980485, Oct 9 00:14 UTC, from arc3-dprime-reap448-r14-accept05 (script version
