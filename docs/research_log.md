@@ -2933,3 +2933,19 @@ A11:      /kaggle/working/mtp-draft: albucino's 12 files with 26 dense tensors r
 Next:     B1 = B0's build + --draft (kernel scottmahony/arc3-fidelity-reap448-arcmap-draft), read with
           scripts/probe_accept_gate.py against B0; if it passes, a full-length arm with the draft (relaxed
           acceptance, with the loop checks of plan 6.4 S3).
+
+## 2026-10-10 03:28 · probe B1 · the fine-tuned MTP draft passes the probe gate: accept +0.26 / +0.31 over B0 · PASS → exp-083
+Run:      scottmahony/arc3-fidelity-reap448-arcmap-draft v1 (02:50-03:26 UTC, ~0.6 GPU-h); runs/fidelity-reap448-arcmap-draft
+          (gate-vs-b0.json). B0's build (REAP-448 + ARC map, greedy, lossless, 154 held-out requests) + --draft: the
+          draft mounted from scottmahony/arc3-mtp-session-a's output (new layout), manifest and dense shard checked.
+Gate:     scripts/probe_accept_gate.py B0 -> B1: seq 2.827 -> 3.087, +0.261 [+0.218, +0.303] (pooled x1.090); conc 2.804
+          -> 3.113, +0.309 [+0.268, +0.351] (x1.111); 0 failed; every game (+0.18 to +0.42) and every prompt-length
+          bucket gains. Pass mark (fixed in the plan, 5.3): >= +0.08 with the interval above 0 in both passes: PASS.
+          Session A's replica forecast was +0.21-0.23 (generic map); the plan's estimate +5-10%.
+          Against the generic-map REAP baseline (fidelity-reap448): +0.314 / +0.328 (x1.114 / x1.117), i.e. map and
+          draft together add ~11-12% lossless accept length.
+Storage:  still ~2x slow (weights 9:54, healthy 15.6 min after the start).
+Next:     exp-083 (pushed next): the exp-074t candidate + ARC map + this draft at relaxed acceptance 0.5/0.5, full length,
+          with the plan's loop gate (6.4 S3: exact-repeat turns <= 1 per 500; "stuck in a loop" mentions, output tokens
+          per request and finish_reason=length share no worse than the albucino runs) and accept/tok/s against
+          exp-077/080/081 (ARC map, albucino: accept 3.14-3.15, 803-824 tok/s).
