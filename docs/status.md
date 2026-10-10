@@ -353,7 +353,8 @@ git history; Milestone 2 has closed.)
 - OPEN 2026-10-10: the submission's first-request grace (`ARC3_HTTP_RETRY_INITIAL_SECONDS` 900 s) covers a server
   ready up to ~31 min after the notebook start; on a slow-storage day (lesson 0038) the first 14 games could end
   before it is up. Add `--env ARC3_HTTP_RETRY_INITIAL_SECONDS=2400` at the next candidate rebuild (no effect when
-  the server is up in time). Not done now: it would need new save runs of both LB candidates mid-alternation.
+  the server is up in time; the builder supports it since 217cf5e). Not done now: it would need new save runs of
+  both LB candidates mid-alternation.
 
 - DONE 2026-10-08: gate/test arms kept playing their whole budget after the SGLang server died (exp-072j: ~0.7
   GPU-h). scripts/build_franzen_nb.py --fail-fast (needs --full25; off in a rerun) now exits the kernel when the
