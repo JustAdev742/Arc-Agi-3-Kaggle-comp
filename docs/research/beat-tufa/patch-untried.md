@@ -238,7 +238,7 @@ exp-073b, exp-075 and exp-083 (318 I1, 37 I2):
 | Reading | I1 baseline | I2 baseline |
 |---|---|---|
 | A named object clicked within 3 actions | 32 / 318 (10%) | 5 / 37 (14%) |
-| ...and that click changed the board inside the 4-cell edge band | 23 (72% of those clicks) | 5 (all) |
+| ...and that click changed the board (the frame without its 4-cell edge band) | 23 (72% of those clicks) | 5 (all) |
 | A named unused action used within 3 actions | 41 / 318 (13%) | – |
 | A level-up within 15 minutes | 114 / 318 (36%) | 20 / 37 (54%) |
 

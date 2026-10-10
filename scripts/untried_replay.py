@@ -18,7 +18,7 @@ The recorded runs keep no prompt times, so they are rebuilt from the clock and t
 
 For every line shown it also reads, from the recorded run (the baseline, without the line), what a GPU arm should
 read: was a named object clicked (or a named action used) within RESPONSE_ACTIONS actions, did that click change the
-board inside the 4-cell edge band, and did a level-up follow within LEVEL_UP_SECONDS.
+board (the frame without its 4-cell edge band), and did a level-up follow within LEVEL_UP_SECONDS.
 
     .venv/bin/python -I scripts/untried_replay.py runs/RUN [runs/RUN2 ...] [--games tn36,vc33] [--patch P]
         [--tree ARC3-Inference] [--tokenizer tokenizer.json] [--json OUT]
