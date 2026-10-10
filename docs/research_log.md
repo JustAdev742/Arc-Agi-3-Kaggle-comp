@@ -3028,3 +3028,15 @@ exp-074t is about 1.1 SD of a two-draw difference (~5.5): suggestive, not decisi
 Leaderboard at 10:18 UTC: Yi-Chia Chen 62.96 (+3.79 since 01:04), Tufa Labs 56.52, mtg 44.32, Majkel1337 42.66,
 NVARC3 40.97; 20 teams >= 35, 346 >= 30. Gap to #1 28.9, to Tufa 22.5.
 Next LB slots unchanged: Oct 11 exp-083 (exp-074t's draft version), Oct 12 exp-084 (exp-081's), then alternate.
+
+## 2026-10-10 10:26 · "read timeouts" in run read-outs are the end of the run, not stalls · CHECKED (no lever)
+Data:     every analyzer read timeout in exp-073b/081/083/084 (10-14 per run) fires in the run's last ~90 s
+          (7,826-7,910 s after the start), with read budgets of 1.6-118 s: the harness passes each game's time left
+          as the request's read timeout, so these are the requests in flight when the 121-min deadline hits, one per
+          game still playing. No mid-run request waited out D′'s 900 s analyzer timeout.
+Reading:  the count is the number of games still running at the end, not a serving health signal; read-outs
+          should stop listing it as one. No time is lost to stalled requests.
+Also:     the seven zero-level games in ten full-length runs (dc22 x2, g50t x2, m0r0, sc25, sk48) are all "stuck on
+          level 1 for the whole budget", not crashes: 24-280 actions in ~121 min, state gave_up. In exp-078 g50t the
+          model spent 34 min analysing without acting, then lost its slot at a trim and was never rescheduled (D′'s
+          gate deprioritises games without progress by design; exp-078 was rejected anyway).

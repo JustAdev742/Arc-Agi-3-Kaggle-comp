@@ -151,6 +151,9 @@ If fewer than two configurations reach 3 draws, the unmodified base fills the se
   D′ copy 28.87; one draw each, so the +6 is suggestive only. The top two are Yi-Chia Chen 62.96 and Tufa Labs 56.52.
 - **LB plan (owner), unchanged:** Oct 11 exp-083, Oct 12 exp-084, then alternate (links under "Open items").
 - MTP session A2 still running at 10:17 (its limit is 14:53); check-in 10:48.
+- Both candidates now rebuild byte for byte from the repo: `scripts/build_candidates.sh` (tests pin the pushed
+  notebooks; the adopted draft's manifest is tracked in kaggle/franzen/drafts/). docs/SUBMITTING.md rewritten
+  for them.
 
 ### State at 2026-10-10 06:49 UTC
 - **Both LB candidates now carry the fine-tuned MTP draft** (accept 3.14 -> 3.33; decode +3.5-8% at equal batch; no

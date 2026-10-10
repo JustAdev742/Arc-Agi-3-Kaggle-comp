@@ -1,84 +1,94 @@
 # How to submit (ARC Prize 2026, ARC-AGI-3)
 
-This is a Kaggle **code competition**: you do not upload a predictions file, you submit a *notebook version*.
-Kaggle then re-runs that notebook itself, on its own machine, against the hidden games.
+This is a Kaggle **code competition**. You submit a *notebook version*, not a predictions file, and Kaggle re-runs
+that notebook on its own machine against the hidden games. Submitting is one-way: it uses the day's single
+submission and starts a run of up to 9 hours. This repo never submits on its own; the owner does it by hand.
 
-Everything in step 1 is already done and kept current by this repo. Step 2 is the submission itself: a click in the
-browser or one CLI command. It is a one-way action (it uses one of the daily submissions and starts a 9-hour rerun),
-so this repo never runs it on its own.
+## 1. The current candidates (updated 2026-10-10)
 
-## 1. The notebook (done by `make notebook` + a Save & Run All)
+Both are Daniel Franzen's Milestone 2 notebook (Apache-2.0) with the D′ slot priority. To that base, both add:
+- REAP-448 expert pruning at load;
+- 14 streams;
+- relaxed MTP acceptance (0.5/0.5);
+- the sandbox-timeout fix;
+- our ARC FR-Spec map;
+- the fine-tuned MTP draft;
+- a 40-minute first-request grace.
+
+Submit **version 1** of each. That version is the completed full-length save run.
+
+| Candidate | Notebook | Adds | Public-25 run | LB draws |
+|---|---|---|---|---|
+| exp-083 | https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-arcmap-draft-full | (nothing beyond the list above) | 50.58, 116 levels | none yet; its albucino-draft version exp-074t drew 27.97 |
+| exp-084 | https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-harness4-percept-draft-full | our harness bundle: budget meter, search helper, win ledger, level memory, perception helpers (patches 02/04/03b/05/08b) | 48.83, 114 levels | none yet; its albucino-draft version exp-081 drew 34.04 |
+
+**Rotation.** Oct 11 exp-083, Oct 12 exp-084, then alternate. A resubmitted notebook scores differently each time
+(about ±4 points per draw), so the averages decide. The final-selection rule is fixed in `docs/status.md`, under
+"Plan for the week of 2026-09-26": the two configurations with the best mean over at least 3 draws each.
+
+**The draft is mounted, not copied.** Both notebooks mount the output of the kernel `scottmahony/arc3-mtp-session-a`.
+Before serving, they check that output's manifest sha256 (`be8c2d3ae23d…`) and its dense shard (`642797acaa0b…`),
+and they refuse any other version. **Never push a new version of that kernel** while these candidates are in use;
+train new drafts under a new slug.
+
+### Rebuilding them
 
 ```bash
-make notebook                                        # builds notebooks/submission.ipynb at the current commit
-export KAGGLE_API_TOKEN=$(cat .kaggle/access_token)
-.venv/bin/python scripts/push_eval.py notebooks      # pushes it privately and always on the RTX PRO 6000
+scripts/build_candidates.sh $OUT                    # both candidates, byte for byte as pushed (tests/test_build_candidates.py)
+.venv/bin/python scripts/push_eval.py $OUT/exp083   # each push is a ~2.3 GPU-h full-length save run
 ```
 
-`push_eval.py` refuses a notebook whose metadata is not `nvidiaRtxPro6000` (a T4 cannot load the 27B model).
-Pushing starts a **Save & Run All**: Kaggle executes the whole notebook once. That run must finish with
-`submission.parquet` written, or the version cannot be submitted.
+For a new draft, pass its kernel, its pulled `arc3-draft-manifest.json`, a slug tag and a name:
 
-What the notebook does in that run: installs `arc-agi` from the competition wheels, unpacks the `arc3` package
-(with its Apache-2.0 LICENSE), installs vLLM from the attached wheelhouse, starts the Qwen3.8-27B-FP8 server,
-plays two bundled games offline as a smoke test, and writes a placeholder `submission.parquet`.
+```bash
+scripts/build_candidates.sh $OUT scottmahony/arc3-mtp-session-a2 \
+    runs/mtp-session-a2/kernel-output/mtp-draft/arc3-draft-manifest.json draft2 "MTP session A2's draft"
+```
+
+This builds new notebooks (`...-draft2-full`), so the submitted ones stay untouched. The test checks that only the
+draft, its version pins, the slugs and the notes change.
 
 ## 2. Submit (browser or CLI)
 
-**CLI** (checked 2026-09-23: `kaggle competitions submit` takes a kernel and version for code competitions):
+**Browser:**
+1. Open the candidate's notebook link above.
+2. Click **Submit to Competition** (top right). If it is not there, go to the competition page,
+   **Submit Predictions**, and pick the notebook there.
+3. Pick **version 1**, add a note (for example "exp-083"), and confirm.
+
+**CLI** (checked 2026-09-23: `kaggle competitions submit` takes a kernel and a version for code competitions):
 
 ```bash
 export KAGGLE_API_TOKEN=$(cat .kaggle/access_token)
 .venv/bin/kaggle competitions submit arc-prize-2026-arc-agi-3 \
-    -k scottmahony/arc-prize-2026-arc-agi-3-arc3-agent -v 3 -f submission.parquet -m "champion (exp-011 config), harness 8f3af9e"
-.venv/bin/kaggle competitions submissions arc-prize-2026-arc-agi-3      # shows it as PENDING, then COMPLETE with a score
+    -k scottmahony/arc3-dprime-r14a05-arcmap-draft-full -v 1 -f submission.parquet -m "exp-083"
+.venv/bin/kaggle competitions submissions arc-prize-2026-arc-agi-3      # PENDING, then COMPLETE with a score
 ```
 
-Use the version number of a run that finished with a green tick (v3 passed on 2026-09-21).
-
-**Browser:**
-
-1. Open <https://www.kaggle.com/code/scottmahony/arc-prize-2026-arc-agi-3-arc3-agent>.
-2. Check the latest version shows a green tick (the Save & Run All finished). Open **Version history** if you
-   want to confirm which version that is.
-3. Click **Submit to Competition** (top right of the notebook page). If you do not see it, go to the
-   competition page, **Submit Predictions**, and pick this notebook and version there.
-4. Pick the version, add a note (for example the harness commit), and confirm.
-
-That is the whole submission. Nothing on this machine needs to run while it happens.
-
-Account history for reference: two earlier submissions from 2026-08-27 and 2026-08-28 (before this repo) scored 0.17
-and 0.10 on the public leaderboard.
+The submissions list links each score to its notebook and version (the `url` field of the API's submission
+objects), so the research log can attribute every draw.
 
 ## 3. What Kaggle does with it
 
-Kaggle re-runs the same notebook with `KAGGLE_IS_COMPETITION_RERUN=1` and a `gateway` service holding the
-hidden games. In that mode the notebook skips the offline smoke, copies the ARC-AGI-3-Agents framework,
-installs our `MyAgent`, and plays **every hidden game concurrently** until the 9-hour limit. The score comes
-from the gateway's scorecard, not from the parquet file. Expect the run to take most of the 9 hours; the
-leaderboard entry appears when it ends.
+Kaggle re-runs the notebook in competition mode against a gateway that holds the 110 hidden games. In that mode:
+- D′ plays every game with a 532-minute deadline and gives 14 model slots by its priority;
+- the benchmark is released 12 minutes after the start, whether or not the model server is up;
+- each game's first request waits up to 40 minutes for the server (the grace above), which covers a slow-storage
+  boot (lesson 0038);
+- the public leaderboard shows about half of the 110 games and the private leaderboard the other half, both from
+  this one run.
 
 ## 4. What to expect
 
-Our measured dev score is 0.6 to 1.4 percent of human-level RHAE (champion record: `docs/champion.md`), the
-public leaderboard leader is about 19. A submission now will land in the low single digits. It is worth doing
-for the leaderboard position and for the end-to-end validation on the hidden set; it is not worth doing if you
-expect a competitive number today.
+Leaderboard draws of this family so far: 27.97 (exp-074t), 28.87 (our unchanged D′ copy) and 34.04 (exp-081).
+Public-25 runs translate to the leaderboard at about 0.55-0.68×. A single draw cannot rank two configurations.
 
-Submission limits: the competition page's Rules tab has the daily allowance; observed on 2026-09-23 as **1 per
-day** (after one submission the CLI answered "0 submissions remaining today"; `docs/status.md`). Each real
-submission consumes it and up to 9 hours of run time.
+## 5. If something fails
 
-## 5. Milestone 2 (only if you want prize eligibility)
-
-Milestone 2 closes **2026-09-30** and requires the solution to be **public and open-source** by then. The code
-is already Apache-2.0 (`LICENSE`, shipped inside the notebook bundle). To make the entry eligible, set the
-notebook's visibility to Public on its Settings tab (or ask me and I will flip it with the API). Publishing is
-reversible; submitting is not.
-
-## 6. If something fails
-
-- **Version shows a red cross:** open the log on the notebook page; the last cell prints the vLLM log tail when
-  the server did not start. `scripts/pull_run.py` files a kernel's output under `runs/` for inspection.
-- **"Maximum weekly GPU quota reached":** the push is rejected until the weekly 30-hour window resets.
-- **Submit button greyed out:** the latest version has no successful run, or it wrote no `submission.parquet`.
+- **Version shows a red cross:** read the notebook log on its page. `scripts/kaggle_pull.py OWNER/KERNEL DIR`
+  pulls a kernel's output in paced pages; the plain CLI draws HTTP 429 on large outputs.
+- **"Maximum weekly GPU quota reached":** the push is refused until the weekly 30-hour window resets (Saturday
+  00:00 UTC).
+- **Submit button greyed out:** the chosen version has no successful run.
+- **A draft check fails in cell 4** ("MTP draft not mounted", or a sha256 mismatch): the mounted kernel output is
+  not the version the notebook was built for. Rebuild against the right manifest; do not edit the pins by hand.
