@@ -435,6 +435,11 @@ git history; Milestone 2 has closed.)
 
 ## Follow-ups noticed (not fixed on purpose)
 
+- OPEN 2026-10-10: notice v2 for ours-10 (docs/research/beat-tufa/notice-response-2026-10-10.md): cap I1 at 3 kinds,
+  fire the first I1 at 5 min when MOUSE is valid and unused on the level, start the level-1 clock at the first answered
+  request (a slow boot made 13 lines fire at step 1-2), drop I2 (2 clicks in 24 lines). Small expected gain; fold into
+  the next candidate rebuild needed for another reason, with the replay check (scripts/untried_replay.py) first.
+
 - OPEN 2026-10-10: MTP session A's runner restarts the model server between the probe dump (A2) and the training dump
   (A6); on a slow-storage day the second load reads cold cache at ~8-9 MB/s (lesson 0038). Before any retry of a v2
   draft (all snapshots, 3 epochs: scripts/build_mtp_session.py --slug arc3-mtp-session-a3 ...), re-read the model
