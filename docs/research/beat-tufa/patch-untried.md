@@ -310,3 +310,19 @@ P=kaggle/franzen/patches
 
 Building an arm means adding `--patch $P/ours-10-untried.patch --env-add OURS_UNTRIED=1` to the candidate's
 `build_franzen_nb.py` command, with the patch last. Use `OURS_UNTRIED=i1` or `i2` for single-line arms.
+
+## GPU results (2026-10-10)
+
+Two full-length runs of exp-085 (exp-084 + this patch, OURS_UNTRIED=1), read with `scripts/untried_read.py` (the lines
+as the model saw them; research log 14:31 and 16:59):
+
+| Run | Score / levels | I1 firings | Named object clicked within 3 actions | I2 firings / clicks | Critical levels won |
+|---|---|---|---|---|---|
+| v1 | 53.77 / 119 | 101 | 20 (19.8%) | 12 / 1 | 4 of 4 |
+| v2 (slow boot) | 47.51 / 111 | 99 | 23 (23.2%) | 12 / 1 | 3 of 4 |
+| pooled | | 200 | 43 (21.5%; without the lines 32/318 = 10.1%) | 24 / 2 | 7 of 8 |
+
+The model acts on I1 about twice as often as it clicks those objects without it, and I2 draws almost no clicks. Clearest
+case: sp80 v1, step 43, the line named the red bar "R r16-19 c8-19" and the next action clicked it; the L3 and L4 lines
+drew red-bar clicks followed by level-ups. exp-085 replaced exp-084 in the LB rotation. A later build should keep I1
+only (OURS_UNTRIED=i1).

@@ -4,7 +4,7 @@ This is a Kaggle **code competition**. You submit a *notebook version*, not a pr
 that notebook on its own machine against the hidden games. Submitting is one-way: it uses the day's single
 submission and starts a run of up to 9 hours. This repo never submits on its own; the owner does it by hand.
 
-## 1. The current candidates (updated 2026-10-10)
+## 1. The current candidates (updated 2026-10-10 16:59 UTC)
 
 Both are Daniel Franzen's Milestone 2 notebook (Apache-2.0) with the D′ slot priority. To that base, both add:
 - REAP-448 expert pruning at load;
@@ -15,14 +15,15 @@ Both are Daniel Franzen's Milestone 2 notebook (Apache-2.0) with the D′ slot p
 - the fine-tuned MTP draft;
 - a 40-minute first-request grace.
 
-Submit **version 1** of each. That version is the completed full-length save run.
+Submit **version 1** of exp-083, and version 1 or 2 of exp-085 (the same notebook pushed twice). Each is a completed full-length save run.
 
 | Candidate | Notebook | Adds | Public-25 run | LB draws |
 |---|---|---|---|---|
 | exp-083 | https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-arcmap-draft-full | (nothing beyond the list above) | 50.58, 116 levels | none yet; its albucino-draft version exp-074t drew 27.97 |
-| exp-084 | https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-harness4-percept-draft-full | our harness bundle: budget meter, search helper, win ledger, level memory, perception helpers (patches 02/04/03b/05/08b) | 48.83, 114 levels | none yet; its albucino-draft version exp-081 drew 34.04 |
+| exp-085 | https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-h4-percept-untried-full (version 1 or 2: the same code) | our harness bundle: budget meter, search helper, win ledger, level memory, perception helpers (patches 02/04/03b/05/08b), plus the "not yet tried on this level" notices (ours-10, OURS_UNTRIED=1) | 53.77 / 119 and 47.51 / 111 (slow boot) | none yet; replaces exp-084 from Oct 12 (its bundle-only versions drew 34.04 as exp-081) |
+| (exp-084, retired Oct 10) | https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-harness4-percept-draft-full | the bundle without the notices | 48.83, 114 levels | none |
 
-**Rotation.** Oct 11 exp-083, Oct 12 exp-084, then alternate. A resubmitted notebook scores differently each time
+**Rotation.** Oct 11 exp-083, Oct 12 exp-085 (it replaced exp-084 on Oct 10, research log 16:59), then alternate. A resubmitted notebook scores differently each time
 (about ±4 points per draw), so the averages decide. The final-selection rule is fixed in `docs/status.md`, under
 "Plan for the week of 2026-09-26": the two configurations with the best mean over at least 3 draws each.
 
@@ -34,7 +35,7 @@ train new drafts under a new slug.
 ### Rebuilding them
 
 ```bash
-scripts/build_candidates.sh $OUT                    # both candidates, byte for byte as pushed (tests/test_build_candidates.py)
+scripts/build_candidates.sh $OUT                    # exp083/exp084/exp085, byte for byte as pushed (tests/test_build_candidates.py)
 .venv/bin/python scripts/push_eval.py $OUT/exp083   # each push is a ~2.3 GPU-h full-length save run
 ```
 

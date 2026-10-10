@@ -3125,3 +3125,26 @@ Decision: by the rule fixed at 11:57, (1) fails narrowly, so exp-085 does not re
           (2) the replicate wins >= 3 of the 4 critical levels; (3) the replicate keeps levels >= 108 and score >= 44.
           All three -> exp-085 replaces exp-084 in the LB rotation from the next free slot; otherwise the patch stays off.
           I2 drew 1 click in 12 firings: if the patch is kept, a later build should keep I1 only (OURS_UNTRIED=i1).
+
+## 2026-10-10 16:59 · exp-085 replicate (v2) · 47.51 / 111 levels on a slow-storage boot; pooled click rate 21.5%, critical 3 of 4 · PASS → exp-085 replaces exp-084 on the LB from Oct 12
+Run:      scottmahony/arc3-dprime-r14a05-h4-percept-untried-full v2 (pushed 14:31, same notebook as v1);
+          runs/exp085r-dprime-r14a05-h4-percept-untried-full ("our harness patches applied successfully: 7").
+Boot:     slow storage again: the input precache took 1,073 s (v1 300 s, exp-084 283 s); "DEADLINE at 722s from notebook
+          start; releasing the benchmark with the server still loading"; server ready 14:56:27, ~11 min after the release.
+          The first requests waited inside the 2,400 s grace (log: "retrying for up to 2400s while the endpoint comes up");
+          no game ended early (fewest actions 72). First live use of the grace; it held. The lost minutes show as 12% fewer
+          output tokens (5.29 M vs 6.04 M) and 2,737 requests (v1 3,013).
+Score:    47.51, 111 levels (hard 15 / easy 10 by run_compare); serving accept 3.34, 805 tok/s over the span.
+Rule (fixed 14:31):
+          (1) I1 named object clicked within 3 actions, from the lines shown (scripts/untried_read.py): v2 23/99 (23.2%);
+              pooled with v1 43/200 = 21.5% >= 20%: PASS (baseline without lines 32/318 = 10.1%; z ~3.6). Named unused
+              action used within 3: 27/99. I2 again 1/12 clicks: the new-colour line does not work.
+          (2) critical levels: tn36 L2 won (7 of 7 levels), vc33 L4 lost (3), sp80 L2 won (4), cn04 L2 won (4): 3 of 4 PASS.
+              Over both runs 7 of 8 (base family about 4 of 8 per two runs, bundle runs exp-081 + exp-084 5 of 8).
+          (3) 111 >= 108 and 47.51 >= 44: PASS.
+Decision: exp-085 replaces exp-084 in the LB rotation from Oct 12 (both versions are the same code; either is submittable).
+          The pair's mean is 50.64 / 115 levels against the bundle runs' 50.00 / 113 and 48.83 / 114: the score gain is not
+          readable from two runs; the case rests on the mechanism (the model acts on the line about twice as often as it
+          would click those objects anyway) and the critical levels. scripts/build_candidates.sh now rebuilds exp-085 byte
+          for byte (tests pin it). Follow-up: a later build should drop I2 (OURS_UNTRIED=i1) since it draws no clicks.
+GPU:      this week about 21 h of 30 (A2's 5-h hold before its first cell may or may not have counted).

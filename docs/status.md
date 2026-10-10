@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-10-10 14:31 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
+Last updated: 2026-10-10 16:59 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
 
 ## Competition facts: verified vs. unconfirmed
 
@@ -145,6 +145,16 @@ score over at least 3 draws each. A difference under 0.5 points is a tie, broken
 public 25 (scripts/arm_table.py), then the validation score. If the top two are variants of one configuration within
 noise, the second slot goes to the best configuration that differs from it (diversification against the private half).
 If fewer than two configurations reach 3 draws, the unmodified base fills the second slot.
+
+### State at 2026-10-10 16:59 UTC
+- **exp-085 adopted: it replaces exp-084 in the LB rotation from Oct 12.** Its replicate (v2) scored 47.51 / 111 on a
+  slow-storage boot (the server came up 11 min after the benchmark release; the 40-min grace held, no game lost). Over
+  the two runs the model clicked a named object within 3 actions after 21.5% of the "not yet tried" lines (10.1%
+  without them), and won 7 of 8 critical levels; the pre-registered rule passed (research log 16:59).
+- **LB plan (owner):** Oct 11 exp-083 (version 1); **Oct 12 exp-085**:
+  https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-h4-percept-untried-full (version 1 or 2, same code);
+  then alternate exp-083 / exp-085.
+- GPU this week ~21 of 30 h. Nothing running.
 
 ### State at 2026-10-10 14:31 UTC
 - **exp-085 (exp-084 + untried-objects notices): 53.77, 119 levels**, 2nd of 11 full-length runs; easy-10 best ever
@@ -406,9 +416,8 @@ git history; Milestone 2 has closed.)
 
 1. **Daily LB submission (1 a day; you submit by hand).** Alternate the two candidates so each gets at least 3 draws;
    the final-selection rule is pre-registered under "Plan for the week of 2026-09-26":
-   - exp-081 (harness bundle + perception): https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-harness4-percept-full
-     (today, Oct 10); from Oct 12 its draft version exp-084:
-     https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-harness4-percept-draft-full;
+   - exp-081 (harness bundle + perception): drew 34.04 on Oct 10; from Oct 12 its successor exp-085 (bundle + draft +
+     untried-objects notices): https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-h4-percept-untried-full;
    - exp-083 (base candidate + fine-tuned draft; replaces exp-074t from Oct 11):
      https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-arcmap-draft-full;
    - then alternate. Draws so far: exp-081 34.04 (Oct 10); exp-074t 27.97; our unchanged D' copy 28.87.
