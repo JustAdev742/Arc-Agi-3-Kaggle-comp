@@ -1,0 +1,30 @@
+diff --git a/ARC3-Inference/inference/agent/tool_agent.py b/ARC3-Inference/inference/agent/tool_agent.py
+index 84a9cdd..48a02d4 100644
+--- a/ARC3-Inference/inference/agent/tool_agent.py
++++ b/ARC3-Inference/inference/agent/tool_agent.py
+@@ -1314,6 +1314,15 @@ def _reasoning_effort_ladder() -> list[str]:
+     return [level.strip() for level in raw.split(",") if level.strip()]
+ 
+ 
++def _static_reasoning_effort() -> str:
++    """ours-09: the chat template's reasoning_effort sent with every request
++    (OURS_REASONING_EFFORT, e.g. "medium"); the truncation ladder, when on,
++    still steps below it. Empty (default) sends nothing, which leaves the
++    template's own default ("xhigh" for Flash-Next, which prepends "think
++    carefully ... consider plausible alternatives" to the system prompt)."""
++    return os.environ.get("OURS_REASONING_EFFORT", "").strip()
++
++
+ def _preserve_thinking_kwarg() -> bool | None:
+     """Value for the `preserve_thinking` chat-template kwarg, or None to omit.
+ 
+@@ -5209,6 +5218,9 @@ class ToolAgent:
+         preserve_thinking = _preserve_thinking_kwarg()
+         if preserve_thinking is not None:
+             kwargs["preserve_thinking"] = preserve_thinking
++        static_effort = _static_reasoning_effort()
++        if static_effort:
++            kwargs["reasoning_effort"] = static_effort
+         ladder = _reasoning_effort_ladder()
+         rung = getattr(self, "_reasoning_effort_rung", -1)
+         if ladder and 0 <= rung < len(ladder):
