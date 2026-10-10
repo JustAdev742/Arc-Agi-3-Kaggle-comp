@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-10-10 06:10 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
+Last updated: 2026-10-10 06:49 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
 
 ## Competition facts: verified vs. unconfirmed
 
@@ -145,6 +145,16 @@ score over at least 3 draws each. A difference under 0.5 points is a tie, broken
 public 25 (scripts/arm_table.py), then the validation score. If the top two are variants of one configuration within
 noise, the second slot goes to the best configuration that differs from it (diversification against the private half).
 If fewer than two configurations reach 3 draws, the unmodified base fills the second slot.
+
+### State at 2026-10-10 06:49 UTC
+- **Both LB candidates now carry the fine-tuned MTP draft** (accept 3.14 -> 3.33; decode +3.5-8% at equal batch; no
+  loops):
+  - exp-083 (base + ARC map + draft): 50.58, 116 levels;
+  - exp-084 (bundle + draft): 48.83, 114 levels.
+- **LB plan (owner):** Oct 10 exp-081 (today, as planned); **Oct 11 exp-083**
+  (https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-arcmap-draft-full); **Oct 12 exp-084**
+  (https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-harness4-percept-draft-full); then alternate.
+- GPU used this week ~10.5 of 30 h. Both slots idle.
 
 ### State at 2026-10-10 06:10 UTC
 - **exp-083 adopted:** the exp-074t candidate + ARC map + fine-tuned MTP draft scored 50.58 (116 levels, 2nd of nine
@@ -365,7 +375,8 @@ git history; Milestone 2 has closed.)
 1. **Daily LB submission (1 a day; you submit by hand).** Alternate the two candidates so each gets at least 3 draws;
    the final-selection rule is pre-registered under "Plan for the week of 2026-09-26":
    - exp-081 (harness bundle + perception): https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-harness4-percept-full
-     (today, Oct 10);
+     (today, Oct 10); from Oct 12 its draft version exp-084:
+     https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-harness4-percept-draft-full;
    - exp-083 (base candidate + fine-tuned draft; replaces exp-074t from Oct 11):
      https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-arcmap-draft-full;
    - then alternate. Draws so far: exp-074t 27.97; our unchanged D' copy 28.87.

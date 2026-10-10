@@ -2994,3 +2994,17 @@ Decision: all three readings hold (the rule in the entry "exp-083 / exp-084" abo
           Kernel version 1 is the completed full-length save run, directly submittable (the competition rerun is
           D' unchanged apart from the draft, the map and the 40-min grace). It mounts scottmahony/arc3-mtp-session-a's
           output: do not push a new version of that kernel.
+
+## 2026-10-10 06:49 · exp-084 · the exp-081 bundle + fine-tuned draft: 48.83, accept 3.33, +3.5-8% tok/s at equal batch · ADOPTED (replaces exp-081 on the LB)
+Run:      scottmahony/arc3-dprime-r14a05-harness4-percept-draft-full v1 (04:10-~06:35 UTC, ~2.4 GPU-h); runs/exp084-...;
+          transcripts scratchpad sa084/.
+Serving:  accept 3.33 (exp-081, the same build with albucino: 3.14). Median gen tok/s at equal batch, exp-081 -> exp-084:
+          8 running 797 -> 859 (+8%), 10: 919 -> 973 (+6%), 12: 945 -> 979 (+4%), 13-14: 966 -> 1,000 (+3.5%). Output
+          tok/s over the run 803 -> 827.
+Loop gate: exact repeated turns 0 of 3,022; "stuck in a loop" 4, all hypothetical ("if X fails I'd be stuck in a loop",
+          dc22/lf52/m0r0/vc33), none a report of a loop; output tokens per request 1,995 (exp-081 2,015); read timeouts
+          14 (earlier 9-13). Passed. Noted: NameErrors 66 and Tracebacks 305 per ~3,000 tool results (earlier
+          transcripts 35-60 and 224-252), the high end of the spread on an identical harness.
+Score:    48.83 / 114 levels (exp-081 50.00 / 113); hard 15 53 levels; within one run's noise of exp-081.
+Decision: exp-084 replaces exp-081 in the LB rotation from Oct 12 (version 1 is the completed full-length save run).
+          With exp-083 (Oct 11) both candidates now carry the draft; both mount scottmahony/arc3-mtp-session-a.
