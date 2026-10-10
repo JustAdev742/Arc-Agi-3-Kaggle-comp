@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-10-10 04:52 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
+Last updated: 2026-10-10 06:10 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
 
 ## Competition facts: verified vs. unconfirmed
 
@@ -145,6 +145,15 @@ score over at least 3 draws each. A difference under 0.5 points is a tie, broken
 public 25 (scripts/arm_table.py), then the validation score. If the top two are variants of one configuration within
 noise, the second slot goes to the best configuration that differs from it (diversification against the private half).
 If fewer than two configurations reach 3 draws, the unmodified base fills the second slot.
+
+### State at 2026-10-10 06:10 UTC
+- **exp-083 adopted:** the exp-074t candidate + ARC map + fine-tuned MTP draft scored 50.58 (116 levels, 2nd of nine
+  full-length runs) with accept 3.33 (was 3.14-3.15), +2-6% decode throughput at equal batch, and a clean loop gate
+  (0 exact repeats in 3,162 turns). It replaces exp-074t in the LB rotation.
+- **LB plan (owner):** Oct 10 exp-081 (today, as planned); **Oct 11 exp-083**:
+  https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-arcmap-draft-full ; Oct 12 exp-084 (exp-081 + draft) if
+  its run reads clean (check-in 06:45 UTC), else exp-081; then alternate.
+- exp-084 still running (pushed 04:10).
 
 ### State at 2026-10-10 04:52 UTC
 - **Probe B1 passed** the MTP draft gate (+0.26 / +0.31 lossless accept over B0). **exp-082 (reasoning effort
@@ -357,7 +366,8 @@ git history; Milestone 2 has closed.)
    the final-selection rule is pre-registered under "Plan for the week of 2026-09-26":
    - exp-081 (harness bundle + perception): https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-harness4-percept-full
      (today, Oct 10);
-   - exp-074t (base candidate): https://www.kaggle.com/code/scottmahony/arc3-dprime-reap448-r14-accept05 (Oct 11);
+   - exp-083 (base candidate + fine-tuned draft; replaces exp-074t from Oct 11):
+     https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-arcmap-draft-full;
    - then alternate. Draws so far: exp-074t 27.97; our unchanged D' copy 28.87.
 2. **Rented GPUs (optional, your money).** The vast.ai runner is built (scripts/rental.py): our exact notebooks on a
    1-GPU RTX PRO 6000, about $4.5-5 per public-25 run. More repeats are the only way to read effects of 1-3 points;

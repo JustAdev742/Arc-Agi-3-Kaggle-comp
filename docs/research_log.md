@@ -2976,3 +2976,21 @@ Read:     (1) serving: accept and output tok/s against the ARC-map albucino runs
           (3) score and levels against the range of the eight runs (one run cannot show a 5% gain). If (1) and (2)
           hold, the draft versions replace exp-074t and exp-081 in the LB rotation, since their full-length versions
           are directly submittable.
+
+## 2026-10-10 06:10 · exp-083 · the exp-074t candidate + ARC map + fine-tuned draft: 50.58, accept 3.33, loop gate clean · ADOPTED (replaces exp-074t on the LB)
+Run:      scottmahony/arc3-dprime-r14a05-arcmap-draft-full v1 (03:29-~06:00 UTC, ~2.5 GPU-h); runs/exp083-...; transcripts
+          scratchpad sa083/ (pulled with scripts/kaggle_pull.py; the queue runner had hit its 2-h limit).
+Serving:  MTP accept 3.33 (ARC-map albucino runs exp-077/080/081: 3.14-3.15; all eight earlier: 2.67-3.15). Decode
+          throughput at equal batch (median gen tok/s by running requests): at 10 running 977 vs 901-935, at 12 979 vs
+          924-960, at 13-14 977 vs 933-994: +2-6% where the batch is not full, ~0 at 14. Output tok/s over the run 804
+          (803-824): the run spent less time at a full batch (mean 11.5 running vs 12.2).
+Loop gate (plan 6.4 S3): exact repeated turns 0 of 3,162 (albucino 0/2,848, 1/2,905); "stuck in a loop" 2 (1-2);
+          "loop"/"repeat" word counts in proportion to turns; read timeouts 13 (9-13); 3,163 completions, all HTTP 200.
+          Passed. Output tokens per request 1,848 (1,989-2,202: -12%) and actions 6,721 (most of any run): turns got
+          shorter and more frequent, without repeats; consistent with the sharpening plan 6.4 expects, and harmless here.
+Score:    50.58 / 116 levels (eight runs: 39.73-56.00 / 95-124): 2nd of nine; hard 15 54 levels (39-58), easy 10 62
+          (56-66). One run; it shows no harm, not the size of the gain (expected +2-4% from throughput).
+Decision: all three readings hold (research log 04:1x rule): exp-083 replaces exp-074t in the LB rotation from Oct 11.
+          Kernel version 1 is the completed full-length save run, directly submittable (the competition rerun is
+          D' unchanged apart from the draft, the map and the 40-min grace). It mounts scottmahony/arc3-mtp-session-a's
+          output: do not push a new version of that kernel.
