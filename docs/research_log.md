@@ -2825,3 +2825,12 @@ Decision: the bundle's LB candidate becomes exp-081 (a superset of exp-080 whose
 The owner's submission 56980485 comes from scottmahony/arc3-dprime-reap448-r14-accept05 (scriptVersionId 356462444;
 the submission's `url` field in the Kaggle API), i.e. exp-074t, the base candidate. Its draw is the first LB number for
 the REAP-448 + 14 streams + relaxed-acceptance config. Next slot (Oct 10): exp-081; then alternate.
+
+## 2026-10-10 00:12 · LB: exp-074t drew 27.97 (submission 56980485) · READ (1 draw)
+exp-074t (D' + REAP-448 at load + 14 streams + relaxed MTP acceptance 0.5/0.5 + sandbox fix): 27.97. Our unchanged D'
+copy drew 28.87 (Oct 7); D''s author 31.54; Franzen-family copies 25.8 +/- 3.9 per draw. One draw each: the difference
+(-0.9) is far inside the per-draw spread (two-draw difference SD ~5.5), so it says nothing yet about the +28-30% decode
+throughput. Public-25 to LB for this config: ~49.4 -> 27.97 (ratio 0.57, inside the 0.55-0.62 band of intel-oct8.md).
+Next LB slots: exp-081 (Oct 10), then alternate with exp-074t (owner's choice of plan; reasons in the conversation:
+same notebook, different draws; averages of >= 3 draws decide).
+GPU: weekly quota reset at 00:00 UTC (0.00 of 30 h used at 00:08). MTP session A queued at 00:10.
