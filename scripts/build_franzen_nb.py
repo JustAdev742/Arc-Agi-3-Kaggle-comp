@@ -290,15 +290,21 @@ def _typed_cfg_value(key: str, old_text: str, new: str) -> str:
 
 
 def _set_env(cell: str, env: dict[str, str]) -> tuple[str, list[str]]:
+    """--env: change a knob cell 4 already sets, either an entry of his setup_env dict or one of the plain
+    ``os.environ['KEY'] = '...'`` lines above it (e.g. ARC3_HTTP_RETRY_INITIAL_SECONDS)."""
     changes = []
     for key, value in env.items():
         pattern = re.compile(rf"^(\s*)'{re.escape(key)}': ([^,\n]+),", re.M)
-        hits = pattern.findall(cell)
-        if len(hits) != 1:
-            raise SystemExit(f"--env {key}: anchor found {len(hits)} times in cell 4 (expected once; --env-add adds "
-                             f"a key)")
-        new_value = _env_literal(value)
-        cell = pattern.sub(lambda m, nv=new_value, k=key: f"{m.group(1)}'{k}': {nv},  # ours (--env)", cell)
+        assign = re.compile(rf"^os\.environ\['{re.escape(key)}'\] = '[^'\n]*'$", re.M)
+        hits, assigns = pattern.findall(cell), assign.findall(cell)
+        if len(hits) + len(assigns) != 1:
+            raise SystemExit(f"--env {key}: anchor found {len(hits) + len(assigns)} times in cell 4 (expected once; "
+                             "--env-add adds a key)")
+        if hits:
+            new_value = _env_literal(value)
+            cell = pattern.sub(lambda m, nv=new_value, k=key: f"{m.group(1)}'{k}': {nv},  # ours (--env)", cell)
+        else:
+            cell = assign.sub(lambda m, k=key, v=str(value): f"os.environ[{k!r}] = {v!r}  # ours (--env)", cell)
         changes.append(f"env {key}={value}")
     return cell, changes
 

@@ -57,6 +57,22 @@ def test_env_overrides_existing_knobs_only(tmp_path):
         bf.build(tmp_path / "x", "x", env={"NOT_A_KNOB": "1"})
 
 
+@pytest.mark.parametrize("base", ["franzen", "dprime"])
+def test_env_also_changes_a_plain_os_environ_line_of_cell_4(tmp_path, base):
+    # the first-request grace (lesson 0038) is set as os.environ['ARC3_HTTP_RETRY_INITIAL_SECONDS'] = '900'
+    changes = bf.build(tmp_path, "g", base=base, env={"ARC3_HTTP_RETRY_INITIAL_SECONDS": "2400"})
+    assert changes == ["env ARC3_HTTP_RETRY_INITIAL_SECONDS=2400"]
+    setup = next(c for c in _code_cells(tmp_path / "g.ipynb") if bf.SETUP_ANCHOR in c)
+    assert "os.environ['ARC3_HTTP_RETRY_INITIAL_SECONDS'] = '2400'  # ours (--env)" in setup
+    assert "= '900'" not in setup
+    ns: dict = {}
+    line = next(x for x in setup.splitlines() if "ARC3_HTTP_RETRY_INITIAL_SECONDS" in x)
+    exec("import os\n" + line, ns)
+    assert ns["os"].environ.pop("ARC3_HTTP_RETRY_INITIAL_SECONDS") == "2400"
+    with pytest.raises(SystemExit, match="--env-add adds"):
+        bf.build(tmp_path / "x", "x", base=base, env={"ARC3_NOT_SET_ANYWHERE": "1"})
+
+
 def test_the_vendored_notebook_is_guarded(tmp_path, monkeypatch):
     copy = tmp_path / "base.ipynb"
     copy.write_bytes(bf.BASE.read_bytes() + b" ")
