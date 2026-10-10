@@ -6,7 +6,7 @@ static reasoning effort of "medium" (one competitor's runs on Franzen's stack). 
 levels on the 15 hard public games, and it cost about 6 levels on the 10 easy ones. It is the one change from this
 refresh worth GPU time: one hard-15 run at the hidden set's time share, about 1.6 GPU-h.
 
-Research run 2026-10-10 01:03-01:35 UTC. Downloads are in the session scratchpad
+Research run 2026-10-10 01:03-01:40 UTC. Downloads are in the session scratchpad
 `/tmp/claude-0/-home-user-Arc-Agi-3-Kaggle-comp/d342458e-03bd-545b-8a6d-06bca061963e/scratchpad/intel-oct10/data/`:
 - leaderboard CSV `lbcsv/`, monitor JSON `lbhist/`, best submissions `teamsub/`
 - notebook scores `nbscores/`, notebook listings `kernels/`, pulled notebooks `kpull/` (one new directory each),
@@ -27,14 +27,14 @@ read it this session in the source named; "inference" is my reading.
 2. **Public notebooks (verified).** Nothing beats 34.30. The new scores of 30 or more are copy draws: a
    byte-identical Franzen copy drew 30.75 and a D′ fork drew 30.82. The new techniques (prompt injections, a world-model
    simulator, NVFP4 on SGLang, temperature 0.4, a no-LLM explorer) have no score evidence above copy noise. The
-   NVFP4 build is clearly worse: 145 tok/s and a 9.80 draw.
+   NVFP4 notebook took about 33 minutes to start its server and drew 9.80.
 3. **Reasoning effort "medium" (verified data; the reading is inference).** juliancamilovilla ran clean single-knob
    arms on Franzen's notebook on Oct 8-9:
    - On the 15 hard games (37.5 min each), levels went 17 → 32 (score 5.37 → 16.66). Nine games went up and one
      went down.
    - On the 10 easy games (25 min each), levels went 47.5 ± 1.0 (four base runs from two authors) → 41.
-   - Mechanism, read in the request logs: medium cuts the long-deliberation tail (p90 completion 5.4k → 3.4k
-     tokens), not the typical turn.
+   - Mechanism, read in the request logs of two games: medium cuts the long-deliberation tail (p90 completion
+     5.4k → 3.4k and 4.8k → 3.4k tokens), not the typical turn.
    - Our Sep 23 test (exp-037) on the older harness found no gain at full length. The open question is whether the
      hard-game gain survives at the hidden set's time per game.
 4. **Forum (verified).** Quiet. No staff post, no answer on the licence or docker questions, and the rules pages
@@ -53,7 +53,7 @@ Sources:
 
 "Subs" is the total submission count, with the increase since Oct 8 16:33 in brackets.
 
-| Rank (Oct 8) | Team | Best now | Change | Subs | Best submission (UTC) |
+| Rank now (Oct 8) | Team | Best now | Change | Subs | Best submission (UTC) |
 |---|---|---|---|---|---|
 | 1 (2) | Yi-Chia Chen | **59.17** | +3.40 | 25 (+1) | 56967356, Oct 8 18:49 |
 | 2 (1) | Tufa Labs | **56.52** | +0.63 | 159 (+2) | 56965506, Oct 8 17:53 |
@@ -73,7 +73,8 @@ Sources:
 
 Others:
 - Son & Mark & Ronen 33.74 → 35.45 (#19).
-- AFF AI CLUB, the D′ authors' team (shiiin9), went 31.54 → 33.92 on Oct 9. They have published nothing since Oct 4.
+- AFF AI CLUB, the D′ authors' team (shiiin9), went 31.54 → 33.92 on Oct 9. None of its three members has public
+  content newer than shiiin9's Oct 4 notebooks.
 - New teams posted high first draws: Ryo Takaki 33.31 (2 submissions), SK #2 31.92 (1) and Szymon Kamiński
   31.04 (1).
 - Daniel Franzen: 27.89, rank 673, 90 submissions. Scott Le Grand: 30.34.
@@ -83,16 +84,16 @@ Others:
   4,076 teams in all.
 
 What the jumps suggest (inference):
-- **The leaders are still improving in small steps.** Yi-Chia beat their own best again with one submission a
-  day; that fits a run of trained artifacts (intel-oct8 §1.5). Tufa's +0.63 is within draw noise of their Oct 3
-  system.
+- **The leaders are still improving in small steps.** Yi-Chia's one submission since Oct 8 beat their best again.
+  Their best has now risen on 8 of the 12 days from Sep 27 to Oct 8 (monitor), with 25 submissions in all; that fits
+  a sequence of trained artifacts (intel-oct8 §1.5). Tufa's +0.63 is within draw noise of their Oct 3 system.
 - **The gap from us to #1 is now 30 points.** The gap to #3 (mtg) is 15.
 - **SparseTech's one-step +8.65 is unexplained.** The only public trace of them is Aug-Sep datasets from
   aaronflouro: an SM120 inference binary ("sparson-ds4-bin-sm120") and a 150B REAP-pruned MXFP4 build
   ("sparson-reap150b-mxfp4"). That points to a custom runtime with pruning, a route like Artificial Agency Lab's
   (about 38-39), but it is a guess.
-- **mtg (+6) and NVARC3 (+3.5) left no public trace.** CPMP repeated in thread 747438 that NVARC3 discloses
-  nothing before the end.
+- **mtg (+6) and NVARC3 (+3.5) left no public trace.** In thread 747438 CPMP (NVARC3) redacted a dataset path "as
+  it may leak info"; on Oct 6 he said they disclose nothing before the end (746010).
 
 **D′ family on the leaderboard.**
 
@@ -120,7 +121,7 @@ The four public D′ draws are each that notebook's best score, so they are bias
   - spark328/arc-prize-2026-arc-agi-3-franzen-v1: 30.75. Its code is identical to Franzen v3.
   - feili6458: 29.31.
   - viniciussignorelli/arc-agi-3-duck-franzen-base: 28.85. Identical to Franzen v3.
-  - leoprovorov F001/F002 "Fable layer": 25.98 and 18.95.
+  - leoprovorov F001 and F002 (harness-computed notes): 25.98 and 18.95.
   - hitarthjain0: 25.10.
   - juliancamilovilla/arc-agi3-franzen-h1: 24.17.
   - hknight888/hknight3-opt: 22.17.
@@ -144,7 +145,7 @@ Leaderboard scores are one draw each.
 |---|---|---|---|---|
 | juliancamilovilla arc-agi3-e1-med, -e1-med-g15 (Oct 9) | Franzen | **reasoning_effort = medium on every request** (5-line patch to the harness's chat-template kwargs, env `ARC3_STATIC_REASONING_EFFORT`) | hard 15: 17 → 32 levels; easy 10: 47.5 → 41 (§2.3); no leaderboard draw yet | **Test it** (§4) |
 | juliancamilovilla arc-agi3-e1-low-g15 (Oct 9) | Franzen | same patch at "low" | crashed in cell 2: `cp: cannot stat '/kaggle/input/datasets/dfranzen/taaf-kaggle-source-bundle-copy'` (input not mounted at that path) | no data |
-| juliancamilovilla arc-agi3-franzen-h1 (Oct 8) | Franzen | retained functions survive a sandbox timeout; huge result lists/dicts truncated | easy 10: 46.63, 45 levels (base about 47.5); leaderboard 24.17 | We already have this (ours-sandbox-timeout-keeps-work; exp-075). Noise |
+| juliancamilovilla arc-agi3-franzen-h1 (Oct 8) | Franzen | retained functions survive a sandbox timeout; huge result lists/dicts truncated | easy 10: 46.63, 45 levels (base about 47.5); leaderboard 24.17 | We already have the timeout fix (ours-sandbox-timeout-keeps-work; exp-075). The second fix (list/dict results over 16,000 characters go through the normal truncation) is not in ours; it is cheap hygiene with no score evidence. Noise |
 | juliancamilovilla arc-agi3-franzen-d1 (Oct 8) | Franzen | `ARC3_CONTEXT_DRAIN_TOKENS` 58K → 24K, `ARC3_MAX_ACTIVE_STREAMS` 10 → 8 | easy 10: 29.76, 34 levels, 486 tok/s | Worse. Skip |
 | juliancamilovilla arc-agi3-franzen-g15 (Oct 9) | Franzen | demo game list only (hard 15 at 37.5 min) | the baseline arm for E1 | reference |
 | sujanmajhisuzan arc-agi-3-m2-top-submission (Oct 8 19:16) | Franzen | "V20 Superstack": monkey-patches `ToolAgent._build_user_prompt` to append (a) the last 250 characters of reasoning as "invariants" per cleared level, (b) a death-loop warning after 2 game-overs on a level, (c) a "strategy audit" block on every prompt after 12 prompts on a level, telling the model to UNDO/RESET; skips the demo run | best 31.93 (an earlier version); no newer draw | Prompt text; inside copy noise (lesson 0025). Skip |
@@ -152,9 +153,9 @@ Leaderboard scores are one draw each.
 | yukailiu arc-agi-3-champion-solution (Oct 9) | D′ | infrastructure only: input-path fallbacks with a `/kaggle/input` scan, libcuda stub handling, always writes submission.parquet; image `kaggle-images/python@sha256:e5452ce6…` (lesson 0029: that is the CPU image) | none | noise |
 | bang1850 arc-prize-2026-sovereign-agent (Oct 9) | Franzen | deletes the customization hook (so solver defaults apply) and re-sets six env flags to the values Franzen already uses | demo: 25 games, 1 pass, 2 h 13 min, 43.09; leaderboard best 29.08 (old) | noise |
 | vladimiryakunin DF-WM (Oct 9) | Franzen | adds a 472 KB "und" patch (a world-model simulator `SimFrame`/`check_sim`, BFS `search`, `act_checked`, a cycle detector, a claim graph and others) behind `ARC3_UND_*` and `ARC3_WORLD_MODEL_SIM`; 4-pass demo setting; demo skipped in this version | leaderboard best 29.30 (Oct 4 version); no new draw | no evidence. Skip |
-| superstringdev arc-agi-3-nvfp4-sglang-public (Oct 9) | Franzen harness | ModelOpt NVFP4 W4A16 (block 16) with Marlin MoE, external BF16 PLE, its own SGLang runtime, a counted RESET every 600 s during server start | server ready after about 33 min; 145 tok/s (Franzen's W4A16: about 570); demo 27.84 on 10 games over 59 min; leaderboard **9.80** | Negative for NVFP4 on this path |
+| superstringdev arc-agi-3-nvfp4-sglang-public (Oct 9) | Franzen harness | ModelOpt NVFP4 W4A16 (block 16) with Marlin MoE, external BF16 PLE, its own SGLang runtime, a counted RESET every 600 s during server start | server ready after about 33 min; the demo generated 512k tokens in 59 min (145 tok/s over the whole job, startup included; Franzen's notebook logs about 570), 27.84 on 10 games; leaderboard **9.80** | no sign that it beats W4A16. Skip |
 | hknight888 hknight3-opt (Oct 9) | Franzen v3 | `LOCAL_ANALYZER_TEMPERATURE` 0.7 → 0.4 | leaderboard 22.17 | one low draw. Skip |
-| leoprovorov F001/F002 "Fable layer" (Oct 8) | Franzen | harness-computed indicator notes, a budget alert, a pinned level log (F002: plus a pinned digest of cleared levels) | leaderboard 25.98 and 18.95 | close to our patches 03/05/06; no gain. Skip |
+| leoprovorov F001/F002 (Oct 8) | Franzen | harness-computed indicator notes, a budget alert, a pinned level log (F002: plus a pinned digest of cleared levels) | leaderboard 25.98 and 18.95 | close to our patches 03/05/06; no gain. Skip |
 | luisignaciomoreno Prometheus (Oct 10) | none (CPU-only, MIT-0) | no LLM: masked state memory, DSL world model, click ranker; its own budget sweep reports 4.0 levels at 400 actions and 8.5 at 1,600 on the public 25 | no draw | irrelevant to us |
 | spark328, viniciussignorelli, zhangyues0000 forks | Franzen v3 | none (a copy, or a 1-pass demo) | 30.75 and 28.85 | copy noise |
 
@@ -180,7 +181,7 @@ score).
 
 **Runs.**
 - All are on Franzen's unchanged serving stack: Intel W4A16, the Albucino drafter, 10 streams, image 57e612b4.
-- One run per arm, on Kaggle, Oct 3-9.
+- One run per arm, on Kaggle, Oct 2-9.
 - The easy-10 baselines include vinicius's three runs from his CC0 measurement study (§2.4).
 
 | Games, budget | Arm | Levels | Mean score | Actions | Tokens per action | Gen tok/s |
@@ -218,7 +219,7 @@ Medium removes the long-deliberation tail and leaves the median turn unchanged.
 
 **Caveats.**
 - Each arm is one run, and the hard-15 baseline is a single run. Its 17 levels does match vinicius's hard-15 run
-  (17 levels, 4.53).
+  at a similar budget (17 levels, 4.53).
 - Both budgets are short. Each game got about 25 slot-minutes; in our full-length public-25 runs and on the hidden
   set it gets about 70.
 - The two hard-15 runs were 6.7 h apart on different Kaggle sessions. Serving matched within 10% (541 vs 593 tok/s).
@@ -236,7 +237,7 @@ Medium removes the long-deliberation tail and leaves the median turn unchanged.
   "hypothesis/exploration" failure class.
 - It hurts on games that need long planning on later levels.
 - The hidden set behaves more like the hard games. Our leaderboard runs at about 0.55 of our full-length public-25
-  score, and most hidden games are expected to stay near level 1.
+  score, and our working assumption (`scripts/arm_table.py`) is that most hidden games stay near level 1.
 - So the trade could favour medium on the leaderboard if any of the hard-game gain survives at the full time
   share. Nothing measured so far shows that it does.
 
@@ -255,14 +256,15 @@ vinicius's `eval/FINDINGS.md` logs his experiments on Franzen's stack. The ones 
   - Levels fell 47 → 37.
   - This fits our finding that more streams need memory freed first (REAP-448).
 - **Speculative steps 4 cannot run (Oct 3).** The run raised `NotImplementedError: Qwen QSA requires
-  speculative_num_draft_tokens <= the QSA compress ratio (4)`. Our exp-072j (steps 4) also produced 0 levels.
+  speculative_num_draft_tokens <= the QSA compress ratio (4)`. Our exp-072j hit the same error (research log, Oct 8
+  13:31).
 - **Three prompt-level interventions were neutral or slightly negative:**
   - a preloaded `tools` namespace: 45.3 vs 47.7 levels, p 0.05 over 3 × 3 runs;
   - `ARC3_LEVEL_INVENTORY`: 15.0 vs 15.0 on hard 10;
   - a probe ledger: 13 vs 15.0, with the ledger used in 6.6% of turns.
 
   This agrees with our lesson 0025.
-- **Two input-mount failures (Oct 7-9).** A kernel failed twice because `dfranzen/taaf-kaggle-source-bundle-copy` was
+- **Two input-mount failures (Oct 7).** A kernel failed twice because `dfranzen/taaf-kaggle-source-bundle-copy` was
   not mounted under `/kaggle/input/datasets/`. The same notebook ran under a new slug.
 
 ## 3. Forum and other channels (verified)
@@ -276,11 +278,11 @@ vinicius's `eval/FINDINGS.md` logs his experiments on Franzen's stack. The ones 
     - Saving a notebook that uses a model from their last two submissions failed with `ERRORED_MOUNTING_DATASET …
       retry budget exhausted (30 attempts): rpc error: code = Internal desc = dataset loading failed`.
     - Natapong Nitarach replied "Same here!". No staff reply.
-    - CPMP again declined to share methods.
+    - CPMP redacted the path "as it may leak info".
   - 746295 (Shehab Anwer's lexicon view): a toy example, no score.
   - 745951 (queue): "even submitted notebooks are taking longer now" (Oct 8 16:57).
   - 744545, 747216, 747304: no technical content.
-- **No staff post anywhere since Oct 2.** No new answers on:
+- **No staff post in any thread active since Oct 8** (and none since Oct 2, per intel-oct8). No new answers on:
   - the Qwen licence and prize eligibility (745079, 745837);
   - which Docker image a scored rerun uses (745654).
 - The comment thread on Franzen's notebook (kernel topic 744763) has nothing new since Oct 4.
@@ -306,9 +308,9 @@ Our session A also saw 4-5× slower input reads at 00:14 Oct 10 (lesson 0038). O
 
 **Other channels.**
 - **Kaggle user content.**
-  - Checked: datasets, notebooks and models of every member of the top 11 teams, plus Franzen, Scott Le Grand,
-    shiiin9, Artificial Agency Lab, Lord Han Solo and the new high-scoring teams.
-  - Nothing new since Oct 8. Scott Le Grand's promised fine-tuned model ("mid-month") is not out.
+  - Checked: public datasets, notebooks and models of all 35 listed members of the top 11 teams, plus Franzen, Scott Le
+    Grand, the three AFF AI CLUB members, Lord Han Solo and the new high-scoring teams.
+  - Nothing new since Oct 8. Scott Le Grand's promised fine-tuned model ("mid-month") is not on Kaggle.
   - New Kaggle mirrors of the Intel W4A16 build and the Albucino drafter appeared (mirzamilanfarabi). They are
     copies only.
 - **Hugging Face.**
@@ -380,10 +382,10 @@ Our session A also saw 4-5× slower input reads at 00:14 Oct 10 (lesson 0038). O
 ### Noise (do not spend GPU on these)
 
 - **Prompt and harness-text additions:** sujanmajhisuzan's V20 Superstack and its hitarthjain0 copy,
-  leoprovorov's Fable layer, DF-WM's world-model simulator, and vinicius's tools, inventory and probe ledger. Each
+  leoprovorov's F001/F002 notes layer, DF-WM's world-model simulator, and vinicius's tools, inventory and probe ledger. Each
   is inside copy noise or measured neutral-to-negative, which matches lesson 0025.
 - **Serving variants:**
-  - NVFP4 W4A16 with Marlin on SGLang: 145 tok/s, a 9.80 draw.
+  - NVFP4 W4A16 with Marlin on SGLang: a 33-minute server start, a 9.80 draw.
   - Shorter drain with 8 streams (D1): −13 levels on the easy 10.
   - Temperature 0.4: one draw at 22.17.
   - 12 streams without freed memory: −10 levels on the easy 10.
