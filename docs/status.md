@@ -154,7 +154,9 @@ If fewer than two configurations reach 3 draws, the unmodified base fills the se
 - **LB plan (owner):** Oct 10 exp-081 (today, as planned); **Oct 11 exp-083**
   (https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-arcmap-draft-full); **Oct 12 exp-084**
   (https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-harness4-percept-draft-full); then alternate.
-- GPU used this week ~10.5 of 30 h. Both slots idle.
+- GPU used this week ~10.5 of 30 h. Running: MTP session A2 (v2 draft: all snapshots, 3 epochs; new slug
+  arc3-mtp-session-a2, pushed 06:53; check-in 09:15). It changes nothing in the candidates unless its probe
+  beats the adopted draft by >= +0.05 accept.
 
 ### State at 2026-10-10 06:10 UTC
 - **exp-083 adopted:** the exp-074t candidate + ARC map + fine-tuned MTP draft scored 50.58 (116 levels, 2nd of nine
