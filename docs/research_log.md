@@ -3175,7 +3175,7 @@ Decision: exp-083 stays in the LB rotation; exp-086 is not adopted. Across the t
           the bundle runs without them; sp80 L2, where the notice names the red bars, was won in all three. Not a reason to
           re-run exp-086 until it passes: its rule was one run.
 
-## 2026-10-10 19:59 · why the model ignores most "not yet tried" lines (docs/research/beat-tufa/notice-response-2026-10-10.md) · ANALYSED → notice v2 deferred to the next rebuild
+## 2026-10-10 20:02 · why the model ignores most "not yet tried" lines (docs/research/beat-tufa/notice-response-2026-10-10.md) · ANALYSED → notice v2 deferred to the next rebuild
 Data:     all 299 I1 lines of exp-085/085r/086 classified (hand-read where the line was mentioned or a click followed; script
           plus a hand-read sample of 30 otherwise); each named kind probed by one click on a copy of the replayed engine state.
 Finding:  the line's own effect is 32 clicks that cite it (11%); the other 28 named clicks (9%) match the 10% base rate of
