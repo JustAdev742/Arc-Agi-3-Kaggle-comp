@@ -3160,3 +3160,17 @@ Rule:     (1) the effect transfers: I1 named object clicked within 3 actions >= 
           42.89-56.00, 104-124 levels): levels >= 108 and score >= 44, unless the run's boot was slow (then judged on (1),
           (2) and tokens per level). All three -> exp-086 replaces exp-083 in the LB rotation from its next slot
           (Oct 13); otherwise exp-083 stays. GPU ~2.3 h (this week ~21 of 30 h before it).
+
+## 2026-10-10 19:30 · exp-086 · base candidate + untried-objects notices: 49.35 / 116, click rate 17.2%, critical levels 2 of 4 · FAILED (2) → exp-083 stays
+Run:      scottmahony/arc3-dprime-r14a05-arcmap-untried-full v1 (17:00-~19:20); runs/exp086-dprime-r14a05-arcmap-untried-full
+          ("our harness patches applied successfully: 2"); normal boot (input precache 247 s, no early release). Serving
+          accept 3.34, 820 tok/s.
+Score:    49.35, 116 levels; hard 15 53 levels, easy 10 63 (base family: 42.89-56.00, 104-124; exp-083 50.58 / 116).
+Rule (fixed 17:00):
+          (1) I1 named object clicked within 3 actions 17/99 = 17.2% >= 15%: PASS (the effect transfers to the base stack).
+          (2) critical levels: tn36 L2 lost (1 level), vc33 L4 lost (3), sp80 L2 won (4), cn04 L2 won (5): 2 of 4, FAIL.
+          (3) 116 >= 108 and 49.35 >= 44: PASS.
+Decision: exp-083 stays in the LB rotation; exp-086 is not adopted. Across the three runs with the notices the four critical
+          levels were won 9 of 12 times (exp-085 4, exp-085r 3, exp-086 2) against 9 of 16 in the base family and 5 of 8 in
+          the bundle runs without them; sp80 L2, where the notice names the red bars, was won in all three. Not a reason to
+          re-run exp-086 until it passes: its rule was one run.
