@@ -3041,7 +3041,7 @@ Also:     the seven zero-level games in ten full-length runs (dc22 x2, g50t x2, 
           model spent 34 min analysing without acting, then lost its slot at a trim and was never rescheduled (D′'s
           gate deprioritises games without progress by design; exp-078 was rejected anyway).
 
-## 2026-10-10 11:27 · bimodal games (tn36, vc33, sp80, cn04): losing runs never click an object they assume inert · ANALYSED → patch I1+I2 in build
+## 2026-10-10 11:10 · bimodal games (tn36, vc33, sp80, cn04): losing runs never click an object they assume inert · ANALYSED → patch I1+I2 in build
 Data:     docs/postmortems/bimodal-games-2026-10-10.md (subagent; 16 game-runs of exp073/073b/075/083, every action replayed
           through the local engine; per-level action counts match report.json for all 16).
 Finding:  each game splits on one level (tn36 L2, vc33 L4, sp80 L2, cn04 L2). In 7 of the 8 losing game-runs the agent never
