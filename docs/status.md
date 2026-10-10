@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-10-10 02:54 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
+Last updated: 2026-10-10 04:52 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
 
 ## Competition facts: verified vs. unconfirmed
 
@@ -145,6 +145,16 @@ score over at least 3 draws each. A difference under 0.5 points is a tie, broken
 public 25 (scripts/arm_table.py), then the validation score. If the top two are variants of one configuration within
 noise, the second slot goes to the best configuration that differs from it (diversification against the private half).
 If fewer than two configurations reach 3 draws, the unmodified base fills the second slot.
+
+### State at 2026-10-10 04:52 UTC
+- **Probe B1 passed** the MTP draft gate (+0.26 / +0.31 lossless accept over B0). **exp-082 (reasoning effort
+  medium) dropped**: 32.53, lowest of nine full-length runs (lesson 0040).
+- **Running:** exp-083 (exp-074t + ARC map + fine-tuned draft, pushed 03:29) and exp-084 (exp-081 + draft, pushed
+  04:10), both full length with the 40-min first-request grace. If accept/tok/s rise and the loop gate holds, they
+  replace exp-074t / exp-081 in the LB rotation.
+- **Queue runner stopped** at its 2-h background limit (not restarted, as instructed). Check-ins are scheduled for
+  06:05 and 06:45 UTC to pull and read exp-083 and exp-084 with scripts/kaggle_pull.py.
+- **LB (owner):** submit exp-081 today (Oct 10). Tomorrow's pick depends on exp-083's reading (default exp-074t).
 
 ### State at 2026-10-10 02:54 UTC
 - **MTP session A v2: GO, draft trained.** Held-out accept length 2.755 -> 2.995 (+0.24); the replica's forecast of
