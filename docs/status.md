@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-10-10 00:55 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
+Last updated: 2026-10-10 00:51 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
 
 ## Competition facts: verified vs. unconfirmed
 
@@ -146,7 +146,7 @@ public 25 (scripts/arm_table.py), then the validation score. If the top two are 
 noise, the second slot goes to the best configuration that differs from it (diversification against the private half).
 If fewer than two configurations reach 3 draws, the unmodified base fills the second slot.
 
-### State at 2026-10-10 00:55 UTC
+### State at 2026-10-10 00:51 UTC
 - **MTP session A v1 stopped at A2** (00:14-00:36, ~0.4 GPU-h): the probe server was not healthy after the fixed
   20-minute wait. Its weights were at 29 of 38 shards.
   - Kaggle's input storage read 4-5x slower than in any earlier run, even before the server started (research log,
