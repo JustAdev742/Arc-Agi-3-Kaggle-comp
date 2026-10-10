@@ -2990,7 +2990,7 @@ Loop gate (plan 6.4 S3): exact repeated turns 0 of 3,162 (albucino 0/2,848, 1/2,
           shorter and more frequent, without repeats; consistent with the sharpening plan 6.4 expects, and harmless here.
 Score:    50.58 / 116 levels (eight runs: 39.73-56.00 / 95-124): 2nd of nine; hard 15 54 levels (39-58), easy 10 62
           (56-66). One run; it shows no harm, not the size of the gain (expected +2-4% from throughput).
-Decision: all three readings hold (research log 04:1x rule): exp-083 replaces exp-074t in the LB rotation from Oct 11.
+Decision: all three readings hold (the rule in the entry "exp-083 / exp-084" above): exp-083 replaces exp-074t in the LB rotation from Oct 11.
           Kernel version 1 is the completed full-length save run, directly submittable (the competition rerun is
           D' unchanged apart from the draft, the map and the 40-min grace). It mounts scottmahony/arc3-mtp-session-a's
           output: do not push a new version of that kernel.
