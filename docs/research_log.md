@@ -2866,3 +2866,19 @@ Storage:  still slow at 00:55-01:10: weights 10:14 (15-16 s/shard; normal 4-6.5 
           (lesson 0038). The 55-minute probe limit (commit 0a595b7) was not needed this time.
 Use:      B0 is the baseline the trained draft must beat (B1: same build plus --draft; gate: mean >= +0.08 with the
           interval above 0 in both passes, 0 failed).
+
+## 2026-10-10 01:44 · exp-082 · reasoning effort "medium" on every request (ours-09), full length · PUSHED (rule fixed before the data)
+Why:      intel-oct10.md candidate 1. juliancamilovilla's single-knob runs on Franzen's stack: hard 15 games 17 -> 32
+          levels (9 up, 1 down; 37.5 min/game), easy 10 47.5 -> 41 (25 min/game); medium cuts the long-thinking tail
+          (p90 completion 5.4k -> 3.4k tokens) and leaves the median turn alone. Against it: our exp-037 (Sep 23,
+          older harness, full length) found no gain. The template's default xhigh only adds "think carefully,
+          validate key assumptions, consider plausible alternatives" to the system prompt (rendered: tests).
+What:     exp-075's exact build (the exp-074t candidate at full length: D' + REAP-448 + 14 streams + MAMBA 84 +
+          acceptance 0.5/0.5 + sandbox fix) + ours-09 (kaggle/franzen/patches/ours-09-reasoning-effort.patch,
+          OURS_REASONING_EFFORT=medium) + --fail-fast; 25 games x 121 min. Kernel
+          scottmahony/arc3-dprime-r14a05-effort-medium-full; bed run: every request carries reasoning_effort medium.
+Baseline: our 8 full-length runs: hard-15 levels 39-58 (base config 47 / 58 / 43), easy-10 levels 56-66, score
+          39.73-56.00 (mean 47.3).
+Rule:     hard-15 >= 60 and score >= 47.3 -> one repeat, then a third LB candidate; hard-15 <= 50 -> drop;
+          otherwise (51-59, or >= 60 with the score below 47.3) -> one repeat before deciding. Also read: tokens per
+          action, actions per solved level (RHAE pays for efficiency), and the share of completions >= 6k tokens.
