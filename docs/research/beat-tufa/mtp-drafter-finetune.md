@@ -940,3 +940,51 @@ The module was complete and close to right; the command lines it builds match th
 7. **Training speed and memory** (10.5). `TrainWatch` bounds the time, but a step slower than about 30 s would leave few steps.
 8. **A10 under the generic map** forecasts the gate only for a probe served with that map (11.5.7).
 9. **Notebook size.** It is 872,603 bytes, under the 900 KB rule but with only about 27 KB of room. Adding about 30 KB of compressed code would need the harness-patch cell dropped, or the scripts shipped as one payload.
+
+## 12. Sessions A and B on Kaggle (2026-10-10): the draft trains and passes the probe gate
+
+**Outcome.** Session A v2 ran every step (A0-A11, 88 minutes) and the replica check said GO. The fine-tuned dense
+weights raise the held-out accept length from 2.755 to 2.995 (+0.24) in the trainer's own evaluation. Probe B1 (the
+draft served by SGLang) beats its baseline B0 by +0.261 / +0.309 accept length (seq / conc), with both 95% intervals
+far above the +0.08 pass mark. Research log 2026-10-10 00:50, 01:29, 02:48 and 03:2x.
+
+### 12.1 What happened, in order
+1. **Session A v1 stopped at A2.** The fixed 20-minute health wait ran out with the weights at 29 of 38 shards,
+   because Kaggle's input storage read 4-5x slower than usual (lesson 0038). The wait now keeps going while the
+   server log grows, up to 50 minutes (`budgets_min.boot_max`), and stops a silent server after `boot` (20) plus
+   `boot_stall` (8) minutes.
+2. **Session A v2.** Server boots took 709 s (A2) and 1,601 s (A6): the second one would have failed under the old
+   wait.
+   - A3: 16 of 16 probe requests dumped.
+   - A7: 53 of 75 planned training snapshots (stopped at the 33.5 GB cap), plus one held-out snapshot for each of the
+     11 held-out games.
+   - A9: 356 steps in 30 minutes.
+3. **Pulling the outputs.** `kaggle kernels output` drew HTTP 429 from Kaggle's output listing and stopped after 10
+   files. `scripts/kaggle_pull.py` (bigger pages, pauses, backoff) fetched them; the queue runner now uses it.
+4. **B0 and B1.** The same probe build (REAP-448, ARC FR-Spec map, greedy, lossless, 154 held-out requests) with
+   albucino's draft (B0) and with the fine-tuned draft (B1, `--draft`). `scripts/probe_accept_gate.py` applies the
+   5.3 rule.
+
+### 12.2 Numbers
+| Check | Result | Rule |
+|---|---|---|
+| A5 replica vs SGLang (full context) | mean diff -0.039, Pearson 0.952 | <= 0.05, >= 0.9: GO |
+| A5, context cut to 2,048 / 256 tokens | -0.094 / -0.186 | (2k windows give up ~0.05) |
+| A9 held-out accept, realized | 2.755 -> 2.995 | |
+| A9 held-out accept, greedy / expected at T 0.7 | 2.870 -> 3.150 / 2.770 -> 3.011 | |
+| A9 KL per step 1/2/3 | 0.53/1.19/1.81 -> 0.25/0.48/0.67 | |
+| A10 replica forecast of the gate (generic map) | +0.228 | |
+| B1 vs B0, seq | +0.261 [+0.218, +0.303], pooled x1.090 | >= +0.08, interval > 0 |
+| B1 vs B0, conc | +0.309 [+0.268, +0.351], pooled x1.111 | same; 0 failed: PASS |
+| B1 vs fidelity-reap448 (generic map, albucino) | +0.314 / +0.328, x1.114 / x1.117 | map + draft together |
+
+Every one of the 11 held-out games and every prompt-length bucket gains in both passes (+0.18 to +0.42).
+
+### 12.3 Next and rules
+- **exp-083:** the exp-074t candidate plus the ARC map plus this draft, at relaxed acceptance 0.5/0.5, full length.
+  Read accept and tok/s against exp-077/080/081 (accept 3.14-3.15, 803-824 tok/s), and apply the 6.4 S3 loop gate.
+  Baselines from the albucino runs: 0 exact repeated turns in 2,848 (exp-077) and 1 in 2,905 (exp-081).
+- **Do not push a new version of `scottmahony/arc3-mtp-session-a`** while any notebook mounts it. Builds pin its
+  manifest's sha256 and refuse anything else, so a new version would stop them. Train the next draft under a new
+  slug, and turn the draft into a private Kaggle model before a final submission depends on it.
+- A retrain is needed for any new target or REAP list (S6). It costs one session A: about 1.5 GPU-h with slow storage.
