@@ -2882,3 +2882,19 @@ Baseline: our 8 full-length runs: hard-15 levels 39-58 (base config 47 / 58 / 43
 Rule:     hard-15 >= 60 and score >= 47.3 -> one repeat, then a third LB candidate; hard-15 <= 50 -> drop;
           otherwise (51-59, or >= 60 with the score below 47.3) -> one repeat before deciding. Also read: tokens per
           action, actions per solved level (RHAE pays for efficiency), and the share of completions >= 6k tokens.
+
+## 2026-10-10 02:12 · early hopeless-level signal under D′: weak at entry, none on the level, no policy pays · CLOSED (no patch)
+Doc:      docs/research/beat-tufa/hopeless-signal.md (CPU agent; scratchpad hopeless/, runall.sh, out/summary.txt).
+Question: time-allocation.md §4.6 put a perfect detector of hopeless levels (needing > 60 active minutes) at level
+          entry at +8.07 [+3.69, +11.72]. Is there a usable early signal?
+Measured: leave-one-game-out AUC (6 runs without the mid-level reset; null 0.45): at entry, the game's history 0.68
+          [0.60, 0.75] logistic / 0.70 boosted, mostly the previous level's active minutes (after a fast previous
+          level 2-3% are hopeless, after a slow one 11-16%); on-level features at 5/10/15 min stay inside the null
+          range and add nothing. The flags a policy would use are right 8-27% of the time; half or more of the flagged
+          levels were solved, typically 5-13 active minutes in.
+Modelled: in the rerun model (110 games, 532 min, 14 slots; 200 x 4 paired draws, out-of-fold predictions) all 48
+          end/park policies lose to D′: best -0.22 [-1.81, +1.13]; entry policies -4 to -21; demotion instead of
+          ending -0.35 to -7.7; the same in all eight sensitivity worlds. A flag must be right ~61-66% of the time to
+          pay (right: +0.17, wrong: -0.27 to -0.33); synthetic detectors pay only near AUC 0.9 with <= 1% false
+          positives at entry.
+Decision: no priority patch; lesson 0039. The +8 oracle stays out of reach without a far stronger signal.
