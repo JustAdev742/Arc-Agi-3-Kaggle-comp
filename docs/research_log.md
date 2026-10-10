@@ -2962,3 +2962,17 @@ Measured: 32.53 / 84 levels / 5,769 actions; hard 15: 29 levels (8 earlier full 
 Rule:     hard-15 <= 50 -> drop. Dropped. This agrees with exp-037 (Sep 23, older harness: no gain). The competitor's
           gains came at ~25 slot-minutes per game; at ~70 (ours and the hidden set's) the lost deliberation costs more
           than the extra turns buy. Lesson 0040.
+
+## 2026-10-10 04:10 · exp-083 / exp-084 · both LB candidates with the fine-tuned draft, full length · RUNNING
+Why:      B1 passed the probe gate (+0.26/+0.31 lossless accept). Both candidates run relaxed acceptance 0.5/0.5, where a
+          better draft could also sharpen output toward loops (plan 6.4), so each needs a full-length run before it
+          replaces its albucino version.
+What:     exp-083 = exp-075's build (the exp-074t candidate) + ARC map + draft (pushed 03:29); exp-084 = exp-081's exact
+          build (reproduced byte-identically apart from today's 55-min fail-fast limit) + draft (pushed 04:10). Both
+          add the 40-min first-request grace (lesson 0038). Bed: both play normally.
+Read:     (1) serving: accept and output tok/s against the ARC-map albucino runs exp-077/080/081 (3.14-3.15,
+          803-824 tok/s); (2) loop gate (6.4 S3) from solver_analysis: exact repeated turns <= 1 per 500 (albucino:
+          0/2,848, 1/2,905), "stuck in a loop" mentions, output tokens per request (1,989-2,202), finish_reason=length;
+          (3) score and levels against the range of the eight runs (one run cannot show a 5% gain). If (1) and (2)
+          hold, the draft versions replace exp-074t and exp-081 in the LB rotation, since their full-length versions
+          are directly submittable.
