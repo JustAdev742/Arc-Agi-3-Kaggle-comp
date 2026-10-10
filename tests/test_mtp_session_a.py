@@ -378,6 +378,16 @@ class H(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 signal.signal(signal.SIGTERM, lambda *a: os._exit(0))
+boot = Path(__file__).with_name("boot.json")  # a slow boot: shard progress lines for a while, then silence
+if boot.exists():
+    import time
+    plan, t0, k = json.loads(boot.read_text()), time.time(), 0
+    while time.time() - t0 < plan.get("progress_s", 0):
+        k = min(k + 1, 38)
+        print(f"\\rLoading safetensors checkpoint shards: {k * 100 // 38:3d}% Completed | {k}/38 [00:01<00:01]",
+              end="", flush=True)
+        time.sleep(0.1)
+    time.sleep(plan.get("silent_s", 0))
 print("stub sglang serving", flush=True)
 http.server.HTTPServer(("127.0.0.1", int(opt("--port"))), H).serve_forever()
 '''
@@ -458,7 +468,8 @@ class Bed:
             "train": {"minutes": 5, "min_minutes": 1, "reserve_minutes": 5, "grace_minutes": 1, "probe_steps": 3,
                       "min_steps": 2, "checkpoint_every": 50, "args": [], "plan_args": [],
                       "map": str(self.arc_map), "map_sha256": _sha(b"arc map")},
-            "budgets_min": {"A1": 1, "boot": 1, "A3": 1, "A5": 1, "A8": 1, "A10": 1, "A11": 1},
+            "budgets_min": {"A1": 1, "boot": 1, "boot_max": 1, "boot_stall": 1, "A3": 1, "A5": 1, "A8": 1,
+                            "A10": 1, "A11": 1},
             "build": {"builder": "test"},
         }
 
@@ -601,6 +612,45 @@ def test_a_failed_step_stops_its_server_and_the_session(tmp_path):
     assert state["servers"]["A2"].get("stopped_utc") and not sa.port_open(bed.port)
     with pytest.raises(sa.Stop):
         s.go("A4")
+
+
+def _boot(tmp_path, *, progress_s: float, silent_s: float = 0.0, **budgets) -> tuple[Bed, sa.Session]:
+    bed = Bed(tmp_path)
+    (bed.scripts / "boot.json").write_text(json.dumps({"progress_s": progress_s, "silent_s": silent_s}))
+    bed.config["budgets_min"].update(budgets)
+    s = bed.session()
+    s.find_inputs(root=str(bed.input), poll_s=0.1)
+    s.storage()
+    bed.launcher(s)
+    s.apply_dump_patch()
+    return bed, s
+
+
+def test_a_server_still_loading_weights_is_waited_for_past_the_boot_budget(tmp_path):
+    # session A v1: weights loaded 4-5x slower than usual and a fixed 20-minute limit stopped it at 29 of 38 shards
+    bed, s = _boot(tmp_path, progress_s=2.0, boot=0.01, boot_max=0.5, boot_stall=0.01)
+    s.start_server("A2", "probe")
+    state = json.loads((bed.working / "session-a.json").read_text())
+    assert state["verdict"] == "running" and state["servers"]["A2"]["healthy_after_s"] >= 1.5
+    s.stop("A4")
+
+
+def test_a_server_whose_log_stops_growing_is_stopped_after_the_boot_budget(tmp_path):
+    bed, s = _boot(tmp_path, progress_s=0.5, silent_s=60, boot=0.01, boot_max=0.5, boot_stall=0.02)
+    with pytest.raises(sa.Stop):
+        s.start_server("A2", "probe")
+    state = json.loads((bed.working / "session-a.json").read_text())
+    assert (state["verdict"], state["stopped_at"]) == ("failed", "A2") and s.server is None
+    assert "its log had not grown for" in state["reason"] and re.search(r"weights \d+/38 shards", state["reason"])
+    assert not sa.port_open(bed.port)
+
+
+def test_boot_max_stops_a_server_that_keeps_loading(tmp_path):
+    bed, s = _boot(tmp_path, progress_s=60, boot=0.01, boot_max=0.03, boot_stall=1)
+    with pytest.raises(sa.Stop):
+        s.start_server("A2", "probe")
+    state = json.loads((bed.working / "session-a.json").read_text())
+    assert state["stopped_at"] == "A2" and "still loading at the 0.03-minute limit" in state["reason"]
 
 
 def test_inputs_that_are_missing_or_differ_stop_before_anything_is_installed(tmp_path):

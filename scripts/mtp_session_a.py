@@ -47,6 +47,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import shlex
 import shutil
 import signal
@@ -70,6 +71,7 @@ REAP_ENV = "ARC3_REAP_KEPT_EXPERTS"                                    # scripts
 DUMP_ENV = "ARC3_HC_DUMP"                                              # scripts/sglang_hc_dump_patch.py
 TMPFS = ("tmpfs", "ramfs")
 INPUT_ROOT = "/kaggle/input"
+SHARDS_RE = re.compile(r"checkpoint shards:\s*\d+% Completed \| (\d+)/(\d+)")  # the weight loader's tqdm line
 _OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # localhost: never through a proxy
 
 
@@ -942,10 +944,28 @@ class Session:
         except OSError as exc:
             return f"(no server log: {exc})"
 
+    def log_size(self) -> int:
+        try:
+            return Path(self.launcher["log"]).stat().st_size
+        except OSError:
+            return -1
+
+    def load_progress(self) -> str:
+        """The weight loader's last shard count in the server log ("weights 29/38 shards"), or ""."""
+        done = SHARDS_RE.findall(self.log_tail(4000))
+        return f"weights {done[-1][0]}/{done[-1][1]} shards" if done else ""
+
     def wait_healthy(self, step: str) -> float:
+        """Wait for /health. budgets_min.boot stops a server whose log has not grown for boot_stall minutes; one
+        still writing to its log (shard progress, graph capture) may take up to boot_max. Weights load from
+        /kaggle/input, which can be several times slower than usual: session A v1 (2026-10-10) read 26-53 s per
+        shard instead of 5-9 and was stopped at 29 of 38 shards by a fixed 20-minute limit."""
+        b = self.cfg["budgets_min"]
         url = f"http://127.0.0.1:{self.launcher['port']}/health"
-        t0 = last = time.time()
-        deadline = t0 + self.budget_s(self.cfg["budgets_min"]["boot"])
+        t0 = last = grew = time.time()
+        quiet_stops = t0 + self.budget_s(b["boot"])
+        cap = t0 + self.budget_s(max(b["boot"], b["boot_max"]))
+        size = self.log_size()
         while True:
             if self.server.poll() is not None:
                 self.echo(self.log_tail())
@@ -958,13 +978,21 @@ class Session:
                     return round(time.time() - t0, 1)
             except (OSError, urllib.error.URLError, ValueError):
                 pass
-            if time.time() > deadline:
+            now, new = time.time(), self.log_size()
+            if new != size:
+                size, grew = new, now
+            quiet = now - grew > b["boot_stall"] * 60
+            if now > cap or (now > quiet_stops and quiet):
                 self.echo(self.log_tail())
-                raise self.fail(step, f"the server was not healthy after {(time.time() - t0) / 60:.0f} min")
-            if time.time() - last >= 30:
-                self.echo(f"  {time.time() - t0:.0f}s ...")
-                last = time.time()
-            time.sleep(3)
+                why = [f"its log had not grown for {(now - grew) / 60:.0f} min" if quiet else
+                       f"still loading at the {b['boot_max']}-minute limit", self.load_progress()]
+                raise self.fail(step, f"the server was not healthy after {(now - t0) / 60:.0f} min "
+                                      f"({'; '.join(x for x in why if x)})")
+            if now - last >= 30:
+                progress = self.load_progress()
+                self.echo(f"  {now - t0:.0f}s ..." + (f" ({progress})" if progress else ""))
+                last = now
+            time.sleep(min(3.0, self.poll_s))
 
     def server_info(self) -> dict:
         try:

@@ -104,7 +104,10 @@ CONFIG = {
              "scale_groups": 1, "qerr_warn": 0.05},
     "train": {"minutes": 75, "min_minutes": 15, "reserve_minutes": 50, "grace_minutes": 10, "probe_steps": 6,
               "min_steps": 10, "checkpoint_every": 50, "args": [], "plan_args": []},
-    "budgets_min": {"A1": 5, "boot": 20, "A3": 20, "A5": 30, "A8": 10, "A10": 30, "A11": 15},
+    # boot: a server whose log stops growing for boot_stall minutes is stopped after this; one still loading
+    # (its log growing) may take up to boot_max (session A v1 loaded weights 4-5x slower than usual)
+    "budgets_min": {"A1": 5, "boot": 20, "boot_max": 50, "boot_stall": 8, "A3": 20, "A5": 30, "A8": 10,
+                    "A10": 30, "A11": 15},
 }
 
 
@@ -142,7 +145,7 @@ def worst_case_minutes(config: dict) -> float:
     inputs wait not counted): what config['session_hours'] must cover."""
     b, d, t = config["budgets_min"], config["dump"], config["train"]
     return (config["wait_inputs_s"] / 60 + 5  # inputs, A0
-            + b["A1"] + 2 * b["boot"] + b["A3"] + 5 + b["A5"]  # A1-A5 (A4: the stop)
+            + b["A1"] + 2 * max(b["boot"], b["boot_max"]) + b["A3"] + 5 + b["A5"]  # A1-A5 (A4: the stop)
             + d["holdout_minutes"] + 5 + d["minutes"] + 20  # A7
             + b["A8"] + t["minutes"] + t["grace_minutes"] + b["A10"] + b["A11"])
 
