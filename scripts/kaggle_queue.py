@@ -52,6 +52,23 @@ def run(cmd: list[str], timeout: int = 1800) -> str:
         return "timeout"
 
 
+def download(kernel: str, out_dir: Path, pattern: str, waits=(60, 180, 420)) -> str:
+    """kaggle kernels output for the files matching PATTERN, retried when Kaggle answers 429 Too Many Requests
+    (it did on 2026-10-10 while listing a large output: the first pull got 10 of its files and stopped)."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    delays, text = (0, *waits), ""
+    for i, wait in enumerate(delays):
+        time.sleep(wait)
+        text = run([KAGGLE, "kernels", "output", kernel, "-p", str(out_dir), "--file-pattern", pattern, "-o"],
+                   timeout=3600)
+        if "429" not in text and "Too Many Requests" not in text:
+            return text
+        if i + 1 < len(delays):
+            print(f"{now()} {kernel}: output listing refused (429); retrying in {delays[i + 1]} s", flush=True)
+    print(f"{now()} {kernel}: still 429 after {len(delays)} attempts; the pull may be incomplete", flush=True)
+    return text
+
+
 def stress_ok(run_name: str) -> bool | None:
     """True for a clean stress test, False for a failed one, None while it has no summary."""
     path = ROOT / "runs" / run_name / "summary.json"
@@ -67,9 +84,7 @@ def pull(item: dict) -> str:
     name, kernel, run_name = item["name"], item["kernel"], item["run"]
     if item.get("kind") == "stress":
         out_dir = ROOT / "runs" / run_name / "kernel-output"
-        out_dir.mkdir(parents=True, exist_ok=True)
-        run([KAGGLE, "kernels", "output", kernel, "-p", str(out_dir), "--file-pattern", r"kv_stress\.json|\.log$",
-             "-q", "-o"])
+        download(kernel, out_dir, r"kv_stress\.json|\.log$")
         src = out_dir / "kv_stress.json"
         logs = "\n".join(p.read_text(errors="replace") for p in out_dir.glob("*.log"))
         oom = re.findall(r".*(?:OutOfMemoryError|out of memory|Traceback).*", logs)[:3]
@@ -83,9 +98,7 @@ def pull(item: dict) -> str:
         return f"{name}: {summary}" + (f"\n  log: {oom}" if oom else "")
     if item.get("kind") == "files":  # any notebook: the outputs matching item["pull_pattern"] (e.g. MTP session A)
         out_dir = ROOT / "runs" / run_name / "kernel-output"
-        out_dir.mkdir(parents=True, exist_ok=True)
-        run([KAGGLE, "kernels", "output", kernel, "-p", str(out_dir), "--file-pattern", item["pull_pattern"], "-q",
-             "-o"], timeout=3600)
+        download(kernel, out_dir, item["pull_pattern"])
         files = sorted(p for p in out_dir.rglob("*") if p.is_file())
         lines = [f"{name}: pulled {len(files)} file(s), {sum(p.stat().st_size for p in files) / 1e6:.1f} MB: "
                  + ", ".join(str(p.relative_to(out_dir)) for p in files[:12]) + (" ..." if len(files) > 12 else "")]
@@ -97,9 +110,7 @@ def pull(item: dict) -> str:
         return "\n".join(lines)
     if item.get("kind") == "probe":  # a fidelity probe (build_franzen_nb.py --probe): fidelity.json, serve.log, logs
         out_dir = ROOT / "runs" / run_name / "kernel-output"
-        out_dir.mkdir(parents=True, exist_ok=True)
-        run([KAGGLE, "kernels", "output", kernel, "-p", str(out_dir), "--file-pattern",
-             r"fidelity\.json$|serve\.log$|\.log$", "-q", "-o"], timeout=3600)
+        download(kernel, out_dir, r"fidelity\.json$|serve\.log$|\.log$")
         fid = out_dir / "fidelity.json"
         if not fid.exists():
             logs = "\n".join(p.read_text(errors="replace") for p in out_dir.glob("*.log") if p.name != "serve.log")
@@ -110,9 +121,7 @@ def pull(item: dict) -> str:
         return f"{name}: fidelity.json written; passes {passes}"
     if item.get("kind") == "franzen":
         out_dir = ROOT / "runs" / run_name / "kernel-output"
-        out_dir.mkdir(parents=True, exist_ok=True)
-        run([KAGGLE, "kernels", "output", kernel, "-p", str(out_dir), "--file-pattern",
-             r"benchmark\.json$|summary\.txt$|serve\.log$|git_status\.txt$|\.log$", "-q", "-o"], timeout=3600)
+        download(kernel, out_dir, r"benchmark\.json$|summary\.txt$|serve\.log$|git_status\.txt$|\.log$")
         logs = sorted(p for p in out_dir.glob("*.log") if p.name != "serve.log")
         cmd = [PY, "scripts/franzen_report.py", str(out_dir), "--json", str(out_dir.parent / "report.json")]
         text = run(cmd + (["--log", str(logs[0])] if logs else []))
