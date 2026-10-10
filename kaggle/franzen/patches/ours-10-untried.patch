@@ -1,0 +1,483 @@
+diff --git a/ARC3-Inference/inference/agent/tool_agent.py b/ARC3-Inference/inference/agent/tool_agent.py
+index e36ec65..23d5b5a 100644
+--- a/ARC3-Inference/inference/agent/tool_agent.py
++++ b/ARC3-Inference/inference/agent/tool_agent.py
+@@ -5108,6 +5108,9 @@ class ToolAgent:
+                     current_frame, history_entries, previous_step_summary
+                 )
+             )
++        # ours (OURS_UNTRIED, read at call time): the not-yet-tried block and the new-colour line; [] when off
++        from inference.utils.ours_untried import prompt_lines as _ours_untried_lines
++        lines.extend(_ours_untried_lines(self, history_entries, _normalize_valid_actions(valid_actions)))
+         lines.extend(
+             [
+                 "Only tool: `python`. It receives `current_frame`, `previous_frame`, `history`, `transitions`, `last_transition`, `valid_actions`, `last_action_call_result`, `frame_diff(before, after)`, and `action(actions)`.",
+@@ -5857,6 +5860,9 @@ class ToolAgent:
+             raw_payload = self._step_env_callback(step_arguments)
+             if not isinstance(raw_payload, dict):
+                 raise RuntimeError("action(actions) did not return a JSON-like payload.")
++            # ours (OURS_UNTRIED): the wall time this call returned, under its last action number; nothing when off
++            from inference.utils.ours_untried import stamp as _ours_untried_stamp
++            _ours_untried_stamp(self, raw_payload)
+             if reset_exposed() and raw_payload.get("executed"):
+                 # Use actual execution, not submitted batch size: a refused
+                 # call does not consume the snippet's first-action allowance.
+diff --git a/ARC3-Inference/inference/utils/ours_untried.py b/ARC3-Inference/inference/utils/ours_untried.py
+new file mode 100644
+index 0000000..11e841c
+--- /dev/null
++++ b/ARC3-Inference/inference/utils/ours_untried.py
+@@ -0,0 +1,453 @@
++"""Ours (OURS_UNTRIED): two short lines in the next user prompt that name the controls the model has not tested.
++
++On top of Daniel Franzen's harness (Apache-2.0). In four public games whose runs split between winning and losing
++(docs/postmortems/bimodal-games-2026-10-10.md), 7 of the 8 losing game-runs never clicked, or clicked 48 minutes late,
++an object the model had assumed inert (tn36's demo boxes, vc33's orange gate, sp80's red bars, cn04's "sockets"),
++while every run that won the level had clicked it first. OURS_UNTRIED (read at call time, off by default) states what
++was not tried; it gives no advice and spends no action.
++
++- I1 (OURS_UNTRIED=1 or i1). Once a level has run STALL_SECONDS (10 minutes of wall clock, parked time included)
++  without a level-up, then every REPEAT_SECONDS after the last I1 on it and after each GAME OVER on it past that
++  mark, the next user prompt gets one block: the valid action types not used on this level (RESET and UNDO never
++  listed) and, when MOUSE is valid, up to MAX_KINDS object kinds on the board that no click on this level has hit
++  (kinds absent from the previous level's first board first, then those with the fewest copies, then the larger),
++  each with its colour and box, and the sentence "Each is a one-action test of whether it is interactive."
++- I2 (OURS_UNTRIED=1 or i2). When an action leaves an object, other than the object it clicked, in a colour seen
++  nowhere earlier in this game, the next user prompt names it: the colour that held OLD_COLOUR_SHARE of its cells
++  before ("appeared" when that was the background or no colour did), its box and its new colour. Level switches,
++  game-over frames and RESETs are excluded; an object clicked before the prompt is dropped.
++
++Objects are 4-connected one-colour components of the frame, without areas (more than MAX_PX cells, or SPAN_FRACTION
++of the rows or columns) and without thin bars along an edge (HUD). A kind is a colour and a shape up to rotation;
++copies of a kind are one entry with their count. A click hits the object under its cell, else the smallest object
++whose box, grown by one cell, contains it; the kind of the object on those cells right after the click counts as hit
++too (a click that selects an object often recolours it). A level starts at the wall time of the action that reached
++it (the first level: when the harness first saw the game); actions are stamped with the time their action() call
++returned, and anything not stamped with the time of the prompt that first saw it.
++
++Stdlib only. Each history entry is processed once; components are computed only for clicks, for frames with a colour
++new to the game and when I1 fires. Nothing here may stop a game: an error turns the lines off for the game.
++"""
++from __future__ import annotations
++
++import bisect
++import logging
++import os
++import re
++import time
++from collections import Counter
++
++log = logging.getLogger(__name__)
++
++STALL_SECONDS = 600.0
++REPEAT_SECONDS = 600.0
++MAX_KINDS = 6
++MAX_I2_OBJECTS = 3
++MAX_PX = 300
++SPAN_FRACTION = 0.75  # 48 of 64 rows or columns: a panel, floor or wall run, not an object to click
++HUD_THICKNESS = 2  # a bar at most this thick, lying within HUD_EDGE cells of an edge, is HUD
++HUD_EDGE = 2
++OLD_COLOUR_SHARE = 0.6  # an I2 object "was" the colour that held this share of its cells before the action
++COLOR_CHARS = "WwgGcBMPRbSYOrNp"  # inference.utils.grid_utils.ARC_COLOR_CHARS
++ENGINE_TO_MODEL = {"ACTION1": "UP", "ACTION2": "DOWN", "ACTION3": "LEFT", "ACTION4": "RIGHT", "ACTION5": "SPACE",
++                   "ACTION6": "MOUSE", "ACTION7": "UNDO"}
++NOT_LISTED = ("RESET", "UNDO")  # actions whose effect is known: never listed as untried
++I1_SENTENCE = "Each is a one-action test of whether it is interactive."
++_MOUSE = re.compile(r"MOUSE\(\s*row\s*=\s*(-?\d+)\s*,\s*col\s*=\s*(-?\d+)\s*\)")
++
++_clock = time.monotonic  # tests replace it
++
++
++def mode() -> frozenset:
++    """The lines on: {"i1", "i2"} for OURS_UNTRIED=1, {"i1"} for i1, {"i2"} for i2, empty otherwise."""
++    raw = os.environ.get("OURS_UNTRIED", "").strip().lower()
++    if raw in ("1", "on", "true", "yes"):
++        return frozenset(("i1", "i2"))
++    if raw in ("i1", "i2"):
++        return frozenset((raw,))
++    return frozenset()
++
++
++# --- objects ---------------------------------------------------------------------------------------------------------
++
++
++class Obj:
++    """One 4-connected one-colour component: colour (int), cells (frozenset of (row, col)), px, box (r0, c0, r1, c1)."""
++
++    __slots__ = ("box", "cells", "colour", "px")
++
++    def __init__(self, colour: int, cells: frozenset, box: tuple):
++        self.colour, self.cells, self.box, self.px = colour, cells, box, len(cells)
++
++    def text(self) -> str:
++        """Colour and box, e.g. "R r16-19 c8-19" (the box gives the size; digits cost a token each)."""
++        return f"{colour_char(self.colour)} {box_text(self.box)}"
++
++
++def colour_char(value: int) -> str:
++    return COLOR_CHARS[value] if 0 <= value < len(COLOR_CHARS) else str(value)
++
++
++def box_text(box: tuple) -> str:
++    """"r16-19 c8-19"; a one-row or one-column span prints one number ("r10 c4-7")."""
++    r0, c0, r1, c1 = box
++    rows = f"r{r0}" if r0 == r1 else f"r{r0}-{r1}"
++    cols = f"c{c0}" if c0 == c1 else f"c{c0}-{c1}"
++    return f"{rows} {cols}"
++
++
++def _rows(grid) -> list:
++    return [list(row) for row in grid or ()]
++
++
++def colours(grid) -> set:
++    return {v for row in grid or () for v in row}
++
++
++def components(grid) -> list:
++    """All 4-connected one-colour components of a grid (a sequence of rows of ints)."""
++    rows = _rows(grid)
++    if not rows:
++        return []
++    width = max(len(r) for r in rows)
++    for r in rows:
++        r.extend([-1] * (width - len(r)))  # ragged rows: pad with a colour that never matches a cell
++    flat = [v for r in rows for v in r]
++    height, n = len(rows), len(flat)
++    seen = bytearray(n)
++    out = []
++    for start in range(n):
++        if seen[start]:
++            continue
++        colour = flat[start]
++        seen[start] = 1
++        stack, cells = [start], []
++        while stack:
++            p = stack.pop()
++            cells.append(p)
++            r, c = divmod(p, width)
++            if c and not seen[p - 1] and flat[p - 1] == colour:
++                seen[p - 1] = 1
++                stack.append(p - 1)
++            if c + 1 < width and not seen[p + 1] and flat[p + 1] == colour:
++                seen[p + 1] = 1
++                stack.append(p + 1)
++            if r and not seen[p - width] and flat[p - width] == colour:
++                seen[p - width] = 1
++                stack.append(p - width)
++            if r + 1 < height and not seen[p + width] and flat[p + width] == colour:
++                seen[p + width] = 1
++                stack.append(p + width)
++        if colour == -1:
++            continue
++        pts = [divmod(p, width) for p in cells]
++        rs = [p[0] for p in pts]
++        cs = [p[1] for p in pts]
++        out.append(Obj(colour, frozenset(pts), (min(rs), min(cs), max(rs), max(cs))))
++    return out
++
++
++def salient(objs: list, shape: tuple) -> list:
++    """The objects a click could be aimed at: no areas (more than MAX_PX cells, or SPAN_FRACTION of the rows or
++    columns) and no thin bars within HUD_EDGE cells of an edge."""
++    height, width = shape
++    keep = []
++    for o in objs:
++        r0, c0, r1, c1 = o.box
++        h, w = r1 - r0 + 1, c1 - c0 + 1
++        if o.px > MAX_PX or h >= SPAN_FRACTION * height or w >= SPAN_FRACTION * width:
++            continue
++        if h <= HUD_THICKNESS and (r1 <= HUD_EDGE or r0 >= height - 1 - HUD_EDGE):
++            continue
++        if w <= HUD_THICKNESS and (c1 <= HUD_EDGE or c0 >= width - 1 - HUD_EDGE):
++            continue
++        keep.append(o)
++    return keep
++
++
++def _shape(grid) -> tuple:
++    rows = list(grid or ())
++    return len(rows), max((len(r) for r in rows), default=0)
++
++
++def kind_key(obj: Obj) -> tuple:
++    """Colour and shape up to rotation (the smallest of the four normalised cell lists)."""
++    best = None
++    pts = list(obj.cells)
++    for _ in range(4):
++        r0 = min(p[0] for p in pts)
++        c0 = min(p[1] for p in pts)
++        key = tuple(sorted((r - r0, c - c0) for r, c in pts))
++        if best is None or key < best:
++            best = key
++        pts = [(c, -r) for r, c in pts]  # rotate 90 degrees
++    return (obj.colour, best)
++
++
++def board_kinds(grid) -> dict:
++    """kind -> the salient objects of that kind on this grid, in reading order of their boxes."""
++    kinds: dict = {}
++    for o in sorted(salient(components(grid), _shape(grid)), key=lambda o: o.box):
++        kinds.setdefault(kind_key(o), []).append(o)
++    return kinds
++
++
++def mouse_cell(action: str):
++    """(row, col) of a MOUSE action display, else None."""
++    m = _MOUSE.search(str(action or ""))
++    return (int(m.group(1)), int(m.group(2))) if m else None
++
++
++def click_target(objs: list, row: int, col: int):
++    """The object under (row, col), else the smallest object whose box grown by one cell contains it, else None."""
++    best = None
++    for o in objs:
++        if (row, col) in o.cells:
++            return o
++        r0, c0, r1, c1 = o.box
++        if r0 - 1 <= row <= r1 + 1 and c0 - 1 <= col <= c1 + 1:
++            area = (r1 - r0 + 1) * (c1 - c0 + 1)
++            if best is None or area < best[0]:
++                best = (area, o)
++    return best[1] if best else None
++
++
++def action_type(action: str) -> str:
++    """UP, DOWN, ..., MOUSE for a history action display; "" for the seed entry and RESET."""
++    name = str(action or "").strip()
++    if not name:
++        return ""
++    if name.upper().startswith("MOUSE"):
++        return "MOUSE"
++    name = ENGINE_TO_MODEL.get(name.upper(), name.upper())
++    return "" if name == "RESET" else name
++
++
++# --- the texts -------------------------------------------------------------------------------------------------------
++
++
++def i1_block(*, unused_actions: list, kinds: dict, prev_kinds=None) -> str:
++    """I1 text. unused_actions: valid action types never used on this level; kinds: kind -> objects for the kinds no
++    click on this level has hit ({} when MOUSE is not valid); prev_kinds: the kinds on the previous level's first
++    board (None on the first level seen), whose absence puts a kind first. Empty when there is nothing to name."""
++    order = sorted(kinds.items(), key=lambda kv: (prev_kinds is not None and kv[0] in prev_kinds, len(kv[1]),
++                                                   -kv[1][0].px, kv[1][0].box))
++    parts = []
++    if unused_actions:
++        parts.append(", ".join(unused_actions) + " never used")
++    if order:
++        shown = [objs[0].text() + (f" x{len(objs)}" if len(objs) > 1 else "") for _, objs in order[:MAX_KINDS]]
++        more = len(order) - MAX_KINDS
++        parts.append("no click has hit " + ", ".join(shown) + (f"; {more} more kinds" if more > 0 else ""))
++    if not parts:
++        return ""
++    return "Not yet tried on this level: " + "; ".join(parts) + ". " + I1_SENTENCE
++
++
++def i2_line(events: list) -> str:
++    """I2 text for events (dicts with action, obj, old: the colour that held its cells before; None: appeared)."""
++    if not events:
++        return ""
++    texts = []
++    for ev in events[:MAX_I2_OBJECTS]:
++        o = ev["obj"]
++        if ev.get("old") is not None:
++            texts.append(f"{colour_char(ev['old'])} {box_text(o.box)} turned {colour_char(o.colour)}")
++        else:
++            texts.append(f"{colour_char(o.colour)} {box_text(o.box)} appeared")
++    more = len(events) - MAX_I2_OBJECTS
++    tail = f" (and {more} more)" if more > 0 else ""
++    them = "it" if len(events) == 1 else "them"
++    return (f"After {events[0]['action']}, " + "; ".join(texts) + tail
++            + f", a colour new to this game; no click has hit {them} since.")
++
++
++# --- bookkeeping -----------------------------------------------------------------------------------------------------
++
++
++def _parts(entry) -> tuple:
++    """(action, grid, level, step, result) of a harness HistoryEntry or of its payload dict."""
++    if isinstance(entry, dict):
++        frame = entry.get("frame") or {}
++        return (str(entry.get("action") or ""), frame.get("grid") or (), int(frame.get("level") or 1),
++                int(frame.get("step") or 0), dict(entry.get("result") or {}))
++    frame = getattr(entry, "frame", None)
++    return (str(getattr(entry, "action", "") or ""), getattr(frame, "grid", ()) or (),
++            int(getattr(frame, "level", 1) or 1), int(getattr(frame, "step", 0) or 0),
++            dict(getattr(entry, "result", None) or {}))
++
++
++class _Level:
++    def __init__(self, number: int, start: float, first_grid, prev_first_grid):
++        self.number, self.start = number, start
++        self.first_grid, self.prev_first_grid = first_grid, prev_first_grid
++        self.clicked: set = set()  # kinds a click on this level has hit
++        self.used: set = set()  # action types used on this level
++        self.last_i1 = None  # wall time of the last I1 on this level
++        self.game_over = False  # a GAME OVER since the last prompt
++        self._prev_kinds = None
++
++    def prev_kinds(self):
++        if self.prev_first_grid is None:
++            return None
++        if self._prev_kinds is None:
++            self._prev_kinds = set(board_kinds(self.prev_first_grid))
++        return self._prev_kinds
++
++
++class Tracker:
++    """Per-game state: feed it the growing history (observe), the action() return times (stamp), and ask for the
++    prompt lines (lines). `fired` records every line shown, for replays."""
++
++    def __init__(self):
++        self.n = 0
++        self.stamps: list = []  # (last action number of an action() call, wall time), in call order
++        self.seen: set = set()  # colours seen anywhere so far in this game
++        self.levels: dict = {}
++        self.level = None
++        self.pending: list = []  # I2 events not shown yet
++        self.fired: list = []
++        self.error = ""
++        self._grid = ()
++
++    def stamp(self, action_num: int, now: float) -> None:
++        if not self.stamps or action_num > self.stamps[-1][0]:
++            self.stamps.append((int(action_num), float(now)))
++
++    def _time(self, step: int, now: float) -> float:
++        i = bisect.bisect_left(self.stamps, (step, float("-inf")))
++        return self.stamps[i][1] if i < len(self.stamps) else now
++
++    def observe(self, entries, now: float) -> None:
++        self.n = min(self.n, len(entries))  # the solver only appends; a shorter history is taken as already seen
++        for i in range(self.n, len(entries)):
++            action, grid, level, step, result = _parts(entries[i])
++            when = self._time(step, now) if i else now
++            if self.level is None or level != self.level:
++                prev = self.levels.get(self.level)
++                if level not in self.levels:
++                    self.levels[level] = _Level(level, when, grid, prev.first_grid if prev else None)
++                self.level = level
++                self.seen |= colours(grid)
++                self._grid = grid
++                continue
++            name = action_type(action)
++            lvl = self.levels[level]
++            if result.get("game_over"):
++                lvl.game_over = True
++                if name:
++                    lvl.used.add(name)
++                self._grid = grid
++                continue
++            if not name or result.get("automatic"):
++                self._grid = grid
++                continue
++            lvl.used.add(name)
++            target, after = None, None
++            cell = mouse_cell(action) if name == "MOUSE" else None
++            if cell is not None:
++                target = click_target(salient(components(self._grid), _shape(self._grid)), *cell)
++                if target is not None:
++                    lvl.clicked.add(kind_key(target))
++                    after = salient(components(grid), _shape(grid))
++                    for o in after:
++                        if o.cells & target.cells:
++                            lvl.clicked.add(kind_key(o))
++                            break
++                    self.pending = [ev for ev in self.pending if not (ev["obj"].cells & target.cells)]
++            new = colours(grid) - self.seen
++            if new:
++                objs = after if after is not None else salient(components(grid), _shape(grid))
++                before = self._grid
++                ground = Counter(v for row in before for v in row).most_common(1)  # the commonest colour: background
++                ground = ground[0][0] if ground else None
++                for o in objs:
++                    if o.colour not in new or (target is not None and o.cells & target.cells):
++                        continue
++                    held = Counter(before[r][c] for r, c in o.cells if r < len(before) and c < len(before[r]))
++                    old = held.most_common(1)[0] if held else None
++                    was = old[0] if old and old[1] >= OLD_COLOUR_SHARE * o.px and old[0] != ground else None
++                    self.pending.append({"action": action, "obj": o, "level": level, "index": i, "time": when,
++                                         "old": was})
++            self.seen |= colours(grid)
++            self._grid = grid
++        self.n = len(entries)
++
++    def lines(self, entries, valid_actions, now: float, modes) -> list:
++        self.observe(entries, now)
++        out = []
++        lvl = self.levels.get(self.level)
++        if lvl is None:
++            return out
++        events = [ev for ev in self.pending if ev["level"] == lvl.number]
++        self.pending = []
++        if "i2" in modes and events:
++            text = i2_line(events)
++            out.append(text)
++            self.fired.append({"line": "i2", "time": now, "level": lvl.number, "text": text,
++                               "objects": [ev["obj"] for ev in events], "index": events[0]["index"]})
++        if "i1" in modes:
++            age = now - lvl.start
++            reason = ""
++            if age >= STALL_SECONDS:
++                if lvl.game_over:
++                    reason = "game over"
++                elif lvl.last_i1 is None:
++                    reason = "stall"
++                elif now - lvl.last_i1 >= REPEAT_SECONDS:
++                    reason = "repeat"
++            lvl.game_over = False
++            if reason:
++                lvl.last_i1 = now
++                valid = [ENGINE_TO_MODEL.get(str(a).strip().upper(), str(a).strip().upper()) for a in valid_actions or ()]
++                valid = list(dict.fromkeys(a for a in valid if a and a not in NOT_LISTED))
++                unused = [a for a in valid if a not in lvl.used]
++                kinds = {}
++                if "MOUSE" in valid:
++                    kinds = {k: v for k, v in board_kinds(self._grid).items() if k not in lvl.clicked}
++                text = i1_block(unused_actions=unused, kinds=kinds, prev_kinds=lvl.prev_kinds())
++                if text:
++                    out.append(text)
++                    self.fired.append({"line": "i1", "time": now, "level": lvl.number, "reason": reason,
++                                       "text": text, "unused": unused, "kinds": kinds, "prev_kinds": lvl.prev_kinds()})
++        del self.fired[:-500]
++        return out
++
++
++# --- harness glue (tool_agent.py calls these two; each is a no-op with the flag off) ---------------------------------
++
++
++def _tracker(agent) -> Tracker:
++    key = getattr(agent, "_session_runtime_dir", None)
++    state = getattr(agent, "_ours_untried", None)
++    if state is None or state[0] != key:
++        state = (key, Tracker())
++        agent._ours_untried = state
++    return state[1]
++
++
++def stamp(agent, raw_payload) -> None:
++    """tool_agent: after an action() call returned; records its wall time under its last action number."""
++    if not mode():
++        return
++    try:
++        if isinstance(raw_payload, dict) and raw_payload.get("executed"):
++            _tracker(agent).stamp(int(raw_payload.get("action_num") or 0), _clock())
++    except Exception:
++        log.warning("ours untried: stamp failed", exc_info=True)
++
++
++def prompt_lines(agent, history_entries, valid_actions) -> list:
++    """tool_agent._build_user_prompt: the I1/I2 lines for this prompt ([] with the flag off)."""
++    modes = mode()
++    if not modes:
++        return []
++    tracker = _tracker(agent)
++    if tracker.error:
++        return []
++    try:
++        return tracker.lines(history_entries or [], valid_actions, _clock(), modes)
++    except Exception as exc:
++        tracker.error = f"internal error ({type(exc).__name__})"
++        log.warning("ours untried: lines off for this game", exc_info=True)
++        return []
