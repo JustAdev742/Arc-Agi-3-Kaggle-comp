@@ -19,7 +19,7 @@ Submit **version 1** of exp-083, and version 1 or 2 of exp-085 (the same noteboo
 
 | Candidate | Notebook | Adds | Public-25 run | LB draws |
 |---|---|---|---|---|
-| exp-083 | https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-arcmap-draft-full | (nothing beyond the list above) | 50.58, 116 levels | none yet; its albucino-draft version exp-074t drew 27.97 |
+| exp-083 | https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-arcmap-draft-full | (nothing beyond the list above) | 50.58, 116 levels | 26.04 (Oct 11); its albucino-draft version exp-074t drew 27.97 |
 | exp-085 | https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-h4-percept-untried-full (version 1 or 2: the same code) | our harness bundle: budget meter, search helper, win ledger, level memory, perception helpers (patches 02/04/03b/05/08b), plus the "not yet tried on this level" notices (ours-10, OURS_UNTRIED=1) | 53.77 / 119 and 47.51 / 111 (slow boot) | none yet; replaces exp-084 from Oct 12 (its bundle-only versions drew 34.04 as exp-081) |
 | (exp-084, retired Oct 10) | https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-harness4-percept-draft-full | the bundle without the notices | 48.83, 114 levels | none |
 
@@ -81,7 +81,7 @@ Kaggle re-runs the notebook in competition mode against a gateway that holds the
 
 ## 4. What to expect
 
-Leaderboard draws of this family so far: 27.97 (exp-074t), 28.87 (our unchanged D′ copy) and 34.04 (exp-081).
+Leaderboard draws of this family so far: 27.97 (exp-074t), 28.87 (our unchanged D′ copy), 34.04 (exp-081) and 26.04 (exp-083).
 Public-25 runs translate to the leaderboard at about 0.55-0.68×. A single draw cannot rank two configurations.
 
 ## 5. If something fails

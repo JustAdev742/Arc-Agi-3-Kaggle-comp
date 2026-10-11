@@ -3190,3 +3190,16 @@ Reading:  the notice works through a few high-value discoveries (about 2 useful 
 Decision: no GPU arm for a v2 now: its changes (cap the list at 3 kinds, first line at 5 min when MOUSE is unused, level-1
           clock from the first answered request, drop I2) are worth well under a level per run and would reset the LB
           draw count of a candidate. Recorded as a follow-up for the next rebuild that is needed anyway.
+
+## 2026-10-11 11:03 · LB: exp-083 drew 26.04 (submission 57056251) · READ (1 draw)
+exp-083 (base candidate: D′ + REAP-448 + 14 streams + acceptance 0.5/0.5 + sandbox fix + ARC map + fine-tuned draft + grace;
+notebook arc3-dprime-r14a05-arcmap-draft-full, script version 356924665, submitted 00:12 UTC): **26.04**. Public-25 50.58,
+ratio 0.51 (lowest so far; band 0.51-0.68).
+Draws by configuration:
+- base family (REAP-448/14 streams/acceptance 0.5/sandbox): exp-074t 27.97, exp-083 26.04 (mean 27.0, n=2);
+- bundle family (+ harness patches 02/04/03b/05/08b): exp-081 34.04 (n=1); exp-085 (+ untried notices) from Oct 12;
+- unchanged D′ copy: 28.87.
+The bundle leads the base by ~7 points (z ~1.4 with ~4 points per draw): suggestive, not decided.
+Leaderboard 10:58 UTC: Yi-Chia Chen 62.96, Tufa Labs 56.52, mtg 45.00, Majkel1337 42.66, the last dance 42.55, NVARC3 40.97;
+24 teams >= 35, 390 >= 30; 4,136 teams. We show 34.04 (rank 30).
+Next: Oct 12 exp-085, then alternate exp-083 / exp-085 (rule: docs/status.md "Plan for the week of 2026-09-26").
