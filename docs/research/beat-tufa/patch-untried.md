@@ -1,4 +1,4 @@
-Summary: patch ours-10 (flag OURS_UNTRIED) adds two short lines to the next user prompt: what has not been tried on a level that has stalled for 10 minutes (I1: unused action types and up to 6 object kinds no click has hit), and an object that just took a colour new to the game (I2). Replayed with the shipped module over all 25 games of exp-073b, exp-075 and exp-083, I1 fires 98-112 times per run (about 105 tokens each) and I2 12-13 times (about 41 tokens). Between them the lines name all 7 objects that the post-mortem's 7 losing game-runs assumed inert, and also the two that exp-084, a run outside the post-mortem, lost on. With the flag off the harness is byte-identical. Nothing has run on a GPU, so the effect on score is unknown.
+Summary: patch ours-10 (flag OURS_UNTRIED) adds two short lines to the next user prompt: what has not been tried on a level that has stalled for 10 minutes (I1: unused action types and up to 6 object kinds no click has hit), and an object that just took a colour new to the game (I2). Replayed with the shipped module over all 25 games of exp-073b, exp-075 and exp-083, I1 fires 98-112 times per run (about 105 tokens each) and I2 12-13 times (about 41 tokens). Between them the lines name all 7 objects that the post-mortem's 7 losing game-runs assumed inert, and also the two that exp-084, a run outside the post-mortem, lost on. With the flag off the harness is byte-identical. Nothing has run on a GPU, so the effect on score is unknown. Notice v2 (`ours-10v2-untried.patch`, OURS_UNTRIED=v2, section "v2" at the end) keeps I1 only, names at most 3 kinds, fires a level's first line at 5 minutes when MOUSE is valid and unused there, and starts level 1's clock at the game's first action() return; every other flag value behaves as ours-10.
 
 # Untried-object lines I1 and I2 for Franzen's harness (ours-10, 2026-10-10)
 
@@ -326,3 +326,103 @@ The model acts on I1 about twice as often as it clicks those objects without it,
 case: sp80 v1, step 43, the line named the red bar "R r16-19 c8-19" and the next action clicked it; the L3 and L4 lines
 drew red-bar clicks followed by level-ups. exp-085 replaced exp-084 in the LB rotation. A later build should keep I1
 only (OURS_UNTRIED=i1).
+
+## v2: notice v2 (ours-10v2, 2026-10-29)
+
+Patch: `kaggle/franzen/patches/ours-10v2-untried.patch` (sha256
+`8b69b7aa0e604b79c1cc88921b07417d4f29e9f0afb05097e4b81dc7222b31f8`, 520 lines, 25,551 bytes). ours-10 is unchanged, because
+the submitted exp-085 uses it. CPU only: nothing ran on Kaggle or a GPU.
+
+**Same files, same hooks.** The tool_agent.py part of the patch is byte-identical to ours-10's (the same 6 lines). The
+module (490 lines) is ours-10's plus a new flag value, `OURS_UNTRIED=v2`, which turns on I1 with the two proposals of
+`notice-response-2026-10-10.md` and the clock fix it logged as a follow-up:
+1. **At most 3 kinds** (`MAX_KINDS_V2`), same order, same "N more kinds" tail (P1).
+2. **A level's first line at 5 minutes** (`MOUSE_STALL_SECONDS`) when MOUSE is valid on that prompt and no MOUSE action
+   has been made on the level, else at 10 (P2). Repeats stay 10 minutes after the last line. The GAME OVER rule keeps
+   its 10-minute mark, so a GAME OVER between a 5-minute line and minute 10 fires nothing.
+3. **Level 1's clock starts at the game's first action() return** (the first stamp), not at the first prompt, so a slow
+   server boot no longer counts. Before that, no I1 can fire. Later levels still start at the call that reached them.
+4. **No I2.** Its bookkeeping still runs; nothing is shown.
+
+Every other value (unset, 0, 1, on, true, yes, i1, i2, anything else) behaves exactly as ours-10. The patch and the
+flag must go together: ours-10 reads `v2` as an unknown value, so it is off. v2's I1 records also carry `start`, `mark`
+and `max_kinds` for replays.
+
+**Where it applies** (`scripts/franzen_tree.py check`):
+- alone: "ok: 1 patch(es)", at offset -8, like ours-10;
+- on exp-083's stack (the sandbox fix): "ok: 2";
+- on exp-084's stack (sandbox, 02, 04, 03b, 05, 08b): "ok: 7", at offsets 477 and 494, like ours-10.
+
+On both stacks the patched tool_agent.py is byte-identical to ours-10's.
+
+**Tests.** `tests/test_ours_untried_v2_patch.py`: 47 passed, about 23 s with the bed. `tests/test_ours_untried_patch.py`:
+33 passed, unchanged.
+- **v2 rules, with explicit clock values:**
+  - the cap: the same board gives 6 kinds under ours-10's values and 3 under v2;
+  - the 5-minute line, then repeats every 10 minutes;
+  - 10 minutes without MOUSE, or after a click on the level;
+  - level 2's own 5-minute line;
+  - the GAME OVER rule;
+  - a 13-minute boot: ours-10 fires at step 1, v2 only 300 s after the first answered call;
+  - no clock before any action() return;
+  - no I2.
+- **Old values, on 100 random games** (40 of them with times on a 100 s grid, so the marks are hit exactly):
+  - v2's module gives ours-10's lines, records and tracker state under 1, i1 and i2;
+  - each trigger fires over 100 times;
+  - seven planted one-line changes to the old path were all caught.
+- **The glue:** the same output as ours-10 for every other flag value; an error turns v2 off for the game.
+- **The patch:** it applies on all three bases, adds 6 lines to tool_agent.py and nothing else, ships the module
+  verbatim, and imports the stdlib only.
+- **Bed** (the real ToolAgent, the notebook's cell-4 environment, both stacks):
+  - Unset or 0: byte-identical to the tree without the patch. `v2` on ours-10's tree: off.
+  - 1, i1, i2: byte-identical to ours-10's tree, with ours-10's documented lines.
+  - `v2`, standard schedule: nothing on level 1 at 1,600 s, because its clock began at the first call (t=1,030) and
+    MOUSE was used, so the 10-minute mark applies. Level 2's line comes at 595 s (MOUSE unused there), with no repeat at
+    600 s and a GAME OVER line past the mark.
+  - `v2`, slow-boot schedule (first reply after 13 min): no line at steps 1-2, then one at 300 s that names 3 of 5
+    kinds plus "2 more kinds".
+
+**Replay: not run.** This container has neither the pulled run outputs (`runs/*/kernel-output/benchmark.json`, lost in
+the reset) nor the local games (`environment_files/`). For a v2 replay, `scripts/untried_replay.py` needs three
+changes, none made here:
+- `--patch` set to the v2 patch;
+- modes `{"i1", "v2"}` in `run_game`, which hard-codes `{"i1", "i2"}`;
+- the cap taken from each record's `max_kinds` in `describe_firing`, which uses `u.MAX_KINDS`.
+
+Until then, the estimate is the notice-response replays (8 runs):
+- P1 fires the same 828 lines;
+- P2 takes them from 828 to 902, about 9 more per run;
+- the critical objects stay inside the cap.
+
+**Build exp-087.** `scripts/build_candidates.sh` now builds `OUT/exp087`: exp-085's command with
+`ours-10v2-untried.patch` in place of ours-10 and `--env-add OURS_UNTRIED=v2`.
+- Slug: `arc3-dprime-r14a05-h4-percept-untried2-full`. The title is 43 characters, or 50 with a `draft2` tag.
+- Built locally, not pushed.
+- Against exp-085 it differs only in four places (`tests/test_build_candidates.py`):
+  - the arm description (env, patch name and sha256, note);
+  - the patch cell;
+  - cell 4 (the patch file name in the apply list, and `'OURS_UNTRIED': 'v2'`, which cell 4 exports with `str()`);
+  - the kernel id, title and code file.
+- The three submitted builds still match their pinned sha256.
+
+**What a GPU arm should read.** `scripts/untried_read.py` reads v2 runs as is, because the line text is unchanged:
+- the cited-click rate of the 5-minute "MOUSE never used" lines (8 of 18 before), now that they come earlier and more
+  often;
+- clicks on ranks 1-3 and how often they change the board;
+- no lines at step 1-2 of level 1;
+- sp80 L2, cn04 L2, tn36 L2 and vc33 L4.
+
+**Risks.**
+- **P2 rests on 18 lines.**
+- **The added lines mostly name inert things.** Its ~9 added lines per run fall mostly in ar25, m0r0, sk48 and ka59,
+  where named entries were 0-7% interactive.
+- **The cap drops some useful entries.** It loses the occasional useful rank-4+ entry: cn04's second socket, and tn36's
+  box-2 yellow.
+- **vc33's gate is no longer named.** I2 was the line that named it. I1 named it once in the replays, at rank 7 (exp-073,
+  91 min), because the gate is grey at the firings, and the cap now drops that.
+- **Level 1's clock starts late in some cases.**
+  - It now also excludes the first reply's generation time.
+  - A first reply that never calls action() leaves level 1 without a clock until one does. The two hooks cannot see
+    such a reply.
+- **Resumed turns could swallow a line.** With `ARC3_YIELD_RESUME_PROMPT=short` or `state_only`, a resumed turn would
+  record a line it does not send (ours-10 too). The candidates leave it at the default, `full`.

@@ -3203,3 +3203,20 @@ The bundle leads the base by ~7 points (z ~1.4 with ~4 points per draw): suggest
 Leaderboard 10:58 UTC: Yi-Chia Chen 62.96, Tufa Labs 56.52, mtg 45.00, Majkel1337 42.66, the last dance 42.55, NVARC3 40.97;
 24 teams >= 35, 390 >= 30; 4,136 teams. We show 34.04 (rank 30).
 Next: Oct 12 exp-085, then alternate exp-083 / exp-085 (rule: docs/status.md "Plan for the week of 2026-09-26").
+
+## 2026-10-29 11:50 · notice v2 (ours-10v2, OURS_UNTRIED=v2) and exp-087 built · BUILT (CPU), GPU check pending a Kaggle token
+State:    the container was reset during the owner's break (Oct 12-29): the Kaggle token, the venv and the pulled run outputs
+          (runs/*/kernel-output, environment_files/) are gone; the repo is intact at ccb7214. Venv rebuilt; Franzen's repo
+          re-cloned. Public LB monitor (no token needed): we show 34.04, rank 93 of 4,966 (15 submissions); leaders Yi-Chia
+          Chen 75.56, Tufa Labs 70.02, Team Turducken 56.02, Xz 52.95, the last dance 51.51; 12 teams >= 45. Their climbs
+          since Oct 8 are spread over different days (no common public release). No new public Flash-Next fine-tune for ARC
+          found (Hugging Face search); Kimi K3 (2.8 T params, ~1.4 TB at 4-bit) cannot run in the offline 96 GB / 9 h notebook.
+What:     kaggle/franzen/patches/ours-10v2-untried.patch (sha256 8b69b7aa), opt-in with OURS_UNTRIED=v2 (other values exactly
+          as ours-10): I1 capped at 3 kinds; a level's first I1 at 5 min when MOUSE is valid and unused on it (else 10);
+          level-1 clock from the first executed action() (a slow boot no longer counts); I2 off. Same call sites as ours-10;
+          applies alone, after the sandbox fix and on exp-084's stack. tests/test_ours_untried_v2_patch.py 47 passed (incl.
+          bed on both stacks; old flag values identical to ours-10 on 100 random games). exp-087 = exp-085 with v2 (slug
+          arc3-dprime-r14a05-h4-percept-untried2-full) added to scripts/build_candidates.sh; builds locally; the three pinned
+          builds are unchanged. No replay numbers: the recorded runs it needs are gone.
+Next:     with a Kaggle token: read the 3 post-Oct-11 draws, scan public notebooks, push exp-087 for one full-length run
+          (rule to be fixed before its data), and plan the last submissions (close Nov 2 23:59 UTC).

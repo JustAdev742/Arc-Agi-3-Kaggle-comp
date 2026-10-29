@@ -1,11 +1,13 @@
 """scripts/build_candidates.sh: the leaderboard candidates rebuild byte for byte from the repo (the sha256 values below
 are the notebooks pushed on 2026-10-10 as exp-083 v1, exp-084 v1 and exp-085 v1/v2, the versions the owner submits),
-and a new draft changes only the draft, its version pins, the slugs and the notes."""
+a new draft changes only the draft, its version pins, the slugs and the notes, and the notice-v2 arm exp-087 (not
+pushed, so not pinned) is exp-085 with only the untried patch, its flag value, the slug and the note changed."""
 from __future__ import annotations
 
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -29,6 +31,9 @@ PUSHED = {  # sha256 of the files pushed as exp-083 / exp-084 version 1
         "4919e6028c47fbc998280253a2f0b29bdfa6c19688ed4586644002041dd033db",
     "exp085/kernel-metadata.json": "20a366147dc6662fc93b790e3b135b01fcdb899cd205ccbc3aa1dcf29790caf1",
 }
+SLUG085, SLUG087 = "arc3-dprime-r14a05-h4-percept-untried-full", "arc3-dprime-r14a05-h4-percept-untried2-full"
+EXP087 = (f"exp087/{SLUG087}.ipynb", "exp087/kernel-metadata.json")  # built, not pinned
+PATCHES = ROOT / "kaggle" / "franzen" / "patches"
 
 # the --patch apply check needs his repo (scripts/franzen_tree.py)
 pytestmark = pytest.mark.skipif(not (franzen_tree.his_repo_path() / "ARC3-Inference").is_dir(),
@@ -53,8 +58,50 @@ def test_the_manifest_copy_is_the_adopted_drafts():
 
 def test_the_candidates_rebuild_byte_for_byte(tmp_path):
     _build(tmp_path)
-    assert sorted(str(p.relative_to(tmp_path)) for p in tmp_path.rglob("*") if p.is_file()) == sorted(PUSHED)
+    assert sorted(str(p.relative_to(tmp_path)) for p in tmp_path.rglob("*") if p.is_file()) == sorted([*PUSHED,
+                                                                                                         *EXP087])
     assert {name: _sha(tmp_path / name) for name in PUSHED} == PUSHED
+
+
+def test_exp087_is_exp085_with_the_v2_patch_its_flag_value_its_slug_and_its_note(tmp_path):
+    _build(tmp_path)
+    assert len(SLUG087.replace("-", " ")) <= 50  # Kaggle's title limit (lesson 0033)
+    old_meta = json.loads((tmp_path / "exp085" / "kernel-metadata.json").read_text())
+    new_meta = json.loads((tmp_path / "exp087" / "kernel-metadata.json").read_text())
+    assert (new_meta["id"], new_meta["title"], new_meta["code_file"]) == (
+        "scottmahony/" + SLUG087, SLUG087.replace("-", " "), SLUG087 + ".ipynb")
+    names = ("id", "title", "code_file")
+    assert {k: v for k, v in old_meta.items() if k not in names} == {k: v for k, v in new_meta.items() if k not in names}
+    old = json.loads((tmp_path / "exp085" / f"{SLUG085}.ipynb").read_text())
+    new = json.loads((tmp_path / "exp087" / f"{SLUG087}.ipynb").read_text())
+    assert {k: v for k, v in old.items() if k != "cells"} == {k: v for k, v in new.items() if k != "cells"}
+    assert [{k: v for k, v in c.items() if k != "source"} for c in old["cells"]] == [
+        {k: v for k, v in c.items() if k != "source"} for c in new["cells"]]
+    old_cells, new_cells = (["".join(c["source"]) for c in nb["cells"]] for nb in (old, new))
+    # the patch cell ships the repo's patch files, byte for byte
+    v1, v2 = (PATCHES / "ours-10-untried.patch").read_text(), (PATCHES / "ours-10v2-untried.patch").read_text()
+    written = [(franzen_tree.written_file(a), franzen_tree.written_file(b)) for a, b in zip(old_cells, new_cells)]
+    assert [pair for pair in written if pair[0] != pair[1]] == [(("/kaggle/ours-07-ours-10-untried.patch", v1),
+                                                                 ("/kaggle/ours-07-ours-10v2-untried.patch", v2))]
+    patch_cell = next(i for i, (a, b) in enumerate(written) if a != b)
+    # everything else is equal once the patch's name, size and sha256, the flag value and the note are swapped back
+    sha1, sha2 = (hashlib.sha256(t.encode()).hexdigest() for t in (v1, v2))
+    swaps = [("ours-07-ours-10v2-untried.patch", "ours-07-ours-10-untried.patch"), (sha2, sha1), (sha2[:12], sha1[:12]),
+             (f"{len(v2.encode())} bytes", f"{len(v1.encode())} bytes"), ("'OURS_UNTRIED': 'v2',", "'OURS_UNTRIED': 1,"),
+             ("env added OURS_UNTRIED=v2", "env added OURS_UNTRIED=1")]
+    changed = []
+    for i, (a, b) in enumerate(zip(old_cells, new_cells, strict=True)):
+        if a == b:
+            continue
+        changed.append(i)
+        if i == patch_cell:  # the payload itself was compared above
+            a, b = (re.sub(r'"""\n.*?\n"""', '"""(packed)"""', s, flags=re.S) for s in (a, b))
+        a, b = (re.sub(r"sha256 checked\)\. exp-08[57]: .*", "sha256 checked). (note)", s) for s in (a, b))
+        for new_text, old_text in swaps:
+            b = b.replace(new_text, old_text)
+        assert a == b, f"cell {i}"
+    assert len(changed) == 3  # the arm description, the patch cell and cell 4 (patch list, flag)
+    assert "exp-087: exp-085" in new_cells[0] and "'OURS_UNTRIED': 'v2'," in "".join(new_cells)
 
 
 def test_another_draft_changes_only_the_draft_its_pins_the_slugs_and_the_notes(tmp_path):
