@@ -3204,7 +3204,7 @@ Leaderboard 10:58 UTC: Yi-Chia Chen 62.96, Tufa Labs 56.52, mtg 45.00, Majkel133
 24 teams >= 35, 390 >= 30; 4,136 teams. We show 34.04 (rank 30).
 Next: Oct 12 exp-085, then alternate exp-083 / exp-085 (rule: docs/status.md "Plan for the week of 2026-09-26").
 
-## 2026-10-29 11:50 · notice v2 (ours-10v2, OURS_UNTRIED=v2) and exp-087 built · BUILT (CPU), GPU check pending a Kaggle token
+## 2026-10-29 11:35 · notice v2 (ours-10v2, OURS_UNTRIED=v2) and exp-087 built · BUILT (CPU), GPU check pending a Kaggle token
 State:    the container was reset during the owner's break (Oct 12-29): the Kaggle token, the venv and the pulled run outputs
           (runs/*/kernel-output, environment_files/) are gone; the repo is intact at ccb7214. Venv rebuilt; Franzen's repo
           re-cloned. Public LB monitor (no token needed): we show 34.04, rank 93 of 4,966 (15 submissions); leaders Yi-Chia
