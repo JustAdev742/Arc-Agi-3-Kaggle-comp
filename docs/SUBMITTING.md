@@ -23,7 +23,7 @@ Submit **version 1** of exp-083, and version 1 or 2 of exp-085 (the same noteboo
 | exp-085 | https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-h4-percept-untried-full (version 1 or 2: the same code) | our harness bundle: budget meter, search helper, win ledger, level memory, perception helpers (patches 02/04/03b/05/08b), plus the "not yet tried on this level" notices (ours-10, OURS_UNTRIED=1) | 53.77 / 119 and 47.51 / 111 (slow boot) | none yet; replaces exp-084 from Oct 12 (its bundle-only versions drew 34.04 as exp-081) |
 | (exp-084, retired Oct 10) | https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-harness4-percept-draft-full | the bundle without the notices | 48.83, 114 levels | none |
 
-**Rotation.** Oct 11 exp-083, Oct 12 exp-085 (it replaced exp-084 on Oct 10, research log 16:59), then alternate. A resubmitted notebook scores differently each time
+**Last submissions (from 2026-10-29).** Oct 29 and Oct 30: exp-081 version 1 (https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-harness4-percept-full), then the family with the best mean. Final selection by Nov 2 23:59 UTC (research log 2026-10-29 11:42). A resubmitted notebook scores differently each time
 (about ±4 points per draw), so the averages decide. The final-selection rule is fixed in `docs/status.md`, under
 "Plan for the week of 2026-09-26": the two configurations with the best mean over at least 3 draws each.
 

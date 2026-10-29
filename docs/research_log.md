@@ -3221,7 +3221,7 @@ What:     kaggle/franzen/patches/ours-10v2-untried.patch (sha256 8b69b7aa), opt-
 Next:     with a Kaggle token: read the 3 post-Oct-11 draws, scan public notebooks, push exp-087 for one full-length run
           (rule to be fixed before its data), and plan the last submissions (close Nov 2 23:59 UTC).
 
-## 2026-10-29 11:47 · LB draws Oct 12-17 read; public notebooks scanned; plan for the last 5 submissions · READ
+## 2026-10-29 11:42 · LB draws Oct 12-17 read; public notebooks scanned; plan for the last 5 submissions · READ
 Draws after Oct 11 (owner's submissions): exp-085 27.48 (Oct 12, v1/v2 script 357078593), exp-083 28.52 (Oct 15), exp-085
           29.32 (Oct 17). No submission since Oct 17.
 All draws by configuration (public half of the hidden set; one draw moves ~4 points):

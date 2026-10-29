@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-10-11 11:02 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
+Last updated: 2026-10-29 11:42 UTC (remote CPU container, no GPU; Kaggle CLI authenticated as `scottmahony`). Newest state block first under "Plan for the week of 2026-09-26".
 
 ## Competition facts: verified vs. unconfirmed
 
@@ -145,6 +145,16 @@ score over at least 3 draws each. A difference under 0.5 points is a tie, broken
 public 25 (scripts/arm_table.py), then the validation score. If the top two are variants of one configuration within
 noise, the second slot goes to the best configuration that differs from it (diversification against the private half).
 If fewer than two configurations reach 3 draws, the unmodified base fills the second slot.
+
+### State at 2026-10-29 11:42 UTC (after the owner's break; the container was reset)
+- **We show 34.04, rank 93 of 4,966.** Leaders: Yi-Chia Chen 75.56, Tufa Labs 70.02, Team Turducken 56.02, Xz 52.95; 12
+  teams >= 45. Best public notebook 35.35 (a Franzen fork, one draw); nothing public above 40.
+- **Draws:** base family 27.97, 26.04, 28.52 (mean 27.5); bundle family 34.04, 27.48, 29.32 (mean 30.3); D′ copy 28.87.
+  Our real mean is ~28-30; 34.04 was a high draw.
+- **Last 5 submissions (owner):** Oct 29 and Oct 30 **exp-081 v1**
+  (https://www.kaggle.com/code/scottmahony/arc3-dprime-r14a05-harness4-percept-full); Oct 31 - Nov 2 the best family by
+  then. **Final selection** (by Nov 2 23:59 UTC): today submissions 57026621 (34.04) and 57214492 (28.52).
+- Notice v2 (ours-10v2) and exp-087 are built and tested but not planned for the LB (research log 11:42).
 
 ### State at 2026-10-11 11:02 UTC
 - **LB: exp-083 drew 26.04** (Oct 11). Draws: base family 27.97, 26.04 (mean 27.0); bundle family 34.04; D′ copy 28.87.
