@@ -3220,3 +3220,27 @@ What:     kaggle/franzen/patches/ours-10v2-untried.patch (sha256 8b69b7aa), opt-
           builds are unchanged. No replay numbers: the recorded runs it needs are gone.
 Next:     with a Kaggle token: read the 3 post-Oct-11 draws, scan public notebooks, push exp-087 for one full-length run
           (rule to be fixed before its data), and plan the last submissions (close Nov 2 23:59 UTC).
+
+## 2026-10-29 11:47 · LB draws Oct 12-17 read; public notebooks scanned; plan for the last 5 submissions · READ
+Draws after Oct 11 (owner's submissions): exp-085 27.48 (Oct 12, v1/v2 script 357078593), exp-083 28.52 (Oct 15), exp-085
+          29.32 (Oct 17). No submission since Oct 17.
+All draws by configuration (public half of the hidden set; one draw moves ~4 points):
+- base family: exp-074t 27.97, exp-083 26.04, 28.52 (mean 27.51, n=3);
+- bundle family: exp-081 34.04; exp-085 27.48, 29.32 (mean 30.28, n=3);
+- D′ copy (lossless, 10 streams): 28.87 (n=1).
+By draft: albucino runs 27.97, 34.04, 28.87 (mean 30.3) vs fine-tuned-draft runs 26.04, 28.52, 27.48, 29.32 (mean 27.8):
+          a 2.5-point gap at z ~0.8, not readable; the notices (exp-085) show no LB gain over the family.
+Reading:  all our configurations draw ~27-30 on average; 34.04 (exp-081) looks like a high draw. Our true mean is about
+          that of the public Franzen family.
+Public notebooks (scripts/kaggle_nb_scores.py, 314 listed): best 35.35 (romantamrazov "The AGI Boys | I AM BETTER", Oct 21:
+          Franzen's harness, albucino draft, lossless acceptance, 10 streams, a few env flags; one best draw), then
+          Franzen 34.30 and forks 32-34. Nothing above 40 is public; the leaders (75.6, 70.0, 56.0, ...) publish nothing.
+Plan (owner submits; 5 left: Oct 29, 30, 31, Nov 1, Nov 2):
+- Oct 29 and Oct 30: exp-081 v1 (the bundle with the albucino draft, our 34.04 configuration: a second and third draw tell
+  whether it is really better than exp-085, the cheapest test left, and give the final selection more high-draw chances).
+- Oct 31 - Nov 2: whichever of exp-081 / exp-085 / exp-083 has the best mean by then.
+- Final selection (owner, Kaggle "Submissions" page, by Nov 2 23:59 UTC): the rule of 2026-09-26: the two configurations with
+  the best mean over >= 3 draws, each represented by its highest public draw (run-level effects carry into the private half).
+  Today that is the bundle family (34.04, submission 57026621) and the base family (28.52, submission 57214492).
+Not planned: exp-087 (notice v2) on the LB: exp-085's draws give no sign that the notices move the hidden-set score, and a new
+          configuration could not reach 3 draws in time.
