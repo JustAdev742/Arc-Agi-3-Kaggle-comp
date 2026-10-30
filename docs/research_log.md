@@ -3245,7 +3245,7 @@ Plan (owner submits; 5 left: Oct 29, 30, 31, Nov 1, Nov 2):
 Not planned: exp-087 (notice v2) on the LB: exp-085's draws give no sign that the notices move the hidden-set score, and a new
           configuration could not reach 3 draws in time.
 
-## 2026-10-30 10:33 · no submission on Oct 29; the Kaggle token is rejected · NOTED
+## 2026-10-30 10:31 · no submission on Oct 29; the Kaggle token is rejected · NOTED
 The token stored on Oct 29 (37 bytes, unchanged) now gets "Authentication required" from the API (revoked or replaced by
 the owner?). The public LB monitor (no token) shows our 15 submissions unchanged (none on Oct 29) and 34.04, now rank 105 of
 4,986. New #3: "faster machine is all you need" 58.59 (12 submissions). 4 submissions left (Oct 30 - Nov 2). Plan unchanged:
