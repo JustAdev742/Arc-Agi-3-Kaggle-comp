@@ -3250,3 +3250,7 @@ The token stored on Oct 29 (37 bytes, unchanged) now gets "Authentication requir
 the owner?). The public LB monitor (no token) shows our 15 submissions unchanged (none on Oct 29) and 34.04, now rank 105 of
 4,986. New #3: "faster machine is all you need" 58.59 (12 submissions). 4 submissions left (Oct 30 - Nov 2). Plan unchanged:
 exp-081 v1 next; final selection 57026621 (34.04) + 57214492 (28.52) unless a better draw arrives.
+
+## 2026-10-31 10:31 · no submission on Oct 30 either; token still rejected · NOTED
+Public LB monitor: our 15 submissions unchanged, best 34.04, rank 110 of 5,006. 3 submissions left (Oct 31, Nov 1, Nov 2,
+closing 23:59 UTC). Plan unchanged: exp-081 v1; final selection 57026621 (34.04) + 57214492 (28.52).
