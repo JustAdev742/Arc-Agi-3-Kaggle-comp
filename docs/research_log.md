@@ -3258,3 +3258,8 @@ closing 23:59 UTC). Plan unchanged: exp-081 v1; final selection 57026621 (34.04)
 ## 2026-11-01 10:31 · no submission on Oct 31; token still rejected · NOTED
 Public LB monitor: our 15 submissions unchanged, best 34.04, rank 117 of 5,028. 2 submissions left (Nov 1, Nov 2, closing
 23:59 UTC). Plan unchanged: exp-081 v1; final selection 57026621 (34.04) + 57214492 (28.52).
+
+## 2026-11-02 10:32 · final day: no submission since Oct 17; token still rejected · NOTED
+Public LB monitor: our 15 submissions unchanged, best 34.04, rank 128 of 5,046 (leaders Yi-Chia Chen 75.56, Tufa Labs 70.24,
+xz 58.59, NVARC3 56.26). Last submission window closes 23:59 UTC today. Recommended to the owner: submit exp-081 v1 early
+today; final selection 57026621 (34.04) + 57214492 (28.52), or today's draw in place of the second if it beats 28.52.
